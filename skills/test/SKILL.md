@@ -1,6 +1,6 @@
 ---
 name: test
-description: Write a new linq2db test, run an existing test / filter, or both. Orchestrates the `test-writer` and `test-runner` agents and reports a single pass/fail summary at the end. Env management (docker containers, `UserDataProviders.json`) lives in the `/test-providers` skill, not here — `/test` reads the configured state but never edits it.
+description: Write a new linq2db test, run an existing test / filter, or both. Performs the write/run steps documented in `.agents/agents/test-writer.md` / `test-runner.md` (a tool with a named-subagent facility can delegate to them; otherwise perform the steps directly) and reports a single pass/fail summary at the end. Env management (docker containers, `UserDataProviders.json`) lives in the `/test-providers` skill, not here — `/test` reads the configured state but never edits it.
 ---
 
 # /test
@@ -9,10 +9,10 @@ User-triggered workflow for everything test-related — writing a new test, runn
 
 Shared reference material:
 
-- **Testing conventions** (framework, patterns, "read the full log" rule): `.claude/docs/testing.md`
-- **Test database catalog** (provider → setup script → container → preference): `.claude/docs/test-databases.md`
-- **Test-writing agent contract**: `.claude/agents/test-writer.md`
-- **Test-running agent contract**: `.claude/agents/test-runner.md`
+- **Testing conventions** (framework, patterns, "read the full log" rule): `.agents/docs/testing.md`
+- **Test database catalog** (provider → setup script → container → preference): `.agents/docs/test-databases.md`
+- **Test-writing agent contract**: `.agents/agents/test-writer.md`
+- **Test-running agent contract**: `.agents/agents/test-runner.md`
 
 ## When to run
 
@@ -31,9 +31,11 @@ If the args are ambiguous (e.g. a phrase like "bulk copy identity test" that cou
 
 **Never bypass /test to call `test-runner` directly.** The skill gates `CreateDatabase` injection (step 3.3) and the baselines diff (step 3.4). Calling `test-runner` directly skips both — empty-DB failures and missed baselines drift typically trace back to exactly that bypass. If the user says "run tests…", invoke `/test`, never `Agent(test-runner)`.
 
-**Env management is out of scope.** Docker container lifecycle and `UserDataProviders.json` edits are owned by `/test-providers` (`.claude/skills/test-providers/SKILL.md`). `/test` does not start, stop, or inspect containers, and does not edit `UserDataProviders.json` — `test-runner` is read-only on it (see the agent contract). If a run fails because a container is down or a provider is disabled, surface the failure as-is and tell the user to run `/test-providers <provider> [...]` to fix the env, then re-run `/test`. Do not pre-validate env state, do not auto-dispatch to `/test-providers`.
+**Env management is out of scope.** Docker container lifecycle and `UserDataProviders.json` edits are owned by `/test-providers` (`.agents/skills/test-providers/SKILL.md`). `/test` does not start, stop, or inspect containers, and does not edit `UserDataProviders.json` — `test-runner` is read-only on it (see the agent contract). If a run fails because a container is down or a provider is disabled, surface the failure as-is and tell the user to run `/test-providers <provider> [...]` to fix the env, then re-run `/test`. Do not pre-validate env state, do not auto-dispatch to `/test-providers`.
 
 **Permission-prompt discipline.** Every `Bash` call is evaluated against the allowlist. When `test-runner` runs, its only shell calls are `dotnet test` invocations. The skill itself should not issue `dotnet build` or `dotnet test` — delegate to the agent.
+
+**Worktree runs.** When the change under test lives in a git worktree (not the primary clone), the caller passes a `worktree <abs-path>` clause anywhere in the args. Thread that path through as `repoRoot` to `test-runner` (step 3.3), and `Read` `UserDataProviders.json` / the target csproj from `<worktree>/…` in steps 3.1–3.2 (not cwd). Env setup for that worktree is `/test-providers … worktree <abs-path>` (the skill seeds and edits the worktree's `UserDataProviders.json`). Full mechanics: [`.agents/docs/worktree.md`](../../docs/worktree.md) → *Running tests from a worktree*.
 
 ### 1. Resolve intent
 
@@ -72,8 +74,8 @@ A run is **long** when any of: project is `Tests/Linq/Tests.csproj` (especially 
 
 For a long run:
 
-1. **Run it in the background so progress is readable** — invoke `test-runner` with `run_in_background: true`. The test process always writes the heartbeat to `.build/.claude/test-progress.<tfm>.<pid>.json` (`test-runner` passes `--test-progress`); running the agent in the background is what frees you to poll it instead of blocking with nothing to show.
-2. **Poll and surface progress** — between turns, read the heartbeat with `pwsh -NoProfile -File .claude/scripts/test-status.ps1` (or `Read` the JSON) and give the user a one-line update (completed/total, current test, failures so far). You can do this any time the user asks "how's it going?" — you don't have to wait for the run to finish. Don't busy-poll; check when prompted or at natural intervals.
+1. **Run it out-of-band so progress stays pollable** — run the long test asynchronously so you can poll the heartbeat instead of blocking with nothing to show. (Claude Code: invoke `test-runner` with `run_in_background: true`.) The test process always writes the heartbeat to `.build/.agents/test-progress.<tfm>.<pid>.json` (`test-runner` passes `--test-progress`).
+2. **Poll and surface progress** — between turns, read the heartbeat with `pwsh -NoProfile -File .agents/scripts/test-status.ps1` (or `Read` the JSON) and give the user a one-line update (completed/total, current test, failures so far). You can do this any time the user asks "how's it going?" — you don't have to wait for the run to finish. Don't busy-poll; check when prompted or at natural intervals.
 3. When the background `test-runner` completes, continue with the baselines diff (3.4) and the final report (3.5) as usual.
 
 #### 3.2 Resolve target providers
@@ -90,12 +92,12 @@ If the test was just authored by the write flow, the test-writer's `dataSources`
 #### 3.3 Invoke test-runner
 
 Call `test-runner` with:
-- `testPattern` — the `--filter` value. **Always prepend `FullyQualifiedName~CreateData.CreateDatabase|`** unless the filter is already `CreateDatabase`-only or the user explicitly overrides. See `.claude/docs/testing.md` → **Database initialization** for why.
+- `testPattern` — the `--filter` value. **Always prepend `FullyQualifiedName~CreateData.CreateDatabase|`** unless the filter is already `CreateDatabase`-only or the user explicitly overrides. See `.agents/docs/testing.md` → **Database initialization** for why.
 - `targets` — resolved in 3.1 / 3.2. Prefer the shorthand forms when applicable; remember `{mainTests: true, providers: [...]}` defaults to Playground at `net10.0`, so only set explicit `project` / `tfm` when overriding.
 - `config` — `"Debug"` unless the user asked for Release.
 - `verbosity` — `"normal"`; flip to `"detailed"` when the user needs SQL-dump output from `TestContext.Out.WriteLine`.
 
-For a **short** run, invoke `test-runner` synchronously. For a **long** run, invoke it with `run_in_background: true` and monitor the heartbeat per 3.1a.
+For a **short** run, invoke `test-runner` synchronously. For a **long** run, run it out-of-band and monitor the heartbeat per 3.1a (Claude Code: `run_in_background: true`).
 
 `test-runner` is read-only on `UserDataProviders.json` — there is no `userProvidersConsent` or `restoreOnCompletion` input, and no provider edits happen as a side effect of the run. If the agent reports `status: "blocked"` (e.g. a provider with no connection string defined), relay it to the user with a one-liner: "Run `/test-providers <provider>` to add its connection, then re-run `/test`."
 
@@ -103,9 +105,9 @@ For a **short** run, invoke `test-runner` synchronously. For a **long** run, inv
 
 If `UserDataProviders.json` → `MyConnectionStrings.BaselinesPath` is set **and** the run touched at least one provider whose baselines live under that path:
 
-1. **Before** calling `test-runner`, snapshot `BaselinesPath` with `snap-baselines.ps1` (stdin manifest `{ paths: [BaselinesPath], outFile: ".build/.claude/baselines-pre-<run-id>.json" }`).
+1. **Before** calling `test-runner`, snapshot `BaselinesPath` with `snap-baselines.ps1` (stdin manifest `{ paths: [BaselinesPath], outFile: ".build/.agents/baselines-pre-<run-id>.json" }`).
 2. **After** the run, diff the snapshot with `diff-baselines.ps1` (stdin manifest `{ preFile, paths: [BaselinesPath] }`). For up to five entries in the returned `changed[]`, `Read` the post-run file and show a 3–5-line excerpt; cite the rest by count (e.g. "15 more files changed under `Firebird.5/...`"). Treat `added[]` / `removed[]` the same way.
-3. If a file is on the `.claude/docs/testing.md` → **Known flaky baselines** list, note it explicitly and skip its preview.
+3. If a file is on the `.agents/docs/testing.md` → **Known flaky baselines** list, note it explicitly and skip its preview.
 4. If `BaselinesPath` is **unset** and the user's change is expected to move baselines, mention it once: "Set `BaselinesPath` via `/test-providers` if you want diffs." Do not edit the file from here — that's `/test-providers` step 4. Skip the snapshot/diff for this run.
 
 #### 3.5 Report
@@ -120,7 +122,7 @@ For a long run you already enabled the trace and monitored it via the heartbeat 
 
 If any failure looks like an env problem (connection refused, "Provider X not enabled" block, missing schema), point at `/test-providers` for the fix — do not investigate or auto-repair from here. Otherwise just relay the agent's output verbatim.
 
-Finally, if the branch is on an open PR and the local run uncovered no regressions, mention the `/azp run` option (see `.claude/docs/ci-tests.md`). Do not auto-post — just surface it; the user decides. If containers were started for this run via `/test-providers`, remind the user once: "Run `/test-providers stop` when you're done with the containers."
+Finally, if the branch is on an open PR and the local run uncovered no regressions, mention the `/azp run` option (see `.agents/docs/ci-tests.md`). Do not auto-post — just surface it; the user decides. If containers were started for this run via `/test-providers`, remind the user once: "Run `/test-providers stop` when you're done with the containers."
 
 ### 4. Write-and-run (chain)
 
@@ -138,6 +140,6 @@ If containers were started during the session via `/test-providers`, remind the 
 - Do not edit `UserDataProviders.json` or invoke `docker` commands from `/test`. Env changes route through `/test-providers` exclusively. If the run needs a different provider set or a stopped container started, tell the user — don't fix it.
 - Do not run tests in `Release` config by default — analyzers + banned-API checks are slow and rarely what the user wants for a single-test run.
 - Do not edit source files yourself. Writing is `test-writer`'s job; running is `test-runner`'s job. The skill only orchestrates and relays.
-- Do not run targets in parallel from `/test`. The agents won't anyway (sequential is built into `test-runner`), and don't fan out multiple agent invocations with overlapping target sets. Deliberately parallel runs are possible but only **one distinct provider (= one database) per run**, and only as a manual workflow — see `.claude/docs/testing.md` → **Running providers in parallel** (build once, then run the test exe directly with `--provider`).
+- Do not run targets in parallel from `/test`. The agents won't anyway (sequential is built into `test-runner`), and don't fan out multiple agent invocations with overlapping target sets. Deliberately parallel runs are possible but only **one distinct provider (= one database) per run**, and only as a manual workflow — see `.agents/docs/testing.md` → **Running providers in parallel** (build once, then run the test exe directly with `--provider`).
 - Do not suppress or skim the agent's output. If the agent reports a failure, relay the verbatim error message; don't paraphrase.
 - Do not pre-validate the env state before invoking `test-runner`. Trust the user; let the agent's own provider-check abort surface any mismatch. Auto-fix attempts here defeat the boundary.

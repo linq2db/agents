@@ -47,7 +47,7 @@ Truncate body to ~1000 chars for term extraction.
 
 ### 3. Extract search terms and run searches
 
-Follow the discipline in [`.claude/docs/issue-search.md`](../../docs/issue-search.md):
+Follow the discipline in [`.agents/docs/issue-search.md`](../../docs/issue-search.md):
 - Term extraction (step 1 of that doc)
 - Confirm terms with user
 - Parallel search strategies A–C (topic mode) or A–D (ticket mode with labels)
@@ -55,6 +55,8 @@ Follow the discipline in [`.claude/docs/issue-search.md`](../../docs/issue-searc
 - Self-exclude (ticket mode)
 
 Use parallel `Bash` calls for the independent `gh` invocations.
+
+Also check the KB for the topic's area (skip silently if `.agents/knowledge-base/` isn't built): `areas/<AREA>/issues.md` and `detected-issues/` may surface a related known issue that GitHub-search term-matching misses. Map the area via [`kb-areas.md`](../../docs/kb-areas.md). Treat any hit as a candidate to cross-check, not as a GitHub search result.
 
 ### 4. Present results
 

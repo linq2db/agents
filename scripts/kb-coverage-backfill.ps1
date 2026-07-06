@@ -14,7 +14,7 @@ For each area in the manifest:
      covered (the `coverage-fill` agent will re-confirm on next visit).
 
 Invocation:
-    pwsh -NoProfile -File .claude/scripts/kb-coverage-backfill.ps1 <<'EOF'
+    pwsh -NoProfile -File .agents/scripts/kb-coverage-backfill.ps1 <<'EOF'
     {
       "areas": [
         {
@@ -28,7 +28,7 @@ Invocation:
 
 Output: per-area summary `{area, tier2_total, mentioned, queued}`.
 
-The script does NOT modify any artifact under `.claude/knowledge-base/`
+The script does NOT modify any artifact under `.agents/knowledge-base/`
 beyond `state/deferred-coverage.json` (via `kb-state.ps1 set-deferred-area`).
 #>
 
@@ -38,7 +38,7 @@ $global:ScriptBaseName = 'kb-coverage-backfill'
 . "$PSScriptRoot/_shared.ps1"
 
 $RepoRoot     = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path
-$KbRoot       = Join-Path $RepoRoot '.claude/knowledge-base'
+$KbRoot       = Join-Path $RepoRoot '.agents/knowledge-base'
 
 # Tier-3 patterns from kb-coverage-tiers.md — generated / build-output files
 # that are counted but never visited and so never belong on the queue.

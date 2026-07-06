@@ -1,17 +1,17 @@
 <#
 PostToolUse hook on Bash: track docker containers the current Claude Code
 session started. Appends container names parsed from `docker start <name>...`
-commands to `.build/.claude/docker-session-started.txt` (deduplicated, UTF-8
+commands to `.build/.agents/docker-session-started.txt` (deduplicated, UTF-8
 without BOM).
 
 Consumers:
- - `.claude/hooks/cleanup-docker-session.ps1` (SessionEnd) — stops each
+ - `.agents/hooks/cleanup-docker-session.ps1` (SessionEnd) — stops each
    tracked container at session exit.
- - Claude's scope-change rule — see `.claude/docs/agent-rules.md` →
+ - Claude's scope-change rule — see `.agents/docs/agent-rules.md` →
    "Docker containers: start/stop/create only" → "Scope-change prompt for
    session-started containers".
 
-Wired in the user's `.claude/settings.local.json` under `hooks.PostToolUse`
+Wired in the user's `.agents/settings.local.json` under `hooks.PostToolUse`
 with matcher "Bash". Hook receives a JSON payload on stdin whose
 `tool_input.command` is the literal Bash command string.
 #>
@@ -46,7 +46,7 @@ try {
 
     if ($started.Count -eq 0) { exit 0 }
 
-    $stateDir = Join-Path (Get-Location) '.build/.claude'
+    $stateDir = Join-Path (Get-Location) '.build/.agents'
     [void](New-Item -ItemType Directory -Path $stateDir -Force)
     $stateFile = Join-Path $stateDir 'docker-session-started.txt'
 

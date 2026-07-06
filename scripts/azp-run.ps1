@@ -8,7 +8,7 @@ Posting `/azp run test-all` directly via `gh pr comment --body "/azp run test-al
 is a Windows Git Bash trap: MSYS rewrites the leading `/` into
 `C:/Program Files/Git/...` before `gh` sees the value, and the comment lands
 on GitHub silently corrupted (no error, just a mangled body that does not
-trigger CI). See `.claude/docs/agent-rules.md` -> `Windows Git Bash gotchas`.
+trigger CI). See `.agents/docs/agent-rules.md` -> `Windows Git Bash gotchas`.
 
 This script forwards the body via stdin (`--body-file -`), which is not
 subject to MSYS path conversion. The slash literal is internal to the script,
@@ -17,9 +17,9 @@ mode cannot fire.
 
 Invoke directly via the PowerShell tool (preferred), NOT wrapped in Bash:
 
-    .claude\scripts\azp-run.ps1 -Pr 5467
-    .claude\scripts\azp-run.ps1 -Pr 5467 -Pipeline test-sqlite
-    .claude\scripts\azp-run.ps1 -Pr 5467 -Pipeline list
+    .agents\scripts\azp-run.ps1 -Pr 5467
+    .agents\scripts\azp-run.ps1 -Pr 5467 -Pipeline test-sqlite
+    .agents\scripts\azp-run.ps1 -Pr 5467 -Pipeline list
 
 `-Pipeline list` posts `/azp list` (every pipeline registered on the repo);
 any other value posts `/azp run <value>`.

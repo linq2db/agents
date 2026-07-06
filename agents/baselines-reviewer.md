@@ -9,7 +9,7 @@ model: sonnet
 
 Read-only baselines review subagent. Invoked by `/review-pr` and `/verify-review`.
 
-The repository layout, filename grammar, branch-naming scheme, and the list of expected cross-provider syntactic variations are defined in `.claude/docs/baselines-repo-layout.md`. Read that file first and reference it — do not restate the layout here.
+The repository layout, filename grammar, branch-naming scheme, and the list of expected cross-provider syntactic variations are defined in `.agents/docs/baselines-repo-layout.md`. Read that file first and reference it — do not restate the layout here.
 
 ## Inputs (provided in the invocation prompt)
 
@@ -23,19 +23,19 @@ The repository layout, filename grammar, branch-naming scheme, and the list of e
 
 - `Read`, `Grep`, `Glob` — read files in both clones when the helper output leaves you with specific paths to inspect.
 - `Bash` — **read-only** usage. The canonical call is:
-  - `pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1` — one JSON-in / JSON-out invocation returns the whole changed-paths list, parsed provider/test/params, and per-file truncated diff bodies.
+  - `pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1` — one JSON-in / JSON-out invocation returns the whole changed-paths list, parsed provider/test/params, and per-file truncated diff bodies.
   Raw `git -C ../linq2db.baselines …` calls are permitted for spot follow-ups (e.g. the full untrimmed body of a single file) but should not be the default — one command per call, never chained.
 
 **Call budget.** Your typical Bash/pwsh/git/gh budget for a single run is **1 `baselines-diff.ps1` call** plus **0–3 `git show` spot reads** when sample diffs are truncated. Every Bash call you issue MUST be recorded in `callLog[]` in your return value (see schema below), with a short `reason`. If your total exceeds the budget, document *why* in each extra entry's `reason` — the parent skill surfaces this to the user verbatim.
 
-Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). The helper script reads JSON on stdin via heredoc, so no temp files are needed for normal use.
+Follow `.agents/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). The helper script reads JSON on stdin via heredoc, so no temp files are needed for normal use.
 
 ## Procedure
 
 1. **Trust the skill's briefing.** The skill has already `fetch`ed the clone. If the briefing says the baselines branch is missing, emit the "no baselines" output immediately.
 2. One batch call to pull everything:
    ```
-   pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 <<'EOF'
+   pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1 <<'EOF'
    { "pr": <pr_number> }
    EOF
    ```
@@ -48,17 +48,36 @@ Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conven
    - `testGroupSummary` — ranking table: `[{test, providerCount, entryCount}, ...]` pre-sorted by entry count desc, then provider count desc, then name asc. **Read this before diving into `testGroups`** to rank work by group size. Again, no ad-hoc probing.
    - `sql` — array of `{path, status, provider, namespace, class, method, params, testKey, diff, diffTruncated}` for every touched SQL baseline. Grammar is already applied.
    - `metrics` — array of `{path, status, tfm, provider, os, diff, diffTruncated}`.
-   - `unknown` — paths that didn't fit either grammar; flag them as anomalies.
+   - `unknown` — paths that didn't fit either grammar; flag them as anomalies. **`.sql.other` entries are a special case — never "inert" or removable.** A `.sql.other` file is written by `Tests/Base/BaselinesWriter.cs` when a test's direct (`DataConnection`) and remote (`LinqService`) runs emit *different* SQL for the same provider config; the test then **fails** with *"Baselines for remote context doesn't match direct access baselines"* (the `unknown[]` entry's `reason` says so). Treat every `.sql.other` as a real test failure to root-cause, **except** the known pre-existing Oracle entries tracked as #5513 (remote-mode trace drops scalar `IQueryable<T>` aggregate queries). A `.sql.other` that is new on the branch vs. baselines master — or for a test unrelated to the PR — still warrants surfacing to the maintainer (it must not ship silently) even when the PR almost certainly didn't cause it; classify it under `new_suspect` / `changed_suspect` with that framing, never as a benign/removable artifact. See `.agents/docs/testing.md` → *`.sql.other` files — direct-vs-remote SQL trace mismatch*.
    - `testGroups` — pre-built map `<testBase> → { test, providerCount, entryCount, providers[], entries[] }` grouping every SQL entry by logical test. Use this as the primary grouping key.
-   - `changePatterns` — pre-compressed groups of `sql[]` entries sharing a normalised diff body: `[{testBase, patternHash, providerCount, providers[], sampleProvider, samplePath, sampleUrl, sampleStatus, sampleDiff, sampleDiffTruncated, status}, ...]`. Sorted by providerCount desc. **Use this as your primary reading surface** — one sample per pattern instead of reading every provider's diff. `sampleUrl` is a GitHub blob URL on the baselines branch (null for deletions); `sampleStatus` is the per-sample git status (`A`/`M`/`D`); `sampleDiff` is the raw diff body truncated per `maxDiffBytes`. The current normaliser is intentionally conservative; it does NOT normalise alias names (beyond short forms like `t_1`), paging syntax, boolean rendering, or many other routine variations.
-3. For each logical group in `testGroups`, compare the per-provider diff bodies in `sql[]`. Classify into one of four buckets:
+   - `changePatterns` — pre-compressed groups of `sql[]` entries sharing a normalised diff body: `[{testBase, patternHash, providerCount, providers[], sampleProvider, samplePath, sampleUrl, sampleStatus, sampleDiff, sampleDiffTruncated, status, sizeMetrics, regressionArchetypes}, ...]`. Sorted by providerCount desc. **Use this as your primary reading surface** — one sample per pattern instead of reading every provider's diff. `sampleUrl` is a GitHub blob URL on the baselines branch (null for deletions); `sampleStatus` is the per-sample git status (`A`/`M`/`D`); `sampleDiff` is the raw diff body truncated per `maxDiffBytes`; `sizeMetrics` is `{addedBytes, removedBytes, netDelta, growthRatio, addedLines, removedLines}` per pattern; `regressionArchetypes` is a string array of archetype names that fired on this pattern (empty when none). The current normaliser is intentionally conservative; it does NOT normalise alias names (beyond short forms like `t_1`), paging syntax, boolean rendering, or many other routine variations.
+   - `sizeOutliers` — top-20 patterns by absolute net byte delta (threshold: `|netDelta| ≥ 200` bytes OR `growthRatio ≥ 3.0` or `≤ 0.33`). Each entry mirrors the matching `changePatterns[]` row plus `absNetDelta` for ranking. Surfaces tests whose shape grew or shrank dramatically vs master, including single-provider rare patterns the providerCount-sorted main list hides.
+   - `regressionCandidates` — every pattern where the heuristic archetype scan flagged at least one suspect shape on the `+` side that doesn't appear on `-`. Each entry mirrors the `changePatterns[]` row plus `archetypes` (string array) and `sizeMetrics`. No cap; the list is the worklist. Step 3 below mandates how to classify each.
+3. **Read `sizeOutliers[]` and `regressionCandidates[]` before pattern grouping.** These two surface tests whose shape regressed in ways the dominant-pattern view hides:
+   - `sizeOutliers[]` — top-20 patterns by absolute net byte delta. A test whose SQL went from 1 line to a nested CASE-WHEN scaffold lands here even when only one provider is affected. Sample every entry, even at `providerCount == 1`.
+   - `regressionCandidates[]` — patterns where the heuristic archetype scan flagged a suspect shape on the `+` side that doesn't appear on `-`. Archetypes:
+     - `nested-<func>` (LCase/Lower/Coalesce/Trim wrap around itself)
+     - `literal-is-null` (testing a SqlValue literal for NULL)
+     - `subtract-vs-zero` (`x - n <op> 0` algebraic identity not folded)
+     - `concat-is-null-not-pushed-down` (`(col + literal) IS NULL` not pushed to `col IS NULL`)
+     - `new-case-when-is-null` (null-propagation CASE scaffold bolted on)
+     - `coalesce-around-literal-fn` (Coalesce wrap around a function call whose args are all numeric/string literals — annotation-driven, see *user-validation rule* below)
+
+   **Classification rule.** Every `regressionCandidates[]` entry MUST land in either `changed_suspect` (with the archetype as the reason) or `changed_expected` with an explicit per-entry note explaining why this archetype is correct here. Silently absorbing them into a dominant-pattern bucket is not allowed. Group by `archetype + provider-cohort` first — when 20+ patterns share the same archetype across the same cohort, classify them as one group with one representative sample, not 20 separate entries.
+
+   **User-validation rule.** Some archetypes are annotation-driven rather than translator bugs — most commonly `coalesce-around-literal-fn`. When the inner function declares its return type as `string?` (or equivalent) for a narrow edge case (negative arg, null arg), static null analysis can't tell that the actual call site uses a literal that avoids that edge. The Coalesce wrap is then correct given the declared signature, but redundant in practice. Surface these as a separate entry under `changed_expected` with a `note` field that explicitly invites user validation — wording like *"X tests show Coalesce(fn(literals), '') wraps; correct per signature, possibly over-annotated — accept or refine?"* Do not auto-classify as `changed_suspect`; do not silently absorb either.
+
+   **Subtract-side enumeration.** Before stamping `changed_expected`, scan the diff's `-` lines: did master use a simpler shape (one wrap vs nested, no CASE vs CASE, simplified equality vs `- n <op> 0`, pushed-down IS NULL vs concat IS NULL) that the PR now drops? If yes, the entry needs an explicit `note` acknowledging the trade-off — otherwise it belongs in `changed_suspect`. "The PR mentioned this kind of change" is not enough; the PR's stated intent must fully explain the diff including what's removed.
+
+4. For each logical group in `testGroups`, compare the per-provider diff bodies in `sql[]`. Classify into one of four buckets:
    - **`new_correct`** — new test, SQL looks sensible, no cross-provider anomalies.
    - **`new_suspect`** — new test but SQL has a concrete concern (missing WHERE, wrong join shape, cross-provider distinction that looks like a provider bug, etc.). Sub-group by reason.
-   - **`changed_expected`** — the change summary explains the move (PR touches translator X, and baseline X changed for providers using translator X).
-   - **`changed_suspect`** — change unexplained by the change summary, or the cross-provider delta looks wrong.
-4. Scan for **unusual cross-provider distinctions**. Routine syntactic variation (parameter prefixes, identifier quoting, paging syntax, boolean rendering — see the layout doc) is expected and must not be called out. Call out: structural shape differences, one provider emitting extra/fewer joins, one provider emitting a subquery others don't, one provider missing a WHERE clause, etc.
-5. Metrics baselines: single group. List affected TFM × Provider × OS combinations from the `metrics[]` entries. Note whether the change summary plausibly explains the metric move (compile-time / allocation change) or not.
-6. When a diff body is `diffTruncated: true` and you need the full contents to rule out a concern, either rerun `baselines-diff.ps1` with a larger `maxDiffBytes` or (for a single spot) `git -C ../linq2db.baselines show origin/baselines/pr_<n>:<path>`.
+   - **`changed_expected`** — the change summary explains the move (PR touches translator X, and baseline X changed for providers using translator X). Carries any required subtract-side trade-off note from step 3.
+   - **`changed_suspect`** — change unexplained by the change summary, or the cross-provider delta looks wrong, or a regression archetype from `regressionCandidates[]` fired without a passing rationale.
+5. Scan for **unusual cross-provider distinctions**. Routine syntactic variation (parameter prefixes, identifier quoting, paging syntax, boolean rendering — see the layout doc) is expected and must not be called out. Call out: structural shape differences, one provider emitting extra/fewer joins, one provider emitting a subquery others don't, one provider missing a WHERE clause, etc.
+   - **Throw-named tests with SQL baselines are usually not anomalies.** A test whose name implies an exception (`*_Throws`, `*_Fails`, `*_ShouldThrow`) but which has SQL baselines on many providers is the normal shape of a `[ThrowsForProvider(typeof(<Exc>), <providerSubset>)]` test: the throw is asserted only on the named provider subset, and every other provider runs and captures SQL. Before classifying such a test as `new_suspect`, `Grep` the test source (`Tests/**/<Class>.cs`) for its `[ThrowsForProvider(...)]` attribute and confirm which providers actually throw — flag only a genuine mismatch (a provider inside the throw-subset that still produced a SQL baseline, or a throw-named test with no such attribute at all). Surfaced on PR #5542, where `AsQueryable_*_OnInlineRowsUnsupportedProvider_Throws` (`[ThrowsForProvider(AllAccess)]`) produced expected inline-`VALUES` baselines on all non-Access providers.
+6. Metrics baselines: single group. List affected TFM × Provider × OS combinations from the `metrics[]` entries. Note whether the change summary plausibly explains the metric move (compile-time / allocation change) or not.
+7. When a diff body is `diffTruncated: true` and you need the full contents to rule out a concern, either rerun `baselines-diff.ps1` with a larger `maxDiffBytes` or (for a single spot) `git -C ../linq2db.baselines show origin/baselines/pr_<n>:<path>`.
 
 ## Spotting missed compression (feedback loop)
 
@@ -128,7 +147,7 @@ Rules for `compressionFeedback[]`:
     }
   ],
   "callLog": [
-    { "command": "pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1", "reason": "initial grouping" },
+    { "command": "pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1", "reason": "initial grouping" },
     { "command": "git -C ../linq2db.baselines show origin/baselines/pr_5478:PostgreSQL.13/…sql", "reason": "sampleDiff truncated at 16 KiB, needed full body to rule out anomaly" }
   ]
 }
@@ -152,3 +171,4 @@ Rules:
 - Don't paste full SQL bodies into the output. Reference tests by their logical identity; the skill links to the baselines branch separately.
 - Don't flag routine per-provider syntax differences (parameter prefix, identifier quoting, TOP/LIMIT/ROWNUM, N-literal prefix) as anomalies — those are expected and listed in the layout doc.
 - Don't scope to a single provider when the same test exists for many providers; group by test, not by provider.
+- Don't confirm a `branch_missing` result with a follow-up `git ls-remote` / `rev-parse` / `git branch --list` (or `git branch -a`) — `baselines-diff.ps1`'s `branch_missing` is authoritative (it's the script's `rev-parse --verify` on the remote ref). Any post-hoc branch probe — by remote ref, by local tracking ref, or by listing branches — re-checks what the script already determined and costs a permission prompt. Surfaced on PR #5525 (`ls-remote` / `rev-parse`) and again on PR #5501 (`git branch -a --list`).

@@ -1,6 +1,6 @@
 ---
 name: chores
-description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Surveys staleness signals across the project (`.claude/` audit lag, slnx sync, Knowledge Base cursors, KB issue queue, API baselines drift, permission-allowlist lag) and renders a single table the user can pick from instead of remembering which periodic skill to run when. Each row hands off to the actual maintenance skill that performs the work — `chores` itself runs no maintenance, just routes. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
+description: One-stop dispatcher for `.agents/` maintenance work on linq2db. Surveys staleness signals across the project (`.agents/` audit lag, slnx sync, Knowledge Base cursors, KB issue queue, API baselines drift, permission-allowlist lag) and renders a single table the user can pick from instead of remembering which periodic skill to run when. Each row hands off to the actual maintenance skill that performs the work — `chores` itself runs no maintenance, just routes. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
 ---
 
 # /chores
@@ -11,7 +11,7 @@ description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Sur
 
 **Isn't:**
 
-- Not the actual worker — every chore handoff goes to a dedicated skill (`/audit-claude`, `/kb-refresh`, `/update-slnx`, etc.).
+- Not the actual worker — every chore handoff goes to a dedicated skill (`/audit-agents`, `/kb-refresh`, `/update-slnx`, etc.).
 - Not for the work skills (`/review-pr`, `/verify-review`, `/fix-issue`, `/create-issue`, `/find-issues`, `/merge-duplicates`, `/test`, `/test-providers`, `/kb-ask`, `/kb-build`, `/kb-status`). Those are user-driven, not periodic.
 - Not for `/session-reflect` — that one needs the *current conversation*, can't be batched.
 
@@ -31,12 +31,13 @@ Each row is one maintenance task the skill knows about. The **Signal** column sa
 
 | Chore | Skill | Signal of staleness |
 |-------|-------|---------------------|
-| Audit `.claude/` for drift | `audit-claude` | count of commits to `.claude/**` since the last commit whose subject contains `audit` (case-insensitive substring). ≥ 20 → 🔴, ≥ 10 → 🟡 |
-| Sync `.claude/` ↔ `linq2db.slnx` | `update-slnx` | diff between on-disk `.claude/**` files (excluding `.claude/knowledge-base/**`, which is intentionally not in the slnx) and `<File Path="...">` entries under `.claude/` in `linq2db.slnx`. ≥ 1 add/remove → 🔴 |
-| Refresh Knowledge Base | `kb-refresh` | `.claude/knowledge-base/state/cursors.json`: take the oldest `updated_at` / `verified_at` across active sources (`code`, `issues`, `prs`, `discussions`, `wiki`, `commits`). ≥ 14 days → 🔴, ≥ 7 days → 🟡. If `code.sha` is `null`, KB is unbuilt → `?` with note "run `/kb-build` first" |
-| KB issue queue triage | `kb-issues` (filtered: open severity high+med) | count of files under `.claude/knowledge-base/detected-issues/**` whose YAML frontmatter has `severity: high` or `severity: med` and `status: open`. ≥ 5 → 🔴, ≥ 1 → 🟡. If directory doesn't exist (KB unbuilt) → `?` |
+| Audit `.agents/` for drift | `audit-agents` | count of commits to `.agents/**` since the last commit whose subject contains `audit` (case-insensitive substring). ≥ 20 → 🔴, ≥ 10 → 🟡 |
+| Sync `.agents/` ↔ `linq2db.slnx` | `update-slnx` | diff between on-disk `.agents/**` files (excluding `.agents/knowledge-base/**`, which is intentionally not in the slnx) and `<File Path="...">` entries under `.agents/` in `linq2db.slnx`. ≥ 1 add/remove → 🔴 |
+| Refresh Knowledge Base | `kb-refresh` | `.agents/knowledge-base/state/cursors.json`: take the oldest `updated_at` / `verified_at` across active sources (`code`, `issues`, `prs`, `discussions`, `wiki`, `commits`). ≥ 14 days → 🔴, ≥ 7 days → 🟡. If `code.sha` is `null`, KB is unbuilt → `?` with note "run `/kb-build` first" |
+| KB issue queue triage | `kb-issues` (filtered: open severity high+med) | count of files under `.agents/knowledge-base/detected-issues/**` whose YAML frontmatter has `severity: high` or `severity: med` and `status: open`. ≥ 5 → 🔴, ≥ 1 → 🟡. If directory doesn't exist (KB unbuilt) → `?` |
 | Refresh API baselines | `api-baselines` | count of commits to `Source/**/*.cs` since the last commit touching any `Source/**/CompatibilitySuppressions.xml`. ≥ 50 → 🔴, ≥ 20 → 🟡 |
-| Tighten permission allowlist | `fewer-permission-prompts` | mtime of `.claude/settings.json` (and `settings.local.json`) vs. count of session transcripts in `~/.claude/projects/<this-project>/*.jsonl` since that mtime. ≥ 100 sessions → 🔴, ≥ 30 → 🟡. If transcript path can't be located, `?` |
+| Tighten permission allowlist | `fewer-permission-prompts` | mtime of `.agents/settings.json` (and `settings.local.json`) vs. count of session transcripts in `~/.claude/projects/<this-project>/*.jsonl` since that mtime. ≥ 100 sessions → 🔴, ≥ 30 → 🟡. If transcript path can't be located, `?` |
+| Context budget (always-loaded set) | `audit-agents` | total bytes of `CLAUDE.md` + every doc reachable via the `@import` chain from it (currently `CLAUDE.md` + `.agents/docs/agent-rules.md`). ≥ 90 KB → 🔴, ≥ 60 KB → 🟡. Every conversation pays this on startup; hands off to `audit-agents` (its refactor-candidate check proposes the section relocations). |
 | Bump versions for next release _(opt-in)_ | `version-bump` | never auto-flagged. Surfaced with a `—` in the **Overdue?** column. The user picks it explicitly when prepping a release |
 
 If a signal can't be computed (KB not present, slnx unreadable, transcript path unknown), the row's **Overdue?** column shows `?` and **Note** explains. The chore is still pickable, but the skill doesn't push it.
@@ -62,8 +63,8 @@ The probes are read-only and should complete in seconds. If any probe takes more
 
 | # | Chore                              | Skill                       | Last         | Overdue?  |
 |---|------------------------------------|-----------------------------|--------------|-----------|
-| 1 | Audit `.claude/` for drift         | `audit-claude`              | 2026-04-21   | 🔴 overdue |
-| 2 | Sync `.claude/` ↔ `linq2db.slnx`   | `update-slnx`               | 2026-05-01   | 🟢 fresh  |
+| 1 | Audit `.agents/` for drift         | `audit-agents`              | 2026-04-21   | 🔴 overdue |
+| 2 | Sync `.agents/` ↔ `linq2db.slnx`   | `update-slnx`               | 2026-05-01   | 🟢 fresh  |
 | 3 | Refresh Knowledge Base             | `kb-refresh`                | 2026-04-30   | 🟢 fresh  |
 | 4 | KB issue queue triage              | `kb-issues` (high+med)      | n/a (12 open)| 🔴 overdue |
 | 5 | Refresh API baselines              | `api-baselines`             | 2026-04-12   | 🟡 watch  |
@@ -119,7 +120,7 @@ Do not auto-commit anything. Each underlying skill stops at "staged + ready to r
 ## Scope and discipline
 
 - **No work happens inside `chores`.** Every effect comes from a downstream skill. If a chore's skill is missing or unrunnable, surface that as `?` and move on; do not re-implement the chore inline.
-- **No new chore types without an owning skill.** A maintenance task without a dedicated skill belongs in the user's head or in `CLAUDE.md`, not in this catalogue. If you find yourself wanting to add "run the linter" as a chore but there's no skill for it — propose the skill first via `/session-reflect` or `/audit-claude`, then add the row here.
+- **No new chore types without an owning skill.** A maintenance task without a dedicated skill belongs in the user's head or in `CLAUDE.md`, not in this catalogue. If you find yourself wanting to add "run the linter" as a chore but there's no skill for it — propose the skill first via `/session-reflect` or `/audit-agents`, then add the row here.
 - **Probes must be cheap.** Anything over ~5s gets `?`. The user's mental model of `chores` is "1-second snapshot of what's overdue", not "10-minute multi-build inspection".
 - **Never auto-pick `version-bump`.** It changes shipped version numbers and creates a release-prep branch. The row exists so the user can see it on the menu when they're already thinking about maintenance, not so the skill nudges them into it.
 - **Don't double-count freshness.** Each chore owns its own signal — `chores` reads it, doesn't override it. If `kb-refresh` thinks the KB is fresh but the user disagrees, the fix is to improve `kb-refresh`'s freshness logic, not to layer a second timestamp here.

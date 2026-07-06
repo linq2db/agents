@@ -11,13 +11,13 @@ doing it through raw Bash fires one permission prompt per directory
 traversal and forces the caller to stream hashes back through stdout
 parsing. This script answers the whole job in one call:
 
-    Bash(pwsh -NoProfile -File .claude/scripts/snap-baselines.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/snap-baselines.ps1 *)
 
 Input (stdin, JSON)
 -------------------
   {
-    "paths":   ["c:/GitHub/linq2db.bls/Firebird.4", ...],  // required, non-empty
-    "outFile": ".build/.claude/baselines-pre-<run>.json"   // required — hash map written here
+    "paths":   ["<baselines-clone>/Firebird.4", ...],  // required, non-empty
+    "outFile": ".build/.agents/baselines-pre-<run>.json"   // required — hash map written here
   }
 
 Each entry in `paths` is either a directory (walked recursively for files)
@@ -32,7 +32,7 @@ Output (stdout, single JSON object):
     "outFile":   "...",
     "fileCount": 1234,
     "rootCount": 2,
-    "missing":   ["c:/GitHub/linq2db.bls/NonExistent"]
+    "missing":   ["<baselines-clone>/NonExistent"]
   }
 
 The `outFile` receives a flat `{ "<absolute-path>": "<sha1-hex>", ... }`

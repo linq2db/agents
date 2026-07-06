@@ -24,9 +24,9 @@ The skill never silently advances past a `partial` step.
 **Owner**: `/kb-build` itself (no agent).
 
 **Output**:
-- `.claude/knowledge-base/` skeleton dirs (`state/`, `architecture/`, `conventions/`, `history/by-year/`, `history/decisions/`, `github/wiki/`, `detected-issues/items/`, `areas/`).
-- `.claude/knowledge-base/README.md` with a 1-page overview + "How to read" + "How to refresh".
-- `.claude/knowledge-base/glossary.md` stub (frontmatter + `# Glossary` heading + `_(populated by step 12)_`).
+- `.agents/knowledge-base/` skeleton dirs (`state/`, `architecture/`, `conventions/`, `history/by-year/`, `history/decisions/`, `github/wiki/`, `detected-issues/items/`, `areas/`).
+- `.agents/knowledge-base/README.md` with a 1-page overview + "How to read" + "How to refresh".
+- `.agents/knowledge-base/glossary.md` stub (frontmatter + `# Glossary` heading + `_(populated by step 12)_`).
 - `state/build-progress.json` initialized with all step entries `pending`.
 - `state/cursors.json` initialized with all sources at zero (`sha: null`, `updated_at: "1970-01-01T00:00:00Z"`).
 - `state/audit-log.md` with a `## <ISO> — kb-build started` entry.
@@ -37,10 +37,10 @@ The skill never silently advances past a `partial` step.
 
 **Owner**: `/kb-build` itself, with user confirmation.
 
-**Output**: `.claude/docs/kb-areas.md` populated with the actual area table (replacing the bootstrap proposal).
+**Output**: `.agents/docs/kb-areas.md` populated with the actual area table (replacing the bootstrap proposal).
 
 **Procedure**:
-1. Run a directory scan of `Source/`, `Tests/`, `Build/`, `.github/`, `.claude/`.
+1. Run a directory scan of `Source/`, `Tests/`, `Build/`, `.github/`, `.agents/`.
 2. Diff against the bootstrap table in `kb-areas.md`. List dirs without a matching area.
 3. Propose new rows to the user; ask for confirmation/edits.
 4. Apply user's edits to `kb-areas.md`.
@@ -51,7 +51,7 @@ The skill never silently advances past a `partial` step.
 
 **Owner**: `kb-architect`.
 
-**Input**: pinned file list (`Source/LinqToDB/IDataContext.cs`, `DataConnection.cs`, top-level `*.csproj`, `Source/LinqToDB/SqlQuery/SqlStatement.cs`, `Source/LinqToDB/Linq/Builder/ExpressionBuilder.cs`).
+**Input**: pinned file list (`Source/LinqToDB/IDataContext.cs`, `DataConnection.cs`, top-level `*.csproj`, `Source/LinqToDB/Internal/SqlQuery/SqlStatement.cs`, `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.cs`).
 
 **Output**:
 - `architecture/overview.md` — 1-page repo map: directory tree + paragraph per top-level area.
@@ -202,7 +202,7 @@ This step is the largest. The skill processes areas in `kb-areas.md` order and c
 
 ## README template (step 0 output)
 
-The `README.md` produced by step 0 in `.claude/knowledge-base/` follows this template:
+The `README.md` produced by step 0 in `.agents/knowledge-base/` follows this template:
 
 ```
 # linq2db Knowledge Base
@@ -232,7 +232,7 @@ carries YAML frontmatter with `confidence`, `last_verified`, and `last_verified_
 readers can see how stale a doc is.
 
 Coverage blocks at the end of each file list which Tier-1 / Tier-2 files were visited
-when the doc was generated. See `.claude/docs/kb-coverage-tiers.md`.
+when the doc was generated. See `.agents/docs/kb-coverage-tiers.md`.
 ```
 
 ## Bulk-load vs delta-refresh
@@ -259,7 +259,7 @@ Document each bypass per step in `audit-log.md` with rationale. `/kb-refresh` de
 
 When an indexer agent re-emits a large existing artifact and the re-emitted version regresses prior content (stripped backticks around identifiers, normalised em-dashes to ASCII `--`, dropped inline code citations like `.GetChild()!.Child!.GetId()`), don't accept the regressed version. Splice from the prior envelope instead:
 
-1. Locate the prior envelope file under `.build/.claude/kb-build-step<N>-<batch>.txt`.
+1. Locate the prior envelope file under `.build/.agents/kb-build-step<N>-<batch>.txt`.
 2. Extract the artifact body via regex: `=== ARTIFACT: <path> ===\n(.*?)\n=== END ARTIFACT ===` (`(?ms)` mode). Write the extracted body directly to the artifact path — that's the pristine prior state.
 3. Apply only the new-batch deltas via surgical PowerShell `Replace` operations: frontmatter SHA / version updates, new section blocks inserted at known headings, Coverage-block bullet additions, skipped-count adjustments.
 4. Update the deferred-coverage queue manually if the apply-fences route was bypassed.

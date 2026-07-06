@@ -15,6 +15,8 @@ Posted as a plain comment on the PR (not a review comment):
 | `/azp run test-all` | Runs the full provider matrix. Usually the right call after a PR first opens. |
 | `/azp run test-<dbname>` | Runs a single-provider pipeline (e.g. `test-sqlite`, `test-sqlserver`, `test-firebird`). `/azp list` has the canonical names. |
 
+The canonical `test-<name>` pipeline names are also enumerated in [`Build/Azure/pipelines/testing.yml`](../../Build/Azure/pipelines/testing.yml) — its `Build.DefinitionName` switch maps each to a `db_filter` (`test-access`, `test-db2`, `test-firebird`, `test-informix`, `test-mysql`, `test-oracle`, `test-postgresql`, `test-saphana`, `test-sqlce`, `test-sqlite`, `test-sqlserver`, `test-sqlserver-2019`, `test-sqlserver-2022`, `test-sybase`, `test-clickhouse`, `test-duckdb`, `test-metrics`). Read it to resolve a provider's pipeline name without spending a `/azp list` round-trip.
+
 Posting the comment requires write access to the repo; for contributors without write access, a maintainer posts on their behalf.
 
 ## When to propose a CI run
@@ -43,13 +45,13 @@ Posting is publicly visible and incurs CI cost, so follow the standard confirmat
 
 When a CI build fails, the per-task error messages aren't in the GitHub check-runs annotations — they're inside the Azure DevOps build logs. The `dev.azure.com/linq2db` build API is publicly readable (no auth), but the hand-flow is fiddly: hit `/timeline?api-version=7.0` for the JSON list of failed `Task` records, then `/logs/<id>` for each one's raw log, then regex for `Failed <TestName>... Error Message:` blocks.
 
-Use [`.claude/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
+Use [`.agents/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
 
 ```
-pwsh -NoProfile -File .claude/scripts/azp-build-failures.ps1 -BuildId <n>
+pwsh -NoProfile -File .agents/scripts/azp-build-failures.ps1 -BuildId <n>
 ```
 
-Output: JSON with `{ buildId, logsDir, failedTaskCount, tasks: [{ name, logUrl, logPath, failures: [{ test, errorMessage }] }] }`. Logs persist under `.build/.claude/azp-<n>/` for follow-up `Read` / `Grep`.
+Output: JSON with `{ buildId, logsDir, failedTaskCount, tasks: [{ name, logUrl, logPath, failures: [{ test, errorMessage }] }] }`. Logs persist under `.build/.agents/azp-<n>/` for follow-up `Read` / `Grep`. When the build is red for a **non-test** reason (compile error in a `Build …` step, restore failure), `failedTaskCount` is `0` and a `buildFailures: [{ name, issues: [message…] }]` array carries the actual `CSxxxx`/`MSBxxxx` messages from the timeline — don't read `failedTaskCount: 0` as "nothing failed".
 
 Resolve `<n>` (the Azure DevOps build ID) from the PR's check-runs:
 

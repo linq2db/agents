@@ -3,12 +3,12 @@
 #
 # Reads the JSON heartbeat written by Tests/Base/TestProgressReporter.cs when a run is launched with
 # the --test-progress command-line option. By default it picks the most recently updated
-# .build/.claude/test-progress.*.json file (the active run); pass -Path to target a specific file.
+# .build/.agents/test-progress.*.json file (the active run); pass -Path to target a specific file.
 #
 # Usage:
-#   pwsh -NoProfile -File .claude/scripts/test-status.ps1
-#   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Path .build/.claude/test-progress.net10.0.1234.json
-#   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw      # emit the raw JSON instead of a summary
+#   pwsh -NoProfile -File .agents/scripts/test-status.ps1
+#   pwsh -NoProfile -File .agents/scripts/test-status.ps1 -Path .build/.agents/test-progress.net10.0.1234.json
+#   pwsh -NoProfile -File .agents/scripts/test-status.ps1 -Raw      # emit the raw JSON instead of a summary
 
 [CmdletBinding()]
 param(
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..' '..')
 
 if (-not $Path) {
-	$dir = Join-Path $repoRoot '.build/.claude'
+	$dir = Join-Path $repoRoot '.build/.agents'
 	if (-not (Test-Path $dir)) {
 		Write-Output "No test-progress directory yet ($dir). Start a run with --test-progress."
 		return

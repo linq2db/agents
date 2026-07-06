@@ -3,8 +3,8 @@ area: PROV-SQLITE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-05-11
-last_verified_sha: 4a478ff148cfc4aa21e7b23b91f5a8c2f3b407b7
+last_verified: 2026-07-05
+last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
 coverage_tier_1: 10/10
 coverage_tier_2: 10/10
 ---
@@ -55,6 +55,8 @@ Key overrides:
 - **IS DISTINCT**: SQLite 3.39.0+ supports standard `DISTINCT FROM`, but the builder still uses `IS` / `IS NOT` syntax for backwards compatibility, with the polarity inverted (`SQLiteSqlBuilder.cs:201-207`).
 - **Materialized CTE hint**: `SupportsMaterializedCteHint = true` (`SQLiteSqlBuilder.cs:32`).
 - **`SupportsColumnAliasesInSource`**: `false` (`SQLiteSqlBuilder.cs:30`).
+- **String concatenation style** (PR #5504): `ConcatStyle => ConcatBuildStyle.Pipes` (`SQLiteSqlBuilder.cs:34`). The builder now declares `||` as the native concat operator, allowing `BasicSqlBuilder` to emit `SqlConcatExpression` nodes directly as `||`. This supersedes the prior approach where `SQLiteSqlExpressionConvertVisitor` rewrote binary `+` on strings to `||`.
+- **UPDATE table hints**: `BuildUpdateTableName` re-applies query-extension hints (e.g. `SQLiteHints` table hints) to the UPDATE target via `BuildTableExtensions`, narrowing `SqlUpdateClause.Table` (typed `ISqlNamedTable?`) to `SqlTable` via a pattern match since `BuildTableExtensions` only operates on `SqlTable` (`SQLiteSqlBuilder.cs:257-263`). `BuildUpdateQuery` is fully overridden to sequence `Step.Tag` / `WithClause` / `UpdateClause` / `FromClause` / `WhereClause` / `GroupByClause` / `HavingClause` / `Output` / `OrderByClause` / `OffsetLimit` / `QueryExtensions` (`SQLiteSqlBuilder.cs:265-278`).
 
 ### SQL optimizer
 
@@ -68,7 +70,7 @@ Key overrides:
 
 `SQLiteSqlExpressionConvertVisitor` (`Internal/DataProvider/SQLite/SQLiteSqlExpressionConvertVisitor.cs`) handles three areas:
 
-- **String concatenation**: `+` on `string` -> `||` (`SQLiteSqlExpressionConvertVisitor.cs:21`).
+- **String concatenation** (updated PR #5504): `ConcatRequiresExplicitStringCast => false` (`SQLiteSqlExpressionConvertVisitor.cs:17`). The prior `"+"` binary-expression rewrite to `||` is removed; string concat is now handled at the builder level via `ConcatBuildStyle.Pipes`. Only `"^"` (XOR) remains in `ConvertSqlBinaryExpression` (`SQLiteSqlExpressionConvertVisitor.cs:21-31`).
 - **XOR emulation**: `^` -> `(a + b) - (a & b) * 2` (`SQLiteSqlExpressionConvertVisitor.cs:23-29`).
 - **Case-sensitive LIKE**: when `SearchString.CaseSensitive = true`, wraps the LIKE with a conjunction of `Substr`/`InStr` predicates for `StartsWith`/`EndsWith`/`Contains` (`SQLiteSqlExpressionConvertVisitor.cs:34-101`).
 - **DateTime comparisons**: wraps operands in `strftime('%Y-%m-%d %H:%M:%f', expr)` casts when either side is a date/datetime type (`SQLiteSqlExpressionConvertVisitor.cs:132-168`).
@@ -118,7 +120,7 @@ Limits: `MaxParameters = 998` (SQLite limit is 999; one subtracted for potential
 
 ### Schema provider
 
-`SQLiteSchemaProvider` (`Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs`) extends `SchemaProviderBase` ([INTERNAL-API](../INTERNAL-API/INDEX.md)). All metadata is obtained through `pragma_table_list()`, `pragma_table_info()`, `pragma_foreign_key_list()`, and `pragma_index_list()` table-valued functions -- no `information_schema`, no `sys.*` tables.
+`SQLiteSchemaProvider` (`Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs`) extends `SchemaProviderBase` ([INTERNAL-API](../INTERNAL-API/INDEX.md)). The class is declared `partial` to support `[GeneratedRegex]` source-generation of `TypeExtractRegex()` when `SUPPORTS_REGEX_GENERATORS` is defined (`SQLiteSchemaProvider.cs:17`, `SQLiteSchemaProvider.cs:280-285`). All metadata is obtained through `pragma_table_list()`, `pragma_table_info()`, `pragma_foreign_key_list()`, and `pragma_index_list()` table-valued functions -- no `information_schema`, no `sys.*` tables.
 
 Key behaviours:
 
@@ -126,7 +128,7 @@ Key behaviours:
 - **Columns / identity detection**: identity is inferred from the combination of: single-column PK, column type `INTEGER`, absence of `PRIMARY KEY DESC` in DDL, plus either `AUTOINCREMENT` keyword or absence of `WITHOUT ROWID` (`SQLiteSchemaProvider.cs:155-160`). Length/precision/scale are extracted from the type name string because SQLite has no runtime type system (`SQLiteSchemaProvider.cs:166-170`).
 - **Views**: `pragma_table_info` on views returns unreliable type information, so the provider falls back to executing `SELECT * FROM view` with `CommandBehavior.SchemaOnly` and reading the schema table (`SQLiteSchemaProvider.cs:188-225`).
 - **Foreign keys**: joins `pragma_foreign_key_list` with `pragma_table_info` to resolve the "to" column when not explicitly stated (`SQLiteSchemaProvider.cs:231-251`).
-- **Type inference**: `InferTypeInformation` strips facets from type names, looks up in `_typeMappings` (40+ entries), then falls back to `GetTypeByAffinity` which implements the five SQLite affinity rules (`SQLiteSchemaProvider.cs:288-380`). Unknown types map to `DataType.Variant` / `object` to avoid reader errors (`SQLiteSchemaProvider.cs:345`, `SQLiteSchemaProvider.cs:379`).
+- **Type inference**: `InferTypeInformation` strips facets from type names, looks up in `_typeMappings` (40+ entries), then falls back to `GetTypeByAffinity` which implements the five SQLite affinity rules (`SQLiteSchemaProvider.cs:288-380`). Affinity rule 5 (NUMERIC catch-all) intentionally maps to `DataType.Variant` / `object` rather than `DataType.Decimal` / `decimal` to avoid provider mapping errors on unknown types (`SQLiteSchemaProvider.cs:381`). Unknown/null type names also map to `object` (`SQLiteSchemaProvider.cs:345`).
 - `GetDataType` is not supported and throws `NotSupportedException` (`SQLiteSchemaProvider.cs:258-261`).
 
 ### Member translator
@@ -145,9 +147,10 @@ Key behaviours:
 
   **Time truncation**: `TranslateDateTimeTruncationToTime` emits `strftime('%H:%M:%f', expr)` (`SQLiteMemberTranslator.cs:212-218`).
 
-- **`StringMemberTranslator`**: `LPad` emulated with `ZEROBLOB` + `HEX` + `REPLACE` + `SUBSTR`; `String.Join` uses `GROUP_CONCAT(value, separator)` with filter support.
+- **`StringMemberTranslator`** (updated PR #5504 / #5515): `LPad` emulated with `ZEROBLOB` + `HEX` + `REPLACE` + `SUBSTR`; `String.Join` uses `GROUP_CONCAT(value, separator)` with filter support. `TranslateStringJoin` now accepts a `withoutSeparator` parameter (`SQLiteMemberTranslator.cs:283`): when `true`, delegates to `ConfigureConcat(builder, wrapByCoalesce: true)` -- emitting a `||`-joined concat without any separator argument; when `false`, uses `ConfigureConcatWsEmulation` with the `GROUP_CONCAT` + `SUBSTR` post-processing path. `TrimStart` / `TrimEnd` translation is inherited from `StringMemberTranslatorBase` (no SQLite-specific override in this file).
 - **`GuidMemberTranslator`**: `Guid.ToString()` emulated by reassembling `hex(blob)` substrings into UUID format with `lower()`.
 - **`SqlTypesTranslation`**: delegates to `SqlTypesTranslationDefault` (no SQLite-specific overrides).
+- **`SQLiteWindowFunctionsMemberTranslator`**: `CreateWindowFunctionsMemberTranslator` override returns this class, which overrides `IsPercentileContSupported` and `IsPercentileDiscSupported` to `false` -- SQLite has no ordered-set `PERCENTILE_CONT`/`PERCENTILE_DISC` window functions (`SQLiteMemberTranslator.cs:394-403`). Base class `WindowFunctionsMemberTranslator` defaults both to `true` (`Linq/Translation/WindowFunctionsMemberTranslator.cs:27-28`); with the override, `Sql.Window.PercentileCont`/`PercentileDisc` and the `IEnumerable`/`IQueryable` `PercentileCont`/`PercentileDisc` extension forms translate to an error expression via `ErrorHelper.Error_WindowFunction_PercentileCont` / `_PercentileDisc` (`WindowFunctionsMemberTranslator.cs:1019-1034`, `:1148-1163`) instead of emitting invalid SQL.
 
 ### Hints
 
@@ -172,8 +175,8 @@ Both are applied via `ISQLiteSpecificTable<TSource>.TableHint(hint)` using `Sql.
 | `SQLiteProviderAdapter` | `Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs` | Dynamic assembly load; connection factory |
 | `SQLiteProviderDetector` | `Internal/DataProvider/SQLite/SQLiteProviderDetector.cs` | Auto-detect System vs Microsoft |
 | `SQLiteBulkCopy` | `Internal/DataProvider/SQLite/SQLiteBulkCopy.cs` | Multi-row INSERT only |
-| `SQLiteSchemaProvider` | `Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs` | `pragma_*` based schema discovery |
-| `SQLiteMemberTranslator` | `Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs` | Date/string/Guid function translation |
+| `SQLiteSchemaProvider` | `Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs` | `pragma_*` based schema discovery; partial class for source-generated regex |
+| `SQLiteMemberTranslator` | `Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs` | Date/string/Guid/window-function translation |
 | `SQLiteTools` | `DataProvider/SQLite/SQLiteTools.cs` | Public entry: `GetDataProvider`, `CreateDataConnection`, file DB utilities |
 | `SQLiteOptions` | `DataProvider/SQLite/SQLiteOptions.cs` | `BulkCopyType`, `AlwaysCheckDbNull` options |
 | `SQLiteProvider` | `DataProvider/SQLite/SQLiteProvider.cs` | Enum: `AutoDetect`, `System`, `Microsoft` |
@@ -210,13 +213,18 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 |---|---|---|
 | `IsSkipSupported` | `false` | `SQLiteDataProvider.cs:42` |
 | `IsSkipSupportedIfTake` | `true` | `SQLiteDataProvider.cs:43` |
+| `IsSubQueryOrderBySupported` | `true` | `SQLiteDataProvider.cs:46` |
 | `IsCommonTableExpressionsSupported` | `true` | `SQLiteDataProvider.cs:44` |
-| `IsUnionAllOrderBySupported` | `true` | `SQLiteDataProvider.cs:46` |
-| `IsDistinctFromSupported` | `true` (3.39.0+) | `SQLiteDataProvider.cs:47` |
-| `SupportsPredicatesComparison` | `true` | `SQLiteDataProvider.cs:48` |
-| `DefaultMultiQueryIsolationLevel` | `Serializable` | `SQLiteDataProvider.cs:49` |
+| `IsNullsOrderingSupported` | `true` | `SQLiteDataProvider.cs:47` |
+| `DefaultNullsOrdering` | `Smallest` (NULL sorts as smallest value) | `SQLiteDataProvider.cs:48-49` |
+| `IsUnionAllOrderBySupported` | `true` | `SQLiteDataProvider.cs:50` |
+| `IsDistinctFromSupported` | `true` (3.39.0+) | `SQLiteDataProvider.cs:51` |
+| `SupportsPredicatesComparison` | `true` | `SQLiteDataProvider.cs:52` |
+| `DefaultMultiQueryIsolationLevel` | `Serializable` | `SQLiteDataProvider.cs:53` |
 | `RowConstructorSupport` | Equality, Comparisons, UpdateLiteral, CompareToSelect, Between, Update | `SQLiteDataProvider.cs:64-65` |
 | `SupportedCorrelatedSubqueriesLevel` | `null` (unlimited) | `SQLiteDataProvider.cs:61` |
+| `MaxColumnCount` | `2000` | `SQLiteDataProvider.cs:54` |
+| `IsUpsertWithMergeLoweringSupported` | `false` | `SQLiteDataProvider.cs:70` |
 
 ## Files (Tier 1 / Tier 2)
 
@@ -239,9 +247,9 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 
 | File | Purpose |
 |---|---|
-| `Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs` | `pragma_*` schema discovery |
+| `Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs` | `pragma_*` schema discovery; partial class for source-generated regex |
 | `Internal/DataProvider/SQLite/SQLiteSqlExpressionConvertVisitor.cs` | Expression rewrites (XOR, LIKE, datetime) |
-| `Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs` | Date/string/Guid member translation |
+| `Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs` | Date/string/Guid/window-function member translation |
 | `Internal/DataProvider/SQLite/SQLiteSpecificTable.cs` | `ISQLiteSpecificTable` impl |
 | `DataProvider/SQLite/SQLiteHints.cs` | `INDEXED BY` / `NOT INDEXED` hints |
 | `DataProvider/SQLite/SQLiteExtensions.cs` | FTS3/4/5 LINQ extensions + admin commands |
@@ -256,17 +264,18 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 
 **Outbound**:
 - [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md): `BasicSqlBuilder`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`.
-- [INTERNAL-API](../INTERNAL-API/INDEX.md): `DynamicDataProviderBase`, `BasicBulkCopy`, `ProviderDetectorBase`, `SchemaProviderBase`, `TypeMapper`, `MemberTranslatorBase` (via `ProviderMemberTranslatorDefault`).
+- [INTERNAL-API](../INTERNAL-API/INDEX.md): `DynamicDataProviderBase`, `BasicBulkCopy`, `ProviderDetectorBase`, `SchemaProviderBase`, `TypeMapper`, `MemberTranslatorBase` (via `ProviderMemberTranslatorDefault`), `WindowFunctionsMemberTranslator`.
 - [MAPPING](../MAPPING/INDEX.md): `LockedMappingSchema`.
 
 ## Known issues / debt
 
 - `UPDATE TAKE/SKIP` is commented out (`SQLiteDataProvider.cs:52-59`): the flag `IsUpdateTakeSupported` / `IsUpdateSkipTakeSupported` is intentionally disabled because Microsoft.Data.Sqlite's runtime does not enable the needed SQLite compilation flag. System.Data.SQLite has it, but enabling it for only one provider adds no value when the other can't use it.
 - `IS DISTINCT` emulation is kept as `IS` / `IS NOT` rather than migrating to standard `DISTINCT FROM` (SQLite 3.39.0+). The comment (`SQLiteSqlBuilder.cs:201`) says "keep older implementation for now".
-- SQLite does not support `MERGE`; any attempt to use `MergeStatement` throws at runtime (`SQLiteSqlBuilder.cs:166-168`). No compile-time guard exists on `SqlProviderFlags`.
+- SQLite does not support `MERGE`; any attempt to use `MergeStatement` throws at runtime (`SQLiteSqlBuilder.cs:166-168`). No compile-time guard exists on `SqlProviderFlags` for a direct `MergeStatement`. As of this delta, `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (`SQLiteDataProvider.cs:70`) gives upsert configurations that would require MERGE lowering a descriptive `Error_Upsert_MergeLowering_NotSupported` failure ahead of query build -- narrower coverage than the raw builder throw, but only for the upsert-lowering path, not direct `MergeStatement` use.
 - `GetDataType` in `SQLiteSchemaProvider` throws `NotSupportedException` -- it is expected not to be called because type inference bypasses the base infrastructure entirely (`SQLiteSchemaProvider.cs:258-261`).
 - FTS return types (e.g. `FTS5Delete` column list construction, `SQLiteExtensions.cs:630-635`) use `DataParameter.VarChar` hardcoded for all columns -- FTS tables are always TEXT-typed but the code bypasses any provider-specific parameter binding.
 - `// TODO: V7: update applicable methods to return affected rows count instead of void/Task` (`SQLiteExtensions.cs:1`) -- bulk FTS command methods return `void`/`Task` rather than affected-row counts.
+- SQLite has no ordered-set aggregate/window functions: `SQLiteWindowFunctionsMemberTranslator` disables `IsPercentileContSupported` / `IsPercentileDiscSupported` (`SQLiteMemberTranslator.cs:394-397`), so `PercentileCont`/`PercentileDisc` calls fail at translation time with a descriptive error rather than emitting invalid SQL.
 
 ## See also
 
@@ -283,5 +292,22 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 Read (this run -- delta sha 4a478ff14):
 - `SQLiteMemberTranslator.cs` -- Now-translation split into 4 virtuals (PR #5467): TranslateNow/TranslateServerNow emit `DATETIME('now', 'localtime')`; TranslateUtcNow/TranslateZonedUtcNow emit `CURRENT_TIMESTAMP`. TranslateDateTimeTruncationToDate emits `Date(expr)` preserving DbDataType (PR #5517).
 - `SQLiteMappingSchema.cs` -- `ConvertDateTimeOffsetToSql` registered with `DATETIMEOFFSET_FORMAT = "'{0:yyyy-MM-dd HH:mm:ss.fffzzz}'"`.
+
+Read (this run -- delta sha 2e67bafc9):
+- `SQLiteSqlBuilder.cs` -- Added `ConcatStyle => ConcatBuildStyle.Pipes` (line 34, PR #5504): builder now declares `||` as native concat operator; `BasicSqlBuilder` emits `SqlConcatExpression` nodes as `||` directly, superseding the visitor-level `+` -> `||` binary rewrite.
+- `SQLiteSqlExpressionConvertVisitor.cs` -- Added `ConcatRequiresExplicitStringCast => false` (line 17, PR #5504); removed the `"+"` string-concat case from `ConvertSqlBinaryExpression` -- only XOR (`"^"`) remains. Rest of the file (LIKE, datetime comparison, CAST-of-Guid, WrapDateTime) unchanged.
+- `SQLiteMemberTranslator.cs` -- `TranslateStringJoin` gains `withoutSeparator` parameter (line 283, PR #5504): when true, calls `ConfigureConcat(builder, wrapByCoalesce: true)` emitting `||`-joined concat without separator; when false, keeps existing `ConfigureConcatWsEmulation` / `GROUP_CONCAT` + `SUBSTR` path. `TrimStart`/`TrimEnd` (PR #5515) inherited from `StringMemberTranslatorBase` -- no SQLite-specific override needed.
+
+
+Read (this run -- delta sha b3340aa9):
+- `SQLiteOptions.cs` -- No structural change; record shape unchanged (BulkCopyType, AlwaysCheckDbNull), IEquatable wired via ConfigurationID.
+- `SQLiteDataProvider.cs` -- Added IsSubQueryOrderBySupported = true (line 46), IsNullsOrderingSupported = true (line 47), DefaultNullsOrdering = NullsDefaultOrdering.Smallest (line 49). SqlProviderFlags table updated accordingly.
+- `SQLiteProviderDetector.cs` -- No structural change; detection logic unchanged.
+- `SQLiteSchemaProvider.cs` -- Class is now partial (line 17) to support [GeneratedRegex] source-generation of TypeExtractRegex() under SUPPORTS_REGEX_GENERATORS (lines 280-285). Affinity rule 5 catch-all explicitly maps to object/Variant (not decimal/Numeric) per inline comment to avoid provider mapping errors on unknown types (line 381).
+
+Read (this run -- delta sha 36ee4f82f):
+- `SQLiteDataProvider.cs` -- Added `SqlProviderFlags.MaxColumnCount = 2000` (line 54). Added `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (line 70), with inline comment: SQLite has no MERGE, so upsert-with-merge-lowering configurations surface `Error_Upsert_MergeLowering_NotSupported` instead of attempting to lower to MERGE.
+- `SQLiteSqlBuilder.cs` -- `BuildUpdateTableName` narrowed its guard from `if (updateClause.Table != null)` to `if (updateClause.Table is SqlTable sqlTable)` (lines 261-262) -- `SqlUpdateClause.Table` is typed `ISqlNamedTable?`, and `BuildTableExtensions(SqlTable, string)` only accepts `SqlTable`; the pattern match is now required for the call to type-check / to skip table-hint re-application for non-`SqlTable` named-table targets.
+- `SQLiteMemberTranslator.cs` -- Added `SQLiteWindowFunctionsMemberTranslator` inner class (extends `WindowFunctionsMemberTranslator`) overriding `IsPercentileContSupported` / `IsPercentileDiscSupported` to `false`, and a `CreateWindowFunctionsMemberTranslator` override returning it (lines 394-403) -- SQLite has no `PERCENTILE_CONT`/`PERCENTILE_DISC`; base class default for both flags is `true`.
 
 </details>

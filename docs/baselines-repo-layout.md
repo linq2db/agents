@@ -41,6 +41,16 @@ A special `a_CreateData/a_CreateData.CreateDatabase(<Provider>).sql` per provide
 
 PR baselines live on `baselines/pr_<pr_number>`. Absence of the branch means the PR produced no baseline changes.
 
+### Merging a baselines PR
+
+`linq2db.baselines` **disallows merge commits** — `gh pr merge --merge` fails with *"Merge commits are not allowed on this repository. (mergePullRequest)"*. Use `gh pr merge <n> --squash` (mark the CI-created draft ready first with `gh pr ready <n>`; `--admin` bypasses any pending check). This comes up when cleaning up a lingering baselines PR whose source linq2db PR has already merged (the baselines PR doesn't auto-close).
+
+### Commit granularity
+
+Baselines commits on `baselines/pr_<n>` are scoped **per CI run per provider** — one commit per `[Linux / Oracle 19c] baselines` run, etc. They are NOT scoped per linq2db PR commit. The commit subject is the CI job name in square brackets, body empty.
+
+Practical implication: the baselines repo can answer "when did this baseline change against master?" but cannot answer "which linq2db PR commit introduced the change?". For per-commit attribution, you need a runtime bisect against the linq2db source tree (`git worktree` + `git checkout <sha>` per candidate, run `dotnet test` on the affected fixture, capture emitted SQL).
+
 ### Expected cross-provider variation (ignore these when flagging "unusual distinctions")
 
 Minor differences that are routine and should not be called out:

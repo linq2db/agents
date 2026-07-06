@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 <#
 KB state manager — single entry point for reading/writing
-.claude/knowledge-base/state/* and applying agent fenced output.
+.agents/knowledge-base/state/* and applying agent fenced output.
 
 One permission rule covers every operation:
-    Bash(pwsh -NoProfile -File .claude/scripts/kb-state.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/kb-state.ps1 *)
 
 Input (stdin, JSON):
   {
@@ -40,7 +40,7 @@ Operations
   apply-fences
     fields: { agentOutput: "<full text containing fences>",
               currentSha: "<git rev-parse HEAD>" }
-    Parses fenced output per .claude/agents/_shared/kb-protocol.md, validates,
+    Parses fenced output per .agents/agents/_shared/kb-protocol.md, validates,
     writes artifacts, applies index patches, returns gate result.
     -> { ok, artifacts: [{path, ok, errors[]}],
          indexPatches: [{path, ok, errors[]}],
@@ -75,7 +75,7 @@ $global:ScriptBaseName = 'kb-state'
 . "$PSScriptRoot/_shared.ps1"
 
 $RepoRoot     = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path
-$KbRoot       = Join-Path $RepoRoot '.claude/knowledge-base'
+$KbRoot       = Join-Path $RepoRoot '.agents/knowledge-base'
 $StateDir     = Join-Path $KbRoot 'state'
 $ProgressFile = Join-Path $StateDir 'build-progress.json'
 $CursorsFile  = Join-Path $StateDir 'cursors.json'

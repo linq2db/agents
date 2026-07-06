@@ -7,7 +7,7 @@ Shared vocabulary for `/review-pr` and `/verify-review` and their subagents. Any
 | ID   | Name       | Use when… |
 |------|------------|-----------|
 | BLK  | Blocker    | Correctness bug, data loss, security hole, broken public API outside `LinqToDB.Internal.*` (unless overridden by milestone — see `api-surface-classification.md`), broken build, crash. |
-| MAJ  | Major      | Wrong behavior in a real scenario, misleading SQL for a supported provider, missing test for a fix that clearly needs one. |
+| MAJ  | Major      | Wrong behavior in a real scenario, misleading SQL for a supported provider, missing test for a fix that clearly needs one, missing XML doc on a new public (non-`Internal.*`) member, new public API with no test. |
 | MIN  | Minor      | Design or maintainability issue, confusing naming, dead code, scope creep. |
 | SUG  | Suggestion | Non-blocking alternative approach, refactor idea. |
 | NIT  | Nit        | Style, typos, XML-doc wording. |
@@ -27,6 +27,8 @@ Used by `/verify-review` (and by `/review-pr` when it finds prior reviews of its
 2. Regex-scan every review body and every review comment body for finding IDs.
 3. Per severity, compute `max(NNN)` across all matches.
 4. The floor for that severity in the next review is `max + 1`. If no prior matches for a severity, floor is `001`.
+
+**Field name (when computing from `pr-context.ps1` output).** Each entry in `reviews[]` / `reviewComments[]` carries the author login as a **flat `user`** field (the script flattens `user.login` → `user`). Filter with `$_.user -eq $currentUser` — **not** `author.login` or `user.login`, both of which are absent on these objects and silently match nothing, yielding floor `1` on every severity. That is a reproduced cause of ID collisions when re-reviewing a PR the current user already reviewed (surfaced on PR #5450: a fresh `/review-pr` reused `MIN001` / `NIT001` already spent by prior reviews). Also scan `reviewComments[].body`, not just review bodies — findings posted as line / file comments carry their IDs there, not in the review body.
 
 ### Checkbox semantics
 
@@ -49,14 +51,14 @@ All notes and all body-section findings carry a GitHub task-list checkbox. Per-l
 
 ### Audience — write for a human reader with only GitHub
 
-Review bodies and comment bodies are rendered on the GitHub PR page for a maintainer who has a shell, `git`, `gh`, and the repo — **not** Claude Code, not the skill files, and not the `.claude/docs/*.md` instruction set. Every sentence you write must be actionable at that level.
+Review bodies and comment bodies are rendered on the GitHub PR page for a maintainer who has a shell, `git`, `gh`, and the repo — **not** Claude Code, not the skill files, and not the `.agents/docs/*.md` instruction set. Every sentence you write must be actionable at that level.
 
-- **Don't tell the reader to run a slash-command or a skill.** `/api-baselines`, `/review-pr`, `/verify-review`, etc. only work inside a Claude Code session. Instead describe the underlying action in plain tooling terms — e.g. "regenerate `Source/**/CompatibilitySuppressions.xml` by running `dotnet pack -p:ApiCompatGenerateSuppressionFile=true` under `Source/`".
-- **Don't cite `.claude/docs/...` paths as authority.** The reader may not have access to those files and will not open them to resolve a finding. If the underlying rule comes from a design invariant, restate the rule itself ("public API is a stability contract") rather than pointing at the doc that documents it. Acceptable references in comment bodies are: repo-root paths a maintainer would actually open (`Source/...`, `Tests/...`, `Directory.Build.props`), commit SHAs on the PR, line ranges on changed files, linked issue / PR numbers, and primary-source URLs (vendor docs, RFCs).
-- **Don't reference subagent names or internal tooling.** `code-reviewer`, `baselines-reviewer`, `diff-reader.ps1`, `verify-lines.ps1`, `post-pr-review.ps1`, `_shared.ps1`, `writeDir`, `.build/.claude/...` are all internal to the review pipeline and meaningless on GitHub.
+- **Don't tell the reader to run a skill.** `/api-baselines`, `/review-pr`, `/verify-review`, etc. only work inside a Claude Code session. Instead describe the underlying action in plain tooling terms — e.g. "regenerate `Source/**/CompatibilitySuppressions.xml` by running `dotnet pack -p:ApiCompatGenerateSuppressionFile=true` under `Source/`".
+- **Don't cite `.agents/docs/...` paths as authority.** The reader may not have access to those files and will not open them to resolve a finding. If the underlying rule comes from a design invariant, restate the rule itself ("public API is a stability contract") rather than pointing at the doc that documents it. Acceptable references in comment bodies are: repo-root paths a maintainer would actually open (`Source/...`, `Tests/...`, `Directory.Build.props`), commit SHAs on the PR, line ranges on changed files, linked issue / PR numbers, and primary-source URLs (vendor docs, RFCs).
+- **Don't reference subagent names or internal tooling.** `code-reviewer`, `baselines-reviewer`, `diff-reader.ps1`, `verify-lines.ps1`, `post-pr-review.ps1`, `_shared.ps1`, `writeDir`, `.build/.agents/...` are all internal to the review pipeline and meaningless on GitHub.
 - **Keep meta-structure internal.** The ID-continuation floor, the "per-severity numbering" explanation, the "audit of structural vs. textual suggestions" tally — these are bookkeeping for the next agent run, not for the human reader. Never surface them in the review body.
 
-If you catch yourself writing "run the X skill" or "per `.claude/docs/Y`", stop and rewrite the sentence as a direct instruction or a self-contained rule restatement.
+If you catch yourself writing "run the X skill" or "per `.agents/docs/Y`", stop and rewrite the sentence as a direct instruction or a self-contained rule restatement.
 
 ### Completeness — never suppress findings to manage noise
 
@@ -80,6 +82,11 @@ The review **must** lead with the agentic-review disclaimer block below — it i
 - [ ] <open note>
 - [x] <satisfied note>
 
+## Prior-review audit
+- **Fixed** · <author> — <claim, ≤1 line> (<thread link / "summary">)
+- **Inaccurate** · <author> — <claim> — <correct reading>
+- **Still actual** · <author> — <claim> (carried into findings below as <ID>)
+
 ## Findings (not tied to a specific line)
 ### Blockers (BLK)
 - [ ] **BLK001** — <title>
@@ -97,7 +104,9 @@ The review **must** lead with the agentic-review disclaimer block below — it i
 <from baselines-reviewer output, or a single line when skipped / missing>
 ```
 
-The `## Out-of-scope observations` section is populated from `code-reviewer`'s `out_of_scope_observations[]` output and only appears when that array is non-empty. Entries have no severity, no checkbox, and no line anchor — they are FYI observations about behavior that exists on `master` without the PR, surfaced because a reviewer might find them useful context. See `.claude/agents/code-reviewer.md` → **Scope discipline** for what qualifies.
+The `## Prior-review audit` section is populated from the step-2b audit of prior reviews by **other** authors (bots + humans) — see `review-bot-claim-audit.md`. One line per audited inline thread and per audited review-body-summary claim, prefixed with its verdict (`Fixed` / `Inaccurate` / `Still actual`) and the author. Omit the section entirely when there are no prior reviews from other authors to audit. Still-actual items are also carried into the regular finding stream; cite the assigned finding ID on the audit line so the reader can follow it down.
+
+The `## Out-of-scope observations` section is populated from `code-reviewer`'s `out_of_scope_observations[]` output and only appears when that array is non-empty. Entries have no severity, no checkbox, and no line anchor — they are FYI observations about behavior that exists on `master` without the PR, surfaced because a reviewer might find them useful context. See `.agents/agents/code-reviewer.md` → **Scope discipline** for what qualifies.
 
 `/verify-review` prepends a verification-update section before the above when posting a follow-up review — see that skill's body template.
 

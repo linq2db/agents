@@ -8,12 +8,12 @@ Minimal, opinionated reference for what `/review-pr` and `/verify-review` need f
 
 ### Posting a review via the wrapper
 
-The normal posting path is the `post-pr-review.ps1` wrapper at `.claude/scripts/post-pr-review.ps1`. One Bash call, one permission rule, handles the REST POST **plus** every file-level thread attach **plus** every thread-reply follow-up, all in a single process.
+The normal posting path is the `post-pr-review.ps1` wrapper at `.agents/scripts/post-pr-review.ps1`. One Bash call, one permission rule, handles the REST POST **plus** every file-level thread attach **plus** every thread-reply follow-up, all in a single process.
 
-**Preferred: `-ManifestScript` (one pwsh file, here-string bodies).** The caller writes one `.build/.claude/pr<n>-manifest.ps1` that returns a hashtable; every comment body is an inline here-string (`@'…'@`), no JSON escaping. The wrapper dot-sources the file, converts to JSON internally, and posts. This replaces the older "one `.md` file per comment + `bodyFile` refs" pattern, which cost one user confirmation per comment — ~19 for a 17-comment review, now reduced to 2 (one for the manifest, one for the Bash call).
+**Preferred: `-ManifestScript` (one pwsh file, here-string bodies).** The caller writes one `.build/.agents/pr<n>-manifest.ps1` that returns a hashtable; every comment body is an inline here-string (`@'…'@`), no JSON escaping. The wrapper dot-sources the file, converts to JSON internally, and posts. This replaces the older "one `.md` file per comment + `bodyFile` refs" pattern, which cost one user confirmation per comment — ~19 for a 17-comment review, now reduced to 2 (one for the manifest, one for the Bash call).
 
 ```
-pwsh -NoProfile -File .claude/scripts/post-pr-review.ps1 -ManifestScript .build/.claude/pr<n>-manifest.ps1
+pwsh -NoProfile -File .agents/scripts/post-pr-review.ps1 -ManifestScript .build/.agents/pr<n>-manifest.ps1
 ```
 
 Manifest-script shape (all fields optional except `pr`, `commitId`, `body`):
@@ -43,10 +43,12 @@ Manifest-script shape (all fields optional except `pr`, `commitId`, `body`):
 }
 ````
 
+**`commitId` must be the full 40-char commit SHA.** An abbreviated SHA is rejected by the GraphQL review-create with `HTTP 422 … "Variable $commitOID of type GitObjectID was provided invalid value"`. `pr-context.ps1`'s `headSha` is already full-length, so the trap only fires when you re-derive the SHA after pushing follow-up commits — use `git rev-parse HEAD`, not the short hash printed by `git push` / `git log`. (Cost one wasted post call on PR #5659.)
+
 **Legacy: JSON on stdin.** Still accepted for shell heredocs / external callers:
 
 ```
-pwsh -NoProfile -File .claude/scripts/post-pr-review.ps1 <<'EOF'
+pwsh -NoProfile -File .agents/scripts/post-pr-review.ps1 <<'EOF'
 {
   "pr":       <n>,
   "commitId": "<head sha>",
@@ -171,9 +173,25 @@ gh api repos/linq2db/linq2db/issues/<n>/comments --paginate
 
 Each endpoint returns arrays across all pages when `--paginate` is used.
 
+### Filtering Copilot review activity
+
+Copilot's PR-review activity uses **two different author logins** at the API layer:
+
+- The **review wrapper** (top-level submission at `/repos/{o}/{r}/pulls/{n}/reviews`) is authored by **`copilot-pull-request-reviewer[bot]`**. Its `body` typically reads "Copilot reviewed N of M changed files in this pull request and generated K comments." and links to the inline-comment threads.
+- The **inline line comments** (`/repos/{o}/{r}/pulls/{n}/comments`) are authored by user **`Copilot`** — a separate user account, not the `[bot]` login.
+
+A filter that uses only the bot login (`select(.user.login == "copilot-pull-request-reviewer[bot]")`) on the `/comments` endpoint returns empty, which falsely suggests Copilot left no inline comments. Filter both endpoints in one shape with a case-insensitive regex:
+
+```
+gh api repos/<o>/<r>/pulls/<n>/comments --paginate \
+  --jq '[.[] | select(.user.login | test("copilot"; "i"))]'
+```
+
+Same shape works against `/reviews` to catch both the wrapper and any future bot-account variants.
+
 ### Thread-ID ← comment-databaseId mapping
 
-`/review-pr` and `/verify-review` should read this map from `reviewThreads[]` returned by `.claude/scripts/pr-context.ps1` — that script already runs the GraphQL query below in parallel with its other jobs. Issue the raw query only if you need it outside the PR-context flow.
+`/review-pr` and `/verify-review` should read this map from `reviewThreads[]` returned by `.agents/scripts/pr-context.ps1` — that script already runs the GraphQL query below in parallel with its other jobs. Issue the raw query only if you need it outside the PR-context flow.
 
 Resolving a review thread requires GraphQL, which uses **node IDs**, not REST comment IDs. To resolve a thread given a REST `comment_id`:
 
@@ -211,7 +229,7 @@ Only call this when the user explicitly approved resolving the thread (see `/ver
 
 ### Batch reply + resolve (multiple threads at once)
 
-For bulk thread cleanup (e.g. responding to N stale Copilot/bot claims on a single PR after `/review-pr`'s **Audit prior bot/automated review claims** step), use `.claude/scripts/post-pr-thread-replies.ps1`. The script does N reply-POSTs + N GraphQL `resolveReviewThread` calls in one allowlisted pwsh invocation, with per-item success/failure reporting so partial failures can be retried.
+For bulk thread cleanup (e.g. responding to N stale Copilot/bot claims on a single PR after `/review-pr`'s **Audit prior bot/automated review claims** step), use `.agents/scripts/post-pr-thread-replies.ps1`. The script does N reply-POSTs + N GraphQL `resolveReviewThread` calls in one allowlisted pwsh invocation, with per-item success/failure reporting so partial failures can be retried.
 
 Input (stdin JSON):
 
@@ -238,7 +256,8 @@ Consequences:
 
 - **A wrong line that happens to be inside a hunk is not rejected.** GitHub will attach the comment at the diff position that corresponds to the (wrong) right-side line, not at the code the reviewer actually meant to comment on. There is no feedback signal from the API.
 - **A line outside every hunk is rejected** with `422: Line could not be resolved`.
-- To produce a correct line comment, the caller must verify — against the PR head file and against hunk boundaries — that the `line` matches the code being discussed **before** submitting. See `.claude/agents/code-reviewer.md` → **Line-number verification** (the subagent runs `verify-lines.ps1` on every finding before emitting it).
+- **A line in an unchanged region of a *renamed* file is rejected the same way**, even though the whole file appears in the PR. For a file marked `R###` in name-status, GitHub only addresses lines changed *relative to the rename source* — an unchanged carried-over line is not a valid anchor. The trap: `diff-reader.ps1`'s cache can render a renamed file as a full `new file` diff (`@@ -0,0 +1,N @@`), so a local hunk-membership check **over-reports** which lines are addressable and the comment still `422`s. For a finding on a renamed file, anchor only on a genuine `+` change (cross-check the raw `*.diff` for a `new file mode` line vs. a `rename from`/`similarity index` header), or fall back to a file-level comment. (Cost a 422 retry cycle on PR #5468 — `SqlFrameClause.cs:44`, an unchanged line of an `R064` file the cache showed as `+1,117`.)
+- To produce a correct line comment, the caller must verify — against the PR head file and against hunk boundaries — that the `line` matches the code being discussed **before** submitting. See `.agents/agents/code-reviewer.md` → **Line-number verification** (the subagent runs `verify-lines.ps1` on every finding before emitting it).
 
 ### Git Bash on Windows: drop the leading `/`
 

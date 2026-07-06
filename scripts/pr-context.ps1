@@ -11,7 +11,7 @@ log, log --format=%B). Each unique command string is its own permission
 prompt, so the allowlist rules didn't amortise. This script folds the whole
 batch into one pwsh process with one allowlist rule:
 
-    Bash(pwsh -NoProfile -File .claude/scripts/pr-context.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/pr-context.ps1 *)
 
 It also performs the one-level linked-issue scan (regex across PR body,
 commit messages, conversation comments, review bodies, review comments)
@@ -22,7 +22,7 @@ Input — two forms (preferred first)
 
 (1) Named parameters (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr 5503
+      pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr 5503
 
     Optional named parameters:
       -Owner <name>             — default "linq2db"
@@ -33,7 +33,7 @@ Input — two forms (preferred first)
 
 (2) Stdin JSON (legacy, still accepted — heredoc form):
 
-      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 <<'EOF'
+      pwsh -NoProfile -File .agents/scripts/pr-context.ps1 <<'EOF'
       { "pr": 5503 }
       EOF
 
@@ -53,9 +53,13 @@ Output (stdout, single JSON object): see the review skills' expected shape —
     baseRef, headRef, headSha }
 
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
-step 7 (which action to take per prior line/file comment based on thread state).
-Each entry is `{ threadId, isResolved, firstCommentId }`, matching the GraphQL
-`reviewThreads(first:100).nodes[*]` shape.
+step 7 and `/review-pr` step 2b (which thread-disposition action to take per
+prior line/file comment based on thread state + resolver identity). Each entry
+is `{ threadId, isResolved, resolvedBy, firstCommentId }`, matching the GraphQL
+`reviewThreads.nodes[*]` shape. The query paginates the thread cursor to the
+last page (heavily-reviewed PRs exceed 100 threads), so no open thread in the
+tail is dropped. `resolvedBy` is the GitHub login of the user who resolved the
+thread, or `null` when the thread is open.
 
 Exit codes
 ----------
@@ -175,9 +179,23 @@ $jobs.reviewThreads = Start-ThreadJob -ScriptBlock {
     # databaseId → thread.id map. `/verify-review` step 7 decides per-thread
     # resolve actions against `isResolved`; pairing it with the first comment's
     # databaseId lets the caller go REST comment_id → GraphQL thread_id in one
-    # lookup. `first:100` matches the upper bound observed on linq2db PRs.
-    $query = 'query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){ pullRequest(number:$n){ reviewThreads(first:100){ nodes{ id isResolved comments(first:1){ nodes{ databaseId } } } } } } }'
-    Invoke-GhJson @('api','graphql','-F',"o=$using:owner",'-F',"r=$using:repo",'-F',"n=$using:pr",'-f',"query=$query")
+    # lookup. MUST paginate: heavily-reviewed PRs exceed 100 threads (#5468 had
+    # 120+), and a single first:100 page silently drops the tail — where the
+    # still-open threads frequently are. Loop the cursor to the last page.
+    $query = 'query($o:String!,$r:String!,$n:Int!,$after:String){ repository(owner:$o,name:$r){ pullRequest(number:$n){ reviewThreads(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ id isResolved resolvedBy{ login } comments(first:1){ nodes{ databaseId } } } } } } }'
+    $all   = @()
+    $after = $null
+    for ($page = 0; $page -lt 200; $page++) {
+        $args = @('api','graphql','-F',"o=$using:owner",'-F',"r=$using:repo",'-F',"n=$using:pr",'-f',"query=$query")
+        if ($after) { $args += @('-f',"after=$after") }
+        $res = Invoke-GhJson $args
+        if (-not $res.ok) { return $res }
+        $threads = $res.data.data.repository.pullRequest.reviewThreads
+        if ($threads.nodes) { $all += $threads.nodes }
+        if (-not $threads.pageInfo.hasNextPage) { break }
+        $after = [string]$threads.pageInfo.endCursor
+    }
+    [pscustomobject]@{ ok = $true; data = $all; error = $null }
 }
 
 $fetchRes         = if ($jobs.fetch) { Receive-Job $jobs.fetch -Wait; Remove-Job $jobs.fetch } else { [pscustomobject]@{ ok = $true; stdout = '' } }
@@ -213,16 +231,18 @@ if ($nodes) {
 }
 
 $reviewThreads = @()
-$threadNodes = $reviewThreadsRes.data.data.repository.pullRequest.reviewThreads.nodes
+$threadNodes = $reviewThreadsRes.data
 if ($threadNodes) {
     foreach ($t in $threadNodes) {
         $firstId = $null
         if ($t.comments -and $t.comments.nodes -and $t.comments.nodes.Count -gt 0) {
             $firstId = $t.comments.nodes[0].databaseId
         }
+        $resolvedBy = if ($t.resolvedBy -and $t.resolvedBy.login) { [string]$t.resolvedBy.login } else { $null }
         $reviewThreads += [pscustomobject]@{
             threadId       = [string]$t.id
             isResolved     = [bool]$t.isResolved
+            resolvedBy     = $resolvedBy
             firstCommentId = $firstId
         }
     }

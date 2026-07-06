@@ -4,14 +4,14 @@ KB wiki fetcher — clone or update the linq2db.wiki repo and report changed
 articles since a cursor SHA.
 
 One permission rule:
-    Bash(pwsh -NoProfile -File .claude/scripts/kb-fetch-wiki.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/kb-fetch-wiki.ps1 *)
 
 Input (stdin, JSON):
   {
     "since":      "<wiki commit sha>",  // null on first run -> full mirror
     "owner":      "linq2db",
     "repo":       "linq2db",
-    "wikiClone":  ".build/.claude/kb-wiki",  // optional, default
+    "wikiClone":  ".build/.agents/kb-wiki",  // optional, default
     "list":       false                       // optional; if true, return file listing only
   }
 
@@ -39,7 +39,7 @@ $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
 $since = if ($m.since) { [string]$m.since } else { $null }
 $owner = if ($m.owner) { [string]$m.owner } else { 'linq2db' }
 $repo  = if ($m.repo)  { [string]$m.repo }  else { 'linq2db' }
-$cloneRel = if ($m.wikiClone) { [string]$m.wikiClone } else { '.build/.claude/kb-wiki' }
+$cloneRel = if ($m.wikiClone) { [string]$m.wikiClone } else { '.build/.agents/kb-wiki' }
 $listOnly = [bool]$m.list
 
 $repoRoot = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path

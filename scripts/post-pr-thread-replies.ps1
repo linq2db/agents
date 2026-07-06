@@ -15,6 +15,16 @@ literal-string trap (and the stdin-pipe encoding mangling that `_shared.ps1`
 documents). The script also gracefully reports per-item failures so a partial
 outage doesn't lose track of what landed.
 
+Ordering caveat (one pending review per PR)
+-------------------------------------------
+Each reply is a REST `POST .../comments/{commentId}/replies`. GitHub allows only
+ONE pending review per user per PR, so if the caller has a freshly-created PENDING
+draft review on the same PR, every reply here fails with HTTP 422
+`user_id can only have one pending review per pull request`. When a run both posts
+a draft review (post-pr-review.ps1) and disposes threads, call THIS script FIRST,
+before creating the draft. If the draft already exists, post replies only after the
+user submits it. See .agents/docs/review-orchestration.md -> submit-all mode.
+
 Contract
 --------
 
@@ -23,7 +33,7 @@ Input — two forms (preferred first)
 
 (1) Manifest file (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .claude/scripts/post-pr-thread-replies.ps1 -ManifestFile .build/.claude/pr5503-thread-replies.json
+      pwsh -NoProfile -File .agents/scripts/post-pr-thread-replies.ps1 -ManifestFile .build/.agents/pr5503-thread-replies.json
 
     The manifest file contains exactly the same JSON shape as the stdin form below.
 
@@ -39,7 +49,11 @@ JSON manifest shape:
         "threadId":  "PRRT_kwDOAB09RM549FlA", // required, GraphQL node ID
         "commentId": 3037904273,              // required, REST comment ID (positive int)
         "body":      "Fixed at HEAD - ...",   // required, non-empty markdown
-        "resolve":   true                     // optional, default true; set false to only reply
+        "resolve":   true,                    // optional, default true; set false to only reply
+        "unresolve": false                    // optional, default false; when true, unresolve
+                                              //   the thread instead of resolving (overrides `resolve`).
+                                              //   Use when a thread was resolved by someone other than
+                                              //   the current user but the underlying claim is Still actual.
       },
       ...
     ]
@@ -54,7 +68,12 @@ Output (stdout, JSON):
         "commentId": 3037904273,
         "ok":        true,
         "replyId":   3213692186,              // present only on successful reply
-        "resolved":  true,                    // present only on successful resolve (or false if requested-but-failed)
+        "resolved":  true,                    // post-mutation thread state: true when the thread is
+                                              //   currently resolved, false when currently unresolved.
+                                              //   On the `unresolve: true` path a successful unresolve
+                                              //   yields resolved=false (by design, not a failure).
+                                              //   Present only when a resolve / unresolve was requested
+                                              //   (resolve=true or unresolve=true on the item).
         "error":     "..."                    // present only when ok=false
       },
       ...
@@ -89,10 +108,11 @@ if (-not $m.items -or $m.items.Count -eq 0) {
     Exit-WithError 'items (non-empty array) required'
 }
 
-$workDir = '.build/.claude'
+$workDir = '.build/.agents'
 [void][System.IO.Directory]::CreateDirectory($workDir)
 
-$resolveQuery = 'mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }'
+$resolveQuery   = 'mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }'
+$unresolveQuery = 'mutation($threadId: ID!) { unresolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }'
 
 $results = New-Object System.Collections.Generic.List[object]
 $failedCount = 0
@@ -130,7 +150,11 @@ for ($i = 0; $i -lt $m.items.Count; $i++) {
     $commentId = [long]$item.commentId
     $threadId  = [string]$item.threadId
     $body      = [string]$item.body
-    $shouldResolve = if ($null -eq $item.resolve) { $true } else { [bool]$item.resolve }
+    # unresolve overrides resolve. If neither set, default to resolve.
+    $shouldUnresolve = if ($null -ne $item.unresolve) { [bool]$item.unresolve } else { $false }
+    $shouldResolve   = if ($shouldUnresolve) { $false }
+                       elseif ($null -eq $item.resolve) { $true }
+                       else { [bool]$item.resolve }
 
     # 1) POST reply via JSON file (avoids -f body=@file trap and stdin mangling).
     $payloadPath = Join-Path $workDir "post-pr-thread-replies-$pr-$commentId.json"
@@ -150,21 +174,31 @@ for ($i = 0; $i -lt $m.items.Count; $i++) {
     }
     $replyId = if ($replyResult.data.id) { [long]$replyResult.data.id } else { 0L }
 
-    # 2) Resolve thread via GraphQL (when requested).
-    if (-not $shouldResolve) {
+    # 2) Resolve / unresolve thread via GraphQL (when requested).
+    if (-not $shouldResolve -and -not $shouldUnresolve) {
+        # Reply-only path — no mutation requested, so don't emit `resolved`.
+        # The header doc's contract is "Present only when a resolve /
+        # unresolve was requested"; emitting `resolved=false` here would
+        # mislead callers into thinking the thread is currently unresolved
+        # when in fact we haven't observed its state.
         $results.Add([pscustomobject]@{
             ok = $true; commentId = $commentId; threadId = $threadId; replyId = $replyId
-            resolved = $false
         })
         continue
     }
 
-    $resolveResult = Invoke-GhJson -ArgumentList @('api', 'graphql', '-f', "query=$resolveQuery", '-F', "threadId=$threadId")
+    $mutationQuery = if ($shouldUnresolve) { $unresolveQuery } else { $resolveQuery }
+    $resolveResult = Invoke-GhJson -ArgumentList @('api', 'graphql', '-f', "query=$mutationQuery", '-F', "threadId=$threadId")
     if (-not $resolveResult.ok) {
+        $verb = if ($shouldUnresolve) { 'unresolve' } else { 'resolve' }
+        # Mutation failed — actual thread state is unknown (we didn't follow
+        # up with a GET). Omit `resolved` rather than emit $false, so a
+        # caller treating the field as post-mutation `isResolved` can't
+        # infer the wrong state from a failed call. The `ok=false` + error
+        # message already signal something went wrong.
         $results.Add([pscustomobject]@{
             ok = $false; commentId = $commentId; threadId = $threadId; replyId = $replyId
-            resolved = $false
-            error = "resolve failed: $($resolveResult.error)"
+            error = "$verb failed: $($resolveResult.error)"
         })
         $failedCount++
         continue
@@ -172,7 +206,11 @@ for ($i = 0; $i -lt $m.items.Count; $i++) {
 
     $isResolved = $false
     try {
-        $isResolved = [bool]$resolveResult.data.data.resolveReviewThread.thread.isResolved
+        $isResolved = if ($shouldUnresolve) {
+            [bool]$resolveResult.data.data.unresolveReviewThread.thread.isResolved
+        } else {
+            [bool]$resolveResult.data.data.resolveReviewThread.thread.isResolved
+        }
     } catch { }
 
     $results.Add([pscustomobject]@{

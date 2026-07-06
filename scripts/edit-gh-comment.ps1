@@ -13,11 +13,11 @@ string value is properly escaped.
 
 Building that wrapper inline is fiddly enough that even careful agent runs
 get it wrong (motivating session: PR #5467 release-notes-draft PATCH on
-2026-05-06 stored the literal `@.build/.claude/pr5467-release-notes-draft.md`
+2026-05-06 stored the literal `@.build/.agents/pr5467-release-notes-draft.md`
 as the comment body). This script does the wrapper construction, the PATCH,
 and a byte-compare verification in one allowlisted call:
 
-    Bash(pwsh -NoProfile -File .claude/scripts/edit-gh-comment.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/edit-gh-comment.ps1 *)
 
 Contract
 --------
@@ -31,7 +31,7 @@ Input (stdin, JSON):
                                             // Currently only "issue" is supported (covers issue + PR-issue
                                             // comments — both use repos/<o>/<r>/issues/comments/<id>).
                                             // Future: "review-comment", "review-body".
-    "bodyFile":  ".build/.claude/foo.md",   // OR
+    "bodyFile":  ".build/.agents/foo.md",   // OR
     "body":      "...inline markdown..."    // — exactly one of these must be set
   }
 
@@ -102,7 +102,7 @@ if ($hasBodyFile) {
 # Stage the JSON payload as a file so we route through `gh api --input <path>`,
 # which is the only reliable shape for a non-trivial body. Stdin would also work
 # but adds Bash-pipe encoding surface on Windows that we want to keep avoiding.
-$workDir = '.build/.claude'
+$workDir = '.build/.agents'
 [void][System.IO.Directory]::CreateDirectory($workDir)
 $payloadPath = Join-Path $workDir "edit-gh-comment-$commentId.json"
 $payloadAbs  = [System.IO.Path]::GetFullPath($payloadPath, (Get-Location).Path)

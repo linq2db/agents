@@ -1,6 +1,6 @@
 ---
 name: test-providers
-description: Configure the local test environment — enable / disable test-provider entries in `UserDataProviders.json` per TFM bucket, manage the docker containers those providers need (start / stop / setup-script run), and reset the file from `UserDataProviders.json.template`. Owns every edit to `UserDataProviders.json` and every `docker start` / `docker stop` call across the `.claude/` toolset; `/test` and `test-runner` consume the resulting state read-only.
+description: Configure the local test environment — enable / disable test-provider entries in `UserDataProviders.json` per TFM bucket, manage the docker containers those providers need (start / stop / setup-script run), and reset the file from `UserDataProviders.json.template`. Owns every edit to `UserDataProviders.json` and every `docker start` / `docker stop` call across the `.agents/` toolset; `/test` and `test-runner` consume the resulting state read-only.
 ---
 
 # test-providers
@@ -9,8 +9,8 @@ User-triggered workflow for managing the local test environment that `/test` run
 
 Shared reference material:
 
-- **Test database catalog** (provider IDs → setup script → container → image → preference): [`.claude/docs/test-databases.md`](../../docs/test-databases.md)
-- **`UserDataProviders.json` shape**: see `UserDataProviders.json.template` at the repo root and the **Test Database Configuration** section of [`.claude/docs/testing.md`](../../docs/testing.md)
+- **Test database catalog** (provider IDs → setup script → container → image → preference): [`.agents/docs/test-databases.md`](../../docs/test-databases.md)
+- **`UserDataProviders.json` shape**: see `UserDataProviders.json.template` at the repo root and the **Test Database Configuration** section of [`.agents/docs/testing.md`](../../docs/testing.md)
 
 ## When to run
 
@@ -49,17 +49,28 @@ Examples:
 
 The clause may appear before or after the provider list; parse it once, then strip it before family-rule normalisation runs on the remaining args.
 
+### Worktree target
+
+An optional `worktree <abs-path>` clause (distinct from the `in <bucket>` clause) points the skill at a git **worktree** instead of the primary clone. When present:
+
+- All `UserDataProviders.json` reads (step 2) and edits (step 5b) target `<worktree>/UserDataProviders.json`, not cwd.
+- A fresh worktree has no `UserDataProviders.json` (only the template is tracked). If it's absent, **seed it first** by copying the primary clone's (or the sibling clone's) copy into `<worktree>/UserDataProviders.json`, then apply the enable/disable edits — see [`.agents/docs/worktree.md`](../../docs/worktree.md) → *`UserDataProviders.json` in a worktree*.
+- Backups (step 5a) still go to `.build/.agents/`.
+- Container actions are unchanged — containers are shared across clones, so `docker start` / `docker stop` need no path adjustment.
+
+Parse and strip this clause alongside the `in <bucket>` clause in step 1.
+
 ## Provider name shortcuts and family rules
 
 Bare-family / version-only inputs are normalised to fully-qualified provider IDs before any edit. The family-rule table, bare-family version resolution, override and exclusion tables, and sticky-entry rule live in [`test-databases.md`](../../docs/test-databases.md) → **Provider name resolution**. Step 1 (Resolve intent) calls those rules; the rest of this skill consumes the normalised output.
 
 ## Permission-prompt discipline
 
-Every Bash call is allowlist-matched as one opaque string, so:
+Run one shell command per invocation; no chaining, no shell control flow. (Claude Code: every Bash call is allowlist-matched as one opaque string, so this also minimises permission prompts.) Concretely:
 
-- One Bash call per command. No `&&` / `||` / `;` chaining; no shell control flow. (Also enforced by the rules in `.claude/docs/agent-rules.md`.)
+- One Bash call per command. No `&&` / `||` / `;` chaining; no shell control flow. (Also enforced by the rules in `.agents/docs/agent-rules.md`.)
 - Batch independent inspects in a single assistant turn (multiple parallel Bash tool calls), not one chained string.
-- Setup scripts under `Data/Setup Scripts/<name>.cmd` must be run from that directory — issue `cd "Data/Setup Scripts" && <script>.cmd` is **not** allowed; use the script's documented invocation form via a single command (e.g. invoke through `pwsh -NoProfile -File ...` if a sequence is required, or just `Data/Setup\ Scripts/<script>.cmd` from the repo root if the script supports it). When the script truly requires a `cd` first, wrap the two-step sequence in a small pwsh under `.build/.claude/` rather than chaining.
+- Setup scripts under `Data/Setup Scripts/<name>.cmd` must be run from that directory — issue `cd "Data/Setup Scripts" && <script>.cmd` is **not** allowed; use the script's documented invocation form via a single command (e.g. invoke through `pwsh -NoProfile -File ...` if a sequence is required, or just `Data/Setup\ Scripts/<script>.cmd` from the repo root if the script supports it). When the script truly requires a `cd` first, wrap the two-step sequence in a small pwsh under `.build/.agents/` rather than chaining.
 
 ## Steps
 
@@ -154,8 +165,8 @@ hana2     will-create     (run Data/Setup Scripts/saphana2.cmd)
 
 Also include:
 
-- The backup target path: `.build/.claude/UserDataProviders.json.bak.<ISO-timestamp>`.
-- Whether `BaselinesPath` is currently set; if unset, ask in this same prompt whether to set it (propose `c:\\GitHub\\linq2db.bls` per `testing.md`'s **Enabling baselines locally**) — same numbered list, so the user can answer everything at once.
+- The backup target path: `.build/.agents/UserDataProviders.json.bak.<ISO-timestamp>`.
+- Whether `BaselinesPath` is currently set; if unset, ask in this same prompt whether to set it (propose `../linq2db.baselines` per `testing.md`'s **Enabling baselines locally**) — same numbered list, so the user can answer everything at once.
 
 Wait for an explicit go-ahead before any mutation. On a refusal, stop cleanly — no partial application.
 
@@ -168,7 +179,7 @@ Run the confirmed plan. Order matters: **JSON edits first, then container action
 On the first edit per session, copy the current file:
 
 ```
-cp UserDataProviders.json .build/.claude/UserDataProviders.json.bak.<ISO-timestamp>
+cp UserDataProviders.json .build/.agents/UserDataProviders.json.bak.<ISO-timestamp>
 ```
 
 Single Bash call. Skip if the user explicitly chose `skip-backup` in the consent prompt; in either case keep an in-memory copy of the pre-edit contents for the duration of this `/test-providers` invocation in case the user aborts after the edit.
@@ -183,7 +194,7 @@ Per affected TFM bucket:
 2. The `new_string` is the same block with markers flipped per step 3. Do not reorder, do not regex-replace across the whole file, and do not split into one `Edit` per provider — that triggers N permission prompts. One `Edit` per bucket.
 3. Leave whitespace, comments, and unrelated buckets exactly as they were.
 
-If the user agreed in step 4 to set `BaselinesPath`: a separate `Edit` call inserts the `"BaselinesPath": "c:\\GitHub\\linq2db.bls"` field into the `MyConnectionStrings` block (see the example in `testing.md` → **Enabling baselines locally**).
+If the user agreed in step 4 to set `BaselinesPath`: a separate `Edit` call inserts the `"BaselinesPath": "../linq2db.baselines"` field into the `MyConnectionStrings` block (see the example in `testing.md` → **Enabling baselines locally**).
 
 #### 5c. Container actions
 
@@ -209,7 +220,7 @@ Do not edit `UserDataProviders.json` in stop mode — the file is independent of
 Triggered by `/test-providers reset`.
 
 1. **Confirm explicitly.** Reset overwrites the user's local enable/disable choices and any custom `MyConnectionStrings` entries. Make this clear in the prompt and require an explicit go-ahead.
-2. **Backup.** Copy `UserDataProviders.json` to `.build/.claude/UserDataProviders.json.bak.<ISO-timestamp>` (single Bash call). Same backup rules as step 5a; not skippable for reset (the destruction is wholesale).
+2. **Backup.** Copy `UserDataProviders.json` to `.build/.agents/UserDataProviders.json.bak.<ISO-timestamp>` (single Bash call). Same backup rules as step 5a; not skippable for reset (the destruction is wholesale).
 3. **Apply.** `cp UserDataProviders.json.template UserDataProviders.json` (single Bash call).
 4. **Report** the backup path. Do not touch containers.
 
@@ -237,3 +248,4 @@ End with a concise summary:
 - Do not touch `DefaultConfiguration`. Per-bucket edits replace only the `Providers` array; surrounding keys stay byte-for-byte identical.
 - Do not call `docker container inspect` or `docker image inspect`. Container scope on this repo is `docker start` / `docker stop` / `docker create` / `docker ps` only (per `agent-rules.md` → *Docker containers: start/stop/create only*). Use `docker ps -a --filter name=<name>` for state queries — see steps 2 and 6.
 - Do not auto-correct fully-qualified provider IDs. The family rules apply only to bare-family / version-only inputs; `Oracle.12.Native` (and similar explicit variants) pass through unchanged even when the family rule would prefer Managed.
+- **Provider choice for bug verification must match the issue's domain.** When the user is setting up an environment to verify a provider-specific bug (PostgreSQL JSONB, Oracle row predicates, MySQL collation, etc.), enable **that** provider — don't accept "whatever's already enabled" as a shortcut. The verification only carries weight against the provider the bug lives on; verifying a PostgreSQL claim against DuckDB or SQLite is a category error. Provider-agnostic concerns (translator heuristics affecting every provider) can pick the simplest provider; provider-specific ones must match the domain.

@@ -25,4 +25,4 @@ carries YAML frontmatter with `confidence`, `last_verified`, and `last_verified_
 readers can see how stale a doc is.
 
 Coverage blocks at the end of each file list which Tier-1 / Tier-2 files were visited
-when the doc was generated. See `.claude/docs/kb-coverage-tiers.md`.
+when the doc was generated. See `.agents/docs/kb-coverage-tiers.md`.

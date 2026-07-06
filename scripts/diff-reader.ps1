@@ -13,14 +13,14 @@ Doing this with raw Bash fires one `git show` per file + one `git diff` per
 file = 2N permission prompts. This script takes the full file list up front
 and answers for all of them in one shot.
 
-    Bash(pwsh -NoProfile -File .claude/scripts/diff-reader.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/diff-reader.ps1 *)
 
 Input — two forms (preferred first)
 -----------------------------------
 
 (1) Manifest file (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .claude/scripts/diff-reader.ps1 -ManifestFile .build/.claude/diff-reader-5503.json
+      pwsh -NoProfile -File .agents/scripts/diff-reader.ps1 -ManifestFile .build/.agents/diff-reader-5503.json
 
     The manifest file contains exactly the same JSON shape as the stdin form below.
 
@@ -62,7 +62,7 @@ JSON manifest shape
                                               //           building repo-wide style reports.
     },
     "maxContentBytes": 200000,                // optional — truncate inline content; omit for no limit
-    "writeDir":   ".build/.claude/pr5414"     // optional — when set, full per-file content is
+    "writeDir":   ".build/.agents/pr5414"     // optional — when set, full per-file content is
                                               // written to <writeDir>/<source-path> (directory
                                               // structure preserved) and `contentPath` is emitted
                                               // per-entry so the caller can Read/Grep on disk

@@ -28,7 +28,7 @@ Only when the user explicitly invokes this skill. Do not propose bumps during un
 
 ### 2. Prepare the branch
 
-Branch name is `infra/bump-versions`. Follow the **Creating a new branch** rules in `.claude/docs/agent-rules.md` for everything else (dirty-tree handling, basing off `origin/master`, etc.).
+Branch name is `infra/bump-versions`. Follow the **Creating a new branch** rules in `.agents/docs/agent-rules.md` for everything else (dirty-tree handling, basing off `origin/master`, etc.).
 
 Do **not** create the branch yet — wait for user confirmation of the proposed changes in step 3.
 
@@ -62,4 +62,4 @@ Only after user confirmation of the diff in step 3:
 
 1. Create branch `infra/bump-versions` from `origin/master`.
 2. Edit `Directory.Build.props` in a **single** `Edit` call that covers all five `<Version>` / `<EFxVersion>` lines as one `old_string` / `new_string` block. Do **not** issue a separate Edit per property — that produces five individual diffs and five permission prompts. The five lines are contiguous in the file, so one Edit replaces them all at once. Preserve existing formatting (tabs, column alignment, comments).
-3. Do **not** commit, push, or open a PR automatically. Per `.claude/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, each of those actions needs its own explicit user request.
+3. Do **not** commit, push, or open a PR automatically. Per `.agents/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, each of those actions needs its own explicit user request.

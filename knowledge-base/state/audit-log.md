@@ -14,7 +14,7 @@
 - Added 2 missing providers: PROV-SQLCE, PROV-YDB
 - Added companion projects: CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE (collapsed 6 transports), SCAFFOLD, T4-TEMPLATES, CODEGEN, SHARED-INTERNAL
 - Added test areas: TESTS-FSHARP, TESTS-T4, TESTS-VB, TESTS-MODEL, TESTS-BENCHMARKS
-- Excluded: Source/Logo/, .claude/knowledge-base/
+- Excluded: Source/Logo/, .agents/knowledge-base/
 - Decisions: collapse REMOTE; accept INFRA/INTERCEPTORS/INTERNAL-API/METADATA grouping; separate IN-TREE-TOOLS from TOOLS package; accept 5 new test areas
 
 ## 2026-04-25T22:31:33Z — unclassified files
@@ -42,7 +42,7 @@
 ## 2026-04-25T22:45:09Z — kb-build paused at step 3
 - Step 3 (architecture-per-area) marked partial
 - Completed areas: CORE
-- Remaining: 40 areas (SQL-AST, SQL-PROVIDER, EXPR-TRANS, LINQ, MAPPING, DATA, EXPR, INFRA, INTERCEPTORS, INTERNAL-API, METADATA, REMOTE-CLIENT, IN-TREE-TOOLS, 14 PROV-*, EFCORE, CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE, SCAFFOLD, T4-TEMPLATES, TOOLS, CODEGEN, SHARED-INTERNAL, TESTS-INFRA, TESTS-LINQ, TESTS-EFCORE, TESTS-FSHARP, TESTS-T4, TESTS-VB, TESTS-MODEL, TESTS-BENCHMARKS, BUILD, CLAUDE-INFRA, GLOBAL)
+- Remaining: 40 areas (SQL-AST, SQL-PROVIDER, EXPR-TRANS, LINQ, MAPPING, DATA, EXPR, INFRA, INTERCEPTORS, INTERNAL-API, METADATA, REMOTE-CLIENT, IN-TREE-TOOLS, 14 PROV-*, EFCORE, CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE, SCAFFOLD, T4-TEMPLATES, TOOLS, CODEGEN, SHARED-INTERNAL, TESTS-INFRA, TESTS-LINQ, TESTS-EFCORE, TESTS-FSHARP, TESTS-T4, TESTS-VB, TESTS-MODEL, TESTS-BENCHMARKS, BUILD, AGENTS-INFRA, GLOBAL)
 - Resume: re-run /kb-build; the skill will detect partial step 3 and pick up at the next missing area
 
 ## 2026-04-26T00:00:00Z — kb-build step 3 SQL-AST done
@@ -58,7 +58,7 @@
 - Paused at user request (one area per turn)
 
 ## 2026-04-26T17:48:02Z — unclassified files
-- Source/LinqToDB/Internal/Linq/Builder/MethodCallParser.cs — pinned Tier-1 missing — file does not exist in the codebase. The dispatcher is source-generated (`Source/CodeGenerators/BuildersGenerator.cs`), and the per-method dispatch contract is `MethodCallBuilder` (`MethodCallBuilder.cs:7`) plus `[BuildsMethodCall]` markers (`Attributes.cs:35`). Update `.claude/docs/kb-areas.md` EXPR-TRANS row to drop `MethodCallParser.cs` from Tier-1 and replace with `MethodCallBuilder.cs` (the actual base class).
+- Source/LinqToDB/Internal/Linq/Builder/MethodCallParser.cs — pinned Tier-1 missing — file does not exist in the codebase. The dispatcher is source-generated (`Source/CodeGenerators/BuildersGenerator.cs`), and the per-method dispatch contract is `MethodCallBuilder` (`MethodCallBuilder.cs:7`) plus `[BuildsMethodCall]` markers (`Attributes.cs:35`). Update `.agents/docs/kb-areas.md` EXPR-TRANS row to drop `MethodCallParser.cs` from Tier-1 and replace with `MethodCallBuilder.cs` (the actual base class).
 
 ## 2026-04-26T17:48:02Z — agent audit notes
 - EXPR-TRANS Tier-2 coverage came in at 24% (17/71), well below the 90% gate. The Tier-1 dispatch + recursion architecture is fully captured (every root `*Builder.cs` was at minimum read for its attribute and `BuildMethodCall` entry, plus the source generator was read end-to-end), so the architectural narrative is sound — the missed Tier-2 is the per-builder `*Context` types, helpers, and the visitor stack (`ExpressionBuildVisitor`, `ExpressionTreeOptimizerVisitor`, `ParametersContext`, `TranslationModifier`, `EagerLoading`, `MergeBuilder.*.cs` partials, `TableBuilder.*Context.cs`). Step 3 should be marked `partial` and a follow-up refresh focused on this area should:
@@ -661,7 +661,7 @@ Internal/DataProvider/Access/AccessMappingSchema.cs
 Internal/DataProvider/Access/AccessBulkCopy.cs
 ```
 
-Action needed: update the `PROV-ACCESS` row's Tier-1 column in `.claude/docs/kb-areas.md` with the 11 paths above.
+Action needed: update the `PROV-ACCESS` row's Tier-1 column in `.agents/docs/kb-areas.md` with the 11 paths above.
 
 ## 2026-05-04T12:30:00Z — kb-areas.md PROV-ACCESS Tier-1 list expanded + corrected (applied)
 - PROV-ACCESS row: Tier-1 list expanded from 2 files to 11; the misnomer `AccessSqlBuilder.cs` (does not exist) replaced with `AccessSqlBuilderBase.cs` — third area this run with the same SqlBuilder→SqlBuilderBase correction (after PROV-ORACLE, PROV-DB2). Notes column expanded with 2-driver × 2-engine matrix (4 concrete providers), no-schemas/no-MERGE/no-CTE constraints, positional ODBC parameters, Access date literal syntax, 767-param/64KB-SQL caps.
@@ -793,7 +793,7 @@ No files were missing or renamed. The T4 template `ClickHouseHints.tt` and `READ
 - Completed areas: CORE, SQL-AST, SQL-PROVIDER, EXPR-TRANS, LINQ, MAPPING, DATA, EXPR, INFRA, INTERCEPTORS, INTERNAL-API, METADATA, REMOTE-CLIENT, IN-TREE-TOOLS, PROV-SQLSERVER, PROV-POSTGRES, PROV-MYSQL, PROV-ORACLE, PROV-SQLITE, PROV-FIREBIRD, PROV-DB2, PROV-ACCESS, PROV-INFORMIX, PROV-SYBASE, PROV-SAPHANA, PROV-CLICKHOUSE (26 of 41); 15 remaining
 - Paused at user request (one area per turn)
 ## 2026-05-04T09:24:21Z — agent audit notes
-- Proposed Tier-1 expansion for PROV-SQLCE row in `.claude/docs/kb-areas.md`.
+- Proposed Tier-1 expansion for PROV-SQLCE row in `.agents/docs/kb-areas.md`.
 
 Current pinned Tier-1 (2 files):
 - `SqlCeDataProvider.cs`
@@ -821,7 +821,7 @@ Suggested kb-areas.md update for the PROV-SQLCE row:
 ```
 
 ## 2026-05-04T09:25:15Z — agent audit notes
-- Proposed Tier-1 expansion for PROV-SQLCE row in `.claude/docs/kb-areas.md`.
+- Proposed Tier-1 expansion for PROV-SQLCE row in `.agents/docs/kb-areas.md`.
 
 Current pinned Tier-1 (2 files):
 - `SqlCeDataProvider.cs`
@@ -865,7 +865,7 @@ Suggested kb-areas.md update for the PROV-SQLCE row:
 - Paused at user request (one area per turn)
 
 ## 2026-05-04T09:50:57Z — agent audit notes
-- Proposed canonical Tier-1 file list for the `PROV-YDB` row in `.claude/docs/kb-areas.md`.
+- Proposed canonical Tier-1 file list for the `PROV-YDB` row in `.agents/docs/kb-areas.md`.
 
 Replace `(TBD on first read)` with:
 
@@ -904,7 +904,7 @@ No files are missing from disk vs. the area description. No Tier-1 anchor is abs
 - Cross-area dependency: PROV-YDB consumes RetryPolicyBase from INFRA area — only provider area to reach into the retry subsystem; integration is opt-in via DataOptions.UseRetryPolicy(...)
 - Notable: 128-bit decimal wire encoding constructed via Int128 (net8+) or BigInteger from Ydb.DecimalType + Ydb.Value protos — only provider with a separate proto-assembly dependency
 - Completed areas: CORE, SQL-AST, SQL-PROVIDER, EXPR-TRANS, LINQ, MAPPING, DATA, EXPR, INFRA, INTERCEPTORS, INTERNAL-API, METADATA, REMOTE-CLIENT, IN-TREE-TOOLS, PROV-SQLSERVER, PROV-POSTGRES, PROV-MYSQL, PROV-ORACLE, PROV-SQLITE, PROV-FIREBIRD, PROV-DB2, PROV-ACCESS, PROV-INFORMIX, PROV-SYBASE, PROV-SAPHANA, PROV-CLICKHOUSE, PROV-SQLCE, PROV-YDB (28 of 41); 13 remaining
-- All PROV-* areas now complete. Remaining areas are companion projects (EFCORE, CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE, SCAFFOLD, T4-TEMPLATES, TOOLS, CODEGEN, SHARED-INTERNAL) and infra (TESTS-*, BUILD, CLAUDE-INFRA).
+- All PROV-* areas now complete. Remaining areas are companion projects (EFCORE, CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE, SCAFFOLD, T4-TEMPLATES, TOOLS, CODEGEN, SHARED-INTERNAL) and infra (TESTS-*, BUILD, AGENTS-INFRA).
 - Paused at user request (one area per turn)
 
 ## 2026-05-04T10:13:45Z — unclassified files
@@ -1395,7 +1395,7 @@ Proposed change to `kb-areas.md` SHARED-INTERNAL row:
 - Resolving long-standing tally discrepancy: '41 of 41' was inherited from early-build audit entries and was off by ~9-10. Corrected enumeration:
 - kb-areas.md lists 51 area codes total; GLOBAL is excluded (cross-cutting docs only, n/a path patterns) → 50 areas have indexable scope.
 - Areas with on-disk INDEX.md after SHARED-INTERNAL run: 40 (CORE, SQL-AST, SQL-PROVIDER, EXPR-TRANS, LINQ, MAPPING, DATA, EXPR, INFRA, INTERCEPTORS, INTERNAL-API, METADATA, REMOTE-CLIENT, IN-TREE-TOOLS, all 14 PROV-*, EFCORE, CLI, COMPAT, EXTENSIONS-PKG, FSHARP, LINQPAD, REMOTE, SCAFFOLD, T4-TEMPLATES, TOOLS, CODEGEN, SHARED-INTERNAL).
-- Truly remaining: 10 areas (TESTS-INFRA, TESTS-LINQ, TESTS-EFCORE, TESTS-FSHARP, TESTS-T4, TESTS-VB, TESTS-MODEL, TESTS-BENCHMARKS, BUILD, CLAUDE-INFRA) + GLOBAL (out of scope for step 3 — cross-cutting docs only).
+- Truly remaining: 10 areas (TESTS-INFRA, TESTS-LINQ, TESTS-EFCORE, TESTS-FSHARP, TESTS-T4, TESTS-VB, TESTS-MODEL, TESTS-BENCHMARKS, BUILD, AGENTS-INFRA) + GLOBAL (out of scope for step 3 — cross-cutting docs only).
 - Going forward: '40 of 50' (with 10 remaining indexable + 1 GLOBAL out-of-scope). User confirmed continuation through remaining 10 at 1-per-turn cadence.
 
 ## 2026-05-04T13:26:36Z — agent audit notes
@@ -1711,22 +1711,22 @@ Rationale: designating these six files as Tier 1 would raise the next run's Tier
 - .github/ISSUE_TEMPLATE: 13 YAML forms (6 bug + 6 feature variants × 6 product surfaces: linq2db core/EF.Core/CLI/T4/LINQPad/Other; numbered 01-09/11-19) + config.yml redirecting new-DB requests to issue #1014
 - 6 known issues / debt: Build/BannedSymbols.txt pin stale (UNCLASSIFIED above); Roslyn analyzer disabled in build.yml (with_analyzers: false pending dotnet/roslyn#80621 — analyzer violations can land on master without CI gate, only caught locally on Release); macOS tests disabled by default in test-matrix.yml (mac_enabled: false; testing.yml comment suggests recently disabled for cost); Access ACE x64 disabled (enable_os_windows: false, dotnet/runtime#46187 random AV crash); ClickHouse Octonica entry has enabled: false in both branches of its ${{ if }} (never tested); testing.yml missing explicit db_filter default for test-all (commented-out — falls through to test-matrix.yml [all] default)
 - Cross-area dependencies: every C# project in Source/+Tests/ inherits Directory.Build.props (universal); every Source/* project also inherits Source/Directory.Build.props which adds Source/BannedSymbols.txt as <AdditionalFiles>; CI test matrix touches every PROV-* + TESTS-*; nuget-job publishes every Packaging/* output
-- Completed areas: ... TESTS-BENCHMARKS, BUILD (49 of 50); 1 remaining (CLAUDE-INFRA)
+- Completed areas: ... TESTS-BENCHMARKS, BUILD (49 of 50); 1 remaining (AGENTS-INFRA)
 - Paused at user request (one area per turn)
 
 ## 2026-05-04T14:59:52Z — agent audit notes
-- `kb-areas.md` BUILD area Tier-1 pin `Build/BannedSymbols.txt` is wrong. The file does not exist. The actual banned-API list consumed by `Microsoft.CodeAnalysis.BannedApiAnalyzers` is `Source/BannedSymbols.txt`, added as `<AdditionalFiles>` in `Source/Directory.Build.props`:17. Proposed fix: replace `Build/BannedSymbols.txt` with `Source/BannedSymbols.txt` in the Tier-1 pins for the BUILD area in `.claude/docs/kb-areas.md`.
+- `kb-areas.md` BUILD area Tier-1 pin `Build/BannedSymbols.txt` is wrong. The file does not exist. The actual banned-API list consumed by `Microsoft.CodeAnalysis.BannedApiAnalyzers` is `Source/BannedSymbols.txt`, added as `<AdditionalFiles>` in `Source/Directory.Build.props`:17. Proposed fix: replace `Build/BannedSymbols.txt` with `Source/BannedSymbols.txt` in the Tier-1 pins for the BUILD area in `.agents/docs/kb-areas.md`.
 
 ## 2026-05-04T15:24:23Z — agent audit notes
 - BannedSymbols.txt path mismatch: CLAUDE.md (line 54) states the banned API list is at `Build/BannedSymbols.txt`. On-disk search (Glob `**/BannedSymbols.txt`) finds the file at `Source/BannedSymbols.txt` and `Tests/BannedSymbols.txt` — neither is under `Build/`. The `kb-areas.md` BUILD area row pins `BannedSymbols.txt` as Tier-1 within the `Build/**` path pattern, which will not match the actual file location. Both CLAUDE.md and kb-areas.md need updating to reference `Source/BannedSymbols.txt`.
 
-## 2026-05-04T15:24:23Z — kb-build step 3 CLAUDE-INFRA done
-- areas/CLAUDE-INFRA/INDEX.md written, Tier-1 28/28 (100%), Tier-2 42/42 (100%; gate met), Tier-3 0, confidence high — full coverage of every Tier-1 + Tier-2 file
-- Tier-1 inventory (28): CLAUDE.md (root), 9 agents (.claude/agents/*.md), 18 skill SKILL.md files
-- Tier-2 inventory (42): 1 agents/_shared/kb-protocol.md, 23 docs (.claude/docs/*.md), 14 scripts (.claude/scripts/*.ps1), 2 hooks (.claude/hooks/*.ps1) + supporting refs
-- Subsystems documented: root instructions (CLAUDE.md + agent-rules.md auto-import via @.claude/docs/agent-rules.md); 18 skills grouped by purpose (KB management 5: kb-build/refresh/ask/issues/status; PR review 2: review-pr/verify-review; issue+fix workflow 4: fix-issue/create-issue/find-issues/merge-duplicates; test workflow 2: test/test-providers; infrastructure 5: api-baselines/version-bump/update-slnx/audit-claude/session-reflect); 9 agents grouped by role (5 KB indexers all model:sonnet except kb-github-curator:haiku; 2 review subagents code-reviewer:opus + baselines-reviewer:sonnet; 2 test agents test-writer:sonnet + test-runner:haiku); 23 reference docs (each one-line purpose); 14 helper scripts (manifest-in/JSON-out, _shared.ps1 dot-sourced everywhere); 2 hooks (track-docker-start.ps1 PostToolUse + cleanup-docker-session.ps1 SessionEnd; note: user-level check-bash-chain.js PreToolUse hook lives outside this corpus at ~/.claude-my/hooks/, not under .claude/hooks/)
-- 5 known issues / debt items: BannedSymbols.txt path mismatch (corroborates BUILD finding — both CLAUDE.md:54 and kb-areas.md BUILD-row need fix to Source/BannedSymbols.txt); claude-setup.md "Current skills" list stale (omits all skills added since last update — informational only, agents read individual SKILL.md); user-level check-bash-chain.js hook not discoverable from this corpus (lives at ~/.claude-my/hooks/, must be installed manually); 4 SKILL.md files exceed 250 lines (review-pr/verify-review/test-providers/fix-issue — refactor candidates per audit-claude); settings.local.json gitignored so hook wiring not committed (claude-setup.md acknowledges by design)
-- Cross-area dependencies: outbound to every other area (skills spawn agents that read Source/+Tests/+Build/, kb-state.ps1 writes .claude/knowledge-base/, hooks observe .build/.claude/); inbound is Claude Code session loader (no code callers)
+## 2026-05-04T15:24:23Z — kb-build step 3 AGENTS-INFRA done
+- areas/AGENTS-INFRA/INDEX.md written, Tier-1 28/28 (100%), Tier-2 42/42 (100%; gate met), Tier-3 0, confidence high — full coverage of every Tier-1 + Tier-2 file
+- Tier-1 inventory (28): CLAUDE.md (root), 9 agents (.agents/agents/*.md), 18 skill SKILL.md files
+- Tier-2 inventory (42): 1 agents/_shared/kb-protocol.md, 23 docs (.agents/docs/*.md), 14 scripts (.agents/scripts/*.ps1), 2 hooks (.agents/hooks/*.ps1) + supporting refs
+- Subsystems documented: root instructions (CLAUDE.md + agent-rules.md auto-import via @.agents/docs/agent-rules.md); 18 skills grouped by purpose (KB management 5: kb-build/refresh/ask/issues/status; PR review 2: review-pr/verify-review; issue+fix workflow 4: fix-issue/create-issue/find-issues/merge-duplicates; test workflow 2: test/test-providers; infrastructure 5: api-baselines/version-bump/update-slnx/audit-agents/session-reflect); 9 agents grouped by role (5 KB indexers all model:sonnet except kb-github-curator:haiku; 2 review subagents code-reviewer:opus + baselines-reviewer:sonnet; 2 test agents test-writer:sonnet + test-runner:haiku); 23 reference docs (each one-line purpose); 14 helper scripts (manifest-in/JSON-out, _shared.ps1 dot-sourced everywhere); 2 hooks (track-docker-start.ps1 PostToolUse + cleanup-docker-session.ps1 SessionEnd; note: user-level check-bash-chain.js PreToolUse hook lives outside this corpus at ~/.claude/hooks/, not under .agents/hooks/)
+- 5 known issues / debt items: BannedSymbols.txt path mismatch (corroborates BUILD finding — both CLAUDE.md:54 and kb-areas.md BUILD-row need fix to Source/BannedSymbols.txt); claude-setup.md "Current skills" list stale (omits all skills added since last update — informational only, agents read individual SKILL.md); user-level check-bash-chain.js hook not discoverable from this corpus (lives at ~/.claude/hooks/, must be installed manually); 4 SKILL.md files exceed 250 lines (review-pr/verify-review/test-providers/fix-issue — refactor candidates per audit-agents); settings.local.json gitignored so hook wiring not committed (claude-setup.md acknowledges by design)
+- Cross-area dependencies: outbound to every other area (skills spawn agents that read Source/+Tests/+Build/, kb-state.ps1 writes .agents/knowledge-base/, hooks observe .build/.agents/); inbound is Claude Code session loader (no code callers)
 - Step 3 area-count complete: ALL 50 of 50 indexable areas now have INDEX.md. GLOBAL out of scope for step 3 (cross-cutting docs only).
 - Step 3 NOT yet promoted to `done`: residual gate items remain — BUILD UNCLASSIFIED-FILE (kb-areas.md/CLAUDE.md fix proposed, awaiting user decision), FSHARP UNCLASSIFIED-FILE (FSharpExpressionInterceptor.fs delete-or-restore decision pending), 8 areas with by-design Tier-2 deferred-coverage queues (need user acknowledgment to close at `done`).
 
@@ -1754,7 +1754,7 @@ Similarly, `NotifyDataErrorInfo.ttinclude` prior claim was imprecise — it dire
 ## 2026-05-04T16:00:00Z — kb-areas.md + CLAUDE.md BannedSymbols.txt fix applied
 - kb-areas.md BUILD row: Tier-1 pin updated `Build/BannedSymbols.txt` → `Source/BannedSymbols.txt`; path patterns gain `Source/BannedSymbols.txt`; notes column expanded with rationale (banned-API list consumed by Microsoft.CodeAnalysis.BannedApiAnalyzers via Source/Directory.Build.props <AdditionalFiles>).
 - CLAUDE.md line 54: text "Banned API list in `Build/BannedSymbols.txt`" updated to "`Source/BannedSymbols.txt`".
-- Resolves BUILD UNCLASSIFIED-FILE / AUDIT-NOTE from prior turn and CLAUDE-INFRA AUDIT-NOTE corroboration.
+- Resolves BUILD UNCLASSIFIED-FILE / AUDIT-NOTE from prior turn and AGENTS-INFRA AUDIT-NOTE corroboration.
 - Note: BUILD/INDEX.md frontmatter still shows coverage_tier_1: 3/4 (out of date now that kb-areas.md pin is reconciled). Will be picked up on next /kb-refresh code-cursor sweep.
 
 ## 2026-05-04T16:00:30Z — FSHARP/FSharpExpressionInterceptor.fs removed (user decision)
@@ -1943,7 +1943,7 @@ Finding: The file at this path does not contain a class named `SetUseMappingSche
 - areas/TESTS-LINQ/INDEX.md re-emitted: Tier-2 389/598 → 453/598 (~75.8%) — confidence stays medium
 - 64 deferred files cleared in batch 7 (UserTests/ alphabetical third quarter — issues 2856-4654)
 - First-attempt apply-fences had two fence-format issues introduced by the regenerating agent: bare-array DEFERRED-COVERAGE-CLEAR (must be {"paths":[...]} object form) and YAML-key COVERAGE-SUMMARY (must be JSON object). Both patched in the scratch envelope file before re-apply
-- Second fence-format issue: artifact path was repo-relative (.claude/knowledge-base/areas/TESTS-LINQ/INDEX.md) rather than KB-relative (areas/TESTS-LINQ/INDEX.md). Path validator at kb-state.ps1:410 rejected it; second apply-fences run after fixing artifact header succeeded with gateFailures: []
+- Second fence-format issue: artifact path was repo-relative (.agents/knowledge-base/areas/TESTS-LINQ/INDEX.md) rather than KB-relative (areas/TESTS-LINQ/INDEX.md). Path validator at kb-state.ps1:410 rejected it; second apply-fences run after fixing artifact header succeeded with gateFailures: []
 - Batch-7 prose uses ASCII -- instead of em-dash within its own block (likely defensive against Git-Bash UTF-8 stdin mangling); batch 5/6 em-dashes preserved verbatim by the re-emit
 - Net result: TESTS-LINQ queue 128 → 64 files (64 cleared); 1 more UserTests batch expected to drain remainder (Issue475-Issue975 + 8 non-Issue files)
 
@@ -1956,7 +1956,7 @@ Finding: The file at this path does not contain a class named `SetUseMappingSche
 - TESTS-LINQ deferred-coverage queue fully drained (128 → 64 → 0 across batches 7 + 8)
 - Apply-fences first-attempt format issue: agent emitted COVERAGE-SUMMARY as `{"tier_2": "517/598"}` (wrong schema, not gate-blocking but inconsistent with kb-protocol). Patched to canonical `{"tier_1":{"visited":4,"total":4},"tier_2":{"visited":517,"total":598},"tier_3":{"skipped":0}}` before re-applying
 - Apply-fences itself succeeded: cleared: 64, gateFailures: []. INDEX.md was written by apply-fences but the agent's re-emit had degraded prior batches' (5/6/7) prose — stripped backticks around identifiers, em-dashes normalized to ASCII --, and dropped some inline code citations (e.g. .GetChild()!.Child!.GetId() removed from #1316 description) despite explicit 'preserve verbatim' instruction in prompt
-- Recovery: restored INDEX.md from .build/.claude/kb-build-step3-batch7.txt artifact body (pristine post-batch-7 state with backticks + em-dashes + code citations intact), then spliced in batch-8 deltas surgically via PowerShell (frontmatter coverage_tier_2 update, batch-8 heading + body block, batch-8 reads notice, Coverage block tier-2 line + reads bullet + skipped count). Result file: 112527 bytes, 264 em-dashes, backticks restored on Inheritance bullet for #1046
+- Recovery: restored INDEX.md from .build/.agents/kb-build-step3-batch7.txt artifact body (pristine post-batch-7 state with backticks + em-dashes + code citations intact), then spliced in batch-8 deltas surgically via PowerShell (frontmatter coverage_tier_2 update, batch-8 heading + body block, batch-8 reads notice, Coverage block tier-2 line + reads bullet + skipped count). Result file: 112527 bytes, 264 em-dashes, backticks restored on Inheritance bullet for #1046
 - Net result: TESTS-LINQ queue 64 → 0 files (FULLY DRAINED). Step 3 deferred-coverage backlog complete across all 50 indexable areas.
 
 ## 2026-05-07T22:05:14Z — kb-build step 4 conventions done
@@ -1968,7 +1968,7 @@ Finding: The file at this path does not contain a class named `SetUseMappingSche
 
 ## 2026-05-07T22:40:54Z — kb-build step 5 history-by-year 2011 done
 - history/by-year/2011.md written: 520 words, frontmatter valid (kind: history-year), all 4 required sections present (Releases / Top themes / Notable commits / Stats)
-- Source: 63 commits fetched via kb-fetch-commits.ps1 (year=2011), saved to .build/.claude/kb-commits-2011.json (105 KB)
+- Source: 63 commits fetched via kb-fetch-commits.ps1 (year=2011), saved to .build/.agents/kb-commits-2011.json (105 KB)
 - Project genesis year — first commit 2011-06-18 (oldest in repo), last 2011 commit 2026-12-27 'Working on SqlExpr.' (sha 2f4025c)
 - kb-historian followed batch-7/8 file-write discipline cleanly first attempt, used em-dashes correctly (4 in body, 0 ASCII --)
 - Cursor advanced: commits.sha = 2f4025c, year_done_through = 2011
@@ -1976,7 +1976,7 @@ Finding: The file at this path does not contain a class named `SetUseMappingSche
 
 ## 2026-05-07T23:29:18Z — kb-build step 5 history-by-year batch A done (2012-2015)
 - 4 year files written in single envelope: 2012.md (535w, 209 commits), 2013.md (572w, 705 commits), 2014.md (538w, 254 commits), 2015.md (513w, 293 commits)
-- Sources: 4 pre-fetched JSON files at .build/.claude/kb-commits-{2012..2015}.json (total ~1.1 MB)
+- Sources: 4 pre-fetched JSON files at .build/.agents/kb-commits-{2012..2015}.json (total ~1.1 MB)
 - Multi-year envelope strategy validated: 1 agent invocation produced 4 artifacts in 2.6 minutes (vs ~1.6 min for single-year 2011 — sub-linear scaling, confirms batched mode is efficient)
 - Cosmetic regression: agent reverted to ASCII -- (0 em-dashes vs 4 in 2011.md). Same pattern observed in conventions step. Adding to known kb-architect/kb-historian quirks list — content unaffected, normalisation can land via /kb-refresh later
 - Cursor advanced: commits.sha = 39d3f40 (2015-12-31), year_done_through = 2015. 11 years remaining (2016-2026)
@@ -2014,7 +2014,7 @@ Heuristic H1 (remove, replace) fired on many routine small removals; those were 
 - Era-1 audit note documented 9 skip categories (NuGet binaries 42, test-only 23, formatting 12, build infra 8, trivial removals 7, reverts 2, WIP 3, H5 over-fires 16, superseded 6). Era-2 audit note was NOT emitted by the agent despite explicit prompt instruction — minor process miss, doesn't affect correctness; gate is 'every candidate visited' which the count check (254-27=227 skipped) confirms
 - Coverage themes per era: Era 1 = BLToolkit cleanup (Nemerle, DbManager), namespace renames, SAP HANA add, 2017 reorganization peak, 2.0 release; Era 2 = NRT migration, eager loading, INSERT/UPDATE WITH OUTPUT, interceptor infra, ClickHouse, scaffold framework, DataOptions refactor, SQL gen v6, namespace reorg, .NET 6 removal, UseOptions API, YDB provider, window functions
 - Process win: per-era split kept context comfortable on Sonnet (290 KB era1 / 635 KB era2 vs combined 925 KB which would exceed 200K-token window). Per-era throughput: Era 1 = 1.0 min, Era 2 = 30.9 min (Era 2 was longer due to 1.7x candidates + richer 2025 commit bodies)
-- Step 6 marked done. Step 5 + 6 collectively produce: 16 year-history files + 42 decision files = 58 history artifacts in .claude/knowledge-base/history/
+- Step 6 marked done. Step 5 + 6 collectively produce: 16 year-history files + 42 decision files = 58 history artifacts in .agents/knowledge-base/history/
 
 ## 2026-05-08T11:35:08Z — kb-build step 7 github-indexes COMPLETE
 - 4 index files written: github/issues-index.json (2893 issues, 2.9 MB), github/prs-index.json (2285 PRs, 1.7 MB), github/discussions-index.json (288 discussions, 249 KB), github/milestones.json (5 open + 97 closed = 102 milestones, 27 KB)
@@ -2136,7 +2136,7 @@ Heuristic H1 (remove, replace) fired on many routine small removals; those were 
 
 ## 2026-05-11T11:03:03Z — kb-refresh (run 3 -- delta-mode fix verified, 5/5 areas integrated correctly)
 - currentSha: 4a478ff148cfc4aa21e7b23b91f5a8c2f3b407b7 (origin/master unchanged since run 1)
-- PRE-REFRESH: applied kb-architect delta-mode fix to .claude/agents/kb-architect.md. New 'Delta mode' section mandates step 1 -- read existing INDEX.md via Read tool first; if not found, emit AUDIT-NOTE and NO ARTIFACT. Prevents fresh-build artifacts overwriting comprehensive build-time content (the bug that hit INTERNAL-API in run 1 and PROV-FIREBIRD/PROV-DB2 in run 2).
+- PRE-REFRESH: applied kb-architect delta-mode fix to .agents/agents/kb-architect.md. New 'Delta mode' section mandates step 1 -- read existing INDEX.md via Read tool first; if not found, emit AUDIT-NOTE and NO ARTIFACT. Prevents fresh-build artifacts overwriting comprehensive build-time content (the bug that hit INTERNAL-API in run 1 and PROV-FIREBIRD/PROV-DB2 in run 2).
 - code: 5/5 agents this run returned GOOD outputs (fix verified): PROV-FIREBIRD retry (11/11 + 12/12, high), PROV-DB2 retry (11/11 + 11/11, high), EXPR-TRANS (63/63 + 71/71, high), SQL-PROVIDER (4/4 + 47/47, high), INTERNAL-API (23/23 + 199/199, high). All preserved their build-time content and integrated delta findings into existing sections.
 - Cumulative master-delta coverage to date (across runs 1-3): PROV-DUCKDB (new, run 1), PROV-POSTGRES (run 2), PROV-MYSQL (run 2), PROV-SQLSERVER (run 2), PROV-FIREBIRD (run 3), PROV-DB2 (run 3), EXPR-TRANS (run 3 -- final correct version after run 1 condensed + run 2 revert + run 3 re-integration), SQL-PROVIDER (run 3 -- same path), INTERNAL-API (run 3 -- same path). 9 of 26 affected areas indexed correctly.
 - Still deferred (17 areas): PROV-ACCESS, PROV-CLICKHOUSE, PROV-ORACLE, PROV-SQLITE, PROV-SAPHANA, PROV-SQLCE, PROV-SYBASE, PROV-YDB, PROV-INFORMIX, CORE, DATA, SQL-AST, EXPR, BUILD, CLI, LINQPAD, TESTS-INFRA/EFCORE/LINQ/T4. code cursor still NOT advanced (left at 7f972dbce); next /kb-refresh will pick these up.
@@ -2158,7 +2158,7 @@ Heuristic H1 (remove, replace) fired on many routine small removals; those were 
 
 ## 2026-05-11T13:24:10Z — kb-refresh
 - run 5 continuation: applied 5 more areas (CORE, DATA, SQL-AST, EXPR, BUILD); cumulative across runs 3+4+5: 23 of 26 affected areas done
-- run 5 batch 2 dispatched (CLI, LINQPAD, TESTS-INFRA, TESTS-EFCORE) but 3 agents hit Claude rate limit; only TESTS-EFCORE completed and its output is persisted on disk at .build/.claude/kb-refresh-2026-05-11-r5/ (not yet applied) -- carry-over to next /kb-refresh
+- run 5 batch 2 dispatched (CLI, LINQPAD, TESTS-INFRA, TESTS-EFCORE) but 3 agents hit Claude rate limit; only TESTS-EFCORE completed and its output is persisted on disk at .build/.agents/kb-refresh-2026-05-11-r5/ (not yet applied) -- carry-over to next /kb-refresh
 - still deferred: CLI, LINQPAD, TESTS-INFRA, TESTS-EFCORE, TESTS-LINQ, TESTS-T4 (6 areas)
 - code cursor NOT advanced (still 7f972dbce); next run will re-process all 26 areas; already-applied areas are delta-mode no-ops
 - kb-architect delta-mode fix verified 17/17 across runs 3+4+5
@@ -2172,4 +2172,415 @@ Heuristic H1 (remove, replace) fired on many routine small removals; those were 
 - kb-architect delta-mode fix verified 23/23 across runs 3+4+5+6
 - commits/issues/prs/discussions/wiki: 0 fetched this run
 - audit: 5/5 sampled, 0 stale (all clean)
+
+## 2026-06-01T19:16:18Z — agent audit notes
+- Item #5488 (PublishSingleFile assembly loading) classified as GLOBAL: affects all providers' assembly loading, not provider-specific behavior. Consider emit if packaging/deployment becomes a dedicated area in future.
+
+## 2026-06-01T19:58:32Z — agent audit notes
+- Wave 2 delta detectors (PROV-SQLSERVER, PROV-ORACLE, PROV-POSTGRES): no new issues. 12 existing DI entries re-confirmed (line numbers drifted due to PR #5504/#5515 edits); last_seen advanced.
+
+## 2026-06-01T20:52:20Z — agent audit notes
+- Wave 3 delta detectors: PROV-MYSQL 0 new (no existing DIs in changed files); PROV-SQLITE 0 new (DI-0059 scoped to SQLiteExtensions.cs, not in delta); PROV-CLICKHOUSE 3 existing DIs re-confirmed (line drift), last_seen advanced.
+
+## 2026-06-01T21:14:15Z — agent audit notes
+- Wave 4 detectors: PROV-DB2 (DI-0084/0085) + PROV-FIREBIRD (DI-0086/0087/0088/0089) re-confirmed (line drift). PROV-INFORMIX (DI-0092/0093/0094/0095) re-confirmed + 1 NEW: DI-0603 commented-out dead code in InformixMemberTranslator.
+
+## 2026-06-01T21:33:03Z — agent audit notes
+- Wave 5 delta detectors: PROV-SAPHANA, PROV-SYBASE, PROV-DUCKDB -- no new issues, no existing DIs in changed-file scope. (SapHana DI-0109/0110 reference SapHanaProviderAdapter.cs, out of delta scope; no PROV-SYBASE/PROV-DUCKDB DIs exist.)
+
+## 2026-06-01T21:47:52Z — agent audit notes
+- Wave 6 detectors: PROV-SQLCE 0 new (DI-0111/0112 reference SqlCeSqlOptimizer.cs, out of delta scope); PROV-YDB DI-0134/0137 re-confirmed (line drift); PROV-ACCESS 0 new (DI-0057/0076/0077/0078 reference other Access files, out of scope).
+
+## 2026-06-01T21:58:27Z — agent audit notes
+- Wave 7 detectors. SQL-AST: 1 new (DI-0673) + 6 updates. SQL-PROVIDER: 9 updates + 5 fixed (DI-0181/0187/0188/0190/0249 -- TODO line-signatures no longer fire). EXPR-TRANS: 10 new (DI-0693..0702, all "Made private or remove in v7" TODOs on Obsolete API in Expressions.cs) + 11 updates + 13 fixed (DI-0208..0220). NOTE: the EXPR-TRANS fixed+new churn reflects line-based matching drift on identical-text TODO comments after the Expressions.cs HasFlag-registration edit (#5503) reshuffled the file -- the 10 new DIs capture the current TODO set; the 13 fixed are the stale line-signatures. Per-overload comment tags would make future matching precise (agent recommendation).
+
+## 2026-06-01T22:08:48Z — unclassified files
+- Source/LinqToDB/Linq/Translation/AggregateFunctionBuilder.cs — outside EXPR-TRANS area globs (Internal/Linq/Builder/*); lives in LinqToDB.Linq.Translation public namespace. Content integrated into EXPR-TRANS INDEX.md subsystem 16 (aggregation) because AggregateFunctionBuilder is the primary public entry point for the aggregation pipeline changes in PR #5557. Suggest adding this file (and BuildAggregationFunctionResult.cs, WindowFunctionsMemberTranslator.cs) to a translation-layer area or extending EXPR-TRANS globs to include Source/LinqToDB/Linq/Translation/*.
+- Source/LinqToDB/Linq/Translation/BuildAggregationFunctionResult.cs — outside EXPR-TRANS area globs (Internal/Linq/Builder/*); lives in LinqToDB.Linq.Translation public namespace. Content integrated into INDEX.md Key types (BuildAggregationFunctionResult, Skipped sentinel). Same triage recommendation as AggregateFunctionBuilder.cs above.
+- Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs — outside EXPR-TRANS area globs (Internal/Linq/Builder/*); lives in LinqToDB.Linq.Translation. Scanned for aggregation-pipeline changes; registration surface for window functions is present but not structurally changed by this delta. Same triage recommendation.
+- Source/LinqToDB/Linq/Expressions.cs — outside EXPR-TRANS area globs; lives in LinqToDB.Linq public namespace (MapMember / expression-registration surface). Scanned range (lines 1-80) shows no changes relevant to the aggregation or association deltas. Same triage recommendation as above.
+
+## 2026-06-01T22:23:52Z — agent audit notes
+- Wave 8 detectors: INTERNAL-API 0 new (14 files clean); MAPPING 0 new (SqlQueryDependentParamsAttribute [Obsolete] is intentional deprecation, not flagged); REMOTE-CLIENT DI-0241/0242 re-confirmed + new DI-0733 (doc-gap on RemoteDataContextBase public members); CORE new DI-0743 (doc-gap on ExtensionBuilderExtensions arithmetic helpers).
+
+## 2026-06-01T22:44:35Z — agent audit notes
+- Wave 9a detectors: CLI 0 new (DI-0296/0297/0298/0299 re-confirmed, line shifts); EFCORE DI-0305..0308 re-confirmed + new DI-0763 (type-name string match, cross-ref GH #4652, triaged) + DI-0764 (ApplyServices doc-gap); LINQPAD 0 new (AboutModel.cs clean); SCAFFOLD new DI-0783 (duplicate OrderBy) + DI-0784 (NormalizeStringName dead-code without [Obsolete]).
+
+## 2026-06-01T22:52:52Z — agent audit notes
+- area: FSHARP -- changedFiles listed FSharpExpressionInterceptor.fs as DELETED, but the prior INDEX.md did not reference this file anywhere (not in Tier-1 table, Key types, or coverage). The file is absent from disk and leaves no references in the remaining FSharp sources. No KB content required correction; INDEX.md re-emitted solely to bump last_verified / last_verified_sha. If this file existed at an earlier sha and was an untracked gap in the prior build, the build-time run should be checked.
+
+## 2026-06-01T23:29:03Z — agent audit notes
+- Wave 10 detectors. TESTS-INFRA: 0 new (ThrowsCannotBeConvertedAttribute.cs + TestUtils.cs clean; TestUtils line-275 catch has real recovery logic, not empty; doc-gap scoped to library API not test helpers). TESTS-LINQ: 9 new broken-test entries (DI-0803..0811) cataloguing previously-untracked [ActiveIssue] gates across SelectQueryTests/MiniProfilerTests/SqlServerTests/JoinTests (3 cross-ref open issues #449/#1224/#3560; #1468 closed -> re-verify; 5 with no issue number) + 9 re-confirmations (DI-0375..0379, 0425, 0476, 0481, 0482); new fixtures (StringConcat/StringTrim/AggregationNullability/MemberInfoEqualityComparer/Issue5125/5154/5505) clean. TESTS-EFCORE: 0 new (IssueTests [ActiveIssue]s all carry linked-issue URLs; SqlTransparentExpressionTests clean). TESTS-T4: 0 new (Informix .tt stubs clean).
+
+## 2026-06-01T23:47:44Z — kb-refresh (code source, full mechanical sweep)
+- anchor sha: 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d (origin/master); prior code cursor 4a478ff1
+- code: 37 areas re-indexed (delta) across providers, SQL-AST/PROVIDER, EXPR-TRANS, INTERNAL-API, MAPPING, REMOTE-CLIENT, CORE, all packages (CLI/EFCORE/FSHARP/LINQPAD/SCAFFOLD/COMPAT/EXTENSIONS-PKG/REMOTE/TOOLS), tests (INFRA/LINQ/EFCORE/T4), BUILD, AGENTS-INFRA
+- detected-issues: new DI-0603,0673,0693-0702 (earlier waves), 0733,0743 (REMOTE-CLIENT/CORE doc-gap), 0763 (EFCORE type-name-match, GH#4652), 0764 (EFCORE doc-gap), 0783 (SCAFFOLD dup-OrderBy), 0784 (SCAFFOLD dead-code), 0803-0811 (TESTS-LINQ ActiveIssue gates, 3 cross-ref GH#449/#1224/#3560); plus last_seen re-confirmations + EXPR-TRANS/SQL-PROVIDER fixed flips
+- code cursor advanced to 2e67bafc9; commits cursor already at 2e67bafc9 (prior session); issues/prs/discussions/wiki unchanged this run
+- coverage: deferred queue empty (0 drained / 0 remaining)
+- audit: 5 sampled, 1 demoted (areas/INTERNAL-API/INDEX.md high->medium: stale citation TypeMapper.cs:792, line drift)
+- caveat: AGENTS-INFRA indexed from infra/claude-curation working tree (ahead of origin/master); sha stamped to refresh anchor
+
+## 2026-06-02T00:06:31Z — agent audit notes
+- Areas touched in this delta:
+-- EFCORE: 5 item(s)
+-- GLOBAL: 29 item(s)
+-- INFRA: 1 item(s)
+-- INTERNAL-API: 1 item(s)
+-- PROV-ACCESS: 1 item(s)
+-- PROV-INFORMIX: 1 item(s)
+-- PROV-SYBASE: 2 item(s)
+-- SQL-PROVIDER: 3 item(s)
+
+## 2026-06-02T00:13:42Z — kb-refresh (remaining sources: issues/prs/wiki) + kb-areas fix
+- kb-areas.md: EXPR-TRANS now claims Source/LinqToDB/Linq/** (public translation contracts); T4-TEMPLATES claims NuGet/** (per-provider package projects + t4models pack) -- closes the two unclassified-path gaps
+- BUGFIX kb-fetch-github.ps1: ConvertFrom-Json coerced the ISO 'since' to [datetime]; [string] rendered local culture (MM/dd/yyyy) -> GitHub rejected the filter -> fetched:0 on issues/prs/discussions + corrupted next_cursor write-back. Added To-IsoString normalization on since-input and next_cursor-output.
+- issues: 43 re-indexed (22 closed/21 open) into github/issues-index.json; cursor -> 2026-06-01T23:22:56Z
+- prs: 79 re-indexed (47 closed/32 open) into github/prs-index.json; cursor -> 2026-06-01T23:51:35Z
+- curator output required fixup: entries emitted flat (not {op,entry:{}}) + prs used '=== END PATCH ===' closer; corrected via .build/.agents/kb-refresh/fix-patches.ps1 round-trip, then applied clean
+- wiki: 0 changed files (base==head 343396fe); no advance, unaffected by the since bug
+- DEFERRED: github-themes per-area issues.md regeneration -- ~23 affected areas (mostly 1-3 items; high-volume EXPR-TRANS 26/BUILD 9/SQL-PROVIDER 8/TESTS-LINQ 7); not run this pass (indexes are authoritative; theme pages regenerate from index on demand)
+
+## 2026-06-02T10:46:04Z — agent audit notes
+- github-themes regenerated for 4 high-volume areas (EXPR-TRANS, BUILD, SQL-PROVIDER, TESTS-LINQ) from the refreshed indexes. Curator outputs were normalized by the caller: em-dash -> ASCII '--', restored missing envelope/ARTIFACT markers, standardized frontmatter (kind: issues, sources: [gh-issues, gh-prs, gh-discussions], last_verified 2026-06-01). Remaining ~19 low-volume affected areas (1-3 new items each) not regenerated this pass.
+
+## 2026-06-02T10:46:25Z — kb-refresh github-themes (high-volume areas)
+- Regenerated areas/{EXPR-TRANS,BUILD,SQL-PROVIDER,TESTS-LINQ}/issues.md from refreshed indexes (option 1: 4 high-volume areas).
+- Curator format fixup by caller: em-dash->'--', restored envelope/ARTIFACT markers, standardized frontmatter; applied clean (0 gate failures).
+- Still deferred: ~19 low-volume affected areas (1-3 new items each) -- regenerate on demand via targeted github-themes.
+
+## 2026-06-14T21:51:29Z — agent audit notes
+- area: PROV-FIREBIRD
+reason: Delta resolved Known-issue #2 (Guid->string duplication). ConvertConversion now delegates to FirebirdMemberTranslator.TranslateGuidToString (public static). Updated Known-issue #2 entry to RESOLVED; no claim regression.
+
+## 2026-06-15T04:12:44Z — kb-refresh full sweep (workflow)
+- code: 33 areas delta-indexed; arch ok=33 noop=0 fail=0; detect applied=3 cursorAdvanced=false
+- audit: 5 sampled, 0 demoted
+
+## 2026-06-15T08:20:56Z — agent audit notes
+- BLOCKED: kb-refresh github-themes step for area METADATA failed
+
+Reason: Required input index files not found
+- github/issues-index.json (missing)
+- github/prs-index.json (missing)
+- github/discussions-index.json (missing)
+
+The github-themes mode requires these indexes to be populated by earlier kb-refresh steps (github-indexes mode for issues, prs, discussions). The fetched GitHub data was not provided to this invocation.
+
+Expected inputs for github-themes mode:
+- Pre-populated .agents/knowledge-base/github/issues-index.json
+- Pre-populated .agents/knowledge-base/github/prs-index.json
+- Pre-populated .agents/knowledge-base/github/discussions-index.json
+- Existing .agents/knowledge-base/areas/METADATA/issues.md (for structure preservation)
+
+Current state:
+- Existing issues.md found: yes (last updated 2026-05-08)
+- Index file sources: none available
+- Area METADATA definition: present in kb-areas.md
+- Last verified timestamp: 2026-05-08
+
+Action required: Ensure kb-fetch-github.ps1 / parent skill has provided fetched JSON data before invoking this agent, or run github-indexes mode first to populate the indexes from GitHub.
+
+## 2026-07-05T16:32:03Z — agent audit notes
+- area: PROV-ACCESS
+file: Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs
+reason: "Possible latent defect found while integrating this run's delta (not introduced by either changed file in this delta -- discovered during a full Tier-2 re-read of AccessMemberTranslator.cs, which is not in the Tier-1 anchor set). `MathMemberTranslator.TranslateRoundToEven`'s precision-0 branch (lines 218-254) builds a `factory.SearchCondition().Add(is5).Add(isEven)` tie-break intended to implement round-half-to-even. The `isEven` predicate at line 239 is `factory.Equal(factory.Mod(intCast, factory.Value(2)), factory.Value(2))` -- it compares `Int(v) Mod 2` to the literal `2`, which `Mod 2` can never produce (only 0 or 1, or a negative remainder on some engines). The doc-comment directly above it (lines 226-231) and this KB's own pre-existing 'Round (banker's, precision 0)' claim both describe the intended comparison as `Mod 2 = 0`. Net effect: the `Int(v)` even-tie branch of the IIF is unreachable; the translator always falls through to `Round(v)`. This is plausibly harmless because Access/Jet's built-in `Round()` function is itself documented to round half-to-even, so the fallthrough may produce correct results anyway -- but the custom tie-break code is then dead, and if `Round()`'s native behavior ever changes or is patched by a future edit that assumes the custom tie-break is load-bearing, results would silently regress. Recommend `kb-issue-detector` evaluate this as a candidate finding (dead code masking a possible correctness dependency) and, if warranted, a regression test asserting `Sql.Round` half-to-even behavior for values like 2.5 / 3.5 on Access. This INDEX.md's body claim was updated in place to describe the code as written (per delta-mode contradiction-handling rule) rather than silently keep restating the doc-comment's intent as fact."
+---
+
+## 2026-07-05T17:12:22Z — agent audit notes
+- area: PROV-POSTGRES
+reason: "Delta corrected a stale claim in areas/PROV-POSTGRES/INDEX.md: 'PostgreSQLDataProvider.CreateSqlBuilder always instantiates PostgreSQLSqlBuilder regardless of version' is no longer true -- CreateSqlBuilder now branches on Version >= PostgreSQLVersion.v13 to select the new PostgreSQL13SqlBuilder (added for the AS [NOT] MATERIALIZED CTE hint), leaving the base PostgreSQLSqlBuilder only for versions below v13. The underlying known issue (PostgreSQLSql15Builder's MERGE override is unreachable from CreateSqlBuilder) still holds -- PostgreSQL13SqlBuilder is a sibling of PostgreSQLSql15Builder (both extend PostgreSQLSqlBuilder directly), not a parent, and neither branch of the new version check constructs PostgreSQLSql15Builder. Also newly found this delta: PostgreSQLDataProvider.GetMappingSchema has no PostgreSQLVersion.v13 arm in its switch, so v13 providers get PostgreSQL95MappingSchema instead of the dedicated (and otherwise unused) PostgreSQL13MappingSchema class -- same unreachable-version-specific-type shape as the Sql15Builder issue. Both corrections applied in place in INDEX.md; see the SQL builder hierarchy and Known issues / debt sections."
+
+## 2026-07-05T17:12:25Z — agent audit notes
+- area: PROV-YDB
+reason: "delta sha 36ee4f82f contradicts two claims in the prior INDEX.md; both corrected in place per kb-architect delta rule 5 rather than appended as new claims."
+details:
+  - "GetSchemaProvider() no longer throws NotImplementedException -- YdbDataProvider.cs:119 now returns `new YdbSchemaProvider()`, and Internal/DataProvider/Ydb/YdbSchemaProvider.cs (new file, backed by new YdbProviderAdapter PK-wrapper machinery) implements SchemaProviderBase. The prior 'Known issues' bullet claiming no schema provider exists was replaced with a narrower-coverage bullet (no FKs, no GetDataTypes) describing the new implementation's actual limits."
+  - "YdbSqlBuilder.BuildSqlCastExpression's Unwrap(...) wrapping is no longer unconditional -- it is now applied only when the cast result cannot be null (YdbSqlBuilder.cs:585-600), since Unwrap on a nullable cast throws at runtime for an actual NULL value. The prior SQL builder subsystem paragraph stating CAST is 'wrapped in Unwrap(...) because CAST returns an Optional type' (unconditionally) was corrected in place."
+
+## 2026-07-05T17:12:33Z — agent audit notes
+- area: PROV-DUCKDB
+reason: "Delta contradicts an existing claim in areas/PROV-DUCKDB/INDEX.md's Member translator section. Prior text stated DuckDB's now-functions emit bare keywords (CURRENT_TIMESTAMP, LOCALTIMESTAMP, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'). Current code (DuckDBMemberTranslator.cs: TranslateServerNow/TranslateNow/TranslateZonedNow/TranslateZonedUtcNow) now emits function-call forms (now(), current_localtimestamp(), now() AT TIME ZONE 'UTC') to fix DuckDB's ON CONFLICT ... DO UPDATE SET binder parsing the bare keyword as a column reference. The claim was updated in place in the re-emitted INDEX.md rather than appended as a new contradictory claim."
+
+## 2026-07-05T17:12:37Z — agent audit notes
+- area: PROV-FIREBIRD
+reason: This delta's `FirebirdDataProvider.cs` / `FirebirdMemberTranslator.cs` changes added a new `Firebird25MemberTranslator` (v25-specific), which invalidated two existing INDEX.md claims: (1) the `CreateMemberTranslator` dispatch description (previously "three-way dispatch", old line range 92-99, claiming `_` covered both v25 and v3), and (2) the `## Member translator hierarchy` ASCII diagram showing `FirebirdMemberTranslator (v25, v3)` as a single node directly serving both versions. Both were corrected in place per delta procedure step 5 to reflect the new four-way dispatch and the `Firebird25MemberTranslator` subclass. No other existing body claims were contradicted by this delta.
+
+## 2026-07-05T17:12:43Z — agent audit notes
+- area: PROV-MYSQL
+reason: Body contradiction corrected per delta procedure step 5. Prior text in the Product/version matrix and Member translator subsystems stated that MySQL 8.0 and MariaDB 10+ share MySql80MemberTranslator, because CreateMemberTranslator used a 2-way switch. currentSha 36ee4f82f0 changes CreateMemberTranslator to a 4-way switch. MariaDB10 now maps to a new MariaDBMemberTranslator subclass, which itself extends MySql80MemberTranslator so REGEXP_REPLACE TrimStart/TrimEnd is still inherited, and MySql57 now maps to a new MySql57MemberTranslator subclass, previously mapped to the MySqlMemberTranslator base directly which is unchanged as the fallback for AutoDetect/unhandled versions. Updated the existing claims in place rather than appending a contradictory new paragraph, and added Known issue number 10 for the unconditional UUID_v7() emission on MariaDB with no server-version gate.
+
+## 2026-07-05T17:12:53Z — agent audit notes
+- PROV-SAPHANA delta (sha 36ee4f82): resolved a contradiction per kb-architect delta procedure step 5, not appended as a new claim. Prior INDEX.md (as of sha b3340aa9) stated IsInsertOrUpdateSupported = false ("no native UPSERT") in the SQL provider flags table. As of the current working tree, SapHanaDataProvider.cs sets IsInsertOrUpdateSupported = true and ships a new native single-statement UPSERT path (SapHanaSqlBuilder.InsertOrUpdate.cs, new file, BuildInsertOrUpdateQuery emitting UPSERT ... WITH PRIMARY KEY), gated by two new flags (IsInsertOrUpdateWithPredicateSupported = false, IsInsertOrUpdateRequiresAlignedBranches = true) and one new merge-lowering flag (IsUpsertWithMergeLoweringSupported = false). Updated the flags table, added a new UPSERT (native single-statement) dialect bullet, added the new file to Tier 2 (coverage_tier_2 9/9 -> 10/10), and updated the Key Types / Files tables in place rather than leaving the stale no-native-UPSERT claim standing.
+
+Separately (not a contradiction, a new finding): SapHanaMemberTranslator.cs now contains a SapHanaWindowFunctionsMemberTranslator nested class (window-frame/aggregate capability flags) that was not previously documented in this INDEX despite appearing in a sha the prior delta run (b3340aa9) claimed had no functional changes for this file -- the class was evidently already present then and was missed, or landed between that sha and this one; either way it is newly captured here. Its inline comment (SapHanaMemberTranslator.cs:416-417) asserts windowed PERCENTILE_CONT/DISC execute on HANA while the adjacent flags (IsPercentileContSupported / IsPercentileDiscSupported) are both false -- documented as an open comment/code inconsistency in Known issues/debt rather than resolved by inference.
+
+## 2026-07-05T17:29:05Z — agent audit notes
+- area: PROV-SYBASE
+reason: "pre-existing content corruption in areas/PROV-SYBASE/INDEX.md, discovered incidentally while integrating this delta -- not introduced by, or fixed in, this run"
+detail: "The entire '## Subsystems' prose section (Public surface through Member translator, lines ~20-247 in the pre-delta file) has lost the text of every inline-code-span identifier it originally cited -- verified via raw-byte inspection (cat -A) that the backticks themselves are gone too, not just hidden by rendering. Sentences read like '-- ASE sorts NULL as the smallest value...' with no leading identifier, or '-  -- returns .' with both the method name and return value stripped. The 'Source' column of the '## ASE-specific SQL quirks (summary)' table is empty in every row for the same reason. Tables outside that span (Key types, Files, ASE-specific quirks' Quirk/Detail columns) and prose sections written without inline-code spans (Known issues / debt) are intact. This matches the failure pattern the skill's punctuation-convention backstory describes for batch transcription via Bash here-strings, but for backtick spans rather than em-dashes. Delta-mode scope forbids rewriting existing body content beyond insertions/small clarifications, so this run left the corrupted spans untouched and added new content as clean, fully-cited insertions instead (the IsInsertOrUpdateWithPredicateSupported bullet, the SybaseWindowFunctionsMemberTranslator bullet, and the corresponding table-cell/coverage-block additions). Recommend a dedicated repair pass (re-derive the missing identifiers from source, likely via kb-architect re-run in architecture-per-area mode) rather than further incremental delta patches over the corrupted base."
+
+## 2026-07-05T17:29:26Z — agent audit notes
+- area: CLI
+reason: Prior INDEX.md body stated DatabaseType had 16 values (list ending at DuckDB) and omitted Ydb.Sdk from the bundled-provider dependency list. Current source (sha 36ee4f82f) already contains a Ydb member on DatabaseType, a matching --provider StringEnumOption entry, a DatabaseType.Ydb -> ProviderName.Ydb mapping in GetConnection's no-special-setup case group, and a Ydb.Sdk PackageReference in LinqToDB.CLI.csproj. This delta's changedFiles (ScaffoldCommand.Execute.cs, ScaffoldCommand.Options.cs, LinqToDB.CLI.csproj) are exactly where these Ydb additions live, so treated as the delta being integrated rather than a KB inconsistency to leave standing. Updated the 16-values / private-enum line-number claim and the outbound-dependencies package list in place rather than appending a second contradictory claim; line numbers for the DatabaseType enum and GetConnection switch cases were re-cited against the current file (enum block shifted from :1933 to :1913 across this delta's edit).
+
+## 2026-07-05T18:44:11Z — agent audit notes
+- area: FSHARP
+reason: Delta run corrected two claims in areas/FSHARP/INDEX.md contradicted by the new code. (1) "Entry point" subsystem previously stated "No expression interceptor is registered" -- DataOptionsExtensions.fs now registers FSharpQueryExpressionInterceptor.Instance alongside FSharpEntityBindingInterceptor.Instance; updated in place rather than appended. (2) "Known issues / debt" previously stated F# option types are not addressed -- FSharpOptionSupport.fs (new file) now auto-maps 'T option / 'T voption columns via a value converter + metadata reader; the bullet was updated in place to reflect option support while still flagging discriminated unions and F# collection types (list<'T>, seq<'T>) as unaddressed. Both edits correct superseded claims rather than adding contradictory new ones.
+
+## 2026-07-05T18:44:21Z — agent audit notes
+- TESTS-EFCORE delta (sha 36ee4f82): corrected two KB claims that the delta's source changes contradicted, rather than appending contradictory new claims.
+
+1. `AssemblyInfo.TestProgress.cs` -- the "Multi-EF csproj layout" section previously stated the test-progress heartbeat is "enabled by the LINQ2DB_TEST_PROGRESS environment variable". PR #5621 ("Add --provider and --test-progress test CLI options") changed the mechanism to the --test-progress CLI flag; the file's own comment now says so, matching .agents/docs/testing.md's "Monitoring a long run" section. Updated the claim in place instead of leaving the stale env-var wording.
+
+2. `Tests.EntityFrameworkCore.EF10.csproj` -- the "Known issues / debt" section previously stated the 4 EF test csprojs "have no shared DefineConstants contract analogous to EF31/EF8/EF9/EF10 in the production EFCORE area". This delta adds <DefineConstants>EF10;$(DefineConstants)</DefineConstants> to the EF10 csproj (used by new #if EF10 guards in NorthwindContext.cs and ToolsTests.cs for EF10 named query filters), which partially resolves that gap -- EF10 now has a symbol, EF3/EF8/EF9 still don't. Updated the bullet to reflect the partial state rather than leaving the "no shared contract at all" claim standing unqualified.
+
+Note on currentSha: the task's currentSha (36ee4f82f06eaf242b052ade8c87121d251a6165) is an ancestor of the actual checked-out HEAD (6b8db0678b449a0fd541c7daa57eea199b72dc8a). Diffing 36ee4f82..HEAD for the 5 changedFiles showed only one further difference beyond currentSha: AssemblyInfo.TestProgress.cs's doc-path comment was updated from ".claude/docs/testing.md" to ".agents/docs/testing.md" (the corpus-wide .claude->.agents rename, commit 1a663016f) -- not reflected in this artifact since it postdates the given currentSha and is a pointer-only change with no content implication.
+
+## 2026-07-05T18:44:24Z — agent audit notes
+- area: TESTS-FSHARP
+reason: Delta updated an existing "Known issues / debt" claim in place instead of appending a contradictory new one. Prior text: "No F# tests exist for async LINQ, IAsyncEnumerable, or CancellationToken paths." Tests/FSharp/Issue5598.fs's UpdateSetsOnlyChangedColumnAsync (added in this delta) exercises an async LINQ path (task { ... } / UpdateAsync), contradicting the blanket claim. The bullet was rewritten to note the new async coverage while keeping IAsyncEnumerable/CancellationToken flagged as still uncovered.
+
+## 2026-07-05T18:44:32Z — agent audit notes
+- area: TESTS-BENCHMARKS
+reason: "Program.cs delta shifted the pre-existing commented-out manual-run scaffolding block from the previously-cited lines 22-97 to lines 32-112 (the new manual-cache dispatch was inserted ahead of it). Updated the citation in the existing 'Known issues / debt' bullet in place rather than leaving a stale line-range or appending a duplicate/contradictory claim."
+
+## 2026-07-05T18:44:36Z — agent audit notes
+- area: TESTS-T4
+reason: Updated an existing claim in areas/TESTS-T4/INDEX.md in place rather than appending a contradictory new one. The prior text left open whether `T4/DuckDB/` containing only `TestDataDB.cs` meant literal "context-only" output or a partial regen needing investigation. This delta's direct read of `Tests/Tests.T4/Cli/T4/Ydb/TestDataDB.cs` (same `mode = "t4"` code path) shows the single file contains the context class, all entity partial classes, and a shared ExtensionMethods class -- i.e. NOT context-only, and the T4 code path's normal all-in-one-file output rather than a partial-regen artifact. Updated the "CLI mode taxonomy" prose and the "Known issues / debt" bullet in place; the prior "needs investigation" framing is closed.
+- area: TESTS-T4 / PROV-YDB (cross-area)
+reason: This delta adds full CLI-scaffold baseline sets for the "Ydb" provider across all five Cli/<mode>/ directories (All, Default, Fluent, NoMetadata, T4), which implies a working schema-discovery path was used to read live-database schema during `dotnet linq2db scaffold --provider Ydb`. The PROV-YDB area's INDEX.md (per kb-areas.md / prior PROV-YDB indexing) records `YdbDataProvider.GetSchemaProvider()` as "not implemented". These two facts appear to conflict. Verifying requires reading PROV-YDB source (e.g. Internal/DataProvider/Ydb/YdbDataProvider.cs and the CLI scaffold's schema-acquisition path), which is out of scope for a TESTS-T4 delta. Flagging for human triage or a PROV-YDB refresh: either GetSchemaProvider was implemented since PROV-YDB's INDEX.md was last verified, or CLI scaffolding for YDB uses a different code path than GetSchemaProvider.
+
+## 2026-07-05T21:01:47Z — agent audit notes
+- LINQ area delta (sha 36ee4f82f06eaf242b052ade8c87121d251a6165) integrates a large query-cache rewrite that contradicted several existing claims in areas/LINQ/INDEX.md. Corrected in place rather than appended alongside:
+
+1. Opening paragraph and the `Query` / `Query<T>` Key-types bullets: previously described "the per-entity-type query cache" and a static per-`Query<T>` `QueryCache` (max 100 entries, copy-on-write, `Monitor.TryEnter` swap-up reorder). This mechanism was fully deleted from `Query{T}.cs` and replaced by a single process-wide `QueryCache.Default` (new file `QueryCache.cs`, 1138 lines) bucketed by `(ResultType, ContextType, ConfigurationID, QueryFlags, ChainHash)` with hit-rate-tiered TTL and a background sweep/trim. `## Subsystems` § 1 was rewritten (not appended) to describe the new design; the old citations (`Query{T}.cs:232`, `:98`, `:203-205`, `:374`, `:137`) no longer exist in the 219-line-shorter file.
+2. `Query` Key-types bullet and `## Known issues / debt`: `Query.ConfigurationID` / `ContextType` / `InlineParameters` / `IsEntityServiceProvided` instance fields were removed; they are now folded into the `QueryCache.CacheKey` bucket key instead of being checked inside `Query.Compare`. The "Single-threaded cache reorder" and "Static state in `Query<T>`" debt bullets were rewritten in place to describe the new cache's actual watch points (approximate `_entryCount` drift, per-bucket eviction) rather than the deleted mechanism.
+3. `QueryFlags` widened from `internal` to `public` and gained `HasEntityServiceInterceptor = 0x08`; `QueryFlagsHelper.GetQueryFlags` now sets it. This is a genuine (small) public-surface change worth flagging for the API-baseline / public-API-discipline convention docs if this delta has not already gone through that gate on the source PR.
+4. New cross-cutting behavior unrelated to the cache rewrite but landing in the same delta: `QueryRunner.InsertOrReplace.cs` gained a 3-query existence-check / conditional-UPDATE / INSERT orchestration (`SetIfExistsUpdateElseInsert`) for `Upsert(...).Update(v => v.When(cond))` on providers without MERGE/ON CONFLICT, plus a `SqlProviderFlags.IsInsertOrUpdateRequiresAlignedBranches` + `UpsertBuilder.HasDivergentInsertOrUpdateBranches` check that routes SAP HANA-style providers to the emulation path. Added to Key types, the executor-delegate table (`## Subsystems` § 3), Files (Tier 2), and Outbound/Pointers. This crosses into EXPR-TRANS (`UpsertBuilder`) — flagged per the "claim can only be supported by reading outside the area" failure mode; kept as a pointer plus a one-line cross-area citation rather than a deep dive, since `UpsertBuilder.cs` itself is not in this run's `changedFiles[]` / area scope.
+5. `Preamble.IsInlined` (new virtual, default `false`) and the corresponding change to `Query.IsAnyPreambles()` (skips all-inlined preamble arrays) were added to the `Preamble` Key-types bullet and the implicit-transaction Pointer; not a contradiction, an addition.
+6. Line-number citations recalculated throughout for `Query.cs` and `Query{T}.cs` against the current (post-delta) file contents (e.g. `Query{T}.cs:396` -> `:213` for `CreateQuery`; `Query.cs:22` -> `:20` for the class declaration; `Query{T}.cs:354` -> `:172` for the `dependsOnParameters` assignment) since both files shrank/reflowed significantly. Citations into unaffected files, and into `QueryRunner.cs` regions that sit before the newly-appended `IfExistsUpdateElseInsert` region, were verified unchanged and left as-is.
+
+coverage_tier_2 increased 46/46 -> 47/47 (new file `QueryCache.cs`); confidence stays `high`; no unresolved gaps introduced by this delta.
+
+## 2026-07-05T21:01:51Z — agent audit notes
+- Contradiction resolved in areas/SQL-PROVIDER/INDEX.md: the prior "Known issues / debt" bullet "`Sql.Window` is half-implemented. Marked 'Hidden until fully implemented'" is now false as of PR #5468 ("Window Functions: new Sql.Window API"), which replaced the `Sql.Window.cs` stub with a ~3200-line fluent DSL (`WindowFunctionBuilder`) plus matching `BasicSqlBuilder` emission support and a new capability doc (`WindowFunctions.FeatureMatrix.md`). Updated the bullet in place to record the resolution and point at the new doc for remaining (intentional) gaps, per delta-mode contradiction-handling rules.
+
+This delta also spans 8 merged PRs since the prior indexed SHA (b3340aa9 -> 36ee4f82): #5648 (UUIDv7), #5468 (Window Functions), #5450 (eager-loading CTE-union strategy), #5604 (PreferClientCalculation AsNullable/ToNullable fix), #5630 (PostgreSQL/DuckDB DISTINCT ON), #5584 / issue #5413 (Oracle correlated UPDATE ROW fix), #5564 (YDB provider finish -- DateDiff bugfix + math-function coverage touch this area), #5482 (fluent Upsert + Insert/Update entity API). Several of these (5450, 5482, 5604, 5468 HANA/Informix/NULLS-DESC specifics) were previously recorded only as session dead-end/decision memory outside the KB; this run is the first to fold their SQL-PROVIDER-visible surface into the area index.
+
+## 2026-07-05T21:01:54Z — agent audit notes
+- area: SQL-AST -- delta 2026-07-05 contradicted two existing body claims in areas/SQL-AST/INDEX.md; both were updated in place per the delta procedure rather than appended as new contradictory text.
+
+First: Known issues / debt previously stated twelve types remain in the legacy Source/LinqToDB/SqlQuery/ folder with eight carrying the TODO v7 tag. That is now stale -- SqlExtendedFunction.cs and SqlFrameClause.cs were moved to Internal/SqlQuery/ in this delta (git diff b3340aa9ded15..36ee4f82f0 confirms rename plus content change, not new files). Updated to ten remaining types, three of which carry the TODO tag (SqlFrameBoundary, SqlWindowOrderItem, SqlFunctionArgument).
+
+Second: Key types previously described SqlFunctionArgument, SqlWindowOrderItem, SqlFrameBoundary and SqlFrameClause together as all public in LinqToDB.SqlQuery and all tagged TODO v7. SqlFrameClause no longer applies -- it moved to Internal.SqlQuery and the tag was removed at the source. The bullet was split: the first three keep the original claim; SqlFrameClause is now described separately as moved, with its new FrameExclusionKind and structural Equals additions.
+
+## 2026-07-06T10:07:43Z — agent audit notes
+- area: TESTS-LINQ
+reason: contradiction corrected in place -- WindowFunctionsTests family compilation status
+detail: The existing INDEX.md Known issues / debt section and Naming patterns section both claimed the 13-file WindowFunctionsTests family was excluded from the project via a <Compile Remove> ItemGroup in Tests.csproj and therefore had no active test coverage. This delta (sha b3340aa9d -> 36ee4f82f) deletes that ItemGroup from Tests.csproj entirely and adds 33 new partial files to the family (46 total), all of which now compile and run. The emitted artifact corrects both claims in place (marked resolved/updated) rather than appending a contradicting new claim alongside the stale one.
+- area: TESTS-LINQ
+reason: contradiction corrected in place -- TestProgressReporter opt-in mechanism
+detail: The existing INDEX.md Assembly setup section and a prior delta entry described Tests/Linq/AssemblyInfo.TestProgress.cs opt-in as the LINQ2DB_TEST_PROGRESS environment variable. This delta changes the source comment to describe a --test-progress command-line option instead. The emitted artifact corrects the claim in place. Outside this KB run, .agents/docs/testing.md may also reference the old environment-variable form and could need a follow-up update -- not verified as part of this delta.
+
+## 2026-07-06T10:09:59Z — agent audit notes
+- area: TESTS-LINQ
+reason: contradiction corrected in place -- WindowFunctionsTests family compilation status
+detail: The existing INDEX.md Known issues / debt section and Naming patterns section both claimed the 13-file WindowFunctionsTests family was excluded from the project via a <Compile Remove> ItemGroup in Tests.csproj and therefore had no active test coverage. This delta (sha b3340aa9d -> 36ee4f82f) deletes that ItemGroup from Tests.csproj entirely and adds 33 new partial files to the family (46 total), all of which now compile and run. The emitted artifact corrects both claims in place (marked resolved/updated) rather than appending a contradicting new claim alongside the stale one.
+- area: TESTS-LINQ
+reason: contradiction corrected in place -- TestProgressReporter opt-in mechanism
+detail: The existing INDEX.md Assembly setup section and a prior delta entry described Tests/Linq/AssemblyInfo.TestProgress.cs opt-in as the LINQ2DB_TEST_PROGRESS environment variable. This delta changes the source comment to describe a --test-progress command-line option instead. The emitted artifact corrects the claim in place. Outside this KB run, .agents/docs/testing.md may also reference the old environment-variable form and could need a follow-up update -- not verified as part of this delta.
+
+## 2026-07-06T10:09:59Z — deferred-coverage queue updated
+- TESTS-LINQ: +30 deferred
+
+## 2026-07-06T10:27:05Z — agent audit notes
+- Delta scan of PROV-CLICKHOUSE changedFiles (ClickHouseSqlBuilder.cs, ClickHouseSqlOptimizer.cs, Translation/ClickHouseMemberTranslator.cs) against currentSha 36ee4f82f06eaf242b052ade8c87121d251a6165, diffed from the prior last-scanned sha b3340aa9ded15ffc626983fd202e6399daa081ca. The actual code delta is small and additive: WindowFunctionRespectNullsRequired override (RESPECT NULLS emission for FIRST_VALUE/LAST_VALUE/NTH_VALUE), a CTE-alias fix in FixCteAliases (cte.Fields[i].Alias ?? PhysicalName -> cte.Fields[i].Name), and new GuidV7 + ClickHouseWindowFunctionsMemberTranslator support. None of it matches a pattern-catalog entry (no new TODO/FIXME/HACK/XXX, no hardcoded provider check, no type-name string match, no bare [Obsolete], no empty catch, no SQL string concatenation, no async .Wait()/.GetAwaiter().GetResult()). No new detected-issues emitted.
+Three pre-existing todo-fixme entries touching these files (DI-0079, DI-0082, DI-0083) are still present verbatim -- unrelated insertions earlier in the same files shifted their line numbers (ClickHouseMemberTranslator.cs:542->546; ClickHouseSqlBuilder.cs:181->187 and 199->205). Emitted as update patches with refreshed files[]/last_seen_*. ClickHouseSqlOptimizer.cs carries no tracked issues and none were newly detected. Cross-checked openGithubIssues (.build/.agents/open-issues.json): no open issue references these files, so no cross-source upgrade applies.
+
+## 2026-07-06T10:27:20Z — agent audit notes
+- Delta scan, area PROV-FIREBIRD, currentSha 36ee4f82f06eaf242b052ade8c87121d251a6165. Scanned all 5 changedFiles against the full kb-issue-categories.md pattern catalog:
+- Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdDataProvider.cs (Tier 1) -- accumulated delta diff (IsInsertOrUpdateWithPredicateSupported/IsUpsertMergeWithPredicateSupported flags, 4-way CreateMemberTranslator dispatch) reviewed; no new pattern hits. Hardcoded-provider-check pattern does not apply (file is itself a *DataProvider.cs).
+- Source/LinqToDB/Internal/DataProvider/Firebird/Translation/Firebird25MemberTranslator.cs (Tier 2, new file) -- no pattern hits.
+- Source/LinqToDB/Internal/DataProvider/Firebird/Translation/Firebird4MemberTranslator.cs (Tier 2) -- new Firebird4WindowFunctionsMemberTranslator nested class reviewed; all 5 flag overrides flip the inherited value, none redundant.
+- Source/LinqToDB/Internal/DataProvider/Firebird/Translation/Firebird5MemberTranslator.cs (Tier 2) -- new Firebird5WindowFunctionsMemberTranslator nested class has no overrides (inherits v4 set); no pattern hits in the delta-added lines. (Firebird5StringMemberTranslator's IsWithinGroupSupported=>false and Firebird5DateFunctionsTranslator's near-duplicate TranslateDateTimeDatePart pre-date this delta -- confirmed via `git diff 3c0785f7c^ 8e30fc026` -- not flagged as new.)
+- Source/LinqToDB/Internal/DataProvider/Firebird/Translation/FirebirdMemberTranslator.cs (Tier 2) -- new Firebird25WindowFunctionsMemberTranslator and FirebirdWindowFunctionsMemberTranslator nested classes reviewed line-by-line against WindowFunctionsMemberTranslator base defaults; found one redundant no-op override (DI-1232).
+
+No TODO/FIXME/HACK/XXX, hardcoded provider-name checks, type-name string matches, empty catch blocks, [Obsolete] without error:true, sync-over-async, or SQL string concatenation in the delta-added lines of any of the 5 files. No existing detected-issues reference any of these 5 files (confirmed via index.json grep), so no update/fixed transitions apply this run. Cross-referenced .build/.agents/open-issues.json for Firebird/window-function/NTH_VALUE terms -- no open GitHub issue overlaps DI-1232; emitted as source:code, not cross.
+
+## 2026-07-06T10:27:29Z — agent audit notes
+- Delta scan (area PROV-INFORMIX, sha 36ee4f82f06eaf242b052ade8c87121d251a6165) over 3 changed files:
+- Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs (Tier 1)
+- Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs (Tier 1)
+- Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs (Tier 2)
+
+Ran the full code-pattern catalog (todo-fixme, hardcoded-provider-check, type-name-string-match,
+obsolete-past-milestone, doc-gap on Tier-1 public members, empty/no-op catch, sync-over-async,
+sql-string-concat) against all three files. No new pattern hits.
+
+Two previously-tracked issues re-confirmed present, no new debt introduced by the diff:
+- DI-0091 (TODO in InformixDataProvider.SetParameter re: TimeSpan/Int64 guard) -- still present;
+  line shifted 123 -> 127 because 4 lines were added above it in this commit (new
+  SqlProviderFlags.IsUpsertMergeWithPredicateSupported flag + its 2-line comment). Location updated.
+- DI-0603 (commented-out dead code in InformixMemberTranslator, Week/Millisecond DateAdd) -- still
+  present at the same line numbers (179, 275); last-seen refreshed only.
+
+New code reviewed for debt and found clean:
+- InformixDataProvider.cs: new SqlProviderFlags.IsUpsertMergeWithPredicateSupported = false with an
+  explanatory comment (mirrors the existing Firebird pattern for the same flag) -- not a
+  hardcoded-provider-check (flag assignment inside the provider's own *DataProvider.cs, which the
+  pattern excludes) and not a magic value (documented cause: Informix MERGE lacks WHEN [NOT]
+  MATCHED AND <cond> / UPDATE ... WHERE inside MERGE).
+- InformixSqlOptimizer.cs: TransformStatement now calls the shared BasicSqlOptimizer.
+  CorrectMultiTableQueries helper before GetAlternativeDelete/GetAlternativeUpdate (reuses an
+  existing SQL-PROVIDER helper also used by Access/Sybase -- not a new cross-cutting reshape).
+  IsParameterDependedElement gained a QueryElementType.SearchStringPredicate case; no TODO, no
+  swallowed exception, no obsolete surface.
+- InformixMemberTranslator.cs: SqlTypesTranslation and InformixWindowFunctionsMemberTranslator
+  nested translators (Bit/TinyInt/Money/SmallMoney reinterpretation; window-function capability
+  flags + TranslateVariance rejection) are additive, consistent with the sibling per-provider
+  member-translator shape used across other PROV-* areas; no new debt pattern.
+
+Open-issues cross-reference (.build/.agents/open-issues.json): only title/label matches for
+"informix" are #3517 (column extensions request) and #1182 (procedures schema support) -- neither
+touches SetParameter/TransformStatement/IsParameterDependedElement/window-function translation, so
+no cross-source (source: cross) upgrade applies to DI-0091 or DI-0603.
+
+No status-flip to `fixed` -- both in-scope prior issues' patterns are still present in the working
+tree. No new DI- entries created this run (next available ID remains DI-1228).
+
+## 2026-07-06T10:27:37Z — agent audit notes
+- Delta scan (area PROV-MYSQL, sha 36ee4f82f06eaf242b052ade8c87121d251a6165) over 4 changedFiles:
+- Source/LinqToDB/Internal/DataProvider/MySql/MySqlDataProvider.cs (Tier 1)
+- Source/LinqToDB/Internal/DataProvider/MySql/Translation/MariaDBMemberTranslator.cs (Tier 2)
+- Source/LinqToDB/Internal/DataProvider/MySql/Translation/MySql57MemberTranslator.cs (Tier 2)
+- Source/LinqToDB/Internal/DataProvider/MySql/Translation/MySqlMemberTranslator.cs (Tier 2)
+
+Full pattern catalog run against all 4 files (working-tree content): TODO/FIXME/HACK/XXX,
+hardcoded provider check, type-name string match, [Obsolete] past milestone, doc-gap
+(public API method without <summary>, Tier-1 scope only -- applies to MySqlDataProvider.cs),
+empty catch block, [Ignore]/[Explicit] test attribute (n/a, no test files in scope), SQL string
+concatenation, async .Wait()/.GetAwaiter().GetResult(). Zero matches in any of the 4 files.
+
+Considered and deliberately not flagged: MySqlDataProvider.cs's public Version/Provider
+properties have no XML <summary> despite the class being part of PublicAPI.Shipped.txt. Not
+emitted as doc-gap: (1) the catalog pattern text is scoped to "method", these are properties;
+(2) spot-checked PostgreSQLDataProvider.cs (a sibling Tier-1 provider file that otherwise does
+carry XML docs on its complex methods) and found its analogous Version property is also
+undocumented -- this is an existing cross-provider convention (simple version/adapter
+properties go undocumented; complex methods get docs), not new debt introduced by this delta,
+and not something this single-area delta run should flag in isolation without sweeping every
+other provider's equivalent property for consistency.
+
+Also considered: INDEX.md's Known issue #10 (MariaDB UUID_v7() emitted without a version gate)
+documents a real gap in MariaDBMemberTranslator.cs, but it does not match any listed regex/
+structural pattern in kb-issue-categories.md's pattern catalog (no hardcoded-provider-check,
+no type-name match, no TODO marker) -- per pattern-matching discipline, only cataloged patterns
+are scanned; this gap is already surfaced via the area INDEX.md (kb-architect's output), not
+duplicated here.
+
+Existing detected-issues/index.json has no entries for any of the 4 changedFiles (only
+MySqlProviderDetector.cs and MySqlOptions.cs are referenced under PROV-MYSQL, neither in scope
+for this delta), so no update / fixed transitions apply either.
+
+Result: no new detected-issues emitted this run.
+
+## 2026-07-06T10:27:48Z — agent audit notes
+- Delta scan of PROV-ORACLE changedFiles (OracleDataProvider.cs, OracleSqlBuilderBase.Merge.cs, OracleMemberTranslator.cs) at sha 36ee4f82f06eaf242b052ade8c87121d251a6165. No NEW tech-debt/anti-pattern/dead-code/doc-gap issues found. Re-confirmed 4 pre-existing todo-fixme entries (DI-0098, DI-0099, DI-0100, DI-0106) still match their original pattern signature; DI-0099 and DI-0100 shifted one line down (198->199, 242->243) because this delta's OracleDataProvider.cs added `SqlProviderFlags.MaxColumnCount = 1000;` at line 64, ahead of both TODOs -- files[] updated accordingly, no new artifact needed. The new `IsUpsertUpdateWhereAfterSet` override in OracleSqlBuilderBase.Merge.cs and the `OracleWindowFunctionsMemberTranslator` addition in OracleMemberTranslator.cs are both documented, capability-flag-driven additions with explanatory comments -- no legacy-pattern, hardcoded-provider-check, empty-catch, TODO, or string-concat-SQL matches found in either. OracleMemberTranslator.cs has no existing detected-issues entries and none were newly warranted.
+
+## 2026-07-06T10:28:15Z — agent audit notes
+- Source/LinqToDB/Internal/DataProvider/Ydb/YdbBulkCopy.cs:141 has a comment "// TOD: test FQN" (reads like a typo for "// TODO: test FQN", flagging that the bulk-copy table name isn't verified for fully-qualified-name input). It does not match the exact `// TODO` regex in the pattern catalog (missing the second "O"), so it was not emitted as a todo-fixme item. Surfacing for awareness only -- no catalog change proposed, since a typo-tolerant regex risks over-matching unrelated "TOD"-prefixed words elsewhere in the codebase.
+
+## 2026-07-06T10:45:09Z — agent audit notes
+- Delta scan (area CORE, sha 36ee4f82f06eaf242b052ade8c87121d251a6165) over 8 changed files: AnalyticFunctions.cs, DataOptionsExtensions.Provider.cs, DataOptionsExtensions.cs, EagerLoadingStrategy.cs, ImplicitCollectionLoading.cs, LinqOptions.cs, ProviderName.cs, UpsertEmulationPolicy.cs. All 8 files read in full against the code pattern catalog (todo-fixme, hardcoded-provider-check, type-name-string-match, obsolete-past-milestone, empty-catch, ignore-explicit-test, sql-string-concat, async-blocking). Only the todo-fixme pattern fired. 17 previously-tracked TODO entries re-confirmed present -- 12 with shifted line numbers due to intervening code growth in DataOptionsExtensions.cs and LinqOptions.cs from PRs #5450/#5482/#5604/#5639/#5644/#5564, 5 with unchanged line numbers -- emitted as update patches. 2 new TODO comments found in LinqOptions.cs (lines 264 and 295, the binary-compat constructor/Deconstruct shim pair added alongside UpsertEmulationPolicy) -- emitted as new entries DI-1280 and DI-1281. No entries needed a fixed transition; every previously-tracked pattern in scope still fires. DataOptionsExtensions.Provider.cs, EagerLoadingStrategy.cs, ImplicitCollectionLoading.cs, and UpsertEmulationPolicy.cs had zero pattern matches -- the three enum files carry full XML docs, no TODOs, no empty catches, no hardcoded provider checks. Cross-referenced all findings against .build/.agents/open-issues.json (open GH issues); no overlap found for LinqOptions.cs, ProviderName.cs, or AnalyticFunctions.cs, so all entries stay source:code, not source:cross.
+
+## 2026-07-06T10:45:15Z — agent audit notes
+- DI-0681 files[] reconciled for line drift caused by PR #5525's IgnoreFilters(filterKeys) overload insertion (+38 lines at LinqExtensions.cs:1584). Old anchor LinqExtensions.cs:1611 (ProcessSourceQueryable property) was re-checked at its current position (:1649) and now carries a preceding <summary> doc comment — pattern no longer fires there, so it was dropped from files[] rather than merely re-numbered. The other three original locations (ExtensionsAdapter, AggregateExecute, AggregateExecuteAsync) still lack XML doc summaries and were carried forward at their shifted line numbers (:1651, :1798, :1813). No status change (entry stays open — 3 of 4 original locations still fire).
+
+## 2026-07-06T10:45:20Z — agent audit notes
+- DI-0002..DI-0009 (TODO/FIXME comment matches in Source/LinqToDB/Common/Configuration.cs) carry area:"CORE" in detected-issues/index.json, but under the current kb-areas split Configuration.cs is Tier-1 for INFRA and no longer appears in CORE/INDEX.md's file list. Left the area field untouched in the update patches above (only last_seen_sha/last_seen_at/files are in the documented update-patch schema) -- flagging for a manual area-tag correction pass so these 8 items surface under area:INFRA queries in /kb-issues and aren't silently orphaned from future CORE-scoped delta scans (CORE no longer scans this file).
+
+## 2026-07-06T10:45:25Z — agent audit notes
+- No existing pattern-catalog entry in kb-issue-categories.md covers "inline comment contradicts an adjacent capability-flag/constant value it directly documents." DI-1240 (SapHanaMemberTranslator.cs:416-417, comment claims windowed PERCENTILE_CONT/DISC execute on HANA while the two flags right below it are `false`) was emitted under `doc-gap` by category intent rather than a literal regex match. Proposed catalog addition: a structural check — for a comment block immediately preceding/adjacent to a `bool`-returning property/field override, flag when the comment's plain-language claim (e.g. "X is supported" / "X executes") appears to name a symbol whose adjacent flag value is the opposite polarity. This is necessarily heuristic (no reliable regex), so it would need to stay a structural/manual-review pattern rather than a regex line item.
+
+## 2026-07-06T10:45:29Z — agent audit notes
+- Delta scan of PROV-SQLCE changedFiles (SqlCeDataProvider.cs, SqlCeSqlOptimizer.cs, Translation/SqlCeMemberTranslator.cs) at sha 36ee4f82f found no NEW pattern-catalog matches. The three changes present at this sha -- SqlProviderFlags.IsUpsertWithMergeLoweringSupported=false (SqlCeDataProvider.cs), the `is SqlTable updateTable` guard narrowing in FinalizeUpdate (SqlCeSqlOptimizer.cs), and the new SqlCeWindowFunctionsMemberTranslator + CreateWindowFunctionsMemberTranslator override (SqlCeMemberTranslator.cs) -- were checked against every code pattern in kb-issue-categories.md (todo-fixme, hardcoded provider check, type-name string match, Obsolete, doc-gap on public-API-surface methods, empty catch, Ignore/Explicit test attrs, SQL string concat, async .Wait()/GetAwaiter().GetResult()) and none fire. The window-function-unsupported translator override matches an established cross-provider idiom (Access/Firebird/Sybase/MySql57 all do the same), not a one-off smell.
+Reconciled two pre-existing todo-fixme entries whose file:line drifted by +1 due to the FinalizeUpdate guard insertion: DI-0111 (SqlCeSqlOptimizer.cs:80 -> :81) and DI-0112 (:138 -> :139). DI-1020 (misaligned indentation in GuidMemberTranslator.TranslateGuildToString, SqlCeMemberTranslator.cs:352) is unchanged and re-confirmed present at the same line -- last_seen advanced only.
+No new detected-issue entries emitted (DI-1250 range unused). No open GitHub issue in openGithubIssues references any of the three changed files.
+
+## 2026-07-06T11:08:13Z — agent audit notes
+- `Internal/TransformExpressionVisitor.cs` and `Internal/ReflectionMethods.cs` both open with `#pragma warning disable CS1591` (missing-XML-doc warning) and live in the `LinqToDB.EntityFrameworkCore.Internal` namespace -- a project-level signal that these `public` companion-library helper types are not part of the supported API surface. `TransformExpressionVisitor.cs` is pinned as EFCORE Tier-1, so the doc-gap pattern's "Public API method without XML doc" would otherwise fire on `TransformExpressionVisitor.Transform(IDataContext?, IModel?, Expression)` (no `<summary>`). Not emitted this run -- recommend kb-issue-categories.md scope the doc-gap pattern to skip files carrying a file-level `#pragma warning disable CS1591`, matching the exemption the codebase has already made explicit.
+
+## 2026-07-06T11:08:18Z — agent audit notes
+- Pre-existing index hygiene issues found in Source/LinqToDB/Linq/Expressions.cs entries while reconciling this delta (none caused by the current diff, all predate base sha b3340aa9d -- flagged for /kb-issues, not auto-corrected):
+- DI-0207 (status open, line 1238 at base sha) and DI-0208 (status fixed, same file, same line 1238, last_seen 2e67bafc9b) are duplicate entries for the same TODO signature (the Informix Mdy helper). DI-0207 was updated this run to the current line (1223); DI-0208 was left untouched per the fixed-status-is-terminal rule, but the pair should be merged or DI-0208 marked duplicate-of DI-0207 by a user pass.
+- DI-0205 (status open, last_seen_sha 2e67bafc9b, recorded line 1085) does not correspond to any TODO in either the base (b3340aa9d) or current (36ee4f82f) snapshot of the file -- it appears to be a stale duplicate of DI-0693 (the AltStuff-region TODO) from an earlier, unreconciled delta. Left untouched (out of this delta's window) but worth a manual look.
+- DI-0693 / DI-0694 / DI-0695 titles ("VarChar DB2", "Hex DB2", "Replicate(string) method") are each one function off from the line they actually track (DI-0693's line 1096/1081 is the AltStuff TODO, not VarChar; etc.) -- likely mislabeled when first created. Left untouched since only last_seen_sha/at/files are within the detector's update contract, not title text.
+
+## 2026-07-06T11:08:19Z — agent audit notes
+- Delta scan (area: FSHARP, sha 36ee4f82f06eaf242b052ade8c87121d251a6165) covered all 4 changed files (DataOptionsExtensions.fs, FSharpOptionSupport.fs, FSharpQueryExpressionInterceptor.fs, LinqToDB.FSharp.fsproj) against every pattern in kb-issue-categories.md. No catalog pattern fired: no TODO/FIXME/HACK/XXX comments, no hardcoded provider checks, no type-name string matches, no Obsolete-without-error past milestone, no empty/ignore-only catch blocks, no [Ignore]/[Explicit] test attributes (not test files), no SQL string concatenation, no async .Wait()/.GetAwaiter().GetResult(), and no public-API method missing XML doc (FSharpOptionSupport and FSharpOptionMetadataReader are both `internal`; the sole new public surface, FSharpQueryExpressionInterceptor.Instance and ProcessExpression, both carry doc comments or are explicit interface implementations per existing area convention). No existing FSHARP entries in detected-issues/index.json to re-verify or flip to fixed.
+
+Observation (not a catalog match, no DI emitted): FSharpOptionMetadataReader.GetAttributes leaves the column DataType unset by design so ColumnDescriptor can resolve it from the value converter's provider type against the active provider-inclusive schema (comment cites issue #5645, already closed). Open GH issue #5675 ("Metadata readers: schema-aware attribute resolution -- readers can't see the active MappingSchema", labeled area: fsharp + area: mapping) tracks the same underlying architecture gap this workaround routes around. openGithubIssues has no linked_files[] for #5675 in this snapshot, so the cross-source rule (same file in an open issue's linked_files[] + a tech-debt/legacy-pattern code match) can't be mechanically applied; surfaced here as context rather than fabricated as a new entry.
+
+## 2026-07-06T11:08:21Z — agent audit notes
+- INTERNAL-API has zero pre-existing doc-gap entries across its Tier-1 files, even though several of those files are large public-surface classes. Two files rescanned in this delta (Methods.cs, ErrorHelper.cs) carry a standing class-level disclaimer ("This API supports the LinqToDB infrastructure and is not intended to be used directly from your code...") in lieu of per-member docs, which may be why they were never flagged. TypeMapper.cs (also Tier-1, no such disclaimer) has the same shape of gap and was flagged as DI-1380 in this run. Recommend clarifying in kb-issue-categories.md whether the doc-gap pattern should treat Internal.* classes carrying that disclaimer boilerplate as exempt -- otherwise a future full-scan may suddenly surface a large batch of INTERNAL-API doc-gap entries that this delta run deliberately left alone (Methods.cs / ErrorHelper.cs).
+
+## 2026-07-06T11:08:26Z — agent audit notes
+- Delta scan of Source/LinqToDB/Remote/RemoteDataContextBase.cs (794 lines, full read) against the code-pattern catalog: no new tech-debt/legacy-pattern/dead-code/doc-gap/todo-fixme/perf-smell/security-smell findings. File content and line numbers are unchanged from the last detected-issues scan (sha 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d) for all three existing REMOTE-CLIENT entries tied to this file: DI-0241 (TODO :50), DI-0242 (TODO :339, tracked at :337), DI-0733 (doc-gap on 6 public methods: AddMappingSchema, BeginBatch, CommitBatch, CommitBatchAsync, Dispose, DisposeAsync). All three re-confirmed and advanced via update patches above. No open GitHub issue in .build/.agents/open-issues.json references this file (no linked_files field present in the dataset; no issue title/number match on RemoteDataContextBase), so no cross-source promotion. Checked and rejected as non-matches: no catch blocks in the file; no .Wait()/.GetAwaiter().GetResult() sync-over-async antipattern (SafeAwaiter.Run is the established intentional bridging helper per area INDEX.md, not a regex match); no ProviderName == / provider.Name == / GetType().Name == / typeof(X).Name == literal matches (the namespace-based provider dispatch in RemoteMappingSchema.GetMappingSchema uses string.Equals(type.Namespace, ...), which does not match the catalog's literal patterns); the two [Obsolete("...v7")] members are not past their milestone (current version 6.4.0 < v7). All public members on private/internal nested types (RemoteMappingSchema, RemoteMemberTranslator, RemoteMemberConverter, RemoteDmlService, ConfigurationInfo, ConfigurationApplier) are out of scope for the doc-gap pattern, consistent with DI-0733's established scope (outer public class only).
+
+## 2026-07-06T11:08:32Z — agent audit notes
+- Delta scan of SQL-PROVIDER changedFiles (currentSha 36ee4f82f06eaf242b052ade8c87121d251a6165) re-verified all 17 in-scope existing detected-issues entries; no new pattern matches found (no DI-1350+ assigned). Four entries -- DI-0181 (BasicSqlOptimizer.cs), DI-0187, DI-0188 (SqlExpressionConvertVisitor.cs), DI-0249 (Sql.Expressions.cs) -- were previously marked "fixed" (last flipped at sha 2e67bafc9b.../2026-06-01) but their exact todo-comment text is still present, unchanged, in the current working tree at the same location (only shifted by intervening line insertions). Reopened to "open" per the detector's open<->fixed authority; the prior "fixed" flip on these four looks like a false negative from that run rather than a genuine fix-then-regress. All other in-scope entries (DI-0179/180/182/183/184/185/186/243/244/245/246/247/740) are unchanged open todo-fixme/doc-gap findings -- line numbers advanced only due to unrelated code growth in the same files. No cross-source signal: none of the affected files appear in openGithubIssues. BasicSqlBuilder.Merge.cs and OptimizationContext.cs (in changedFiles) had zero pattern matches (new files/regions, clean).
+
+## 2026-07-06T14:11:55Z — agent audit notes
+- Delta scan (mode: delta, area: TESTS-FSHARP, sha: 36ee4f82f06eaf242b052ade8c87121d251a6165) covered all 8 changed files (Issue4132.fs, Issue4646.fs, Issue5428.fs, Issue5598.fs, Models.fs, OptionMappingPrecedence.fs, OptionTypes.fs, Tests.FSharp.fsproj) against every pattern in kb-issue-categories.md's Code patterns table. No matches: no TODO/FIXME/HACK/XXX comments, no hardcoded provider-name checks, no type-name string matches, no stale [Obsolete], no missing XML docs (no Tier-1 files in this area), no empty catch blocks, no [Ignore]/[Explicit] NUnit attributes (F# test functions in this project carry no NUnit attributes directly -- wiring happens in a C# fixture outside this area's scope), no SQL string concatenation, no async .Wait()/.GetAwaiter().GetResult(). existingIndex has zero prior TESTS-FSHARP entries in detected-issues/index.json, so no update/fixed transitions apply. No new issues emitted; ID range DI-1455+ unused this run.
+
+## 2026-07-06T14:12:04Z — agent audit notes
+- DI-1223 (status: triaged, gh_issue: 4620, Tests/Linq/Linq/ConcatUnionTests.cs) -- the underlying pattern is gone this delta: the bare [ActiveIssue] attribute that gated Issue4620Test1 (and the sibling Issue4620Test2) at the base sha has been removed; both tests now run unconditionally as plain [Test(Description=...)] methods. Per the fixed-status rule, the detector only flips open to fixed automatically -- DI-1223 is triaged (user-reviewed), so its status is left untouched here. Flagging for a human /kb-issues pass: this looks like a genuine fix landing (issue #4620 resolved), and the entry is a good candidate to move to fixed manually.
+- Tests/Linq/Linq/QueryCacheEvictionTests.cs (new this delta) is gated behind #if BUGCHECK. The TESTS-LINQ INDEX.md (Known issues / debt, this same delta) states the file is not compiled or run in normal CI builds and that BUGCHECK is a diagnostic-only symbol. However Tests/Directory.Build.props defines BUGCHECK for Configuration Debug, Testing, and Azure -- i.e. it IS defined for the -c Testing configuration that /test and CI use for the Tests/Linq project. If that is correct, QueryCacheEvictionTests.cs is not actually dead/unreached coverage, and no detected-issue was raised here for it. Surfacing the discrepancy so a human (or the next kb-architect pass) can verify which claim is right and correct TESTS-LINQ INDEX.md if needed -- not raised as its own DI since it would contradict the INDEX.md claim rather than confirm a defect.
+
+## 2026-07-06T14:12:05Z — agent audit notes
+- Delta scan (mode=delta, area=TESTS-MODEL, currentSha=36ee4f82f06eaf242b052ade8c87121d251a6165) over changedFiles Tests/Model/LinqDataTypes.cs and Tests/Model/ParentChild.cs. Both files are Tier-2 for TESTS-MODEL per kb-areas.md. Ran the full kb-issue-categories.md code-pattern catalog against the working-tree content of both files:
+- TODO/FIXME/HACK/XXX comments: none found.
+- Hardcoded provider check (`if (...ProviderName ==` / `provider.Name == "<lit>"`): none. The `[PrimaryKey(Configuration = ProviderName.Ydb)]` / `[Column(..., Configuration = ProviderName.X)]` attributes present in both files are declarative per-provider mapping metadata (an established, repeated pattern already used for ClickHouse/Oracle/Informix/Firebird/SqlServer in these same files) -- not a runtime conditional branch, so the legacy-pattern regex does not fire and none was inferred by analogy.
+- Type-name string match (`.GetType().Name == "<lit>"` / `typeof(X).Name == "<lit>"`): none.
+- `[Obsolete]` past milestone: none.
+- Public-API method missing `<summary>` XML doc: not applicable -- neither file is Tier-1 for any area (TESTS-MODEL Tier-1 is `ITestDataContext.cs`, `TestDataConnection.cs`, `Person.cs`, `Tests.Model.csproj`).
+- Empty/ignore-only catch block: none (no catch blocks in either file).
+- `[Ignore]`/`[Explicit]` without linked issue: not applicable -- these are POCO/mapping model files, not test fixtures.
+- SQL string concatenation: none.
+- `async ... .Wait()` / `.GetAwaiter().GetResult()`: none.
+Cross-checked existing detected-issues/index.json for prior entries keyed to these two files: none found, so no update/fixed-status patches apply either.
+Result: no new test-debt detected in this delta; no existing DI entries required a status flip.
+
+## 2026-07-06T14:12:06Z — agent audit notes
+- Delta scan of TESTS-T4 area, mode=delta, sha=36ee4f82f06eaf242b052ade8c87121d251a6165.
+Changed files in scope: Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata,T4}.tt (5 hand-maintained
+T4 driver templates). The remaining ~60 changed files under Tests/Tests.T4/Cli/{All,Default,Fluent,
+NoMetadata,T4}/Ydb/*.cs are generated scaffolder-output baselines and were treated as out-of-scope
+generated code per instructions -- not scanned for tech debt.
+
+Each of the 5 templates is a linear sequence of RunCliTool(...) calls (one new Ydb entry added to
+each, per the area INDEX.md delta note); no branching, no TODO/FIXME/HACK/XXX comments, no dead
+code, no hardcoded provider-name string checks, no empty catch blocks, no SQL string concatenation,
+and no async-blocking calls -- none of the code-pattern catalog entries in kb-issue-categories.md
+fired. Cross-referenced .build/.agents/open-issues.json for these 5 file paths -- no matches.
+Cross-referenced detected-issues/index.json for these 5 file paths -- no existing entries, so no
+update/fixed transitions apply either.
+
+Result: no new issues detected, no existing entries to update or flip to fixed. No ARTIFACT or
+INDEX-PATCH fences emitted this run -- coverage-summary only.
+
+## 2026-07-06T14:29:17Z — agent audit notes
+- history-decisions delta pass reviewed all 49 commits in the delta batch (base b3340aa9..head 36ee4f82, 2026-06-14 through 2026-07-04). 6 met the decision bar (heuristic 5, large area-scoped change, or a clear architecture/policy shift per the task's ADR-equivalent criterion): Sql.Window API (#5468), named query filters (#5525), eager-loading KeyedQuery/CteUnion strategies (#5450), YDB provider completion (#5564), fluent Upsert/entity API (#5482), query cache refactor (#5501). Reviewed-but-excluded borderline cases: PostgreSQL 19 support (#5644) and UUIDv7 support (#5648) are routine applications of already-decided patterns (provider-version dialect anchors per `2024-provider-versioning.md`; NewGuid7 mirrors the existing NewGuid() mechanism) with no new heuristic-5-scale footprint; PreferClientCalculation (#5604), OptimizeForSequentialAccess-as-context-option (#5639), and MemberTranslator-precedence (#5348) are targeted option/fix additions below the size/keyword bar. Heuristics 3/4 (merge-commit shape) again fired zero times, consistent with the documented linq2db squash-merge convention. No existing `history/decisions/*.md` file shares a Sources SHA with any of the 6 new artifacts (checked against the full decisions directory listing before drafting).
+
+## 2026-07-06T15:14:47Z — kb-refresh (full sweep b3340aa9..36ee4f82)
+- code: 38 areas re-indexed (architects + issue-detectors); cursor -> 36ee4f82
+- commits: 49 new (all 2026); 6 decision records; cursor -> 36ee4f82
+- issues: 309 indexed + 20 area themes; cursor -> 2026-07-06T11:10:16Z
+- prs: 113 indexed + 12 open-PR area themes; cursor -> 2026-07-06T14:54:08Z
+- discussions: 4 indexed; cursor -> 2026-07-06T10:55:03Z
+- wiki: no changes; cursor -> ec4ff8ec
+- coverage: SKIPPED — queue is 30 formulaic WindowFunctionsTests siblings of already-sampled files (no added signal)
+- audit: 5 sampled, 1 stale -> TESTS-BENCHMARKS/INDEX.md confidence demoted medium->low (QueryGenerationBenchmark citation drift)
+- new detected-issues: DI-1228..DI-1481 across ~15 areas (incl. TESTS-LINQ 24 [ActiveIssue] gates, PG missing-v13 mapping arm, YDB sync-over-async, SQL-AST weak structural equality)
 

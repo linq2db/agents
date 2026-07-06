@@ -10,14 +10,14 @@ comment lands on unrelated code with no error signal. The only defence is
 to verify each finding's line number against the PR-head file AND against
 the right-side hunk boundaries before posting.
 
-    Bash(pwsh -NoProfile -File .claude/scripts/verify-lines.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/verify-lines.ps1 *)
 
 Input — two forms (preferred first)
 -----------------------------------
 
 (1) Manifest file (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .claude/scripts/verify-lines.ps1 -ManifestFile .build/.claude/verify-lines-5503.json
+      pwsh -NoProfile -File .agents/scripts/verify-lines.ps1 -ManifestFile .build/.agents/verify-lines-5503.json
 
     The manifest file contains exactly the same JSON shape as the stdin form below.
 

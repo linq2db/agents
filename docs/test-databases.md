@@ -1,6 +1,6 @@
 # Test databases
 
-Reference table mapping every test-provider family to its local-development database setup. The single entry point that *acts* on this table is the `/test-providers` skill (`.claude/skills/test-providers/SKILL.md`) — it edits `UserDataProviders.json` and runs the `docker ps -a` / `docker start` / `docker stop` / setup-script sequences below. `/test` and `test-runner` consume the resulting state read-only and never touch containers or `UserDataProviders.json` themselves.
+Reference table mapping every test-provider family to its local-development database setup. The single entry point that *acts* on this table is the `/test-providers` skill (`.agents/skills/test-providers/SKILL.md`) — it edits `UserDataProviders.json` and runs the `docker ps -a` / `docker start` / `docker stop` / setup-script sequences below. `/test` and `test-runner` consume the resulting state read-only and never touch containers or `UserDataProviders.json` themselves.
 
 ## Reading this table
 

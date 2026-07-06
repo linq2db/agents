@@ -24,7 +24,7 @@ This script does all of that in one pwsh process:
   5. Emit a single JSON result to stdout.
 
 Single permission rule suffices:
-  Bash(pwsh -NoProfile -File .claude/scripts/post-pr-review.ps1 *)
+  Bash(pwsh -NoProfile -File .agents/scripts/post-pr-review.ps1 *)
 
 Two ways to supply the manifest
 -------------------------------
@@ -46,7 +46,7 @@ Manifest schema
   "owner":    "linq2db",                     // optional, default "linq2db"
   "repo":     "linq2db",                     // optional, default "linq2db"
   "body":     "…review body markdown…",      // required — or bodyFile instead
-  "bodyFile": ".build/.claude/review-5414.md",
+  "bodyFile": ".build/.agents/review-5414.md",
   "lineComments": [
     { "path": "Source/...cs", "line": 42, "side": "RIGHT", "startLine": 40, "startSide": "RIGHT", "body": "…" }
   ],

@@ -4,10 +4,10 @@ Common preparation done by `/review-pr` and `/verify-review` before spawning sub
 
 ### Context load (one call)
 
-Everything the skill needs up front — PR metadata, reviews, review comments, issue comments, closing-issues references, the PR head fetched into `origin/pr/<n>`, diff stat / name-status / commits, and the one-level linked-issue scan — is returned by a single invocation of `.claude/scripts/pr-context.ps1`. Use named parameters (single allowlist-friendly command line, no stdin pipe needed):
+Everything the skill needs up front — PR metadata, reviews, review comments, issue comments, closing-issues references, the PR head fetched into `origin/pr/<n>`, diff stat / name-status / commits, and the one-level linked-issue scan — is returned by a single invocation of `.agents/scripts/pr-context.ps1`. Use named parameters (single allowlist-friendly command line, no stdin pipe needed):
 
 ```
-pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr <n>
 ```
 
 Optional named parameters:
@@ -34,7 +34,7 @@ Output is a single JSON object — see the script's header comment for the exact
 
 `reviewThreads[]` has one entry per GraphQL review thread on the PR, shape `{ threadId, isResolved, firstCommentId }`. Resolve a REST `comment_id` to its thread by matching `firstCommentId == comment_id` (the first comment's `databaseId` equals the REST listing's `id`). `/verify-review` uses this to drive the step 7 per-finding action table — no separate `gh api graphql reviewThreads` call is needed.
 
-The skill does **not** need to re-run `gh api` / `git` calls for anything the script already returned. Subsequent reads of file content and hunks go through `.claude/scripts/diff-reader.ps1` (see the code-reviewer spec).
+The skill does **not** need to re-run `gh api` / `git` calls for anything the script already returned. Subsequent reads of file content and hunks go through `.agents/scripts/diff-reader.ps1` (see the code-reviewer spec).
 
 ### Change summary
 
@@ -53,7 +53,7 @@ This summary is the briefing fed to both subagents so the baselines-reviewer can
 
 The baselines clone is expected at **`../linq2db.baselines`** (sibling of this repo).
 
-Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.claude/docs/agent-rules.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
+Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.agents/docs/agent-rules.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
 
 1. If the clone **exists**: the fetch succeeds (usually silent; possibly a few `origin/baselines/pr_*` updates printed).
 2. If the clone **does not exist**: the fetch errors out with `fatal: not a git repository ...`. On that error, stop and ask the user:
@@ -64,14 +64,14 @@ Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call �
 
 Branch presence is checked by the baselines subagent via `baselines-diff.ps1`, so the skill doesn't need a separate `rev-parse` step — and equally must not pre-probe with `git -C ../linq2db.baselines branch -a --list 'origin/baselines/pr_<n>'` or any other `branch --list` / `rev-parse` / `ls-remote` shape. The script returns `status: "branch_missing"` when the PR produced no baseline changes, which the subagent converts into its `no_baselines` output; the same script is also the one that errors clearly when the *clone* is missing. Pre-probing adds nothing the script doesn't already do and costs a permission prompt per run.
 
-Layout and branch-naming conventions for the baselines repo are in `.claude/docs/baselines-repo-layout.md`.
+Layout and branch-naming conventions for the baselines repo are in `.agents/docs/baselines-repo-layout.md`.
 
 ### `writeDir` directory layout
 
-When the parent skill passes `writeDir: .build/.claude/pr<n>` on the first `diff-reader.ps1` call (the recommended setup), the script populates the directory with a fixed, predictable shape. The parent skill can `Read` / `Grep` at these paths directly — **do not `ls` to discover structure**, and do not re-fetch via `git show` pipes:
+When the parent skill passes `writeDir: .build/.agents/pr<n>` on the first `diff-reader.ps1` call (the recommended setup), the script populates the directory with a fixed, predictable shape. The parent skill can `Read` / `Grep` at these paths directly — **do not `ls` to discover structure**, and do not re-fetch via `git show` pipes:
 
 ```
-.build/.claude/pr<n>/
+.build/.agents/pr<n>/
   <path>/<file>                    # HEAD body of every changed file, at its original repo-relative path
                                    # e.g. Source/LinqToDB/DataProvider/SqlServer/SqlFn.cs
   _diff/<path>/<file>.diff         # Per-file unified diff (the `<file>.diff` suffix is literal)
@@ -83,4 +83,6 @@ Files added by the PR have no HEAD/_base entries they wouldn't otherwise; files 
 
 When `Read`-ing a file you know is in the PR, construct the path directly from the `nameStatus` entry's `path` field — no directory discovery is needed.
 
-`diff-reader.ps1` **creates `writeDir` itself** when it's set — do not pre-run `mkdir -p .build/.claude/pr<n>` from the skill. Every such pre-mkdir call fires its own permission prompt and adds nothing the script doesn't already do.
+`diff-reader.ps1` **creates `writeDir` itself** when it's set — do not pre-run `mkdir -p .build/.agents/pr<n>` from the skill. Every such pre-mkdir call fires its own permission prompt and adds nothing the script doesn't already do.
+
+**Cache freshness — the `writeDir` body can be stale across runs.** `writeDir` is populated once per `diff-reader.ps1` invocation and reused. On a *second* pass for the same PR — `/verify-review` after `/review-pr`, or any re-run — the cached files reflect whatever HEAD they were first written at, **not** necessarily current HEAD. For a current-HEAD claim ("was this line removed?", "is this `using` still present at HEAD?"), verify against the **live blob** — `git ls-tree <ref> <path>` then `git cat-file -p <blob>` — rather than the cached `writeDir` body. (Cost a near-miss on `/verify-review`: the cache showed a `using System.Data.Common;` as present that the current PR head had already removed, almost flipping a fixed finding back to "unfixed".)

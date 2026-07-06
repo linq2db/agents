@@ -3,13 +3,13 @@ Shared helpers for review scripts (pr-context, diff-reader, verify-lines,
 baselines-diff, post-pr-review). Keeps each script small and makes their
 Bash-call surface uniform:
 
-    pwsh -NoProfile -File .claude/scripts/<name>.ps1 <<'EOF' … EOF
+    pwsh -NoProfile -File .agents/scripts/<name>.ps1 <<'EOF' … EOF
 
 One permission rule per script, JSON in on stdin, JSON out on stdout.
 Nothing here performs writes to the filesystem or the GitHub API beyond
 what the caller explicitly asks for.
 
-See `.claude/docs/agent-rules.md` → **PowerShell Core scripts for complex
+See `.agents/docs/agent-rules.md` → **PowerShell Core scripts for complex
 operations** for the invocation pattern, contract, and the pwsh-specific
 gotchas (`$using:` nesting, empty-array unwrap, integer coercion).
 #>
@@ -18,9 +18,15 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 function Exit-WithError {
-    param([string]$Message, [int]$Code = 1)
+    # $NextAction is an optional machine-readable remediation hint. When set it
+    # is emitted as a second stderr line with a stable `next_action:` prefix so
+    # the calling agent can self-correct (re-invoke with the fix) instead of
+    # only reporting the failure. Keep it a concrete, actionable instruction —
+    # "pass -ManifestFile <path>", not "check your input".
+    param([string]$Message, [int]$Code = 1, [string]$NextAction)
     $name = if ($global:ScriptBaseName) { $global:ScriptBaseName } else { 'script' }
     [Console]::Error.WriteLine("${name}: $Message")
+    if ($NextAction) { [Console]::Error.WriteLine("${name}: next_action: $NextAction") }
     exit $Code
 }
 
@@ -130,17 +136,19 @@ function Read-StdinText {
 
 function Read-StdinJson {
     $raw = Read-StdinText
-    if (-not $raw -or -not $raw.Trim()) { Exit-WithError 'no manifest JSON on stdin' }
+    if (-not $raw -or -not $raw.Trim()) {
+        Exit-WithError 'no manifest JSON on stdin' -NextAction 'pipe the manifest JSON on stdin, or write it to a file and pass -ManifestFile <path>'
+    }
     try {
         return $raw | ConvertFrom-Json -Depth 100
     } catch {
-        Exit-WithError "invalid JSON on stdin: $($_.Exception.Message)"
+        Exit-WithError "invalid JSON on stdin: $($_.Exception.Message)" -NextAction 'the parse error names the offending token — fix the manifest JSON and re-invoke'
     }
 }
 
 # Read a JSON manifest from either a file path or stdin. Prefer the file
 # path when supplied — invocations like `pwsh -File script.ps1 -ManifestFile
-# .build/.claude/foo.json` are a single allowlist-friendly command, whereas
+# .build/.agents/foo.json` are a single allowlist-friendly command, whereas
 # stdin pipes / heredocs create novel command strings that miss the script's
 # `Bash(pwsh -NoProfile -File <path> *)` allowlist match. Stdin remains the
 # fallback for legacy callers and shell heredocs that already work.
@@ -148,16 +156,16 @@ function Read-ManifestFromFileOrStdin {
     param([string]$ManifestFile)
     if ($ManifestFile) {
         if (-not (Test-Path -LiteralPath $ManifestFile)) {
-            Exit-WithError "manifest file not found: $ManifestFile"
+            Exit-WithError "manifest file not found: $ManifestFile" -NextAction "write the manifest JSON to $ManifestFile (under .build/.agents/) before re-invoking"
         }
         $raw = Get-Content -Raw -LiteralPath $ManifestFile
         if (-not $raw -or -not $raw.Trim()) {
-            Exit-WithError "manifest file is empty: $ManifestFile"
+            Exit-WithError "manifest file is empty: $ManifestFile" -NextAction "write non-empty JSON to $ManifestFile before re-invoking"
         }
         try {
             return $raw | ConvertFrom-Json -Depth 100
         } catch {
-            Exit-WithError "invalid JSON in ${ManifestFile}: $($_.Exception.Message)"
+            Exit-WithError "invalid JSON in ${ManifestFile}: $($_.Exception.Message)" -NextAction "the parse error names the offending token — fix the JSON in $ManifestFile and re-invoke"
         }
     }
     return Read-StdinJson
@@ -289,17 +297,22 @@ function Find-StyleIssues {
 # insertions/deletions but slightly different surrounding SQL still group.
 #
 # Normalisation applied to each +/- line's content, in this order:
-#   1. parameter prefixes `:p`/`@p`/`$1` → `?p`. Must run before alias
+#   1. drop SQL comment lines (`-- ...`). Per `baselines-repo-layout.md` the
+#      first line of every SQL baseline is `-- <Provider> <ConfigurationName>`,
+#      which varies per provider but carries no routing signal — leaving it in
+#      the fingerprint fragments otherwise-identical EXISTS/IN cohorts into one
+#      pattern per provider.
+#   2. parameter prefixes `:p`/`@p`/`$1` → `?p`. Must run before alias
 #      normalisation so the alias regex doesn't also devour param names.
-#   2. short lowercase alias forms `t1` / `t_1` / `tbl1` / `c_2` / `x_1` /
+#   3. short lowercase alias forms `t1` / `t_1` / `tbl1` / `c_2` / `x_1` /
 #      `y1_1` → `ALIAS`. Lookbehind `(?<!\?)` excludes parameter names emitted
-#      by step 1. The regex fires even *inside* quoted identifiers, so that a
+#      by step 2. The regex fires even *inside* quoted identifiers, so that a
 #      DB2 `"c_2"` and an Oracle `c_2` both normalise toward the same token.
-#   3. strip identifier quoting: `"foo"` / `` `foo` `` / `[foo]` → `foo`.
-#      Running last unwraps anything that step 2 just turned into `"ALIAS"`,
+#   4. strip identifier quoting: `"foo"` / `` `foo` `` / `[foo]` → `foo`.
+#      Running last unwraps anything that step 3 just turned into `"ALIAS"`,
 #      so `"ALIAS"` and bare `ALIAS` compare equal regardless of whether the
 #      provider dialect quotes identifiers.
-#   4. trim trailing whitespace per line.
+#   5. trim trailing whitespace per line.
 #
 # Preamble (`diff --git`, `index`, `--- a/…`, `+++ b/…`), `@@` hunk headers,
 # and all context lines are dropped entirely.
@@ -320,6 +333,16 @@ function Get-DiffFingerprint {
         if ($marker -ne '+' -and $marker -ne '-') { continue }
         if ($line.StartsWith('--- ') -or $line.StartsWith('+++ ')) { continue }
         $content = $line.Substring(1)
+        # Strip a leading UTF-8 BOM (U+FEFF). It prefixes line 1 of every
+        # baseline file, and `\s` does not match U+FEFF, so without this the
+        # comment-line drop below misses the BOM-prefixed header on line 1 —
+        # leaking the per-provider `-- <Provider> <Config>` text into the
+        # fingerprint and fragmenting otherwise-identical new-file (A-status)
+        # cohorts into one pattern per provider.
+        if ($content.Length -gt 0 -and $content[0] -eq [char]0xFEFF) { $content = $content.Substring(1) }
+        # Drop SQL comment lines — baselines use `--` only for the
+        # per-provider `-- <Provider> <Config>` header (carries no signal).
+        if ($content -match '^\s*--') { continue }
         $content = [regex]::Replace($content, '[:@$]([A-Za-z_][A-Za-z0-9_]*|\d+)', '?$1')
         $content = [regex]::Replace($content, '(?<!\?)\b[a-z][a-z0-9]{0,3}_?\d+\b', 'ALIAS')
         # Drop the three identifier-quoting wrappers last. Their contents
@@ -383,6 +406,49 @@ function Test-RangeInHunks {
         if ($a -le $h.endLine -and $b -ge $h.startLine) { return $true }
     }
     return $false
+}
+
+# -- PR <-> issue pairing (shared by release-notes-audit, release-notes-draft,
+#    milestone-consistency) ------------------------------------------------------
+
+# Issue references in a PR body via Fixes/Closes/Resolves #N patterns.
+# Case-insensitive, single or multi-word verb. The closing-keyword set matches
+# GitHub's own auto-close grammar (fix/fixes/fixed, close/closes/closed,
+# resolve/resolves/resolved).
+$script:IssueRefRx = '(?im)\b(?:fix(?:es|ed)?|close[ds]?|resolve[ds]?)\s+#(?<n>\d+)\b'
+
+function Get-IssueRefsFromBody {
+    param([string]$Body)
+    if (-not $Body) { return @() }
+    $refs = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($m in [regex]::Matches($Body, $script:IssueRefRx)) {
+        [void]$refs.Add([int]$m.Groups['n'].Value)
+    }
+    return @($refs)
+}
+
+# Combine both linkage signals for a PR object (from `gh pr ... --json
+# closingIssuesReferences,body`): the GraphQL `closingIssuesReferences` field
+# plus the body-regex above. Returns @(int...) of unique referenced issue
+# numbers. Callers filter to milestone membership themselves.
+function Get-PrLinkedIssues {
+    param($Pr)
+    $refs = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($ci in @($Pr.closingIssuesReferences)) {
+        if ($ci.number) { [void]$refs.Add([int]$ci.number) }
+    }
+    foreach ($n in (Get-IssueRefsFromBody -Body $Pr.body)) {
+        [void]$refs.Add($n)
+    }
+    return @($refs)
+}
+
+# Whole-token #N match — avoids matching #1234 against #12345 or partial anchor
+# ids. Negative lookbehind on word chars, negative lookahead on digits.
+function Test-MentionsRef {
+    param([string]$Text, [int]$N)
+    if (-not $Text -or -not $N) { return $false }
+    return [regex]::IsMatch($Text, "(?<![\w])#$N(?!\d)")
 }
 
 # For parallel fan-out inside a script, dot-source this file again from within

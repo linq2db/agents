@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 <#
-KB search — grep across .claude/knowledge-base/ with structured JSON output.
+KB search — grep across .agents/knowledge-base/ with structured JSON output.
 Used by kb-research to batch its own searches.
 
 One permission rule:
-    Bash(pwsh -NoProfile -File .claude/scripts/kb-search.ps1 *)
+    Bash(pwsh -NoProfile -File .agents/scripts/kb-search.ps1 *)
 
 Input (stdin, JSON):
   {
@@ -56,7 +56,7 @@ $maxHits  = if (Test-IsInteger $m.maxHits) { [int]$m.maxHits } else { 100 }
 $caseI    = ($null -eq $m.caseInsensitive) -or ([bool]$m.caseInsensitive)
 
 $repoRoot = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path
-$kbRoot   = Join-Path $repoRoot '.claude/knowledge-base'
+$kbRoot   = Join-Path $repoRoot '.agents/knowledge-base'
 
 if (-not (Test-Path $kbRoot)) {
     Write-JsonOutput -InputObject ([pscustomobject]@{ ok = $true; query = ($queries -join '|'); hits = @(); files = @(); truncated = $false })

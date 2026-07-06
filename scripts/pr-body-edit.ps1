@@ -2,7 +2,7 @@
 <#
 Insert new content into a GitHub PR body at one or more ASCII anchors, in a
 single allowlisted pwsh call. Solves two recurring problems when editing a PR
-body from a Claude Code session:
+body from an automated agent session on Windows (Git Bash + pwsh):
 
   1. **Encoding.** `gh pr view` / `gh api … --jq '.body'` stdout arriving via
      Git Bash + pwsh gets decoded through the Windows console code page (cp850
@@ -22,7 +22,7 @@ This script sidesteps both by:
     it with `[System.IO.File]::ReadAllText(path, UTF8NoBom)`.
   - Writing the new body back the same way.
   - Presenting a single allowlist rule:
-        Bash(pwsh -NoProfile -File .claude/scripts/pr-body-edit.ps1 *)
+        Bash(pwsh -NoProfile -File .agents/scripts/pr-body-edit.ps1 *)
 
 Contract
 --------
@@ -39,13 +39,13 @@ Input (stdin, JSON):
         "text":     "…full text block…"    // inserted verbatim; caller is responsible for leading/trailing blank lines
       },
       {
-        "anchor":   "Generated with [Claude Code]",
+        "anchor":   "## Checklist",
         "position": "before",
         "text":     "…"
       }
     ],
     "dryRun":  false,                      // optional, default false — when true, compute and write the candidate body but don't call `gh pr edit`
-    "workDir": ".build/.claude"            // optional — where to stage the before/after body files; default ".build/.claude"
+    "workDir": ".build/.agents"            // optional — where to stage the before/after body files; default ".build/.agents"
   }
 
 Rules for `anchor`:
@@ -58,11 +58,11 @@ Output (stdout, JSON):
     "pr":          5479,
     "url":         "https://github.com/linq2db/linq2db/pull/5479",
     "applied":     true,                   // false when dryRun
-    "bodyBefore":  ".build/.claude/pr5479-body-before.txt",
-    "bodyAfter":   ".build/.claude/pr5479-body-after.txt",
+    "bodyBefore":  ".build/.agents/pr5479-body-before.txt",
+    "bodyAfter":   ".build/.agents/pr5479-body-after.txt",
     "insertions": [
       { "anchor": "## Test plan", "position": "before", "ok": true, "insertedAt": 3912 },
-      { "anchor": "Generated with [Claude Code]", "position": "before", "ok": true, "insertedAt": 7013 }
+      { "anchor": "## Checklist", "position": "before", "ok": true, "insertedAt": 7013 }
     ],
     "diffStat": { "charsBefore": 8012, "charsAfter": 8741 }
   }
@@ -85,7 +85,7 @@ $owner = if ($m.owner) { [string]$m.owner } else { 'linq2db' }
 $repo  = if ($m.repo)  { [string]$m.repo  } else { 'linq2db' }
 $repoFull = "$owner/$repo"
 $dryRun   = [bool]$m.dryRun
-$workDir  = if ($m.workDir) { [string]$m.workDir } else { '.build/.claude' }
+$workDir  = if ($m.workDir) { [string]$m.workDir } else { '.build/.agents' }
 
 if (-not $m.insertions -or @($m.insertions).Count -eq 0) {
     Exit-WithError 'insertions (non-empty array) required'

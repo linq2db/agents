@@ -27,10 +27,11 @@ Only when the user explicitly asks to create / file / open an issue, task, bug, 
    Include the proof links in the **Background** section. If verification fails, surface it to the user — a filed issue anchored on a false premise wastes downstream effort (FB5 → FB6 pivot of 2026-04-22 is the motivating case).
 4. If the topic is a pure feature request with no behavior claim — internal or external — skip verification, but still ground the proposal in concrete file paths the change would touch.
 5. Collect concrete `file:line` references for the **Current behavior** section.
+6. **Consult the KB for the affected area.** Map the topic to its area code in [`kb-areas.md`](../../docs/kb-areas.md) and read `areas/<AREA>/{issues,decisions,tech-debt}.md` directly (skip silently if the KB isn't built) — a known issue, prior decision, or recorded tech-debt may already cover this or sharpen the report. Orientation only; ground every claim in current source (point 2). Reserve `/kb-ask` for synthesis.
 
 ### 2. Check for duplicates
 
-Follow the search discipline in [`.claude/docs/issue-search.md`](../../docs/issue-search.md) in **topic mode** — extract distinctive terms, run parallel searches, rank, present. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
+Follow the search discipline in [`.agents/docs/issue-search.md`](../../docs/issue-search.md) in **topic mode** — extract distinctive terms, run parallel searches, rank, present. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
 
 - **continue** — no duplicate, proceed to step 3
 - **reference #N** — existing issue is related, reference it in the new body's "Notes" section but still file
@@ -88,6 +89,15 @@ to prevent scope creep, not to expand scope.>
 ```
 
 Keep the body focused on what the user reported. Don't invent extra scope. Related observations you noticed while verifying go in **Notes** or — better — get flagged to the user as "want a separate issue for this?" rather than folded into the filed one.
+
+**Implementation-spec variant.** When the user asks for a design/implementation hand-off task ("specify all required implementation information", "descriptive enough for another agent to follow"), the fixed structure above yields to a richer, self-contained one: Summary → root cause / structural constraint → why-general (beneficiary survey per `agent-rules.md` → *Before coding a fix or feature*) → decisions incl. rejected alternatives with reasons → proposed design → adoption notes for other affected code → tests → definition of done → notes. Every claim still carries verified `file:line` refs; refs that point at an unmerged PR branch (not master) must be labeled as such in the body. (Shape established on #5675.)
+
+**Wording.** Write the body as a plain report, not filled-in template slots:
+
+- **No first person, no invented persons.** Never `we` / `I` / `our` / `the team` — the author files the issue, they don't speak for the maintainers. State what the code does and what should happen in neutral, mostly passive voice (`the keys are inlined …`, `this shows up on …`), not `we inline …` or `I noticed …`. Don't attribute intent or authorship to anyone.
+- **Human over robotic.** Prefer natural sentences to clipped template-speak; it's fine to explain *why* something is a problem in ordinary words. Terse ≠ stilted.
+
+**Calibrate confidence — don't dress a hypothesis as a finding.** Separate what was verified from what is inferred. If the root cause wasn't reproduced end to end, say so explicitly in **Notes**: list the mechanics that *are* confirmed (with `file:line`), state which step is a hypothesis, and note any artifact that wasn't captured (a failing `.sql.other`, a repro script). A confidently-worded but unproven cause sends the assignee down the wrong path; an honest "confirmed X and Y; Z not reproduced" is more useful than a clean-looking but speculative narrative.
 
 ### 5. Propose labels (up to 3)
 
@@ -149,7 +159,7 @@ Always propose one (numbered list). Fetch:
 gh api repos/linq2db/linq2db/milestones?state=open --jq '.[] | {number, title}'
 ```
 
-Present in the order defined in [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Pull request rules** → **Milestone** (next-version first, then remaining versioned by version, then non-versioned alphabetical).
+Present in the order defined in [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Pull request rules** → **Milestone** (next-version first, then remaining versioned by version, then non-versioned alphabetical).
 
 Allow the user to reply with a number, a title, or "none" to skip.
 
@@ -171,15 +181,15 @@ Only after explicit confirmation:
 
 1. Ensure the scratch dir exists:
    ```
-   mkdir -p .build/.claude
+   mkdir -p .build/.agents
    ```
-2. Write the body to a file named after a slug of the title, e.g. `.build/.claude/create-issue-firebird-5-drop-if-exists.md`.
+2. Write the body to a file named after a slug of the title, e.g. `.build/.agents/create-issue-firebird-5-drop-if-exists.md`.
 3. Create the issue:
    ```
    gh issue create \
      --repo linq2db/linq2db \
      --title "<title>" \
-     --body-file .build/.claude/create-issue-<slug>.md \
+     --body-file .build/.agents/create-issue-<slug>.md \
      [--label "<l1>" --label "<l2>" --label "<l3>"] \
      [--milestone "<title>"]
    ```
