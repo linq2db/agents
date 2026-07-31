@@ -88,7 +88,7 @@ gh pr comment <n> --repo <o>/<r> --body-file - <<'BODY'
 BODY
 ```
 
-For the most common case — posting an `/azp run …` CI trigger — use `.claude/scripts/azp-run.ps1` (`.claude\scripts\azp-run.ps1 -Pr <n> [-Pipeline <name>]`); the script feeds the body via stdin and is mangling-immune by construction. Invoke it directly via the PowerShell tool, not wrapped in `Bash(pwsh -NoProfile -File …)`. After posting any `--body-file -` body that starts with `/`, verify with `gh api repos/<o>/<r>/issues/comments/<id> --jq '.body'` — the mangling is invisible from `gh pr comment` stdout (it only prints the comment URL).
+For the most common case — posting an `/azp run …` CI trigger — use `.claude/scripts/azp-run.ps1` (`.claude\scripts\azp-run.ps1 -Pr <n> [-Pipeline <name>[,<name>…]]`); the script feeds the body via stdin and is mangling-immune by construction, and posts one comment per pipeline when given several (Azure parses one command per comment). Invoke it directly via the PowerShell tool, not wrapped in `Bash(pwsh -NoProfile -File …)`. After posting any `--body-file -` body that starts with `/`, verify with `gh api repos/<o>/<r>/issues/comments/<id> --jq '.body'` — the mangling is invisible from `gh pr comment` stdout (it only prints the comment URL).
 
 ## `gh ... --body @-` is not the stdin flag
 

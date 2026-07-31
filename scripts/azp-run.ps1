@@ -19,27 +19,34 @@ Invoke directly via the PowerShell tool (preferred), NOT wrapped in Bash:
 
     .claude\scripts\azp-run.ps1 -Pr 5467
     .claude\scripts\azp-run.ps1 -Pr 5467 -Pipeline test-sqlite
+    .claude\scripts\azp-run.ps1 -Pr 5467 -Pipeline test-access,test-mysql
     .claude\scripts\azp-run.ps1 -Pr 5467 -Pipeline list
 
 `-Pipeline list` posts `/azp list` (every pipeline registered on the repo);
-any other value posts `/azp run <value>`.
+any other value posts `/azp run <value>`. Azure Pipelines parses one command
+per comment, so several pipelines mean several comments - pass them as a list
+and the script posts one comment each, in order.
 
-Output: prints the new comment URL on stdout. Non-zero exit on `gh` failure.
+Output: prints one new comment URL per line on stdout. Non-zero exit on the
+first `gh` failure, leaving the already-posted triggers in place (a partially
+triggered run is visible in the URLs printed before the error).
 #>
 
 param(
     [Parameter(Mandatory)][int]$Pr,
-    [string]$Pipeline = 'test-all',
+    [string[]]$Pipeline = @('test-all'),
     [string]$Repo = 'linq2db/linq2db'
 )
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-$body = if ($Pipeline -eq 'list') { '/azp list' } else { "/azp run $Pipeline" }
+foreach ($name in $Pipeline) {
+    $body = if ($name -eq 'list') { '/azp list' } else { "/azp run $name" }
 
-$body | gh pr comment $Pr --repo $Repo --body-file -
-if ($LASTEXITCODE -ne 0) {
-    [Console]::Error.WriteLine("azp-run: gh pr comment failed with exit $LASTEXITCODE")
-    exit $LASTEXITCODE
+    $body | gh pr comment $Pr --repo $Repo --body-file -
+    if ($LASTEXITCODE -ne 0) {
+        [Console]::Error.WriteLine("azp-run: gh pr comment failed for '$name' with exit $LASTEXITCODE")
+        exit $LASTEXITCODE
+    }
 }
