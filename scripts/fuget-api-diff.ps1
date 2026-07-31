@@ -8,7 +8,7 @@ removals into one consolidated change-set per package.
 
 Used by `/release-deps` step 4c (Fuget API surface diffs) and by
 `/release-verify` if API drift surfaces post-build. Self-hosted fuget URL
-defaults to the recorded user value in `.agents/docs/release/external-repos.md`
+defaults to the recorded user value in `.claude/docs/release/external-repos.md`
 → user-specific paths; override via -FugetBase. Public fuget.org also works.
 
 Action:
@@ -24,7 +24,7 @@ Action:
                 mergedAdditions, mergedRemovals }
             ] }
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

@@ -53,7 +53,7 @@ A complementary internal discipline — the file lists APIs the codebase forbids
 
 ## Pointers
 
-- Design invariants: [`.agents/docs/code-design.md`](../../docs/code-design.md)
+- Design invariants: [`.claude/docs/code-design.md`](../../docs/code-design.md)
 - Per-area public surface: see each `[area]/INDEX.md` under `../areas/`
 - Public API surface text: `Source/LinqToDB/PublicAPI/PublicAPI.Shipped.txt`
 - Banned API list: `Source/BannedSymbols.txt`

@@ -30,9 +30,9 @@ description: Draft and publish linq2db release notes. Per-PR, composes a user-fa
 
 ## Required reading
 
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) → wiki clone path + `wiki-write-strategy` + component-mapping notes.
-- [`.agents/docs/pr-and-push.md`](../../docs/pr-and-push.md) → the push-time and merge-time integration blocks.
-- [`.agents/docs/github-authoring.md`](../../docs/github-authoring.md) → comment/PATCH mechanics, never-edit-others' content, milestone-by-numeric-id.
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) → wiki clone path + `wiki-write-strategy` + component-mapping notes.
+- [`.claude/docs/pr-and-push.md`](../../docs/pr-and-push.md) → the push-time and merge-time integration blocks.
+- [`.claude/docs/github-authoring.md`](../../docs/github-authoring.md) → comment/PATCH mechanics, never-edit-others' content, milestone-by-numeric-id.
 
 ## The draft comment
 

@@ -247,7 +247,7 @@ Public translation-layer files (outside area globs, integrated here for complete
 - [`EXPR`](../EXPR/INDEX.md) -- `ContextRefExpression`, `SqlPlaceholderExpression`, `SqlAggregateLifterExpression`, visitor infrastructure.
 - [`CODEGEN`](../CODEGEN/INDEX.md) -- `BuildersGenerator` Roslyn source generator.
 - [`../../architecture/expression-translator.md`](../../architecture/expression-translator.md) -- narrative walkthrough.
-- `.agents/docs/code-design.md` -- public-API + AST namespace invariants.
+- `.claude/docs/code-design.md` -- public-API + AST namespace invariants.
 
 ## Pointers
 

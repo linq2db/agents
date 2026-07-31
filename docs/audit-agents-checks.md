@@ -12,16 +12,16 @@ Proposed fix (mechanical when the file was renamed and there's one plausible new
 
 ## 2b. Slnx-mismatch check
 
-Diff on-disk `.agents/` files against `linq2db.slnx` entries starting with `.agents/` or equal to `AGENTS.md` / `CLAUDE.md`.
+Diff on-disk `.claude/` files against `linq2db.slnx` entries starting with `.claude/` or equal to `AGENTS.md` / `CLAUDE.md`.
 
-- **On disk, not in slnx** — error unless the file is gitignored AND not an always-included exception (`.agents/settings.local.json`). Fix: run `/update-slnx`.
+- **On disk, not in slnx** — error unless the file is gitignored AND not an always-included exception (`.claude/settings.local.json`). Fix: run `/update-slnx`.
 - **In slnx, not on disk** — error unless the file is an always-included exception. Fix: run `/update-slnx`.
 
 Don't emit individual edit patches for slnx mismatches — the slnx structure is owned by `/update-slnx`. Emit a single aggregated finding pointing at the skill.
 
 ## 2c. Template-gap check
 
-For each `.agents/skills/*/SKILL.md`:
+For each `.claude/skills/*/SKILL.md`:
 
 - Frontmatter exists and contains `name:` and `description:`.
 - H1 (`# <name>`) exists.
@@ -30,7 +30,7 @@ For each `.agents/skills/*/SKILL.md`:
 
 Missing frontmatter field → error. Missing H1 → error. Missing "When to run"-ish → warning. Missing "Steps"-ish → warning. Missing "Don'ts" / "Don't" → info.
 
-For agents (`.agents/agents/*.md`) the frontmatter must contain `name`, `description`, `tools`, and `model`. The body should contain an "Inputs" or "When invoked" section. Flag missing frontmatter fields as error; missing body sections are info-level at most.
+For agents (`.claude/agents/*.md`) the frontmatter must contain `name`, `description`, `tools`, and `model`. The body should contain an "Inputs" or "When invoked" section. Flag missing frontmatter fields as error; missing body sections are info-level at most.
 
 **Subagent model checks (extension of frontmatter validation):**
 
@@ -44,7 +44,7 @@ Proposed fix for missing-section / scaffold gaps: mechanical — suggest the sca
 
 Grep-and-compare. For each of the following "canonical rule" patterns, find every occurrence and check for wording divergence:
 
-- Branch-naming rules (who owns them: `CLAUDE.md` → Branch Conventions, `.agents/docs/agent-rules.md` → Creating a new branch). If both state the *schema* with different words, flag as duplicated-rule; if one is the authoritative statement and the other is a one-line pointer, that's fine.
+- Branch-naming rules (who owns them: `CLAUDE.md` → Branch Conventions, `.claude/docs/agent-rules.md` → Creating a new branch). If both state the *schema* with different words, flag as duplicated-rule; if one is the authoritative statement and the other is a one-line pointer, that's fine.
 - Commit / push / PR approval rules.
 - Bash chaining / permission-friendly patterns.
 - GitHub content-editing guardrails.
@@ -58,7 +58,7 @@ This is not a full-text dedup — it's a fixed list of "rules that must live in 
 
 ## 2e. Retired-path check
 
-`Grep` the corpus for path-ish tokens (`Source/\S+`, `Tests/\S+`, `Build/\S+`, `Data/\S+`, `.agents/\S+`) and check each against `Glob`. Flag tokens that look like paths and don't resolve. Skip ones inside code fences that are illustrative examples (common pattern: `Source/LinqToDB/...` as a placeholder).
+`Grep` the corpus for path-ish tokens (`Source/\S+`, `Tests/\S+`, `Build/\S+`, `Data/\S+`, `.claude/\S+`) and check each against `Glob`. Flag tokens that look like paths and don't resolve. Skip ones inside code fences that are illustrative examples (common pattern: `Source/LinqToDB/...` as a placeholder).
 
 Distinguish: a path that never existed (probably an example) vs. a path that clearly used to exist. Heuristic: if the parent directory exists and the filename has the standard repo shape (`<PascalCase>.cs`, `<kebab>.md`), it's likely a real retired path.
 
@@ -74,25 +74,25 @@ Line-count-driven, with stricter thresholds for the **always-loaded payload** �
 
 **Always-loaded (warning, fixKind: creative):**
 
-- `CLAUDE.md` over 100 lines — propose moving verbose sections into focused `.agents/docs/<topic>.md` files, leaving one-line pointers in their place. Sections already shaped as a single-line pointer don't count toward the budget; focus the proposal on the long-form sections that drive the count up.
-- Any doc reachable via `@<path>` from `CLAUDE.md` over 250 lines (e.g. `.agents/docs/agent-rules.md`) — propose splitting by topic. Keep the most-referenced sections inline; move lower-traffic sections (large recipes, niche gotchas, single-use procedures) into focused docs and replace with a pointer.
+- `CLAUDE.md` over 100 lines — propose moving verbose sections into focused `.claude/docs/<topic>.md` files, leaving one-line pointers in their place. Sections already shaped as a single-line pointer don't count toward the budget; focus the proposal on the long-form sections that drive the count up.
+- Any doc reachable via `@<path>` from `CLAUDE.md` over 250 lines (e.g. `.claude/docs/agent-rules.md`) — propose splitting by topic. Keep the most-referenced sections inline; move lower-traffic sections (large recipes, niche gotchas, single-use procedures) into focused docs and replace with a pointer.
 
 For each always-loaded oversize finding, propose a concrete split (which sections move where, what pointer stays). The `proposedFix` is the per-section breakdown rather than a single unified diff — the user picks how aggressive to be.
 
-**Aggregate always-loaded footprint (info, fixKind: manual-only):** independent of any single-file threshold, also compute and **report** the total size of the always-loaded payload — `CLAUDE.md` plus every doc reachable via the `@import` chain from it (currently `CLAUDE.md` + `.agents/docs/agent-rules.md`) — in both lines and KB. Every conversation pays this on startup, so the cumulative number is the signal even when each file is individually under budget. Emit an info finding when the total exceeds **60 KB** (🟡) and a warning when it exceeds **90 KB** (🔴) — these match the `chores` *Context budget* thresholds. (Baseline at the time of writing: ~42 KB / ~200 lines across the two files, comfortably green.) The fix is the same per-section relocation as the single-file findings, applied across whichever always-loaded file is the largest contributor; surface the number so growth is trackable run-over-run, don't propose a specific diff.
+**Aggregate always-loaded footprint (info, fixKind: manual-only):** independent of any single-file threshold, also compute and **report** the total size of the always-loaded payload — `CLAUDE.md` plus every doc reachable via the `@import` chain from it (currently `CLAUDE.md` + `.claude/docs/agent-rules.md`) — in both lines and KB. Every conversation pays this on startup, so the cumulative number is the signal even when each file is individually under budget. Emit an info finding when the total exceeds **60 KB** (🟡) and a warning when it exceeds **90 KB** (🔴) — these match the `chores` *Context budget* thresholds. (Baseline at the time of writing: ~42 KB / ~200 lines across the two files, comfortably green.) The fix is the same per-section relocation as the single-file findings, applied across whichever always-loaded file is the largest contributor; surface the number so growth is trackable run-over-run, don't propose a specific diff.
 
 **Per-skill / per-script (info, fixKind: manual-only):**
 
-- `SKILL.md` over 250 lines — suggest factoring shared procedure into `.agents/docs/`.
+- `SKILL.md` over 250 lines — suggest factoring shared procedure into `.claude/docs/`.
 - Two skills whose procedures overlap by more than half (heuristic: share > 50% of H3 section titles) — suggest a shared doc.
 - `.ps1` over 300 lines with no helper functions in `_shared.ps1` — suggest extracting.
-- `.agents/docs/*.md` referenced by exactly one skill — suggest inlining.
+- `.claude/docs/*.md` referenced by exactly one skill — suggest inlining.
 
 Per-skill / per-script findings stay manual-only — log the candidate with a one-line rationale, don't propose a specific patch.
 
 ## 2h. Memory-promotion check
 
-Inspect the user's auto-memory store for entries whose content would help every agent on this codebase, not only the current user. Promote those into `.agents/` so the rule lives where it can be reviewed, version-controlled, and applied to other contributors' agent sessions (Claude / Codex / Copilot); leave personal memories where they are.
+Inspect the user's auto-memory store for entries whose content would help every agent on this codebase, not only the current user. Promote those into `.claude/` so the rule lives where it can be reviewed, version-controlled, and applied to other contributors' agent sessions (Claude / Codex / Copilot); leave personal memories where they are.
 
 **Locate the memory directory.** Read the path from this session's `# auto memory` system-prompt section. If the directory doesn't exist or `MEMORY.md` is absent / empty, skip the check entirely (zero findings — never fabricate candidates).
 
@@ -109,19 +109,19 @@ Inspect the user's auto-memory store for entries whose content would help every 
 
 | Memory shape | Likely destination |
 |---|---|
-| Workflow rule with **Why:** + **How to apply:** (mid-task discipline, agent guardrail) | `.agents/docs/agent-rules.md` (new bullet under the matching section) |
-| Architecture / design fact about the codebase | `.agents/docs/architecture.md` or `.agents/docs/code-design.md` |
-| Skill-specific rule that only applies inside one skill's flow | the relevant `.agents/skills/<name>/SKILL.md` (its `Don'ts` or workflow section) |
+| Workflow rule with **Why:** + **How to apply:** (mid-task discipline, agent guardrail) | `.claude/docs/agent-rules.md` (new bullet under the matching section) |
+| Architecture / design fact about the codebase | `.claude/docs/architecture.md` or `.claude/docs/code-design.md` |
+| Skill-specific rule that only applies inside one skill's flow | the relevant `.claude/skills/<name>/SKILL.md` (its `Don'ts` or workflow section) |
 | Cross-cutting external resource pointer | `CLAUDE.md` (top-level reference list) or the most relevant doc |
-| Subagent-level rule | the subagent's `.agents/agents/<name>.md` |
+| Subagent-level rule | the subagent's `.claude/agents/<name>.md` |
 
 **Severity:** info. **fixKind:** creative — promotion always needs a voice rewrite (first-person → imperative, "I" → "the agent", drop user names) and a placement decision the audit can't make alone. Surface the proposal; don't auto-apply.
 
-**The audit never edits the memory file.** Promotion is a one-way copy: write the rephrased rule into `.agents/`; the user decides separately whether to keep, rewrite, or `/forget` the memory entry. Removing memory is the user's prerogative — even when the same content has just been promoted to project level.
+**The audit never edits the memory file.** Promotion is a one-way copy: write the rephrased rule into `.claude/`; the user decides separately whether to keep, rewrite, or `/forget` the memory entry. Removing memory is the user's prerogative — even when the same content has just been promoted to project level.
 
 ## 2i. Wordiness check
 
-Surface prose that could be tightened without losing operational meaning. Scope: `CLAUDE.md`, `.agents/docs/*.md`, `.agents/skills/*/SKILL.md`, `.agents/agents/*.md`. Triggers:
+Surface prose that could be tightened without losing operational meaning. Scope: `CLAUDE.md`, `.claude/docs/*.md`, `.claude/skills/*/SKILL.md`, `.claude/agents/*.md`. Triggers:
 
 - **Multi-restatement.** Same fact introduced 2+ ways within one section ("The rule. / The principle. / The why. / The how. / The example.") — collapse to one statement + at most one example.
 - **Paragraph where bullets fit.** Three or more sequential sentences each carrying one independent rule — refactor to a bulleted list.
@@ -136,7 +136,7 @@ Surface prose that could be tightened without losing operational meaning. Scope:
 
 - File total length is under 100 lines and there's no other refactor-candidate finding on it (small docs aren't worth nitpicking).
 - The verbose section is an incident-trace example ("Surfaced 2026-05-15 on PR #5521 — …"). Those carry context that wouldn't survive compression.
-- The file is a `.agents/docs/release/*.md` per-package note (intentionally factual, accrues per release).
+- The file is a `.claude/docs/release/*.md` per-package note (intentionally factual, accrues per release).
 
 ## 2j. Stale-model-workaround check
 
@@ -153,11 +153,11 @@ Do **not** flag: incident-driven rules ("we got burned when…"), tool-shape req
 
 ## 2k. Stale-memory-reference check
 
-A read-only companion to the 2h memory-promotion check. Where 2h asks "should this memory be promoted into `.agents/`?", this check asks "does this memory still describe reality?" — auto-memory entries (and recalled-memory `<system-reminder>` blocks) reflect what was true when written, and a memory that names a file, function, flag, path, or identifier that has since been renamed or removed will actively mislead.
+A read-only companion to the 2h memory-promotion check. Where 2h asks "should this memory be promoted into `.claude/`?", this check asks "does this memory still describe reality?" — auto-memory entries (and recalled-memory `<system-reminder>` blocks) reflect what was true when written, and a memory that names a file, function, flag, path, or identifier that has since been renamed or removed will actively mislead.
 
 **Locate the memory directory** the same way as 2h (read the path from this session's `# auto memory` system-prompt section). If absent / empty, skip entirely (zero findings).
 
-**Per-entry resolution.** For each pointer in `MEMORY.md`, `Read` the linked file and extract concrete repo references — backticked or path-shaped tokens: file paths (`Source/…`, `Tests/…`, `.agents/…`), type / method / member names, MSBuild property or feature-flag names, skill / agent names. For each, verify it still exists: `Glob` for paths, `Grep` for identifiers (scope the search to the plausible area to keep it cheap). Flag the memory entry when a load-bearing reference no longer resolves.
+**Per-entry resolution.** For each pointer in `MEMORY.md`, `Read` the linked file and extract concrete repo references — backticked or path-shaped tokens: file paths (`Source/…`, `Tests/…`, `.claude/…`), type / method / member names, MSBuild property or feature-flag names, skill / agent names. For each, verify it still exists: `Glob` for paths, `Grep` for identifiers (scope the search to the plausible area to keep it cheap). Flag the memory entry when a load-bearing reference no longer resolves.
 
 **Distinguish** a genuinely retired reference from an illustrative or historical one — a memory describing a *past* incident ("#5513 was…") legitimately names artifacts that may be gone; only flag when the memory is stated as *current* guidance whose anchor has moved.
 

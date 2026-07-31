@@ -1,20 +1,20 @@
 <#
-carry-curation.ps1 — carry `.agents/` curation across a branch switch, or verify
-a push range carries no `.agents/` diff.
+carry-curation.ps1 — carry `.claude/` curation across a branch switch, or verify
+a push range carries no `.claude/` diff.
 
-Codifies .agents/docs/worktree.md -> "Carrying `.agents/` curation across branch
+Codifies .claude/docs/worktree.md -> "Carrying `.claude/` curation across branch
 switches" (the fetch -> checkout glue, and the push-time verify). GLUE ONLY — the
 DECISION to carry (this is a working branch, not master/release) and the
 explicit-pathspec staging discipline stay with the agent/skill.
 
-  pwsh -NoProfile -File .agents/scripts/carry-curation.ps1            # carry
-  pwsh -NoProfile -File .agents/scripts/carry-curation.ps1 -Verify    # push-time check
+  pwsh -NoProfile -File .claude/scripts/carry-curation.ps1            # carry
+  pwsh -NoProfile -File .claude/scripts/carry-curation.ps1 -Verify    # push-time check
 
-Carry mode: fetch origin <curation>, `git checkout origin/<curation> -- .agents/`,
+Carry mode: fetch origin <curation>, `git checkout origin/<curation> -- .claude/`,
 then unstage so the carried files are working-tree-only modifications (never
 staged, per the rule). Refuses on master/release (they reflect merged state).
-Verify mode: report any commits in origin/<branch>..HEAD that touch `.agents/`
-and any staged `.agents/` paths — both violate "never commit curation on a
+Verify mode: report any commits in origin/<branch>..HEAD that touch `.claude/`
+and any staged `.claude/` paths — both violate "never commit curation on a
 working branch".
 #>
 param(
@@ -37,7 +37,7 @@ if (-not $Branch) { $Branch = Get-CurrentBranch }
 
 if ($Verify) {
     $range = "$Remote/$Branch..HEAD"
-    $log = Invoke-Git @('log', '--oneline', $range, '--', '.agents/')
+    $log = Invoke-Git @('log', '--oneline', $range, '--', '.claude/')
     $commits = @()
     $rangeNote = $null
     if ($log.ok) {
@@ -46,7 +46,7 @@ if ($Verify) {
         $rangeNote = "could not evaluate range ($($log.error.Trim())) — branch likely not pushed yet"
     }
 
-    $staged = Invoke-Git @('diff', '--cached', '--name-only', '--', '.agents/')
+    $staged = Invoke-Git @('diff', '--cached', '--name-only', '--', '.claude/')
     $stagedPaths = @()
     if ($staged.ok -and $staged.stdout.Trim()) { $stagedPaths = @($staged.stdout.Trim() -split "`n") }
 
@@ -76,14 +76,14 @@ if ($Branch -eq 'master' -or $Branch -eq 'release') {
 $fetch = Invoke-Git @('fetch', $Remote, $Curation)
 if (-not $fetch.ok) { Exit-WithError "git fetch $Remote $Curation failed: $($fetch.error)" }
 
-$checkout = Invoke-Git @('checkout', "$Remote/$Curation", '--', '.agents/')
-if (-not $checkout.ok) { Exit-WithError "git checkout $Remote/$Curation -- .agents/ failed: $($checkout.error)" }
+$checkout = Invoke-Git @('checkout', "$Remote/$Curation", '--', '.claude/')
+if (-not $checkout.ok) { Exit-WithError "git checkout $Remote/$Curation -- .claude/ failed: $($checkout.error)" }
 
 # `git checkout <tree> -- <path>` stages the result; the rule wants the carry to
-# be working-tree-only (unstaged) modifications, so reset the index for .agents/.
-$unstage = Invoke-Git @('restore', '--staged', '--', '.agents/')
+# be working-tree-only (unstaged) modifications, so reset the index for .claude/.
+$unstage = Invoke-Git @('restore', '--staged', '--', '.claude/')
 
-$status = Invoke-Git @('status', '--porcelain', '--', '.agents/')
+$status = Invoke-Git @('status', '--porcelain', '--', '.claude/')
 $changed = @()
 if ($status.ok -and $status.stdout.Trim()) {
     $changed = @($status.stdout.Trim() -split "`n" | ForEach-Object { $_.Trim() })

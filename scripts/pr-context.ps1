@@ -11,7 +11,7 @@ log, log --format=%B). Each unique command string is its own permission
 prompt, so the allowlist rules didn't amortise. This script folds the whole
 batch into one pwsh process with one allowlist rule:
 
-    Bash(pwsh -NoProfile -File .agents/scripts/pr-context.ps1 *)
+    Bash(pwsh -NoProfile -File .claude/scripts/pr-context.ps1 *)
 
 It also performs the one-level linked-issue scan (regex across PR body,
 commit messages, conversation comments, review bodies, review comments)
@@ -22,7 +22,7 @@ Input — two forms (preferred first)
 
 (1) Named parameters (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr 5503
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr 5503
 
     Optional named parameters:
       -Owner <name>             — default "linq2db"
@@ -33,7 +33,7 @@ Input — two forms (preferred first)
 
 (2) Stdin JSON (legacy, still accepted — heredoc form):
 
-      pwsh -NoProfile -File .agents/scripts/pr-context.ps1 <<'EOF'
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 <<'EOF'
       { "pr": 5503 }
       EOF
 

@@ -7,18 +7,18 @@ Why this wrapper exists
 Baselines lives in a sibling clone at `../linq2db.baselines`. The reviewer
 needs the changed-file list, the per-file diff body, and the path parsed
 into `(provider, test, params)` per the grammar in
-`.agents/docs/baselines-repo-layout.md`. Running that as raw Bash fires
+`.claude/docs/baselines-repo-layout.md`. Running that as raw Bash fires
 `git -C ../linq2db.baselines …` once per file, each triggering its own
 permission prompt. This script answers everything in one call:
 
-    Bash(pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1 *)
+    Bash(pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 *)
 
 Input — two forms (preferred first)
 -----------------------------------
 
 (1) Named parameters (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1 -Pr 5414
+      pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 -Pr 5414
 
     Optional named parameters:
       -BaselinesPath <path>     — default "../linq2db.baselines"
@@ -127,7 +127,7 @@ param(
 $global:ScriptBaseName = 'baselines-diff'
 . "$PSScriptRoot/_shared.ps1"
 
-# Parse an SQL baseline path per .agents/docs/baselines-repo-layout.md.
+# Parse an SQL baseline path per .claude/docs/baselines-repo-layout.md.
 # Shape: <Provider>/<ns1>/.../<ClassName>/<full.ns.Class>.<Method>(<params>).sql
 # Returns $null for paths that don't fit (flagged as unknown).
 function ConvertFrom-SqlPath {

@@ -26,7 +26,7 @@ explicit user-confirmation before invoking; do not auto-launch.
 Output (single JSON object on stdout):
   { ok, logPath, exitCode, elapsedMs }
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

@@ -10,7 +10,7 @@ plain `git add` + `git commit` now works. This script is no longer mandatory - i
 is kept because a GitHub wiki page title may still contain a colon, which would
 reintroduce the problem, and because it stays the safest way to script a page
 edit: it always bases the commit on `origin/master` and aborts if the diff touches
-anything but the named pages. See `.agents/docs/windows-dev-gotchas.md` ->
+anything but the named pages. See `.claude/docs/windows-dev-gotchas.md` ->
 *Cloning the `linq2db.wiki` repo*.
 
 The original problem: the repo contained a page whose filename held a colon
@@ -33,7 +33,7 @@ working-tree scan:
 handle the colon-named entry it can never write to disk.
 
 This script replaces hand-running that six-call sequence and substituting each
-printed SHA into the next call - see `.agents/docs/windows-dev-gotchas.md` ->
+printed SHA into the next call - see `.claude/docs/windows-dev-gotchas.md` ->
 *Cloning the `linq2db.wiki` repo fails on a colon-named page*.
 
 The commit is always based on `origin/master`, never the local branch: the clone
@@ -42,7 +42,7 @@ fetch does not exist in the local `master` commit at all.
 
 Usage:
 
-  pwsh -NoProfile -File .agents/scripts/wiki-commit.ps1 -Page L2DB1001.md -MessageFile .build/.agents/wiki-msg.txt
+  pwsh -NoProfile -File .claude/scripts/wiki-commit.ps1 -Page L2DB1001.md -MessageFile .build/.agents/wiki-msg.txt
 
   -Page         page filename(s) relative to the wiki root, repeatable
                 (`-Page A.md -Page B.md`). Must already be edited on disk.

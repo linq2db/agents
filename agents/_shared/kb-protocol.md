@@ -2,7 +2,7 @@
 
 Contract every KB indexer agent (`kb-architect`, `kb-historian`, `kb-github-curator`, `kb-issue-detector`) follows. Skills parse this protocol; agents emit it; `kb-state.ps1 apply-fences` validates and applies it.
 
-The indexer is **read-only**. It never writes to `.agents/knowledge-base/` directly. Its single output is a structured stdout payload of fences. The orchestrating skill applies all writes after validation.
+The indexer is **read-only**. It never writes to `.claude/knowledge-base/` directly. Its single output is a structured stdout payload of fences. The orchestrating skill applies all writes after validation.
 
 ## Required envelope
 
@@ -20,7 +20,7 @@ The agent's final message starts with `=== KB-INDEXER OUTPUT v1 ===` and ends wi
 
 ### `=== ARTIFACT: <relative-path> ===` ... `=== END ARTIFACT ===`
 
-Emit a complete file under `.agents/knowledge-base/`. Path is relative to `.agents/knowledge-base/` and uses forward slashes. The file is written verbatim — the skill validates frontmatter and coverage block but does not edit content.
+Emit a complete file under `.claude/knowledge-base/`. Path is relative to `.claude/knowledge-base/` and uses forward slashes. The file is written verbatim — the skill validates frontmatter and coverage block but does not edit content.
 
 ```
 === ARTIFACT: areas/SQL-PROVIDER/INDEX.md ===
@@ -173,7 +173,7 @@ If the agent cannot complete the step (e.g. a file's content makes coverage impo
 
 ## Read-only enforcement
 
-Indexer agents have only `Read`, `Grep`, `Glob`, and (where listed) `Bash` for `gh api` / `git log`. They have **no** `Edit` / `Write` / `NotebookEdit`. Attempts to bypass via shell redirect must fail at the permission layer; if an agent is observed writing to `.agents/knowledge-base/` directly, treat it as a contract bug and fix the agent.
+Indexer agents have only `Read`, `Grep`, `Glob`, and (where listed) `Bash` for `gh api` / `git log`. They have **no** `Edit` / `Write` / `NotebookEdit`. Attempts to bypass via shell redirect must fail at the permission layer; if an agent is observed writing to `.claude/knowledge-base/` directly, treat it as a contract bug and fix the agent.
 
 ## Versioning
 

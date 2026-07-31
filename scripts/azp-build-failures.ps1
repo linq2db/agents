@@ -12,8 +12,8 @@ The Azure DevOps `dev.azure.com/linq2db` build API is publicly readable
 
 Invoke directly via the PowerShell tool (preferred), NOT wrapped in Bash:
 
-    .agents\scripts\azp-build-failures.ps1 -BuildId 20250
-    .agents\scripts\azp-build-failures.ps1 -BuildId 20250 -WriteDir .build/.agents/azp-20250
+    .claude\scripts\azp-build-failures.ps1 -BuildId 20250
+    .claude\scripts\azp-build-failures.ps1 -BuildId 20250 -WriteDir .build/.agents/azp-20250
 
 Output: single JSON document on stdout with per-task failures and on-disk
 log paths. Logs are persisted under -WriteDir for follow-up Read / Grep.

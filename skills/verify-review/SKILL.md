@@ -9,14 +9,14 @@ User-triggered follow-up workflow after the PR author has addressed findings fro
 
 Shared reference material:
 
-- **Review orchestration** (shared skeleton with `/review-pr`): `.agents/docs/review-orchestration.md`
-- **Review conventions**: `.agents/docs/review-conventions.md`
-- **GitHub review API**: `.agents/docs/github-review-api.md`
-- **PR context prep**: `.agents/docs/pr-context-prep.md`
-- **Baselines repo layout**: `.agents/docs/baselines-repo-layout.md`
-- **PR reference resolver**: `.agents/docs/pr-resolver.md`
-- **API surface classification**: `.agents/docs/api-surface-classification.md`
-- **Review posting**: `.agents/docs/review-posting.md`
+- **Review orchestration** (shared skeleton with `/review-pr`): `.claude/docs/review-orchestration.md`
+- **Review conventions**: `.claude/docs/review-conventions.md`
+- **GitHub review API**: `.claude/docs/github-review-api.md`
+- **PR context prep**: `.claude/docs/pr-context-prep.md`
+- **Baselines repo layout**: `.claude/docs/baselines-repo-layout.md`
+- **PR reference resolver**: `.claude/docs/pr-resolver.md`
+- **API surface classification**: `.claude/docs/api-surface-classification.md`
+- **Review posting**: `.claude/docs/review-posting.md`
 
 ## When to run
 
@@ -59,7 +59,7 @@ Apply the per-rule classification calibration (rules 1, 4, 5, 6 of `code-reviewe
 
 ### 3. Parse prior findings
 
-Per `.agents/docs/review-conventions.md` → **ID-continuation floor**: regex-match IDs across every prior review body and every review comment body authored by the current user. For each match, record:
+Per `.claude/docs/review-conventions.md` → **ID-continuation floor**: regex-match IDs across every prior review body and every review comment body authored by the current user. For each match, record:
 
 ```
 {
@@ -83,7 +83,7 @@ Dedup by ID — if the same ID appears in multiple places, keep the most recent 
 
 ### 4. Prepare change summary and baselines state
 
-Execute the **Change summary** and **Baselines clone setup** sections of `.agents/docs/pr-context-prep.md` against the current PR HEAD. Per the project decision, baselines grouping is rerun from scratch in verify mode — do not try to diff incrementally against a prior baselines review.
+Execute the **Change summary** and **Baselines clone setup** sections of `.claude/docs/pr-context-prep.md` against the current PR HEAD. Per the project decision, baselines grouping is rerun from scratch in verify mode — do not try to diff incrementally against a prior baselines review.
 
 ### 5. Spawn subagents in `verify` mode (parallel)
 
@@ -112,7 +112,7 @@ For each prior finding, pick the update action based on `status` × `location.ki
 | partial      | line          | Add an entry to the new draft review's `replyComments[]` with `inReplyTo` set to the existing comment's GraphQL node ID and a body that quotes the original and explains the residual concern. The wrapper attaches it via `addPullRequestReviewComment` scoped to the new pending review, so the reply stays hidden until the user submits the draft (do **not** use the `/replies` REST endpoint — it posts immediately, outside the draft, which breaks the "preview before submit" flow). |
 | partial      | file          | Post a fresh file-level comment in the new draft review, referencing the original ID. |
 
-Edit-in-place of prior review bodies uses GitHub's `PUT` endpoint — see `.agents/docs/github-review-api.md`. Mechanics: the prior review body is already in memory from step 2's `GET /pulls/<n>/reviews` response — do not re-fetch. Apply a targeted substring replacement on the exact line containing the finding's ID to flip its checkbox, then PUT the whole new body in one call per review.
+Edit-in-place of prior review bodies uses GitHub's `PUT` endpoint — see `.claude/docs/github-review-api.md`. Mechanics: the prior review body is already in memory from step 2's `GET /pulls/<n>/reviews` response — do not re-fetch. Apply a targeted substring replacement on the exact line containing the finding's ID to flip its checkbox, then PUT the whole new body in one call per review.
 
 ### 7b. Out-of-scope disposition gate
 
@@ -137,10 +137,10 @@ Then run the **mode-choice gate** defined in [`review-orchestration.md`](../../d
 
 ### 9. Apply in-place edits
 
-All three kinds of write — body PUTs, comment PATCHes, thread resolves — go through a single call to `.agents/scripts/apply-verify-writes.ps1`. One pwsh invocation, one allowlist rule, one permission prompt, regardless of how many writes the plan carries. The script handles fan-out parallelism internally.
+All three kinds of write — body PUTs, comment PATCHes, thread resolves — go through a single call to `.claude/scripts/apply-verify-writes.ps1`. One pwsh invocation, one allowlist rule, one permission prompt, regardless of how many writes the plan carries. The script handles fan-out parallelism internally.
 
 ```
-pwsh -NoProfile -File .agents/scripts/apply-verify-writes.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/apply-verify-writes.ps1 <<'EOF'
 {
   "pr": <n>,
   "appendNote": "— ✓ Fixed in <head_sha_short>",
@@ -167,7 +167,7 @@ The script exits 0 on full success, 2 when at least one item failed (per-item `o
 
 Only if there is anything to post (partial-fix follow-ups, fresh findings, fresh baselines grouping that differs meaningfully from the prior review, or a verification header the user wants visible). If the plan is purely "edit in place, nothing new", skip this step.
 
-**Posting mechanics are defined in [`.agents/docs/review-posting.md`](../../docs/review-posting.md)** — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape. The skill's job here is to supply the per-review content that fills the manifest template.
+**Posting mechanics are defined in [`.claude/docs/review-posting.md`](../../docs/review-posting.md)** — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape. The skill's job here is to supply the per-review content that fills the manifest template.
 
 Per-review content for this skill:
 
@@ -197,7 +197,7 @@ Verification-update body template:
 - [ ] MIN007 — <short title>   (original: review #<review_id>; follow-up: MIN008 below)
 
 ### New findings
-<severity-grouped entries — body structure per .agents/docs/review-conventions.md>
+<severity-grouped entries — body structure per .claude/docs/review-conventions.md>
 
 ## Baselines
 <!-- render per `/review-pr` → step 7 → **Baselines section rendering**:

@@ -5,7 +5,7 @@ description: Report the live test-progress heartbeat for linq2db test runs (read
 
 # /test-progress
 
-Report the live progress heartbeat written by the test assembly during a run. Backed by [Tests/Base/TestProgressReporter.cs](../../../Tests/Base/TestProgressReporter.cs); reader docs in [`.agents/docs/testing.md`](../../docs/testing.md) → **Monitoring a long run**.
+Report the live progress heartbeat written by the test assembly during a run. Backed by [Tests/Base/TestProgressReporter.cs](../../../Tests/Base/TestProgressReporter.cs); reader docs in [`.claude/docs/testing.md`](../../docs/testing.md) → **Monitoring a long run**.
 
 ## When to run
 
@@ -22,7 +22,7 @@ The file lands at `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM /
 1. Run the summary helper for the most recent run:
 
    ```
-   pwsh -NoProfile -File .agents/scripts/test-status.ps1
+   pwsh -NoProfile -File .claude/scripts/test-status.ps1
    ```
 
    Relay its one-line output (state, completed/total, pass/fail/skip, rate, elapsed, ETA, current test). If it reports no heartbeat file, say so — either no run has started, or the run was launched without `--test-progress` (unusual for a Claude-launched run).

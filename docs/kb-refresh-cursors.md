@@ -4,7 +4,7 @@ Reference for `/kb-refresh`. Defines the cursor format per source, delta-fetch r
 
 ## Cursors
 
-All cursors live in one file: `.agents/knowledge-base/state/cursors.json`. Single-file is intentional — atomic writes, no partial-update windows.
+All cursors live in one file: `.claude/knowledge-base/state/cursors.json`. Single-file is intentional — atomic writes, no partial-update windows.
 
 ```json
 {
@@ -125,7 +125,7 @@ A persistent budget-paced backlog of Tier-2 files that an indexer ran knowingly 
 
 ### State file
 
-`.agents/knowledge-base/state/deferred-coverage.json`:
+`.claude/knowledge-base/state/deferred-coverage.json`:
 
 ```json
 {
@@ -166,4 +166,4 @@ Files leaving the queue via `coverage-fill` push the area's `coverage_tier_2` nu
 - **`gh api` rate-limit hit**: scripts emit `{"status":"rate-limited", "reset_at":"<ISO>"}`; `/kb-refresh` exits cleanly with a note in `audit-log.md`. User retries after the reset.
 - **Wiki repo gone / private**: `kb-fetch-wiki.ps1` returns `{"status":"unreachable"}`; refresh skips wiki, advances no other cursors, and warns the user.
 - **Code scan finds a file in an area's pattern set that doesn't classify into Tier 1/2/3**: indexer flags it in the artifact body as `unclassified-file` and continues. User extends `kb-areas.md` or `kb-coverage-tiers.md` and re-runs.
-- **Cursor file corrupt / missing**: `/kb-refresh` refuses to run and prints the path. User restores from git history (`.agents/` is committed).
+- **Cursor file corrupt / missing**: `/kb-refresh` refuses to run and prints the path. User restores from git history (`.claude/` is committed).

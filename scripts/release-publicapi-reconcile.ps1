@@ -47,7 +47,7 @@ Shipped and drop the tombstone (it does NOT survive into Shipped).
 The leading `#nullable enable` directive is preserved as the first line
 of each file. Empty Unshipped files keep just that directive.
 
-Conventions: `.agents/docs/script-authoring.md`. Sort order:
+Conventions: `.claude/docs/script-authoring.md`. Sort order:
 `System.StringComparer.Ordinal` — matches Roslyn's DeclarePublicApiAnalyzer
 codefix output exactly.
 #>

@@ -6,9 +6,9 @@
 # .build/.agents/test-progress.*.json file (the active run); pass -Path to target a specific file.
 #
 # Usage:
-#   pwsh -NoProfile -File .agents/scripts/test-status.ps1
-#   pwsh -NoProfile -File .agents/scripts/test-status.ps1 -Path .build/.agents/test-progress.net10.0.1234.json
-#   pwsh -NoProfile -File .agents/scripts/test-status.ps1 -Raw      # emit the raw JSON instead of a summary
+#   pwsh -NoProfile -File .claude/scripts/test-status.ps1
+#   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Path .build/.agents/test-progress.net10.0.1234.json
+#   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw      # emit the raw JSON instead of a summary
 
 [CmdletBinding()]
 param(

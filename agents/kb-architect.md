@@ -110,11 +110,11 @@ Going over by 20% is fine; doubling them is a smell — split into multiple arti
 
 ## Delta mode
 
-Run when `/kb-refresh --source code` re-indexes an area whose path patterns matched files in the master-delta file list. The agent receives `area`, `changedFiles[]`, `currentSha`, plus the relative path `areas/<area>/INDEX.md` (the existing file is on disk under `.agents/knowledge-base/`).
+Run when `/kb-refresh --source code` re-indexes an area whose path patterns matched files in the master-delta file list. The agent receives `area`, `changedFiles[]`, `currentSha`, plus the relative path `areas/<area>/INDEX.md` (the existing file is on disk under `.claude/knowledge-base/`).
 
 **Mandatory procedure -- do not skip step 1:**
 
-1. **Read the existing `areas/<area>/INDEX.md` first, via the Read tool.** Try the relative path `.agents/knowledge-base/areas/<area>/INDEX.md` first; if that fails, glob for `**/areas/<area>/INDEX.md` to locate it. Parse the frontmatter (`coverage_tier_1`, `coverage_tier_2`, `confidence`) and the body sections.
+1. **Read the existing `areas/<area>/INDEX.md` first, via the Read tool.** Try the relative path `.claude/knowledge-base/areas/<area>/INDEX.md` first; if that fails, glob for `**/areas/<area>/INDEX.md` to locate it. Parse the frontmatter (`coverage_tier_1`, `coverage_tier_2`, `confidence`) and the body sections.
 2. **If the existing INDEX.md cannot be located or read**, emit a single `=== AUDIT-NOTE ===` block with `reason: "existing INDEX.md not readable -- aborting delta integration to prevent KB regression"` and DO NOT emit an `=== ARTIFACT ===` block. The skill treats no-artifact + audit-note as a no-op (the cursor doesn't advance for this area, and the existing INDEX.md is left untouched). **Producing a fresh-build artifact in delta mode under any circumstance is a contract violation** -- it overwrites the comprehensive build-time content with leaner coverage and degrades the KB.
 3. **Read each file in `changedFiles[]`** for the actual delta content (you must understand what changed before integrating). For files that overlap the existing Tier-1 anchor list, re-read in full; for Tier-2 files, scan enough to characterize the delta.
 4. **Re-emit the same `areas/<area>/INDEX.md` artifact** with these rules:

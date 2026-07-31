@@ -3,10 +3,10 @@
 // .build/.agents/kb-usage.jsonl (gitignored, persists locally across sessions).
 //
 // This is the cheap, always-on counterpart to the authoritative transcript
-// scanner `.agents/scripts/kb-usage-audit.ps1`. The scanner is retroactive and
+// scanner `.claude/scripts/kb-usage-audit.ps1`. The scanner is retroactive and
 // area-aware; this hook gives `/kb-status` a zero-parse "since installed" view.
 //
-// Wired in `.agents/settings.local.json` (gitignored) under hooks.PostToolUse
+// Wired in `.claude/settings.local.json` (gitignored) under hooks.PostToolUse
 // with matcher "Read|Grep|Glob|Skill|Agent|Task" and async:true so it never
 // blocks the tool. Early-exits on the vast majority of calls (non-KB) after a
 // cheap string check.
@@ -69,7 +69,7 @@ process.stdin.on('end', () => {
         if (!kind) { process.exit(0); }
 
         const base = data.cwd || process.cwd();
-        const dir = path.join(base, '.build', '.agents');
+        const dir = path.join(base, '.build', '.claude');
         fs.mkdirSync(dir, { recursive: true });
         const rec = {
             ts: new Date().toISOString(),

@@ -38,7 +38,7 @@ Plan-file schema (per `packages[]` entry):
     "fetchError":       "<text|null>"
   }
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

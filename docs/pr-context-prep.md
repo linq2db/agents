@@ -4,10 +4,10 @@ Common preparation done by `/review-pr` and `/verify-review` before spawning sub
 
 ### Context load (one call)
 
-Everything the skill needs up front — PR metadata, reviews, review comments, issue comments, closing-issues references, the PR head fetched into `origin/pr/<n>`, diff stat / name-status / commits, and the one-level linked-issue scan — is returned by a single invocation of `.agents/scripts/pr-context.ps1`. Use named parameters (single allowlist-friendly command line, no stdin pipe needed):
+Everything the skill needs up front — PR metadata, reviews, review comments, issue comments, closing-issues references, the PR head fetched into `origin/pr/<n>`, diff stat / name-status / commits, and the one-level linked-issue scan — is returned by a single invocation of `.claude/scripts/pr-context.ps1`. Use named parameters (single allowlist-friendly command line, no stdin pipe needed):
 
 ```
-pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
 ```
 
 Optional named parameters:
@@ -36,7 +36,7 @@ Output is a single JSON object — see the script's header comment for the exact
 
 `reviewThreads[]` has one entry per GraphQL review thread on the PR, shape `{ threadId, isResolved, firstCommentId }`. Resolve a REST `comment_id` to its thread by matching `firstCommentId == comment_id` (the first comment's `databaseId` equals the REST listing's `id`). `/verify-review` uses this to drive the step 7 per-finding action table — no separate `gh api graphql reviewThreads` call is needed.
 
-The skill does **not** need to re-run `gh api` / `git` calls for anything the script already returned. Subsequent reads of file content and hunks go through `.agents/scripts/diff-reader.ps1` (see the code-reviewer spec).
+The skill does **not** need to re-run `gh api` / `git` calls for anything the script already returned. Subsequent reads of file content and hunks go through `.claude/scripts/diff-reader.ps1` (see the code-reviewer spec).
 
 ### Change summary
 
@@ -55,7 +55,7 @@ This summary is the briefing fed to both subagents so the baselines-reviewer can
 
 The baselines clone is expected at **`../linq2db.baselines`** (sibling of this repo).
 
-Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.agents/docs/windows-gotchas.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
+Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.claude/docs/windows-gotchas.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
 
 1. If the clone **exists**: the fetch succeeds (usually silent; possibly a few `origin/baselines/pr_*` updates printed).
 2. If the clone **does not exist**: the fetch errors out with `fatal: not a git repository ...`. On that error, stop and ask the user:
@@ -73,7 +73,7 @@ Branch presence is checked by the baselines subagent via `baselines-diff.ps1`, s
 
 Nothing beyond those two — no `gh pr list` against `linq2db.baselines`, no `ls-remote`, and no `git log` used to *probe presence* (which is what exception 1 already settles; a **CLOSED** tracking baselines PR is corroboration, never a substitute). The distinction matters: presence-probing with `git log` adds nothing, whereas dating the branch is the one thing neither `rev-parse` nor `baselines-diff.ps1` can tell you. Once the user opts in, the subagent's `baselines-diff.ps1` remains authoritative — don't feed it your probe's answer. (Surfaced on PR #5726: three probe calls were spent here, the ban read as forbidding all of them, and the user opted into the baselines review anyway. Extended on PR #5732, where a blanket "no `git log` on the clone" reading would have suppressed the age check that correctly deferred the pass.)
 
-Layout and branch-naming conventions for the baselines repo are in `.agents/docs/baselines-repo-layout.md`.
+Layout and branch-naming conventions for the baselines repo are in `.claude/docs/baselines-repo-layout.md`.
 
 ### `writeDir` directory layout
 

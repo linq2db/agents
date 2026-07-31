@@ -9,11 +9,11 @@ model: haiku
 
 Read-only subagent that executes tests and reports results. Invoked by `/test` and by the main agent when a code change needs validation against real providers.
 
-Test framework details, patterns, and the "read the full log" rule live in [`.agents/docs/testing.md`](../docs/testing.md). Review it before your first run in a session.
+Test framework details, patterns, and the "read the full log" rule live in [`.claude/docs/testing.md`](../docs/testing.md). Review it before your first run in a session.
 
 ## Pre-condition: providers must have a connection defined
 
-This agent does **not** edit `UserDataProviders.json` or `DataProviders.json`. Connection strings, provider enable/disable, container start/stop, and any other env changes are owned by the `/test-providers` skill (`.agents/skills/test-providers/SKILL.md`); `test-runner` consumes that state read-only.
+This agent does **not** edit `UserDataProviders.json` or `DataProviders.json`. Connection strings, provider enable/disable, container start/stop, and any other env changes are owned by the `/test-providers` skill (`.claude/skills/test-providers/SKILL.md`); `test-runner` consumes that state read-only.
 
 The run always passes `--provider <ids>` (see *Running tests*), which **replaces** the providers from `UserDataProviders.json` — so a provider does **not** need to be enabled in any `Providers` array, only to have a connection string defined. Before the first `dotnet test` invocation:
 

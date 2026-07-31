@@ -29,7 +29,7 @@ diagnostic-info lines between the target header and the report.
 Default mode: pretty tables on stdout for human consumption.
 `-AsJson` mode: single JSON object to stdout (per script-authoring conventions).
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

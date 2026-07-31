@@ -29,7 +29,7 @@ Tests/Linq/TestsInitialization.cs -- NUnit [SetUpFixture], no namespace (intenti
 - Calls TestNoopProvider.Init(), SQLiteMiniprofilerProvider.Init(), CustomizationSupport.Init().
 - [OneTimeTearDown]: dumps ActivityStatistics.GetReport() and optionally writes metrics baselines via BaselinesWriter.WriteMetrics.
 
-Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgressReporter] attribute; provides a live heartbeat for long test runs. **(updated, this delta)** opt-in switched from the LINQ2DB_TEST_PROGRESS environment variable to a --test-progress command-line option -- see .agents/docs/testing.md for monitoring details (the prior delta entry describing the env-var form is now out of date; corrected here, see AUDIT-NOTE).
+Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgressReporter] attribute; provides a live heartbeat for long test runs. **(updated, this delta)** opt-in switched from the LINQ2DB_TEST_PROGRESS environment variable to a --test-progress command-line option -- see .claude/docs/testing.md for monitoring details (the prior delta entry describing the env-var form is now out of date; corrected here, see AUDIT-NOTE).
 ## Subsystems (subdirectory taxonomy)
 
 | Subdirectory | File count | Purpose | Representative files | Production area(s) validated |
@@ -314,7 +314,7 @@ A [Column, ValueConverter(ConverterType = typeof(MoneyToDecimalConverter))] memb
 
 #### AssemblyInfo.TestProgress.cs -- opt-in mechanism switched
 
-The opt-in for the live progress heartbeat switched from the LINQ2DB_TEST_PROGRESS environment variable to a --test-progress command-line option. The prior delta section above (and the Assembly setup section) described the environment-variable form; that description is now out of date and has been corrected in place (see AUDIT-NOTE). The .agents/docs/testing.md monitoring guide may also need a follow-up update outside this KB run.
+The opt-in for the live progress heartbeat switched from the LINQ2DB_TEST_PROGRESS environment variable to a --test-progress command-line option. The prior delta section above (and the Assembly setup section) described the environment-variable form; that description is now out of date and has been corrected in place (see AUDIT-NOTE). The .claude/docs/testing.md monitoring guide may also need a follow-up update outside this KB run.
 
 #### DB2Tests.cs -- DECFLOAT special-value round-trip (issue #5663)
 

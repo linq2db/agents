@@ -4,7 +4,7 @@ release-state.ps1 — state-machine helper for the `/release` orchestrator.
 Owns the release-state JSON at `.build/.agents/release-<version>.json` and
 keeps the prep-PR body checklist in sync with it. PR body wins on conflict
 (it's the canonical store; the state file is a session-resume cache — see
-`.agents/docs/release/overview.md` → State).
+`.claude/docs/release/overview.md` → State).
 
 Actions:
 
@@ -53,9 +53,9 @@ Actions:
                 Inputs:  -Version <ver> -RunIds '<key1>,<key2>;...'
                 Output:  { ok, statePath, added, total }
 
-Conventions follow `.agents/docs/agent-rules.md` →
+Conventions follow `.claude/docs/agent-rules.md` →
 *PowerShell Core scripts for complex operations* and
-`.agents/docs/script-authoring.md`.
+`.claude/docs/script-authoring.md`.
 
 State file schema is documented inline below (BuildDefaultState).
 #>
@@ -200,7 +200,7 @@ function Write-StateFile {
 }
 
 # Status tokens used in the PR body checklist. The canonical mapping lives in
-# `.agents/docs/release/branch-and-pr.md` → Status tokens.
+# `.claude/docs/release/branch-and-pr.md` → Status tokens.
 $script:StatusToken = @{
     'open'        = ' '
     'in-progress' = '~'

@@ -19,4 +19,4 @@ Referenced from [`agent-rules.md`](agent-rules.md) → *Definition of done*.
 
 ## When it's not code
 
-For a `.agents/` curation change, a release task, or a GitHub-authoring action, the gates differ (slnx sync via `/update-slnx`, the release sub-skill's own checklist, the wording / verify-after-PATCH rules in [`github-authoring.md`](github-authoring.md)). This checklist is scoped to changes under `Source/` / `Tests/`; use the owning skill's completion criteria for the rest.
+For a `.claude/` curation change, a release task, or a GitHub-authoring action, the gates differ (slnx sync via `/update-slnx`, the release sub-skill's own checklist, the wording / verify-after-PATCH rules in [`github-authoring.md`](github-authoring.md)). This checklist is scoped to changes under `Source/` / `Tests/`; use the owning skill's completion criteria for the rest.

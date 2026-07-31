@@ -25,7 +25,7 @@ Pairing rules:
 Coverage rule: a row is covered iff the wiki text contains `#<issueNumber>`
 or `#<prNumber>` as a whole token (regex `(?<![\w])#<n>(?![\d])`).
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

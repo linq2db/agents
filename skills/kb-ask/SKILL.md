@@ -25,7 +25,7 @@ The skill is **not** for:
 
 ## Pre-conditions
 
-- `.agents/knowledge-base/` exists with at least step 0 + step 2 done (architecture overview present). Otherwise:
+- `.claude/knowledge-base/` exists with at least step 0 + step 2 done (architecture overview present). Otherwise:
   ```
   KB is not built yet. Run /kb-build first.
   ```

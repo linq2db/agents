@@ -43,7 +43,7 @@ Scaffolding that is easy to get wrong (each of these cost a run)
 
 Usage:
 
-  pwsh -NoProfile -File .agents/scripts/verify-analyzer-consumption.ps1 -Root <repo-or-worktree>
+  pwsh -NoProfile -File .claude/scripts/verify-analyzer-consumption.ps1 -Root <repo-or-worktree>
 
   -Root       repo root / worktree to pack out of (required)
   -Work       scratch dir; default .build/.agents/analyzer-consumption

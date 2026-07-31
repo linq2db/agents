@@ -11,7 +11,7 @@ coverage_tier_2: 81/81
 
 # AGENTS-INFRA
 
-Claude Code instruction corpus for the linq2db repository. Everything under `.claude/` (except `.agents/knowledge-base/` which is KB output, not source) plus the root `CLAUDE.md`. Governs how every agent and skill operates on the codebase: branching rules, Bash discipline, GitHub wording, test patterns, PR review workflows, KB build/refresh, and more.
+Claude Code instruction corpus for the linq2db repository. Everything under `.claude/` (except `.claude/knowledge-base/` which is KB output, not source) plus the root `CLAUDE.md`. Governs how every agent and skill operates on the codebase: branching rules, Bash discipline, GitHub wording, test patterns, PR review workflows, KB build/refresh, and more.
 
 ## Anatomy
 
@@ -29,7 +29,7 @@ CLAUDE.md                          -- root project instructions (auto-loaded by 
   knowledge-base/                  -- EXCLUDED (KB output, not source)
 ```
 
-The corpus is instruction-only: skills, agents, and scripts are the "code"; docs are the "specifications" that code references. `CLAUDE.md` is the entry point auto-loaded by Claude Code at session start; it imports `agent-rules.md` via `@.agents/docs/agent-rules.md`.
+The corpus is instruction-only: skills, agents, and scripts are the "code"; docs are the "specifications" that code references. `CLAUDE.md` is the entry point auto-loaded by Claude Code at session start; it imports `agent-rules.md` via `@.claude/docs/agent-rules.md`.
 
 ## Subsystems
 
@@ -39,7 +39,7 @@ The corpus is instruction-only: skills, agents, and scripts are the "code"; docs
 
 `agent-rules.md` is auto-imported and defines the operational ruleset: branch creation workflow, Bash command rules (no `&&`/`;`/control-flow), dedicated-tool mandates (`Grep`/`Read`/`Glob`/`Edit` over raw CLI), pipe-avoidance discipline, permission-friendly Bash patterns table, Windows Git Bash MSYS gotchas (leading-slash path-mangling, `--body @-` trap, UTF-8 encoding for non-ASCII), batching/user-interaction rules (ask-ask-do-all), PowerShell Core script pattern for complex multi-step operations, temp-file placement (`.build/.agents/`), git commit / push / PR rules (never auto-commit/-push, always draft PR), Docker container scope (start/stop/create only), GitHub content-authoring guardrails (no edits to others content), GitHub wording discipline (terse, no fluff), and agent guardrails (no unrelated reformatting, no silent cross-cutting reshaping, document arbitrary values, never hand-edit `CompatibilitySuppressions.xml`).
 
-### Skills (`.agents/skills/*/SKILL.md`)
+### Skills (`.claude/skills/*/SKILL.md`)
 
 Each skill occupies its own folder; every folder currently contains only `SKILL.md` (no helper files).
 
@@ -85,10 +85,10 @@ Each skill occupies its own folder; every folder currently contains only `SKILL.
 - `/copilot-loop` -- iterative Copilot-review response loop; reads pending Copilot review comments, groups by thread, routes reply/resolve to `post-pr-thread-replies.ps1`.
 - `/api-baselines` -- regenerates `Source/**/CompatibilitySuppressions.xml` via `dotnet pack -p:ApiCompatGenerateSuppressionFile=true`; gates on non-`LinqToDB.Internal.*` changes; never hand-edits baselines directly.
 - `/version-bump` -- bumps `<Version>` and four `<EFxVersion>` values in `Directory.Build.props` in a single `Edit` call; requires explicit user confirmation.
-- `/update-slnx` -- syncs the `/.claude/*` virtual folders in `linq2db.slnx` with on-disk `.claude/` contents; always-included entries: `CLAUDE.md` and `.agents/settings.local.json`.
+- `/update-slnx` -- syncs the `/.claude/*` virtual folders in `linq2db.slnx` with on-disk `.claude/` contents; always-included entries: `CLAUDE.md` and `.claude/settings.local.json`.
 - `/session-reflect` -- harvests current conversation for durable knowledge; routes findings to `.claude/` (project-scoped) or user-level auto-memory; six buckets: feedback, doc, script, skill, agent, permission.
 
-### Agents (`.agents/agents/*.md`)
+### Agents (`.claude/agents/*.md`)
 
 Each agent definition carries `name`, `description`, `tools`, and `model` frontmatter. The `model` field governs which Claude model is used for that agent's invocations.
 
@@ -107,7 +107,7 @@ Each agent definition carries `name`, `description`, `tools`, and `model` frontm
 - `test-writer` -- `tools: Read, Grep, Glob, Edit, Write, Bash`; `model: sonnet`. Writes one test at a time; fixture lookup rules (Issue->IssueTests.cs->feature fixture->disambiguate); handles `playgroundLink` flag for `Tests.Playground.csproj` linkage; returns structured JSON.
 - `test-runner` -- `tools: Read, Grep, Bash`; `model: haiku`. Executes `dotnet test`; reads `UserDataProviders.json` read-only; validates providers enabled before running; returns structured JSON with per-target pass/fail. Accepts `repoRoot` for worktree-aware path construction. When `LINQ2DB_TEST_PROGRESS` is set session-wide, the test assembly writes a JSON heartbeat to `.build/.agents/test-progress.<tfm>.<pid>.json` during the run; the agent does not set the variable itself (toggled by `/test-progress`), and passes `--settings <repoRoot>/.runsettings` for MTP runner compatibility. Detailed verbosity uses `-p:TestingPlatformCaptureOutput=false` (VSTest `--logger console` no longer applies under MTP).
 
-### Reference docs (`.agents/docs/*.md`)
+### Reference docs (`.claude/docs/*.md`)
 
 | File | Purpose |
 |---|---|
@@ -147,7 +147,7 @@ Each agent definition carries `name`, `description`, `tools`, and `model` frontm
 | `baselines-repo-layout.md` | `linq2db.baselines` branch naming, file grammar, expected cross-provider syntactic variations |
 | `issue-search.md` | Issue/PR search discipline: term extraction, parallel strategies, dedup/rank |
 
-**Release subdocs (`.agents/docs/release/`):**
+**Release subdocs (`.claude/docs/release/`):**
 
 | File | Purpose |
 |---|---|
@@ -159,7 +159,7 @@ Each agent definition carries `name`, `description`, `tools`, and `model` frontm
 | `release/provider-db-init.md` | Per-provider DB initialization requirements during release test runs |
 | `release/linqpad-test-checklist.md` | LINQPad driver manual test checklist for release |
 
-### Helper scripts (`.agents/scripts/*.ps1`)
+### Helper scripts (`.claude/scripts/*.ps1`)
 
 All scripts follow the manifest-in / JSON-out contract: read one JSON from stdin, emit one JSON to stdout, errors to stderr. Common helpers in `_shared.ps1` are dot-sourced.
 
@@ -172,7 +172,7 @@ All scripts follow the manifest-in / JSON-out contract: read one JSON from stdin
 - `kb-fetch-commits.ps1` -- fetches git log with per-commit metadata (SHA, author, date, subject, body, files changed/insertions/deletions) for `kb-historian`.
 - `kb-fetch-wiki.ps1` -- clones or updates `linq2db.wiki` repo under `.build/.agents/kb-wiki`; reports changed articles since cursor SHA.
 - `kb-audit-citations.ps1` -- random-samples K KB files; verifies `Source/...:NNN` citations still exist at +/-3 lines; returns `verdict: hit|miss|deleted` per citation.
-- `kb-search.ps1` -- grep across `.agents/knowledge-base/` with structured JSON output; used by `kb-research` for batched KB searches.
+- `kb-search.ps1` -- grep across `.claude/knowledge-base/` with structured JSON output; used by `kb-research` for batched KB searches.
 - `kb-coverage-backfill.ps1` -- one-shot script to seed `state/deferred-coverage.json` for areas whose `INDEX.md` predates the deferred-coverage fence mechanism.
 
 **PR review scripts:**
@@ -213,9 +213,9 @@ All scripts follow the manifest-in / JSON-out contract: read one JSON from stdin
 - `fuget-api-diff.ps1` -- calls the fuget API to diff public API surfaces between two package versions.
 - `milestone-consistency.ps1` -- cross-checks issue/PR milestone assignments for consistency.
 
-### Hooks (`.agents/hooks/`)
+### Hooks (`.claude/hooks/`)
 
-Both hooks are PowerShell scripts wired in the user's `.agents/settings.local.json` (gitignored). No hooks are committed to the repo.
+Both hooks are PowerShell scripts wired in the user's `.claude/settings.local.json` (gitignored). No hooks are committed to the repo.
 
 | Hook | Event type | What it does |
 |---|---|---|
@@ -231,161 +231,161 @@ A user-level hook `~/.claude/hooks/check-bash-chain.js` (not in this repo) enfor
 | File | Role |
 |---|---|
 | `CLAUDE.md` | Root project instructions |
-| `.agents/agents/kb-architect.md` | KB indexer agent |
-| `.agents/agents/kb-historian.md` | KB history indexer agent |
-| `.agents/agents/kb-github-curator.md` | KB GitHub data agent |
-| `.agents/agents/kb-issue-detector.md` | KB debt detector agent |
-| `.agents/agents/kb-research.md` | KB query agent |
-| `.agents/agents/code-reviewer.md` | PR code review agent |
-| `.agents/agents/baselines-reviewer.md` | Baselines review agent |
-| `.agents/agents/test-writer.md` | Test authoring agent |
-| `.agents/agents/test-runner.md` | Test execution agent |
-| `.agents/skills/kb-build/SKILL.md` | KB build orchestrator |
-| `.agents/skills/kb-refresh/SKILL.md` | KB refresh orchestrator |
-| `.agents/skills/kb-ask/SKILL.md` | KB Q&A skill |
-| `.agents/skills/kb-issues/SKILL.md` | KB detected-issues triage |
-| `.agents/skills/kb-status/SKILL.md` | KB status dashboard |
-| `.agents/skills/review-pr/SKILL.md` | PR review skill |
-| `.agents/skills/verify-review/SKILL.md` | Review verification skill |
-| `.agents/skills/fix-issue/SKILL.md` | Issue fix orchestrator |
-| `.agents/skills/create-issue/SKILL.md` | Issue creation skill |
-| `.agents/skills/find-issues/SKILL.md` | Issue search skill |
-| `.agents/skills/merge-duplicates/SKILL.md` | Duplicate issue consolidation |
-| `.agents/skills/test/SKILL.md` | Test write+run orchestrator |
-| `.agents/skills/test-providers/SKILL.md` | Test env management |
-| `.agents/skills/test-progress/SKILL.md` | Test run heartbeat toggle |
-| `.agents/skills/api-baselines/SKILL.md` | API baseline refresh |
-| `.agents/skills/version-bump/SKILL.md` | Version bump |
-| `.agents/skills/update-slnx/SKILL.md` | Solution file sync |
-| `.agents/skills/audit-agents/SKILL.md` | Instruction corpus audit |
-| `.agents/skills/session-reflect/SKILL.md` | Session harvest skill |
-| `.agents/skills/chores/SKILL.md` | Maintenance dashboard / chore dispatcher |
-| `.agents/skills/release/SKILL.md` | Release orchestrator |
-| `.agents/skills/copilot-loop/SKILL.md` | Copilot-review response loop |
-| `.agents/skills/enable-disabled-test/SKILL.md` | Enable ActiveIssue-gated test workflow |
+| `.claude/agents/kb-architect.md` | KB indexer agent |
+| `.claude/agents/kb-historian.md` | KB history indexer agent |
+| `.claude/agents/kb-github-curator.md` | KB GitHub data agent |
+| `.claude/agents/kb-issue-detector.md` | KB debt detector agent |
+| `.claude/agents/kb-research.md` | KB query agent |
+| `.claude/agents/code-reviewer.md` | PR code review agent |
+| `.claude/agents/baselines-reviewer.md` | Baselines review agent |
+| `.claude/agents/test-writer.md` | Test authoring agent |
+| `.claude/agents/test-runner.md` | Test execution agent |
+| `.claude/skills/kb-build/SKILL.md` | KB build orchestrator |
+| `.claude/skills/kb-refresh/SKILL.md` | KB refresh orchestrator |
+| `.claude/skills/kb-ask/SKILL.md` | KB Q&A skill |
+| `.claude/skills/kb-issues/SKILL.md` | KB detected-issues triage |
+| `.claude/skills/kb-status/SKILL.md` | KB status dashboard |
+| `.claude/skills/review-pr/SKILL.md` | PR review skill |
+| `.claude/skills/verify-review/SKILL.md` | Review verification skill |
+| `.claude/skills/fix-issue/SKILL.md` | Issue fix orchestrator |
+| `.claude/skills/create-issue/SKILL.md` | Issue creation skill |
+| `.claude/skills/find-issues/SKILL.md` | Issue search skill |
+| `.claude/skills/merge-duplicates/SKILL.md` | Duplicate issue consolidation |
+| `.claude/skills/test/SKILL.md` | Test write+run orchestrator |
+| `.claude/skills/test-providers/SKILL.md` | Test env management |
+| `.claude/skills/test-progress/SKILL.md` | Test run heartbeat toggle |
+| `.claude/skills/api-baselines/SKILL.md` | API baseline refresh |
+| `.claude/skills/version-bump/SKILL.md` | Version bump |
+| `.claude/skills/update-slnx/SKILL.md` | Solution file sync |
+| `.claude/skills/audit-agents/SKILL.md` | Instruction corpus audit |
+| `.claude/skills/session-reflect/SKILL.md` | Session harvest skill |
+| `.claude/skills/chores/SKILL.md` | Maintenance dashboard / chore dispatcher |
+| `.claude/skills/release/SKILL.md` | Release orchestrator |
+| `.claude/skills/copilot-loop/SKILL.md` | Copilot-review response loop |
+| `.claude/skills/enable-disabled-test/SKILL.md` | Enable ActiveIssue-gated test workflow |
 
 ### Tier 2 (81 files)
 
 | File | Role |
 |---|---|
-| `.agents/agents/_shared/kb-protocol.md` | Fenced output protocol for KB indexers |
-| `.agents/docs/agent-rules.md` | Auto-imported operational ruleset |
-| `.agents/docs/agent-guardrails.md` | Extended guardrails catalog |
-| `.agents/docs/architecture.md` | Core query pipeline reference |
-| `.agents/docs/code-design.md` | Design invariants reference |
-| `.agents/docs/testing.md` | Test conventions reference (expanded: heartbeat monitoring, BUGCHECK tests, hung-run diagnosis, cross-provider gotchas, property-based testing proposal, baselines guidance) |
-| `.agents/docs/test-review-checklist.md` | Test code review checklist |
-| `.agents/docs/ci-tests.md` | CI trigger reference |
-| `.agents/docs/claude-setup.md` | Claude Code setup reference |
-| `.agents/docs/test-databases.md` | Provider catalog |
-| `.agents/docs/windows-gotchas.md` | Windows/MSYS gotchas and permission-friendly Bash patterns |
-| `.agents/docs/worktree.md` | Git worktree mechanics |
-| `.agents/docs/script-authoring.md` | Script contract and authoring guide |
-| `.agents/docs/audit-agents-checks.md` | Per-check rules for /audit-agents |
-| `.agents/docs/predecessor-bltoolkit.md` | BLToolkit predecessor reference |
-| `.agents/docs/analyzer-rules.md` | Roslyn analyzer rule mechanics |
-| `.agents/docs/github-authoring.md` | GitHub content authoring mechanics |
-| `.agents/docs/pr-and-push.md` | Push/PR mechanics reference |
-| `.agents/docs/query-cache-mechanics.md` | Query-plan cache internals reference |
-| `.agents/docs/review-bot-claim-audit.md` | Rules for auditing bot review claims |
-| `.agents/docs/kb-architecture.md` | KB schema reference |
-| `.agents/docs/kb-areas.md` | Area registry |
-| `.agents/docs/kb-build-steps.md` | Build step definitions |
-| `.agents/docs/kb-coverage-tiers.md` | Coverage tier rules |
-| `.agents/docs/kb-issue-categories.md` | Detected-issue taxonomy |
-| `.agents/docs/kb-refresh-cursors.md` | Cursor format + citation audit |
-| `.agents/docs/kb-selection-grammar.md` | Filter/action grammar |
-| `.agents/docs/review-orchestration.md` | Shared review skeleton |
-| `.agents/docs/review-conventions.md` | Severity IDs, finding format |
-| `.agents/docs/review-posting.md` | Review posting mechanics |
-| `.agents/docs/pr-context-prep.md` | PR context prep reference |
-| `.agents/docs/pr-resolver.md` | PR reference resolver |
-| `.agents/docs/github-review-api.md` | GitHub review API cheat sheet |
-| `.agents/docs/api-surface-classification.md` | API classification decision tree |
-| `.agents/docs/baselines-repo-layout.md` | Baselines repo layout |
-| `.agents/docs/issue-search.md` | Issue search discipline |
-| `.agents/docs/release/overview.md` | Release workflow overview |
-| `.agents/docs/release/branch-and-pr.md` | Release branch and PR mechanics |
-| `.agents/docs/release/external-repos.md` | External-repo publish steps |
-| `.agents/docs/release/first-run-todos.md` | First-run setup checklist |
-| `.agents/docs/release/nuget-package-notes.md` | NuGet package notes |
-| `.agents/docs/release/provider-db-init.md` | Per-provider DB init requirements |
-| `.agents/docs/release/linqpad-test-checklist.md` | LINQPad driver test checklist |
-| `.agents/scripts/_shared.ps1` | Common helpers for all scripts |
-| `.agents/scripts/kb-state.ps1` | KB state manager + apply-fences |
-| `.agents/scripts/kb-fetch-github.ps1` | GitHub data fetcher |
-| `.agents/scripts/kb-fetch-commits.ps1` | Git commit fetcher |
-| `.agents/scripts/kb-fetch-wiki.ps1` | Wiki clone/update fetcher |
-| `.agents/scripts/kb-audit-citations.ps1` | KB citation verifier |
-| `.agents/scripts/kb-search.ps1` | KB grep utility |
-| `.agents/scripts/kb-coverage-backfill.ps1` | Deferred-coverage queue seeder |
-| `.agents/scripts/pr-context.ps1` | PR context loader |
-| `.agents/scripts/diff-reader.ps1` | Diff + content reader |
-| `.agents/scripts/verify-lines.ps1` | Line-number verifier |
-| `.agents/scripts/post-pr-review.ps1` | Review POST wrapper |
-| `.agents/scripts/post-pr-thread-replies.ps1` | Bulk thread reply + resolve wrapper |
-| `.agents/scripts/apply-verify-writes.ps1` | Verify in-place edit writer |
-| `.agents/scripts/edit-gh-comment.ps1` | Comment body PATCH with verification |
-| `.agents/scripts/baselines-diff.ps1` | Baselines diff reader |
-| `.agents/scripts/pr-body-edit.ps1` | PR body encoding-safe editor |
-| `.agents/scripts/snap-baselines.ps1` | Pre-run baseline snapshot |
-| `.agents/scripts/diff-baselines.ps1` | Post-run baseline diff |
-| `.agents/scripts/test-status.ps1` | Test-progress heartbeat summary reader |
-| `.agents/scripts/azp-run.ps1` | AZP CI trigger comment poster |
-| `.agents/scripts/azp-build-failures.ps1` | AZP build failure summarizer |
-| `.agents/scripts/wait-for-review.ps1` | PR review completion poller |
-| `.agents/scripts/analyzer-profile-build.ps1` | Roslyn analyzer profiling build |
-| `.agents/scripts/analyzer-profile-report.ps1` | Roslyn analyzer profiling report |
-| `.agents/scripts/release-state.ps1` | Release workflow state manager |
-| `.agents/scripts/release-prefetch.ps1` | Release GitHub data pre-fetcher |
-| `.agents/scripts/release-notes-draft.ps1` | Release notes draft generator |
-| `.agents/scripts/release-notes-audit.ps1` | Release notes draft auditor |
-| `.agents/scripts/release-milestone-audit.ps1` | Milestone completeness checker |
-| `.agents/scripts/release-nuget-verify.ps1` | NuGet package post-publish verifier |
-| `.agents/scripts/release-publicapi-reconcile.ps1` | Public-API diff reconciler |
-| `.agents/scripts/release-deps-discover.ps1` | NuGet dependency chain discoverer |
-| `.agents/scripts/release-test-cli-scaffold.ps1` | CLI test scaffold for release matrix |
-| `.agents/scripts/fuget-api-diff.ps1` | fuget public-API diff caller |
-| `.agents/scripts/milestone-consistency.ps1` | Milestone assignment consistency checker |
-| `.agents/hooks/track-docker-start.ps1` | Docker session tracking hook |
-| `.agents/hooks/cleanup-docker-session.ps1` | Docker session cleanup hook |
-| `.agents/skills/profile-analyzers/SKILL.md` | Analyzer profiling skill |
-| `.agents/skills/release-verify/SKILL.md` | Release pre-publish verification |
-| `.agents/skills/release-notes/SKILL.md` | Release notes generation |
-| `.agents/skills/release-notes-validate/SKILL.md` | Release notes validation |
-| `.agents/skills/release-publicapi/SKILL.md` | Public-API surface diff |
-| `.agents/skills/release-test-matrix/SKILL.md` | Release provider test matrix |
-| `.agents/skills/release-deps/SKILL.md` | Release dependency audit |
-| `.agents/skills/release-milestone-check/SKILL.md` | Release milestone check |
-| `.agents/skills/release-publish/SKILL.md` | NuGet publish |
-| `.agents/skills/release-postpublish/SKILL.md` | Post-publish cleanup |
+| `.claude/agents/_shared/kb-protocol.md` | Fenced output protocol for KB indexers |
+| `.claude/docs/agent-rules.md` | Auto-imported operational ruleset |
+| `.claude/docs/agent-guardrails.md` | Extended guardrails catalog |
+| `.claude/docs/architecture.md` | Core query pipeline reference |
+| `.claude/docs/code-design.md` | Design invariants reference |
+| `.claude/docs/testing.md` | Test conventions reference (expanded: heartbeat monitoring, BUGCHECK tests, hung-run diagnosis, cross-provider gotchas, property-based testing proposal, baselines guidance) |
+| `.claude/docs/test-review-checklist.md` | Test code review checklist |
+| `.claude/docs/ci-tests.md` | CI trigger reference |
+| `.claude/docs/claude-setup.md` | Claude Code setup reference |
+| `.claude/docs/test-databases.md` | Provider catalog |
+| `.claude/docs/windows-gotchas.md` | Windows/MSYS gotchas and permission-friendly Bash patterns |
+| `.claude/docs/worktree.md` | Git worktree mechanics |
+| `.claude/docs/script-authoring.md` | Script contract and authoring guide |
+| `.claude/docs/audit-agents-checks.md` | Per-check rules for /audit-agents |
+| `.claude/docs/predecessor-bltoolkit.md` | BLToolkit predecessor reference |
+| `.claude/docs/analyzer-rules.md` | Roslyn analyzer rule mechanics |
+| `.claude/docs/github-authoring.md` | GitHub content authoring mechanics |
+| `.claude/docs/pr-and-push.md` | Push/PR mechanics reference |
+| `.claude/docs/query-cache-mechanics.md` | Query-plan cache internals reference |
+| `.claude/docs/review-bot-claim-audit.md` | Rules for auditing bot review claims |
+| `.claude/docs/kb-architecture.md` | KB schema reference |
+| `.claude/docs/kb-areas.md` | Area registry |
+| `.claude/docs/kb-build-steps.md` | Build step definitions |
+| `.claude/docs/kb-coverage-tiers.md` | Coverage tier rules |
+| `.claude/docs/kb-issue-categories.md` | Detected-issue taxonomy |
+| `.claude/docs/kb-refresh-cursors.md` | Cursor format + citation audit |
+| `.claude/docs/kb-selection-grammar.md` | Filter/action grammar |
+| `.claude/docs/review-orchestration.md` | Shared review skeleton |
+| `.claude/docs/review-conventions.md` | Severity IDs, finding format |
+| `.claude/docs/review-posting.md` | Review posting mechanics |
+| `.claude/docs/pr-context-prep.md` | PR context prep reference |
+| `.claude/docs/pr-resolver.md` | PR reference resolver |
+| `.claude/docs/github-review-api.md` | GitHub review API cheat sheet |
+| `.claude/docs/api-surface-classification.md` | API classification decision tree |
+| `.claude/docs/baselines-repo-layout.md` | Baselines repo layout |
+| `.claude/docs/issue-search.md` | Issue search discipline |
+| `.claude/docs/release/overview.md` | Release workflow overview |
+| `.claude/docs/release/branch-and-pr.md` | Release branch and PR mechanics |
+| `.claude/docs/release/external-repos.md` | External-repo publish steps |
+| `.claude/docs/release/first-run-todos.md` | First-run setup checklist |
+| `.claude/docs/release/nuget-package-notes.md` | NuGet package notes |
+| `.claude/docs/release/provider-db-init.md` | Per-provider DB init requirements |
+| `.claude/docs/release/linqpad-test-checklist.md` | LINQPad driver test checklist |
+| `.claude/scripts/_shared.ps1` | Common helpers for all scripts |
+| `.claude/scripts/kb-state.ps1` | KB state manager + apply-fences |
+| `.claude/scripts/kb-fetch-github.ps1` | GitHub data fetcher |
+| `.claude/scripts/kb-fetch-commits.ps1` | Git commit fetcher |
+| `.claude/scripts/kb-fetch-wiki.ps1` | Wiki clone/update fetcher |
+| `.claude/scripts/kb-audit-citations.ps1` | KB citation verifier |
+| `.claude/scripts/kb-search.ps1` | KB grep utility |
+| `.claude/scripts/kb-coverage-backfill.ps1` | Deferred-coverage queue seeder |
+| `.claude/scripts/pr-context.ps1` | PR context loader |
+| `.claude/scripts/diff-reader.ps1` | Diff + content reader |
+| `.claude/scripts/verify-lines.ps1` | Line-number verifier |
+| `.claude/scripts/post-pr-review.ps1` | Review POST wrapper |
+| `.claude/scripts/post-pr-thread-replies.ps1` | Bulk thread reply + resolve wrapper |
+| `.claude/scripts/apply-verify-writes.ps1` | Verify in-place edit writer |
+| `.claude/scripts/edit-gh-comment.ps1` | Comment body PATCH with verification |
+| `.claude/scripts/baselines-diff.ps1` | Baselines diff reader |
+| `.claude/scripts/pr-body-edit.ps1` | PR body encoding-safe editor |
+| `.claude/scripts/snap-baselines.ps1` | Pre-run baseline snapshot |
+| `.claude/scripts/diff-baselines.ps1` | Post-run baseline diff |
+| `.claude/scripts/test-status.ps1` | Test-progress heartbeat summary reader |
+| `.claude/scripts/azp-run.ps1` | AZP CI trigger comment poster |
+| `.claude/scripts/azp-build-failures.ps1` | AZP build failure summarizer |
+| `.claude/scripts/wait-for-review.ps1` | PR review completion poller |
+| `.claude/scripts/analyzer-profile-build.ps1` | Roslyn analyzer profiling build |
+| `.claude/scripts/analyzer-profile-report.ps1` | Roslyn analyzer profiling report |
+| `.claude/scripts/release-state.ps1` | Release workflow state manager |
+| `.claude/scripts/release-prefetch.ps1` | Release GitHub data pre-fetcher |
+| `.claude/scripts/release-notes-draft.ps1` | Release notes draft generator |
+| `.claude/scripts/release-notes-audit.ps1` | Release notes draft auditor |
+| `.claude/scripts/release-milestone-audit.ps1` | Milestone completeness checker |
+| `.claude/scripts/release-nuget-verify.ps1` | NuGet package post-publish verifier |
+| `.claude/scripts/release-publicapi-reconcile.ps1` | Public-API diff reconciler |
+| `.claude/scripts/release-deps-discover.ps1` | NuGet dependency chain discoverer |
+| `.claude/scripts/release-test-cli-scaffold.ps1` | CLI test scaffold for release matrix |
+| `.claude/scripts/fuget-api-diff.ps1` | fuget public-API diff caller |
+| `.claude/scripts/milestone-consistency.ps1` | Milestone assignment consistency checker |
+| `.claude/hooks/track-docker-start.ps1` | Docker session tracking hook |
+| `.claude/hooks/cleanup-docker-session.ps1` | Docker session cleanup hook |
+| `.claude/skills/profile-analyzers/SKILL.md` | Analyzer profiling skill |
+| `.claude/skills/release-verify/SKILL.md` | Release pre-publish verification |
+| `.claude/skills/release-notes/SKILL.md` | Release notes generation |
+| `.claude/skills/release-notes-validate/SKILL.md` | Release notes validation |
+| `.claude/skills/release-publicapi/SKILL.md` | Public-API surface diff |
+| `.claude/skills/release-test-matrix/SKILL.md` | Release provider test matrix |
+| `.claude/skills/release-deps/SKILL.md` | Release dependency audit |
+| `.claude/skills/release-milestone-check/SKILL.md` | Release milestone check |
+| `.claude/skills/release-publish/SKILL.md` | NuGet publish |
+| `.claude/skills/release-postpublish/SKILL.md` | Post-publish cleanup |
 
 ## Inbound / outbound dependencies
 
 **Inbound** -- this area has no code callers; it is loaded by Claude Code at session start (`CLAUDE.md` -> Claude Code session) and referenced by every agent and skill in this area.
 
 **Outbound** -- the corpus instructs agents to operate on essentially every other area:
-- `.agents/docs/architecture.md`, `code-design.md` -> describe the `CORE`, `EXPR-TRANS`, `SQL-AST`, `SQL-PROVIDER`, `MAPPING`, `LINQ`, `DATA`, `INFRA` areas.
-- `.agents/docs/testing.md`, `test-databases.md` -> describe the `TESTS-*` areas.
+- `.claude/docs/architecture.md`, `code-design.md` -> describe the `CORE`, `EXPR-TRANS`, `SQL-AST`, `SQL-PROVIDER`, `MAPPING`, `LINQ`, `DATA`, `INFRA` areas.
+- `.claude/docs/testing.md`, `test-databases.md` -> describe the `TESTS-*` areas.
 - Skills spawn agents that read `Source/`, `Tests/`, `Build/` (every area in the repo).
-- `kb-state.ps1` writes to `.agents/knowledge-base/` (KB output area).
+- `kb-state.ps1` writes to `.claude/knowledge-base/` (KB output area).
 - Hooks observe `.build/.agents/` (gitignored scratch space).
 
 ## Known issues / debt
 
 1. **`BannedSymbols.txt` path mismatch.** `CLAUDE.md` states the banned API list is at `Build/BannedSymbols.txt`. The actual file is at `Source/BannedSymbols.txt` (and `Tests/BannedSymbols.txt`). This also affects the `BUILD` area row in `kb-areas.md` which pins `BannedSymbols.txt` as a Tier-1 file -- the path pattern `Build/**` will not match `Source/BannedSymbols.txt`.
 2. **`claude-setup.md` is stale.** The file's "Current skills" list omits all skills added since it was last updated. The doc functions as a quick-reference so the gap is informational rather than operational -- agents read individual SKILL.md files -- but a future `/audit-agents` run will flag this as a retired-content issue.
-3. **User-level hook not in this corpus.** The `check-bash-chain.js` PreToolUse hook that enforces the no-compound-Bash rule is referenced in CLAUDE.md system context but lives at the user level (`~/.claude/hooks/`), not under `.agents/hooks/`. Any new team member must install it manually; it is not discoverable from this corpus.
-4. **`audit-agents` refactor-candidate threshold.** Several SKILL.md files exceed 250 lines: `review-pr/SKILL.md`, `verify-review/SKILL.md`, `test-providers/SKILL.md`, `fix-issue/SKILL.md`. Much of the shared procedure is already factored into `.agents/docs/review-orchestration.md` and `pr-context-prep.md`; the remaining bulk in `test-providers/SKILL.md` has no shared-doc counterpart yet.
+3. **User-level hook not in this corpus.** The `check-bash-chain.js` PreToolUse hook that enforces the no-compound-Bash rule is referenced in CLAUDE.md system context but lives at the user level (`~/.claude/hooks/`), not under `.claude/hooks/`. Any new team member must install it manually; it is not discoverable from this corpus.
+4. **`audit-agents` refactor-candidate threshold.** Several SKILL.md files exceed 250 lines: `review-pr/SKILL.md`, `verify-review/SKILL.md`, `test-providers/SKILL.md`, `fix-issue/SKILL.md`. Much of the shared procedure is already factored into `.claude/docs/review-orchestration.md` and `pr-context-prep.md`; the remaining bulk in `test-providers/SKILL.md` has no shared-doc counterpart yet.
 5. **`settings.local.json` not committed.** Hooks are wired via `settings.local.json` (gitignored). The hook scripts themselves are committed but their wiring is not, so new contributors see no hooks until they configure `settings.local.json` themselves. `claude-setup.md` acknowledges this by design.
-6. **Release subdoc subdirectory not previously indexed.** `.agents/docs/release/` contains 7 files added as part of the release workflow expansion; they are now included in the Tier-2 file list above.
+6. **Release subdoc subdirectory not previously indexed.** `.claude/docs/release/` contains 7 files added as part of the release workflow expansion; they are now included in the Tier-2 file list above.
 
 ## See also
 
 - `architecture/overview.md` -- codebase architecture that AGENTS-INFRA instructs agents to follow
-- `.agents/knowledge-base/README.md` -- what the KB output (driven by this area) contains
-- `.agents/docs/kb-architecture.md` -- KB schema that `kb-architect` agent produces
-- `.agents/docs/kb-areas.md` -- area registry (source of truth for all area definitions including this one)
+- `.claude/knowledge-base/README.md` -- what the KB output (driven by this area) contains
+- `.claude/docs/kb-architecture.md` -- KB schema that `kb-architect` agent produces
+- `.claude/docs/kb-areas.md` -- area registry (source of truth for all area definitions including this one)
 
 <details><summary>Coverage</summary>
 
@@ -394,20 +394,20 @@ A user-level hook `~/.claude/hooks/check-bash-chain.js` (not in this repo) enfor
 - Tier 3 (skipped, logged): 0
 
 Read (this run -- prior delta):
-- `.agents/skills/chores/SKILL.md` -- new `/chores` maintenance dashboard skill; routes to per-chore skills based on staleness signals.
-- `.agents/docs/audit-agents-checks.md` -- new doc factoring out per-check rules from `/audit-agents` SKILL.md.
-- `.agents/docs/script-authoring.md` -- new doc: script contract, why scripts beat Bash chains, input-shape options.
-- `.agents/scripts/azp-run.ps1` -- new script: posts `/azp run` comments safely (bypasses MSYS path-mangling of leading `/`).
-- `.agents/scripts/post-pr-thread-replies.ps1` -- new script: bulk PR thread reply + resolve via REST+GraphQL.
-- `.agents/scripts/edit-gh-comment.ps1` -- new script: PATCH comment body with JSON-wrapper construction + byte-compare verify.
+- `.claude/skills/chores/SKILL.md` -- new `/chores` maintenance dashboard skill; routes to per-chore skills based on staleness signals.
+- `.claude/docs/audit-agents-checks.md` -- new doc factoring out per-check rules from `/audit-agents` SKILL.md.
+- `.claude/docs/script-authoring.md` -- new doc: script contract, why scripts beat Bash chains, input-shape options.
+- `.claude/scripts/azp-run.ps1` -- new script: posts `/azp run` comments safely (bypasses MSYS path-mangling of leading `/`).
+- `.claude/scripts/post-pr-thread-replies.ps1` -- new script: bulk PR thread reply + resolve via REST+GraphQL.
+- `.claude/scripts/edit-gh-comment.ps1` -- new script: PATCH comment body with JSON-wrapper construction + byte-compare verify.
 - On-disk enumeration via Glob: confirmed 32 Tier-1 + 80 Tier-2 files now present vs 28/42 in prior INDEX.md.
 
 Read (this run -- delta):
-- `.agents/agents/test-runner.md` -- added `repoRoot` input for worktree-aware path construction; `LINQ2DB_TEST_PROGRESS` heartbeat note (toggled externally by `/test-progress`, not the agent); `-p:TestingPlatformCaptureOutput=false` for detailed verbosity replacing VSTest `--logger` form; `--project` required note under MTP; `--settings` required for `AssemblySelectLimit`.
-- `.agents/docs/testing.md` -- expanded significantly: new "Monitoring a long run" section (`LINQ2DB_TEST_PROGRESS`, `/test-progress` skill, `test-status.ps1`); "BUGCHECK-gated tests" section (Debug/Testing config only, `#if BUGCHECK` symbol); "Diagnosing hung test runs" (infinite-recursion via `StackGuard.RunOnEmptyStack`, memory >1 GB signal, idempotence fix); "LinqService address already in use" (port 22654 cleanup); cross-provider gotchas expanded (YDB PK, `SupportsRowcount`, `IsPredicate = true`, column nullability vs NRT, query cache HIT/MISS idioms); property-based testing proposal (AST clone round-trip, visitor identity, LinqService serialization, optimizer idempotence, type-mapping symmetry); baselines guidance (vacuous substring assertions, `.sql.other` failure indicator, flaky pre-existing Oracle entries); "Running a long full suite" (build first then `--no-build` in background, avoid delegating to `test-runner` subagent for long runs).
-- `.agents/scripts/test-status.ps1` -- new script: reads heartbeat JSON from `.build/.agents/test-progress.<tfm>.<pid>.json`; emits one-line progress summary with state, progress, pass/fail/skip, rate, elapsed, ETA, current test, recent failures; `-Raw` flag for raw JSON dump; retry loop for in-flight writes.
-- `.agents/skills/test-progress/SKILL.md` -- new skill `/test-progress`: toggles `LINQ2DB_TEST_PROGRESS` in `settings.local.json` env block; `on`/`off` (sets `"0"`, does not remove key)/`status` actions; invokes `test-status.ps1` for status; scope limited to Claude-launched runs.
-- `.agents/skills/test/SKILL.md` -- added step 3.1a "Long runs -- auto-trace + background monitor": auto-invokes `/test-progress on`, runs `test-runner` with `run_in_background: true`, polls heartbeat mid-run; updated step 3.3 to pass `repoRoot` for worktrees; added worktree `repoRoot` threading from args clause.
+- `.claude/agents/test-runner.md` -- added `repoRoot` input for worktree-aware path construction; `LINQ2DB_TEST_PROGRESS` heartbeat note (toggled externally by `/test-progress`, not the agent); `-p:TestingPlatformCaptureOutput=false` for detailed verbosity replacing VSTest `--logger` form; `--project` required note under MTP; `--settings` required for `AssemblySelectLimit`.
+- `.claude/docs/testing.md` -- expanded significantly: new "Monitoring a long run" section (`LINQ2DB_TEST_PROGRESS`, `/test-progress` skill, `test-status.ps1`); "BUGCHECK-gated tests" section (Debug/Testing config only, `#if BUGCHECK` symbol); "Diagnosing hung test runs" (infinite-recursion via `StackGuard.RunOnEmptyStack`, memory >1 GB signal, idempotence fix); "LinqService address already in use" (port 22654 cleanup); cross-provider gotchas expanded (YDB PK, `SupportsRowcount`, `IsPredicate = true`, column nullability vs NRT, query cache HIT/MISS idioms); property-based testing proposal (AST clone round-trip, visitor identity, LinqService serialization, optimizer idempotence, type-mapping symmetry); baselines guidance (vacuous substring assertions, `.sql.other` failure indicator, flaky pre-existing Oracle entries); "Running a long full suite" (build first then `--no-build` in background, avoid delegating to `test-runner` subagent for long runs).
+- `.claude/scripts/test-status.ps1` -- new script: reads heartbeat JSON from `.build/.agents/test-progress.<tfm>.<pid>.json`; emits one-line progress summary with state, progress, pass/fail/skip, rate, elapsed, ETA, current test, recent failures; `-Raw` flag for raw JSON dump; retry loop for in-flight writes.
+- `.claude/skills/test-progress/SKILL.md` -- new skill `/test-progress`: toggles `LINQ2DB_TEST_PROGRESS` in `settings.local.json` env block; `on`/`off` (sets `"0"`, does not remove key)/`status` actions; invokes `test-status.ps1` for status; scope limited to Claude-launched runs.
+- `.claude/skills/test/SKILL.md` -- added step 3.1a "Long runs -- auto-trace + background monitor": auto-invokes `/test-progress on`, runs `test-runner` with `run_in_background: true`, polls heartbeat mid-run; updated step 3.3 to pass `repoRoot` for worktrees; added worktree `repoRoot` threading from args clause.
 
 NOTE (indexer): the on-disk `.claude/` tree is the `infra/agents-curation` branch (ahead of `origin/master`); this INDEX reflects that current on-disk state, which is the correct representation for the KB living on this branch. `last_verified_sha` is stamped to the `origin/master` refresh anchor.
 </details>

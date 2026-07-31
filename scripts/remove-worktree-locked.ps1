@@ -2,15 +2,15 @@
 remove-worktree-locked.ps1 — remove a git worktree, recovering from the
 build-server file lock that blocks `git worktree remove --force`.
 
-Codifies .agents/docs/worktree.md -> the lock-blocked cleanup sequence. GLUE ONLY
+Codifies .claude/docs/worktree.md -> the lock-blocked cleanup sequence. GLUE ONLY
 with one hard guard baked in: on a shared / multi-worktree machine, **do not lead
 with `dotnet build-server shutdown`** — it is global per-SDK and disrupts other
 concurrent worktree builds. So this script tries the clean removal first and only
 runs build-server shutdown when you pass -AllowBuildServerShutdown (i.e. you've
 confirmed no other builds are running). The shutdown judgment stays with you.
 
-  pwsh -NoProfile -File .agents/scripts/remove-worktree-locked.ps1 -Path <worktree-path>
-  pwsh -NoProfile -File .agents/scripts/remove-worktree-locked.ps1 -Path <worktree-path> -AllowBuildServerShutdown
+  pwsh -NoProfile -File .claude/scripts/remove-worktree-locked.ps1 -Path <worktree-path>
+  pwsh -NoProfile -File .claude/scripts/remove-worktree-locked.ps1 -Path <worktree-path> -AllowBuildServerShutdown
 #>
 param(
     [Parameter(Mandatory)][string]$Path,

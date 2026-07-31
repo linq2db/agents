@@ -1,6 +1,6 @@
 ---
 name: kb-build
-description: Build the persistent knowledge base under .agents/knowledge-base/ from scratch. Phased and resumable — each step is sized to a single session and gates on coverage. Re-running picks up at the first incomplete step. Spawns kb-architect / kb-historian / kb-github-curator / kb-issue-detector as needed; never invents content directly.
+description: Build the persistent knowledge base under .claude/knowledge-base/ from scratch. Phased and resumable — each step is sized to a single session and gates on coverage. Re-running picks up at the first incomplete step. Spawns kb-architect / kb-historian / kb-github-curator / kb-issue-detector as needed; never invents content directly.
 ---
 
 # /kb-build
@@ -47,7 +47,7 @@ Subsequent updates after the build is complete go through `/kb-refresh`.
 Run `kb-state.ps1 init`. Idempotent: creates skeleton dirs, `state/build-progress.json`, `state/cursors.json`, `state/audit-log.md` if missing; otherwise no-op.
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "init"}
 EOF
 ```
@@ -57,7 +57,7 @@ EOF
 Read current progress:
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "get-progress"}
 EOF
 ```
@@ -70,7 +70,7 @@ Find the **first step where status ≠ `done`** (in id order). That's the target
 git rev-parse origin/master
 ```
 
-**Use `origin/master` — NOT local `HEAD`.** The KB tracks the upstream master branch (same rule as `/kb-refresh` per [`kb-refresh-cursors.md`](../../docs/kb-refresh-cursors.md)). If the active local branch has unpushed feature work (e.g. an `infra/agents-curation` branch with `.agents/` edits), recording local `HEAD` in `last_verified_sha` will silently break `/kb-refresh` — the next refresh diffs `cursors.code.sha..origin/master`, and a SHA that's not on master can't be diffed against master. Run `git fetch origin master` first if `origin/master` is stale.
+**Use `origin/master` — NOT local `HEAD`.** The KB tracks the upstream master branch (same rule as `/kb-refresh` per [`kb-refresh-cursors.md`](../../docs/kb-refresh-cursors.md)). If the active local branch has unpushed feature work (e.g. an `infra/agents-curation` branch with `.claude/` edits), recording local `HEAD` in `last_verified_sha` will silently break `/kb-refresh` — the next refresh diffs `cursors.code.sha..origin/master`, and a SHA that's not on master can't be diffed against master. Run `git fetch origin master` first if `origin/master` is stale.
 
 **Then verify the working tree actually contains that commit** — the indexer agents read source files from the working tree, so if the checkout is behind or diverged from `origin/master`, they index **stale on-disk source**:
 
@@ -80,7 +80,7 @@ git merge-base --is-ancestor <currentSha> HEAD
 
 If this exits non-zero (`currentSha` is not an ancestor of `HEAD`), **resolve it yourself before spawning any agent; don't hand it back to the user:**
 
-- **If the working tree is clean** (`git status --porcelain` empty): `git merge origin/master --no-edit` into the current branch (the established sync pattern for a long-lived curation branch — brings master's `Source/` / `Tests/` in while keeping the branch's own `.agents/knowledge-base/`), then re-run the `git merge-base --is-ancestor` guard and proceed. Leave the merge commit **unpushed** — pushing is a separate, explicitly-requested user action.
+- **If the working tree is clean** (`git status --porcelain` empty): `git merge origin/master --no-edit` into the current branch (the established sync pattern for a long-lived curation branch — brings master's `Source/` / `Tests/` in while keeping the branch's own `.claude/knowledge-base/`), then re-run the `git merge-base --is-ancestor` guard and proceed. Leave the merge commit **unpushed** — pushing is a separate, explicitly-requested user action.
 - **If the merge conflicts, or the tree was dirty:** stop and ask the user — don't auto-resolve conflicts or silently stash. A worktree checked out at `origin/master` (carrying the KB across per [`../../docs/worktree.md`](../../docs/worktree.md)) is the fallback.
 
 Do **not** work around a failed guard by reading `git show <sha>:<path>` in the agents — it is fragile per-file and easy to get partially wrong across a large scan.
@@ -90,7 +90,7 @@ Cache the SHA — you'll pass it to every agent invocation as `currentSha`, and 
 ### 4. Mark step in-progress
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "set-step", "step": "<name>", "status": "in-progress"}
 EOF
 ```
@@ -106,7 +106,7 @@ All agent spawns (`kb-architect` / `kb-historian` / `kb-github-curator` / `kb-is
 1. **Spawn synchronously** (`run_in_background: false`) in **parallel batches — batch size is a run parameter (default 10)**. For a per-area step (3, 8, 10, 11), if the user hasn't set a batch size for this run, ask them how many indexer agents to run in parallel (default 10) and record it; then spawn up to that many at a time in one message and apply the whole batch (beats 2–3) before the next. **Never use background agents** (their result arrives only as an HTML-escaping notification over an empty transcript — uncapturable, beat 2) and **never exceed the agreed batch size** (a mass spawn exhausts the session rate limit).
 2. **Capture each envelope — from its inline result or persisted tool-result JSON, never from a background notification.** A synchronous agent returns its fenced envelope with literal `<` / `>` / `&`: small results come back **inline** (write verbatim to the `outFile`); large results are **persisted to `.../tool-results/<id>.json`** (path given in the tool result) — extract that (one allowlisted call):
    ```bash
-   pwsh -NoProfile -File .agents/scripts/extract-agent-output.ps1 <<'EOF'
+   pwsh -NoProfile -File .claude/scripts/extract-agent-output.ps1 <<'EOF'
    {"sourceJson": "<path to tool-results/<id>.json>", "outFile": ".build/.agents/kb-build-step<n>.txt"}
    EOF
    ```
@@ -117,9 +117,9 @@ All agent spawns (`kb-architect` / `kb-historian` / `kb-github-curator` / `kb-is
 
 The skill itself creates the KB skeleton:
 
-1. Create dirs: `.agents/knowledge-base/{architecture,conventions,history/by-year,history/decisions,github/wiki,detected-issues/items,areas}`. Use `Bash` `mkdir -p`.
-2. Write `.agents/knowledge-base/README.md` (1-page overview — see template below).
-3. Write `.agents/knowledge-base/glossary.md` stub:
+1. Create dirs: `.claude/knowledge-base/{architecture,conventions,history/by-year,history/decisions,github/wiki,detected-issues/items,areas}`. Use `Bash` `mkdir -p`.
+2. Write `.claude/knowledge-base/README.md` (1-page overview — see template below).
+3. Write `.claude/knowledge-base/glossary.md` stub:
    ```
    ---
    area: GLOBAL
@@ -138,8 +138,8 @@ The skill itself creates the KB skeleton:
 
 #### Step 1 — area-registry (skill + user)
 
-1. Glob top-level dirs under `Source/`, `Tests/`, `Build/`, `.github/`, `.agents/`.
-2. Read `.agents/docs/kb-areas.md` (its bootstrap proposal table).
+1. Glob top-level dirs under `Source/`, `Tests/`, `Build/`, `.github/`, `.claude/`.
+2. Read `.claude/docs/kb-areas.md` (its bootstrap proposal table).
 3. Diff: dirs not covered by any area → list them.
 4. Print the bootstrap proposal table to the user; ask them to confirm or edit.
 5. **Wait for user response** (`y` to accept, free-text edits to apply, or "edit yourself" to drop into `Edit` on `kb-areas.md`).
@@ -164,7 +164,7 @@ Per-step inputs:
 Capture the agent's stdout, write to `.build/.agents/kb-build-step<n>.txt`, then:
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "apply-fences", "agentOutputFile": ".build/.agents/kb-build-step<n>.txt", "currentSha": "<sha>"}
 EOF
 ```
@@ -237,7 +237,7 @@ After all areas: aggregate the COVERAGE-SUMMARY blocks; mark step `done` only if
 After `apply-fences`, if `gateFailures` is empty:
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "set-step", "step": "<name>", "status": "done"}
 EOF
 ```
@@ -245,7 +245,7 @@ EOF
 Otherwise:
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "set-step", "step": "<name>", "status": "partial", "gate_failures": [<failure messages>]}
 EOF
 ```
@@ -262,6 +262,6 @@ After each step:
 
 - Run more than one step per turn unless the user opts in. Step boundaries are deliberate pause points.
 - Bypass `kb-state.ps1 apply-fences` for **delta** work — agents emit fenced output, the skill does not write artifacts directly. (Bulk-load bypass per [`kb-build-steps.md`](../../docs/kb-build-steps.md) → *Bulk-load vs delta-refresh* is a documented exception with per-step audit-log entries.)
-- Modify any file outside `.agents/knowledge-base/`, `.agents/docs/kb-areas.md` (step 1 only), or `.build/.agents/`.
+- Modify any file outside `.claude/knowledge-base/`, `.claude/docs/kb-areas.md` (step 1 only), or `.build/.agents/`.
 - Re-fetch GitHub content the cursor says is fresh. Trust cursors.
 - Force-promote a step to `done` when its gate failed; the user resolves the failure first.

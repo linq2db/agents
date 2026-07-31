@@ -8,10 +8,10 @@ persists it to .../tool-results/<id>.json as an array of
 objects. This script joins the `text` elements back into the raw envelope so it
 can be fed straight to apply-fences:
 
-  pwsh -NoProfile -File .agents/scripts/kb-state.ps1   { "op":"apply-fences", "agentOutputFile":"<OutFile>" }
+  pwsh -NoProfile -File .claude/scripts/kb-state.ps1   { "op":"apply-fences", "agentOutputFile":"<OutFile>" }
 
 One permission rule:
-  Bash(pwsh -NoProfile -File .agents/scripts/extract-agent-output.ps1 *)
+  Bash(pwsh -NoProfile -File .claude/scripts/extract-agent-output.ps1 *)
 
 Inputs (named params, or -ManifestFile <json> with { sourceJson, outFile }):
   -SourceJson <path>   persisted tool-result JSON (required)

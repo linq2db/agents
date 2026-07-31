@@ -38,7 +38,7 @@ Exit codes:
 Permission profile: one allowlist match for the script invocation;
 internal `gh api` calls go through Invoke-GhJson (same as pr-context.ps1).
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

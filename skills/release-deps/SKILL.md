@@ -1,6 +1,6 @@
 ---
 name: release-deps
-description: NuGet dependency update for the release-prep workflow. Discovers every <PackageVersion> in Directory.Packages.props plus all <PackageReference VersionOverride="..."> sites across the repo, queries nuget.org for available versions, applies the project's version policy, walks per-package decisions, runs all predictive audits (analyzer rule catalogs, polyfill API diffs, fuget API surface diffs, drift checks), batch-applies all consequent edits. **Runs no verification build, no commit, no push, no CI trigger** — those are all owned by `/release-verify` (orchestrator task 6), which sees the cumulative state from every release-prep task and produces the single consolidated commit + push + CI trigger. Per-package custom rules + release-notes URLs accrue in `.agents/docs/release/nuget-package-notes.md`. Invoked by `/release` step 1 or directly when running release prep.
+description: NuGet dependency update for the release-prep workflow. Discovers every <PackageVersion> in Directory.Packages.props plus all <PackageReference VersionOverride="..."> sites across the repo, queries nuget.org for available versions, applies the project's version policy, walks per-package decisions, runs all predictive audits (analyzer rule catalogs, polyfill API diffs, fuget API surface diffs, drift checks), batch-applies all consequent edits. **Runs no verification build, no commit, no push, no CI trigger** — those are all owned by `/release-verify` (orchestrator task 6), which sees the cumulative state from every release-prep task and produces the single consolidated commit + push + CI trigger. Per-package custom rules + release-notes URLs accrue in `.claude/docs/release/nuget-package-notes.md`. Invoked by `/release` step 1 or directly when running release prep.
 ---
 
 # /release-deps
@@ -22,9 +22,9 @@ description: NuGet dependency update for the release-prep workflow. Discovers ev
 
 ## Required reading
 
-- [`.agents/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) — accrued per-package rules; consulted before rendering the table and before each pre-build audit.
-- [`.agents/docs/release/branch-and-pr.md`](../../docs/release/branch-and-pr.md) — branch + PR conventions.
-- [`.agents/docs/ci-tests.md`](../../docs/ci-tests.md) — for the `/azp run test-all` trigger.
+- [`.claude/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) — accrued per-package rules; consulted before rendering the table and before each pre-build audit.
+- [`.claude/docs/release/branch-and-pr.md`](../../docs/release/branch-and-pr.md) — branch + PR conventions.
+- [`.claude/docs/ci-tests.md`](../../docs/ci-tests.md) — for the `/azp run test-all` trigger.
 
 ## Why this ordering
 
@@ -37,7 +37,7 @@ If that final build fails on something none of our predictive audits caught, the
 ### 1. Discover
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-deps-discover.ps1 -Action discover -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-deps-discover.ps1 -Action discover -Version <ver>
 ```
 
 The script:
@@ -157,7 +157,7 @@ Show the full diff as a single proposal. Gate on user confirmation before any ed
 After step 5's apply lands all queued edits, this skill's interactive work is complete. Update state:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 1 -Status done -Annotation "<N updates, M skipped, K blocked>"
+pwsh -NoProfile -File .claude/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 1 -Status done -Annotation "<N updates, M skipped, K blocked>"
 ```
 
 **Do not commit.** The release-prep cycle uses **one** consolidated commit at the end (made by `/release-verify` task 6 after the build proves stable). All release-prep tasks — deps / PublicAPI / milestone-check / test-matrix / release-notes / ad-hoc — leave their changes on the working tree of `release-prep/<ver>` and let `/release-verify` stage everything together. Reasons:

@@ -15,13 +15,13 @@ The skill **does not** write the fix itself — that's the user's call. It owns 
 
 ## Shared reference material
 
-- **Testing conventions**: `.agents/docs/testing.md`
-- **Test database catalog** (provider → script → container): `.agents/docs/test-databases.md`
-- **Branch rules + slug format**: `.agents/docs/agent-rules.md` → *Creating a new branch*
-- **Test-writer agent contract**: `.agents/agents/test-writer.md`
-- **Test-runner agent contract**: `.agents/agents/test-runner.md`
-- **Composable `/test` skill**: `.agents/skills/test/SKILL.md` — `/fix-issue` delegates the write + run flow to `/test`'s step-3/step-4 procedures.
-- **`/test-providers` skill** (env management): `.agents/skills/test-providers/SKILL.md` — used in step 5 to enable the confirmed provider set and start the matching containers before the test run.
+- **Testing conventions**: `.claude/docs/testing.md`
+- **Test database catalog** (provider → script → container): `.claude/docs/test-databases.md`
+- **Branch rules + slug format**: `.claude/docs/agent-rules.md` → *Creating a new branch*
+- **Test-writer agent contract**: `.claude/agents/test-writer.md`
+- **Test-runner agent contract**: `.claude/agents/test-runner.md`
+- **Composable `/test` skill**: `.claude/skills/test/SKILL.md` — `/fix-issue` delegates the write + run flow to `/test`'s step-3/step-4 procedures.
+- **`/test-providers` skill** (env management): `.claude/skills/test-providers/SKILL.md` — used in step 5 to enable the confirmed provider set and start the matching containers before the test run.
 
 ## When to run
 
@@ -47,7 +47,7 @@ Only invoke this skill for `linq2db/linq2db` issues. For issues in other repos, 
 
 ### 1b. Consult the KB for the affected area
 
-Before reproducing the bug or writing the regression test, orient via the knowledge base (skip silently if `.agents/knowledge-base/` isn't built — don't run `/kb-build` mid-task). Map the issue's provider / subsystem to its area code in [`kb-areas.md`](../../docs/kb-areas.md), then **read the cheap anchors directly**:
+Before reproducing the bug or writing the regression test, orient via the knowledge base (skip silently if `.claude/knowledge-base/` isn't built — don't run `/kb-build` mid-task). Map the issue's provider / subsystem to its area code in [`kb-areas.md`](../../docs/kb-areas.md), then **read the cheap anchors directly**:
 
 - `areas/<AREA>/issues.md` — is this symptom already a known issue or a prior fix?
 - `areas/<AREA>/decisions.md` — past decisions that constrain the fix
@@ -59,7 +59,7 @@ Reserve `/kb-ask <question>` (spawns a subagent) for cross-area synthesis. Orien
 
 Summarize the issue back to the user in 5–8 lines. Then, in **the same message**, batch every clarification question you can anticipate. Typical questions:
 
-1. **Provider scope** — which providers should the test cover? Propose the default set per `.agents/docs/test-databases.md` given the reporter's provider mentions, plus SQLite / SQL Server 2016 (local) as always-available anchors. Offer "all providers mentioned in the issue" / "just <X>" / "let me pick".
+1. **Provider scope** — which providers should the test cover? Propose the default set per `.claude/docs/test-databases.md` given the reporter's provider mentions, plus SQLite / SQL Server 2016 (local) as always-available anchors. Offer "all providers mentioned in the issue" / "just <X>" / "let me pick".
 2. **Branch slug** — propose a 2–5 word kebab slug derived from the issue title. Show the full branch name (`issue/<n>-<slug>`) and ask for approval or a replacement.
 3. **Pre-fix test expectation** — should the test, right now, *fail* on master (demonstrating the bug), or *pass* (if the user has already drafted the fix locally)? Affects whether we run the test before creating the branch's first commit.
 4. **Reproduction completeness** — if the issue body is ambiguous (no LINQ snippet, vague expected behavior), ask for whatever's missing.
@@ -70,19 +70,19 @@ Number the questions. Wait for answers before moving on. Do not interleave parti
 
 ### 3. Create the branch
 
-Only after the user confirms the summary + slug. Follow `.agents/docs/agent-rules.md` → *Creating a new branch*:
+Only after the user confirms the summary + slug. Follow `.claude/docs/agent-rules.md` → *Creating a new branch*:
 
 1. Check for a dirty working tree. If dirty, stop and ask whether to stash.
 2. `git fetch origin master` — keep the base fresh.
 3. Create the branch **in a worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*: "Worktrees are the default for branch-based task work"): `git worktree add -b issue/<n>-<slug> ../<clone-dir>.<slug> origin/master`, where `<clone-dir>` is this clone's folder name.
 4. Confirm the branch is checked out in the worktree (`git -C ../<clone-dir>.<slug> rev-parse --abbrev-ref HEAD`), and do all subsequent work against that path.
-5. Provision the worktree per [`worktree.md`](../../docs/worktree.md) — `UserDataProviders.json` placement and the `.agents/` curation carry-over both apply. Test runs from here go through `/test` with `worktree <abs-worktree-path>` (agent-rules → *Running tests*), never a hand-run `dotnet test`.
+5. Provision the worktree per [`worktree.md`](../../docs/worktree.md) — `UserDataProviders.json` placement and the `.claude/` curation carry-over both apply. Test runs from here go through `/test` with `worktree <abs-worktree-path>` (agent-rules → *Running tests*), never a hand-run `dotnet test`.
 
 Do **not** commit yet — the branch starts empty relative to master.
 
 ### 3b. Map existing test coverage
 
-Per `.agents/docs/agent-rules.md` → **Before coding a fix or feature**: before invoking `test-writer` (step 4) or letting the user start the fix, enumerate existing tests that already exercise the affected path. `Grep` under `Tests/` for the target code's keywords (SQL builder type, translator method, provider class), shortlist `<Fixture>.<Test>` entries with a one-line purpose each, and flag what the new regression test will add on top. Show the shortlist to the user and wait for a `go` / adjustment before proceeding.
+Per `.claude/docs/agent-rules.md` → **Before coding a fix or feature**: before invoking `test-writer` (step 4) or letting the user start the fix, enumerate existing tests that already exercise the affected path. `Grep` under `Tests/` for the target code's keywords (SQL builder type, translator method, provider class), shortlist `<Fixture>.<Test>` entries with a one-line purpose each, and flag what the new regression test will add on top. Show the shortlist to the user and wait for a `go` / adjustment before proceeding.
 
 This step is cheap and catches "the bug is already covered by `X.Y`" surprises before anyone writes code.
 
@@ -132,7 +132,7 @@ Relay the agent's per-target summary verbatim. If the pre-fix expectation from s
 - If the test **passed** (and the user said "should fail"): the repro may not actually reproduce the issue. Surface this to the user explicitly — suggest re-reading the issue for missing repro detail, or that the issue is already fixed on `master`.
 - If the test **errored**: relay the first failure's message + stack top and ask the user how to proceed.
 
-Do not auto-commit even when the result looks clean. The user drives commits (per `.agents/docs/agent-rules.md` → *Git commit rules*).
+Do not auto-commit even when the result looks clean. The user drives commits (per `.claude/docs/agent-rules.md` → *Git commit rules*).
 
 ### 7. Hand-off
 
@@ -153,4 +153,4 @@ Stop. The user continues from here — they write the fix, commit, push, and ope
 - Do not re-prompt the user for answers already given in step 2. Reuse the confirmed provider set + slug through the whole session.
 - Do not edit `UserDataProviders.json` or invoke `docker` directly. Env management routes through `/test-providers` (step 5a). If a run aborts because a provider isn't enabled, fix it via `/test-providers` and re-run — don't patch the file from here.
 - Do not expand scope. If the issue mentions three providers but only one actually exhibits the bug, raise the discrepancy to the user rather than quietly pruning; they may want the regression to cover the other two providers as a baseline.
-- Do not propose heavy providers (DB2 / Informix / SAP HANA / SAP ASE) silently. Flag their cost per `.agents/docs/test-databases.md` → *Heavy providers*.
+- Do not propose heavy providers (DB2 / Informix / SAP HANA / SAP ASE) silently. Flag their cost per `.claude/docs/test-databases.md` → *Heavy providers*.

@@ -5,13 +5,13 @@ commands to `.build/.agents/docker-session-started.txt` (deduplicated, UTF-8
 without BOM).
 
 Consumers:
- - `.agents/hooks/cleanup-docker-session.ps1` (SessionEnd) — stops each
+ - `.claude/hooks/cleanup-docker-session.ps1` (SessionEnd) — stops each
    tracked container at session exit.
- - Claude's scope-change rule — see `.agents/docs/agent-rules.md` →
+ - Claude's scope-change rule — see `.claude/docs/agent-rules.md` →
    "Docker containers: start/stop/create only" → "Scope-change prompt for
    session-started containers".
 
-Wired in the user's `.agents/settings.local.json` under `hooks.PostToolUse`
+Wired in the user's `.claude/settings.local.json` under `hooks.PostToolUse`
 with matcher "Bash". Hook receives a JSON payload on stdin whose
 `tool_input.command` is the literal Bash command string.
 #>

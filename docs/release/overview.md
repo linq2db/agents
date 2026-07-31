@@ -1,6 +1,6 @@
 # Release workflow — overview
 
-linq2db's release procedure, codified across a set of cooperating skills under `.agents/skills/release-*`.
+linq2db's release procedure, codified across a set of cooperating skills under `.claude/skills/release-*`.
 
 ## Phases
 

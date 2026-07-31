@@ -4,7 +4,7 @@ Common orchestration reused by `/review-pr` and `/verify-review`. Everything in 
 
 ### Permission-prompt discipline
 
-Every Bash call is evaluated against the allowlist in `.agents/settings.local.json`. Pipes, redirects, inline `pwsh -Command`, `cat` / `head` / `tail`, or `ls` on directories whose layout is already documented each fire a prompt. Before writing a helper script to extract data from a JSON file, ask whether `Grep` on the dumped JSON or `Read` on the file would return the same information — the answer is almost always yes. See [`windows-gotchas.md`](windows-gotchas.md) → **Permission-friendly Bash patterns** for the full table.
+Every Bash call is evaluated against the allowlist in `.claude/settings.local.json`. Pipes, redirects, inline `pwsh -Command`, `cat` / `head` / `tail`, or `ls` on directories whose layout is already documented each fire a prompt. Before writing a helper script to extract data from a JSON file, ask whether `Grep` on the dumped JSON or `Read` on the file would return the same information — the answer is almost always yes. See [`windows-gotchas.md`](windows-gotchas.md) → **Permission-friendly Bash patterns** for the full table.
 
 ### Resolving the target PR
 
@@ -35,7 +35,7 @@ Carry the choice forward (a fresh re-review still walks `initial`-mode normally)
 One call does all of it:
 
 ```
-pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
 ```
 
 Execute the three sections of [`pr-context-prep.md`](pr-context-prep.md) in order: **Context load** (the one script call), **Change summary**, **Baselines clone setup**. Both skills need all three — draft PRs are no different from ready-for-review PRs.
@@ -56,7 +56,7 @@ Common fields across both modes, supplied by either skill:
 - **`code-reviewer` briefing** (one per pass when multi-pass)
   - PR metadata, linked issues + comments, prior reviews/comments (from the context load). When a prior review carries verbatim content a pass will need — a maintainer-supplied test, exact suggested wording, a guard snippet — paste that review's **full body** into the relevant pass's briefing rather than summarizing it; otherwise the `api-and-test` pass re-fetches it via `gh`, duplicating the context load.
   - Change summary (from the context load).
-  - Head ref / base ref (`origin/pr/<n>`, `origin/master`) and the file list from `nameStatus`. The subagent reads content via `.agents/scripts/diff-reader.ps1` — do not paste the diff into the briefing.
+  - Head ref / base ref (`origin/pr/<n>`, `origin/master`) and the file list from `nameStatus`. The subagent reads content via `.claude/scripts/diff-reader.ps1` — do not paste the diff into the briefing.
   - `writeDir: .build/.agents/pr<n>` — mandatory on the first `diff-reader.ps1` call so full file bodies land on disk for `Read` / `Grep` navigation. **When the session runs in a git worktree, also spell out the absolute worktree-prefixed cache root in the briefing** (e.g. `<worktree-root>/.build/.agents/pr<n>`): subagents that guess the main-repo prefix get permission-denied on `Read`/`Grep`, burn calls rediscovering the path, and in the worst observed case fell back to degraded `Grep`-only access that produced a false finding (PR #5450 review, 2026-06-12).
   - `focus` — `"all"` for single-pass / verify-mode runs; one of `"code-correctness"` / `"sql-and-provider"` / `"api-and-test"` per pass in multi-pass mode.
   - ID-continuation floor per severity (see [`review-conventions.md`](review-conventions.md) → **ID-continuation floor**), or a disjoint ID **window** `[floor, ceiling]` per severity for each multi-pass pass.
@@ -82,10 +82,10 @@ Compute the `suppressions_updated` flag by filtering the in-memory `nameStatus` 
 
 ### Posting via the wrapper
 
-All posting (initial review, verification follow-up, body PUTs, thread resolves) goes through scripts under `.agents/scripts/`. Mechanics — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape — are defined in [`review-posting.md`](review-posting.md). Each skill supplies only the per-review content that fills the manifest template:
+All posting (initial review, verification follow-up, body PUTs, thread resolves) goes through scripts under `.claude/scripts/`. Mechanics — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape — are defined in [`review-posting.md`](review-posting.md). Each skill supplies only the per-review content that fills the manifest template:
 
 - `/review-pr` → `.build/.agents/pr<n>-manifest.ps1` via `post-pr-review.ps1`.
-- `/verify-review` → `.build/.agents/pr<n>-verify-manifest.ps1` via `post-pr-review.ps1`, plus `.agents/scripts/apply-verify-writes.ps1` for prior-review in-place edits.
+- `/verify-review` → `.build/.agents/pr<n>-verify-manifest.ps1` via `post-pr-review.ps1`, plus `.claude/scripts/apply-verify-writes.ps1` for prior-review in-place edits.
 
 ### Mode-choice gate (initial / verify)
 

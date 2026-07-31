@@ -22,14 +22,14 @@ description: Release-notes coverage audit. Cross-references the milestone's merg
 
 ## Required reading
 
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) → release notes location (`Releases-and-Roadmap.md` on the wiki — the single full-notes page).
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) → release notes location (`Releases-and-Roadmap.md` on the wiki — the single full-notes page).
 
 ## Procedure
 
 ### 1. Run the audit
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-notes-audit.ps1 -Action audit -Milestone <ver>
+pwsh -NoProfile -File .claude/scripts/release-notes-audit.ps1 -Action audit -Milestone <ver>
 ```
 
 The script:
@@ -81,7 +81,7 @@ For each `missing` row:
 
 For each `intentional` row:
 - Skill records `{issue?, pr?, reason}` into `state.notes.intentionalOmissions[]` by editing `.build/.agents/release-<ver>.json` directly (the orchestrator's state schema carries this list). `release-state.ps1 -Action update` cannot write it — that action addresses `state.tasks` only, and `-Annotation` is a free-text note on a task, not a list append (it also hard-requires `-Status`). To additionally annotate task 5, pass a full call: `release-state.ps1 -Action update -Version <ver> -TaskId 5 -Status in-progress -Annotation '<text>'`.
-- Don't pollute the long-term `.agents/docs/release/` docs with per-release omissions — they're release-specific judgment calls.
+- Don't pollute the long-term `.claude/docs/release/` docs with per-release omissions — they're release-specific judgment calls.
 
 ### 4. Re-run + tick
 
@@ -90,7 +90,7 @@ After all gaps are either `missing → added to notes` or `intentional → recor
 1. Re-run step 1 to confirm `✗` count is 0 (ignoring intentional omissions).
 2. Tick:
    ```
-   pwsh -NoProfile -File .agents/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 5 -Status done -Annotation "<N covered, M intentionally omitted>"
+   pwsh -NoProfile -File .claude/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 5 -Status done -Annotation "<N covered, M intentionally omitted>"
    ```
 
 ### Optional — draft early
@@ -101,5 +101,5 @@ Release notes drafting may be started early in the prep PR flow as a side-track.
 
 - Do **not** auto-edit the wiki. Even with explicit user request, this skill defers to the user's manual wiki edit — the wiki is shared content and edit auditability matters.
 - Do **not** require both `#<issue>` and `#<pr>` to be present. Per user rule: "we can list issue fixed, but not PR that fix it - this is ok". Either side is sufficient.
-- Do **not** mark a release-only intentional omission in `.agents/docs/release/nuget-package-notes.md` or other accruing docs — those are long-term policy, not per-release judgment.
+- Do **not** mark a release-only intentional omission in `.claude/docs/release/nuget-package-notes.md` or other accruing docs — those are long-term policy, not per-release judgment.
 - Do **not** tick task 5 while any non-intentional `✗` remains. The orchestrator's prep-merge gate depends on task 5 being honest.

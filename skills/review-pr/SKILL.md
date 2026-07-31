@@ -9,27 +9,27 @@ User-triggered workflow to review a PR on `linq2db/linq2db`.
 
 Shared reference material:
 
-- **Review orchestration** (shared skeleton with `/verify-review`): `.agents/docs/review-orchestration.md`
-- **Review conventions** (severities, IDs, checkboxes, body structure): `.agents/docs/review-conventions.md`
-- **GitHub review API** (endpoints, gotchas, thread-id mapping): `.agents/docs/github-review-api.md`
-- **PR context prep** (one-call loader, change summary, baselines clone): `.agents/docs/pr-context-prep.md`
-- **Baselines repo layout** (branch naming, file grammar): `.agents/docs/baselines-repo-layout.md`
-- **PR reference resolver** (URL / number / issue / branch): `.agents/docs/pr-resolver.md`
-- **API surface classification** (milestone-driven note-vs-BLK rules): `.agents/docs/api-surface-classification.md`
-- **Review posting** (manifest format + wrapper invocation): `.agents/docs/review-posting.md`
+- **Review orchestration** (shared skeleton with `/verify-review`): `.claude/docs/review-orchestration.md`
+- **Review conventions** (severities, IDs, checkboxes, body structure): `.claude/docs/review-conventions.md`
+- **GitHub review API** (endpoints, gotchas, thread-id mapping): `.claude/docs/github-review-api.md`
+- **PR context prep** (one-call loader, change summary, baselines clone): `.claude/docs/pr-context-prep.md`
+- **Baselines repo layout** (branch naming, file grammar): `.claude/docs/baselines-repo-layout.md`
+- **PR reference resolver** (URL / number / issue / branch): `.claude/docs/pr-resolver.md`
+- **API surface classification** (milestone-driven note-vs-BLK rules): `.claude/docs/api-surface-classification.md`
+- **Review posting** (manifest format + wrapper invocation): `.claude/docs/review-posting.md`
 
-The workflow relies on five PowerShell Core helper scripts to keep the permission surface to one allowlist entry per script. They share a common shape (stdin JSON → stdout JSON, no temp files, no compound commands) — see `.agents/docs/agent-rules.md` → **PowerShell Core scripts for complex operations** for the pattern:
+The workflow relies on five PowerShell Core helper scripts to keep the permission surface to one allowlist entry per script. They share a common shape (stdin JSON → stdout JSON, no temp files, no compound commands) — see `.claude/docs/agent-rules.md` → **PowerShell Core scripts for complex operations** for the pattern:
 
-- `.agents/scripts/pr-context.ps1` — fetches PR metadata, reviews, comments, linked issues, diff stat / name-status / commits, `origin/pr/<n>` head, in one call.
-- `.agents/scripts/diff-reader.ps1` — batch file content + diff + hunk reader, called by `code-reviewer`.
-- `.agents/scripts/verify-lines.ps1` — batch snippet + hunk verification, called by `code-reviewer`.
-- `.agents/scripts/baselines-diff.ps1` — one-shot baselines diff + grammar parse, called by `baselines-reviewer`.
-- `.agents/scripts/baselines-pr-scan.ps1` — whole-diff structural scan of `baselines/pr_<n>` (A/M/D, net-line split, structural-signal delta, provider histogram, identifier-normalised rename map), run by **this skill** to ground the Baselines section in its own measurements.
-- `.agents/scripts/post-pr-review.ps1` — REST review POST + file-thread GraphQL in one process.
+- `.claude/scripts/pr-context.ps1` — fetches PR metadata, reviews, comments, linked issues, diff stat / name-status / commits, `origin/pr/<n>` head, in one call.
+- `.claude/scripts/diff-reader.ps1` — batch file content + diff + hunk reader, called by `code-reviewer`.
+- `.claude/scripts/verify-lines.ps1` — batch snippet + hunk verification, called by `code-reviewer`.
+- `.claude/scripts/baselines-diff.ps1` — one-shot baselines diff + grammar parse, called by `baselines-reviewer`.
+- `.claude/scripts/baselines-pr-scan.ps1` — whole-diff structural scan of `baselines/pr_<n>` (A/M/D, net-line split, structural-signal delta, provider histogram, identifier-normalised rename map), run by **this skill** to ground the Baselines section in its own measurements.
+- `.claude/scripts/post-pr-review.ps1` — REST review POST + file-thread GraphQL in one process.
 
 ## When to run
 
-Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.agents/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
+Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.claude/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
 
 ## Steps
 
@@ -43,7 +43,7 @@ Per `review-orchestration.md` → **Resolving the target PR**.
 
 Per `review-orchestration.md` → **Loading PR context**.
 
-When the loaded context shows the PR's milestone differs from a linked issue's (or a linked issue has no milestone while the PR does), surface it: run `pwsh -NoProfile -File .agents/scripts/milestone-consistency.ps1 -Action check -Pr <n>` and, if it reports `laggards`, offer `-Action assign -Pr <n>` (propose, then confirm — milestone is metadata but the change is visible). Skip laggards flagged `likelyIntentional` (issue on an earlier/closed milestone — legitimate cross-milestone case). Don't block the review on it.
+When the loaded context shows the PR's milestone differs from a linked issue's (or a linked issue has no milestone while the PR does), surface it: run `pwsh -NoProfile -File .claude/scripts/milestone-consistency.ps1 -Action check -Pr <n>` and, if it reports `laggards`, offer `-Action assign -Pr <n>` (propose, then confirm — milestone is metadata but the change is visible). Skip laggards flagged `likelyIntentional` (issue on an earlier/closed milestone — legitimate cross-milestone case). Don't block the review on it.
 
 ### 2b. Audit prior reviewer claims (bot + human)
 
@@ -60,7 +60,7 @@ Procedure (scope, classification rules, playground-verification protocol, thread
 
 ### 2c. Check the PR's CI check status
 
-The code-review passes reason over source — they **cannot** see that the PR's own new/changed tests fail at runtime. Before spawning reviewers, run `gh pr checks <n> --repo linq2db/linq2db`. For failing legs, pull per-test failures via `.agents/scripts/azp-build-failures.ps1 -BuildId <n>` (build id from the failing check's Azure URL) and check whether the failing tests live in files the PR adds/modifies. A PR whose **own** new/changed test fails CI is a top-priority finding — fold it into the finding stream at BLK/MAJ and brief the relevant code pass with the concrete failures. Distinguish pre-existing/flaky failures (note, don't attribute) from PR-caused ones.
+The code-review passes reason over source — they **cannot** see that the PR's own new/changed tests fail at runtime. Before spawning reviewers, run `gh pr checks <n> --repo linq2db/linq2db`. For failing legs, pull per-test failures via `.claude/scripts/azp-build-failures.ps1 -BuildId <n>` (build id from the failing check's Azure URL) and check whether the failing tests live in files the PR adds/modifies. A PR whose **own** new/changed test fails CI is a top-priority finding — fold it into the finding stream at BLK/MAJ and brief the relevant code pass with the concrete failures. Distinguish pre-existing/flaky failures (note, don't attribute) from PR-caused ones.
 
 (Surfaced on #5678: a full review — three `code-reviewer` passes + `baselines-reviewer` — reported the new `ProviderSpecificReaderValueTests` as high-quality/non-vacuous, but it failed CI on ~15 provider jobs (Oracle needing `FROM DUAL`, MySQL 5.7 `CAST … AS DOUBLE`, Firebird 2.5/3, DuckDB, PostgreSQL, DB2); the blocker surfaced only when the user flagged "tests fail." The absent baseline folders for exactly those providers were the corroborating fingerprint — see `baselines-reviewer.md` → *Subset baseline coverage can be a failure fingerprint*.)
 
@@ -80,7 +80,7 @@ If the claim is wrong, tell the user and stop. The PR likely needs re-scoping (s
 
 ### 3c. Consult the KB for the changed areas
 
-Before spawning the reviewers, orient via the knowledge base (skip silently if `.agents/knowledge-base/` isn't built). Map each changed path from step 2's file list to its area code in [`kb-areas.md`](../../docs/kb-areas.md), then **read the cheap anchors directly** for each touched area:
+Before spawning the reviewers, orient via the knowledge base (skip silently if `.claude/knowledge-base/` isn't built). Map each changed path from step 2's file list to its area code in [`kb-areas.md`](../../docs/kb-areas.md), then **read the cheap anchors directly** for each touched area:
 
 - `areas/<AREA>/issues.md` / `tech-debt.md` — known issues / debt the diff may hit or should fix
 - `areas/<AREA>/decisions.md` — past decisions the change must respect
@@ -119,7 +119,7 @@ After the target-branch check passes and the change summary is in hand, ask the 
 - A correction — re-state the corrected scope in one sentence back to the user for implicit confirmation (no second prompt), then proceed with the corrected version.
 - `skip` — proceed without a confirmed scope (only when the user explicitly opts out).
 
-Carry the confirmed scope forward into the `code-reviewer` briefing (step 6) as an explicit `scope` field. The reviewer uses it to keep findings inside the PR's intent and to push tangential concerns to `out_of_scope_observations[]` instead of `findings[]` (see `.agents/agents/code-reviewer.md` → **Scope discipline**). Without this gate, it's easy to surface findings about pre-existing behavior that the PR doesn't cause and wasn't trying to address.
+Carry the confirmed scope forward into the `code-reviewer` briefing (step 6) as an explicit `scope` field. The reviewer uses it to keep findings inside the PR's intent and to push tangential concerns to `out_of_scope_observations[]` instead of `findings[]` (see `.claude/agents/code-reviewer.md` → **Scope discipline**). Without this gate, it's easy to surface findings about pre-existing behavior that the PR doesn't cause and wasn't trying to address.
 
 **Question 2 — baselines opt-out.** Default is include. Answers:
 - `y` (or empty) — spawn `baselines-reviewer` in step 6 as usual.
@@ -129,7 +129,7 @@ Carry the confirmed scope forward into the `code-reviewer` briefing (step 6) as 
 
 ### 5. Compute the ID-continuation floor
 
-Per `.agents/docs/review-conventions.md` → **ID-continuation floor**: using `reviews` + `reviewComments` + `currentUser` already loaded in step 2, filter to entries authored by `currentUser`, regex-match IDs across their bodies, compute `max(NNN) + 1` per severity. If none, floor is `1` for every severity. Both subagents and the final assembly need it.
+Per `.claude/docs/review-conventions.md` → **ID-continuation floor**: using `reviews` + `reviewComments` + `currentUser` already loaded in step 2, filter to entries authored by `currentUser`, regex-match IDs across their bodies, compute `max(NNN) + 1` per severity. If none, floor is `1` for every severity. Both subagents and the final assembly need it.
 
 The floor is internal numbering bookkeeping — it steers the IDs you assign, not content for the reader. **Do not mention it in the review body** (not under `## Review notes`, not as a trailing meta line). The reader sees IDs like `MIN001` / `MIN014` directly; they don't need to know what the starting point was.
 
@@ -146,7 +146,7 @@ When step 6's multi-pass gate triggers (changed file count > 5), the three paral
 **Clear the `writeDir` directory first** — `diff-reader.ps1` overwrites only the files named in the manifest, so a re-review of a PR whose approach changed since the last run leaves stale files from the superseded commit in the cache (e.g. `*SqlBuilder.cs` overrides from an earlier approach that the current HEAD replaced with `SqlProviderFlags`). Those orphans silently mislead passes — a `Grep` over the cache surfaces code that isn't in the PR, reading as a phantom cache/ref divergence. Delete the writeDir **directory** with the PowerShell tool (`Remove-Item -Recurse -Force .build/.agents/pr<n>`) — not the sibling `pr<n>-*.json` / `pr<n>-*.ps1` manifests, which live one level up — before pre-populating:
 
 ```
-pwsh -NoProfile -File .agents/scripts/diff-reader.ps1 -ManifestFile .build/.agents/pr<n>-diff-prep.json
+pwsh -NoProfile -File .claude/scripts/diff-reader.ps1 -ManifestFile .build/.agents/pr<n>-diff-prep.json
 ```
 
 (Surfaced on PR #5561 — a leftover SqlBuilder-override set from an earlier commit of the same PR triggered a false divergence flag that cost several `git diff --name-only` confirmations.)
@@ -213,7 +213,7 @@ For single-pass runs (count ≤ 5), step 6b is a no-op — the agent's output go
 
 Per `review-orchestration.md` → **Classifying public-API surface changes**.
 
-`code-reviewer` already verifies its own line numbers (see its spec's **Line-number verification** section). Trust that output — do not re-run verification here, and in particular do not `git show origin/pr/<n>:path` to spot-check snippets. The subagent's first `diff-reader.ps1` call with `writeDir: .build/.agents/pr<n>` persisted every changed file's full HEAD body, base-ref body, and per-file diff to disk — if parent-skill reasoning ever needs to look at a file, `Read` / `Grep` it directly at the paths listed in `.agents/docs/pr-context-prep.md` → **`writeDir` directory layout**. Do **not** `ls` the directory to discover the shape; the layout is fixed and documented. Re-fetching via `git show ref:path | sed -n` pipes costs a permission prompt each and is forbidden. Post-subagent sanity is limited to: each `line` is a positive integer, `line_end >= line` when present, and `file` points to a path that actually appears in the PR's changed-file list from step 2. Findings that fail those lightweight checks go straight to body-section — no disk caching, no second pass.
+`code-reviewer` already verifies its own line numbers (see its spec's **Line-number verification** section). Trust that output — do not re-run verification here, and in particular do not `git show origin/pr/<n>:path` to spot-check snippets. The subagent's first `diff-reader.ps1` call with `writeDir: .build/.agents/pr<n>` persisted every changed file's full HEAD body, base-ref body, and per-file diff to disk — if parent-skill reasoning ever needs to look at a file, `Read` / `Grep` it directly at the paths listed in `.claude/docs/pr-context-prep.md` → **`writeDir` directory layout**. Do **not** `ls` the directory to discover the shape; the layout is fixed and documented. Re-fetching via `git show ref:path | sed -n` pipes costs a permission prompt each and is forbidden. Post-subagent sanity is limited to: each `line` is a positive integer, `line_end >= line` when present, and `file` points to a path that actually appears in the PR's changed-file list from step 2. Findings that fail those lightweight checks go straight to body-section — no disk caching, no second pass.
 
 ### 7b. Out-of-scope disposition gate
 
@@ -231,7 +231,7 @@ This explicit gate **replaces** the old "file separately when investigation is w
 
 ### 8. Assemble the review body
 
-Use the body structure defined in `.agents/docs/review-conventions.md` → **Output body structure**. No legend table — reviewers who need abbreviation meanings consult the conventions doc.
+Use the body structure defined in `.claude/docs/review-conventions.md` → **Output body structure**. No legend table — reviewers who need abbreviation meanings consult the conventions doc.
 
 Classify each `code-reviewer` finding into one of three review output locations:
 
@@ -307,7 +307,7 @@ Do not post a line-level finding with a replaceable fix but no suggestion block.
 
    **Ground the headline add/modify/delete counts in your own fresh diff — not the reviewer's totals.** Re-`git -C ../linq2db.baselines fetch origin baselines/pr_<n>`, then count A/M/D yourself from `git diff --name-status origin/master...origin/baselines/pr_<n>` for the body. The `baselines-reviewer`'s `baselines-diff.ps1` snapshot can be **wholesale** stale (not just off on individual anomalies) when CI force-recreates the baselines branch mid-review. (Surfaced on PR #5468: the reviewer reported `3829 A / 1498 M` against a pre-force-push commit while the live three-dot diff was `684 A / 244 M / 0 D`, and its "double-RANK" anomaly was contradicted by the current files — both traced to the branch having been force-updated `26dbac…→27c44e…` after the reviewer's fetch.) **Separate inert churn from substantive changes in the headline.** A large modified count can be dominated by semantically-inert churn — most commonly a provider config-name header rename touching every one of that provider's baselines (the first-line `-- <Config> <ContextName>` comment changes, SQL bodies unchanged). Before reporting the headline, split the count: report the inert header-only total and the substantive (real-SQL) total separately, since the raw modified number wildly overstates the real delta. (Surfaced on PR #5450: of 30,726 modified, ~30,251 were a `PostgreSQL` -> `PostgreSQL13` config-name header rename; only ~475 carried real SQL changes.)
 
-   **Scan the whole diff programmatically for structural signals — the grouped summary is sample-based and under-reports.** The subagent characterises 700+ files from sampled pattern-groups, so a change shape that spans groups it didn't sample is described narrowly or missed. **One call does all four scans below plus the headline counts:** `pwsh -NoProfile -File .agents/scripts/baselines-pr-scan.ps1 -Pr <n>` (pass `-Signal '<regex>'` when the PR's mechanism has a fingerprint other than a parameter `DECLARE`). Its `renames.mismatches` is the direct test of a "name-only, no structural change" claim — it normalises every parameter identifier on both sides of each changed line-pair and byte-compares, so `0` means nothing but identifiers moved, and `mismatchSamples[]` shows what did. Read the net-positive files it lists. Don't hand-roll these with `git diff` + throwaway analysis scripts. The scans, for reference:
+   **Scan the whole diff programmatically for structural signals — the grouped summary is sample-based and under-reports.** The subagent characterises 700+ files from sampled pattern-groups, so a change shape that spans groups it didn't sample is described narrowly or missed. **One call does all four scans below plus the headline counts:** `pwsh -NoProfile -File .claude/scripts/baselines-pr-scan.ps1 -Pr <n>` (pass `-Signal '<regex>'` when the PR's mechanism has a fingerprint other than a parameter `DECLARE`). Its `renames.mismatches` is the direct test of a "name-only, no structural change" claim — it normalises every parameter identifier on both sides of each changed line-pair and byte-compares, so `0` means nothing but identifiers moved, and `mismatchSamples[]` shows what did. Read the net-positive files it lists. Don't hand-roll these with `git diff` + throwaway analysis scripts. The scans, for reference:
    1. **Structural-delta count.** Dump `git -C ../linq2db.baselines diff -U0 origin/master...origin/baselines/pr_<n>` to a file, then count per-file added/removed occurrences of the signal the PR's mechanism would move — most usefully `^[-+]\s*DECLARE\s` (a net loss means a bound parameter became a literal; a net gain means one was added or split). Report the file count, the total delta, and the distinct test groups.
    2. **Provider histogram.** Group the modified paths by their leading provider directory. A set confined to exactly the providers the changed mechanism runs on is a strong **bound** on blast radius and is worth stating in the body; a provider outside that set is an anomaly to chase.
    3. **Net-line split over the *modified* set, then read the net-positive files.** From the same `-U0` dump, count added vs removed lines per modified file and partition on the net. Net-zero files are almost always inert churn (the subquery projection's **column order** changed, or a config-name header rename); the net-positive ones are where new SQL appeared, and they are usually a small minority worth reading individually. Report the two totals separately, and never let a "cosmetic reorder" characterisation of the whole modified set stand until the net-positive subset has been read. **A synthetic `as [cN]` / `as "cN"` projection appearing on the added side is a specific signal to chase:** it means an expression the query previously only *inlined* is now materialised as an output column, which happens when a clause the optimizer used to discard now survives — check whether the parent query also gained a redundant trailing `ORDER BY` term referencing it. (Surfaced on PR #5732: the grouped summary classified the whole `DistinctByOrderByNulls` cluster as net-zero column reordering. The split showed 219 net-zero vs **83 net-positive**, and 75 of those had gained an `as [cN]` column — an emulated NULLS key both projected through the ROW_NUMBER subquery *and* appended as a duplicate of the outer `ORDER BY`'s leading key. That was the review's only real code finding, and the source-only pass could not see it.)
@@ -324,12 +324,12 @@ Entries with empty `sampleUrl` / `samplePath` (rollup entries not tied to a spec
 
 ### 9. Confirm with user, then post
 
-**Pre-show meta-content scan.** Before showing the user anything, grep the assembled review body **and** every line / file / reply comment body for forbidden meta-tokens. If any match, strip or rewrite the offending fragment and re-check. Do not rely on "I'll remember not to do it" — the rule is already documented twice (`.agents/docs/review-conventions.md` → *Audience*, step 5 above) and still gets violated. Tokens to reject:
+**Pre-show meta-content scan.** Before showing the user anything, grep the assembled review body **and** every line / file / reply comment body for forbidden meta-tokens. If any match, strip or rewrite the offending fragment and re-check. Do not rely on "I'll remember not to do it" — the rule is already documented twice (`.claude/docs/review-conventions.md` → *Audience*, step 5 above) and still gets violated. Tokens to reject:
 
 - `Prior review continuation`, `continues from`, `ID-continuation`, `continuation floor`, `starting point`, `starting floor`
 - `MIN00N`, `SUG00N`, `BLK00N`, `MAJ00N`, `NIT00N` in any phrase that *explains* the numbering (e.g. "IDs MIN001–MIN004 were used in…") — IDs on the new findings themselves are fine; commentary *about* the floor or prior-run IDs is not
 - subagent names: `code-reviewer`, `baselines-reviewer`, `verify-lines`, `diff-reader`, `post-pr-review`
-- internal paths: `.agents/`, `.build/.agents/`, `writeDir`
+- internal paths: `.claude/`, `.build/.agents/`, `writeDir`
 - skill names: `/review-pr`, `/verify-review`, `/api-baselines`, `/fix-issue`, etc.
 
 Matches on these tokens are an assembly bug, not a reviewer-style preference — fix the body, don't ask the user to tolerate them.
@@ -346,15 +346,15 @@ Then run the **mode-choice gate** defined in [`review-orchestration.md`](../../d
 - On `submit-all`: post the pending review via `post-pr-review.ps1` and run the step-2b thread-disposition bundle through `post-pr-thread-replies.ps1` (the same call that handles Fixed/Inaccurate replies also carries any `{ unresolve: true }` entries for Still-actual threads closed by others).
 - On `cancel`: exit without writes.
 
-**Posting mechanics — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape — are defined in [`.agents/docs/review-posting.md`](../../docs/review-posting.md)**. The skill's job here is to supply the per-review content that fills the manifest template.
+**Posting mechanics — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape — are defined in [`.claude/docs/review-posting.md`](../../docs/review-posting.md)**. The skill's job here is to supply the per-review content that fills the manifest template.
 
 Per-review content for this skill:
 
 - **Manifest path:** `.build/.agents/pr<n>-manifest.ps1`.
 - **`body` here-string:** the assembled review body from step 8, opened by the agentic-review disclaimer and containing the review-notes section, the body-section findings grouped by severity, the `## Out-of-scope observations` section (when non-empty), and the baselines section.
-- **`lineComments[]`:** every finding with both `file` and `line`. Rebuild per finding per the line-comment body shape in `.agents/docs/review-conventions.md` → **Output body structure** (so each comment leads with `**<Severity> · <ID>**`). Include a `suggestion` fenced block when the finding has one, per the **Suggestion-block audit** above.
+- **`lineComments[]`:** every finding with both `file` and `line`. Rebuild per finding per the line-comment body shape in `.claude/docs/review-conventions.md` → **Output body structure** (so each comment leads with `**<Severity> · <ID>**`). Include a `suggestion` fenced block when the finding has one, per the **Suggestion-block audit** above.
 - **`fileComments[]`:** every finding with `file` but no `line`.
-- **`replyComments[]`:** empty on initial `/review-pr` runs. Reserved for `/verify-review` follow-ups and for retractions of previously-posted findings (see `.agents/docs/review-posting.md` → **Retracting a posted finding**).
+- **`replyComments[]`:** empty on initial `/review-pr` runs. Reserved for `/verify-review` follow-ups and for retractions of previously-posted findings (see `.claude/docs/review-posting.md` → **Retracting a posted finding**).
 
 ### 10. Offer command-usage audit
 
@@ -378,5 +378,5 @@ The legacy "walk-fix pivot" path is now `interactive` mode of the mode-choice ga
 - Do not edit any source file.
 - Do not post individual comments with `POST /pulls/<n>/comments` — always go through the reviews endpoint so all findings land inside one draft.
 - Do not continue to posting if the user hasn't explicitly approved.
-- Do not flag the repo's column-aligned formatting — see `.agents/docs/code-design.md` → **Column-aligned formatting is intentional**.
+- Do not flag the repo's column-aligned formatting — see `.claude/docs/code-design.md` → **Column-aligned formatting is intentional**.
 - Do not embed a severity legend in the review body; the conventions doc is the single source of truth.

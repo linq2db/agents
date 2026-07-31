@@ -3,13 +3,13 @@ Shared helpers for review scripts (pr-context, diff-reader, verify-lines,
 baselines-diff, post-pr-review). Keeps each script small and makes their
 Bash-call surface uniform:
 
-    pwsh -NoProfile -File .agents/scripts/<name>.ps1 <<'EOF' … EOF
+    pwsh -NoProfile -File .claude/scripts/<name>.ps1 <<'EOF' … EOF
 
 One permission rule per script, JSON in on stdin, JSON out on stdout.
 Nothing here performs writes to the filesystem or the GitHub API beyond
 what the caller explicitly asks for.
 
-See `.agents/docs/agent-rules.md` → **PowerShell Core scripts for complex
+See `.claude/docs/agent-rules.md` → **PowerShell Core scripts for complex
 operations** for the invocation pattern, contract, and the pwsh-specific
 gotchas (`$using:` nesting, empty-array unwrap, integer coercion).
 #>

@@ -2,7 +2,7 @@
 amend-branch-commit.ps1 — rewrite the message of the tip commit on a
 NON-checked-out branch without touching the working tree.
 
-Codifies .agents/docs/pr-and-push.md -> "Amending a commit on a non-checked-out
+Codifies .claude/docs/pr-and-push.md -> "Amending a commit on a non-checked-out
 branch with a dirty current tree". Reuses the branch tip's tree (%T), so this is
 a message/metadata amend only — content is unchanged. Avoids the
 stash/switch/--amend/pop dance (whose pop can conflict on overlapping files) by
@@ -13,8 +13,8 @@ plumbing the Bash no-chaining rule forbids (`VAR=… git commit-tree`) lives her
 GLUE ONLY — the message text, branch identity, and the decision that this
 (non-stash) path is right stay with the agent/skill.
 
-  pwsh -NoProfile -File .agents/scripts/amend-branch-commit.ps1 -Branch issue/1234-fix -Message "fix: corrected subject"
-  pwsh -NoProfile -File .agents/scripts/amend-branch-commit.ps1 -Branch issue/1234-fix -MessageFile .build/.agents/msg.txt -Sign
+  pwsh -NoProfile -File .claude/scripts/amend-branch-commit.ps1 -Branch issue/1234-fix -Message "fix: corrected subject"
+  pwsh -NoProfile -File .claude/scripts/amend-branch-commit.ps1 -Branch issue/1234-fix -MessageFile .build/.agents/msg.txt -Sign
 #>
 param(
     [Parameter(Mandatory)][string]$Branch,

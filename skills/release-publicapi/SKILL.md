@@ -23,8 +23,8 @@ Also owns the **analyzer release-tracking** move for the `linq2db.Analyzers` pac
 
 ## Required reading
 
-- [`.agents/docs/code-design.md`](../../docs/code-design.md) → **Never hand-edit API baseline files** still applies to `CompatibilitySuppressions.xml`. PublicAPI.*.txt is **not** under that rule — it's editable by the analyzer's codefixes and by this skill's apply step.
-- [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Git commit rules** (each commit is its own user request).
+- [`.claude/docs/code-design.md`](../../docs/code-design.md) → **Never hand-edit API baseline files** still applies to `CompatibilitySuppressions.xml`. PublicAPI.*.txt is **not** under that rule — it's editable by the analyzer's codefixes and by this skill's apply step.
+- [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Git commit rules** (each commit is its own user request).
 
 ## Procedure
 
@@ -35,7 +35,7 @@ Also owns the **analyzer release-tracking** move for the `linq2db.Analyzers` pac
 For standalone (non-release-prep) invocations, or when explicitly re-validating mid-flow:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-publicapi-reconcile.ps1 -Action build -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action build -Version <ver>
 ```
 
 The script runs `dotnet build linq2db.slnx -c Release` and captures stdout+stderr to `.build/.agents/release-<ver>-publicapi-raw.txt`. Returns a status with exit code + line count.
@@ -45,7 +45,7 @@ If the build itself fails (compile errors unrelated to PublicAPI), stop and surf
 ### 2. Discover RS0016 / RS0017
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-publicapi-reconcile.ps1 -Action discover -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action discover -Version <ver>
 ```
 
 Parses the raw build log for RS0016 (missing-from-declared-API) and RS0017 (in-declared-API-but-not-in-code) diagnostics. Groups by source file + project.
@@ -60,7 +60,7 @@ Parses the raw build log for RS0016 (missing-from-declared-API) and RS0017 (in-d
 ### 3. Compute the move plan
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-publicapi-reconcile.ps1 -Action plan -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action plan -Version <ver>
 ```
 
 Walks every `PublicAPI.Shipped.txt` + sibling `PublicAPI.Unshipped.txt` pair under `Source/`. Per pair, computes:
@@ -73,7 +73,7 @@ Writes the plan as JSON to `.build/.agents/release-<ver>-publicapi-plan.json`. T
 ### 4. Review the diff
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-publicapi-reconcile.ps1 -Action diff -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action diff -Version <ver>
 ```
 
 Prints a per-file unified diff (only the changed files). Surface this to the user.
@@ -83,7 +83,7 @@ Prints a per-file unified diff (only the changed files). Surface this to the use
 ### 5. Apply
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-publicapi-reconcile.ps1 -Action apply -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action apply -Version <ver>
 ```
 
 Reads the plan file and writes both files per project/TFM. UTF-8 encoding mirrors each file's existing BOM state (71 of the 72 PublicAPI files in `Source/**` currently start with a UTF-8 BOM, so most output keeps the BOM); line endings are normalized to LF (the analyzer is whitespace-tolerant; CRLF inputs would be rewritten as LF, but no PublicAPI file in the repo uses CRLF today).

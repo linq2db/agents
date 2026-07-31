@@ -29,10 +29,10 @@ All consequent edits (`.editorconfig` rule disables, `CompatibilitySuppressions.
 
 ## Required reading
 
-- [`.agents/skills/api-baselines/SKILL.md`](../api-baselines/SKILL.md) — invoked as a sub-step. Read its policy on `LinqToDB.Internal.*` vs other API surface.
-- [`.agents/skills/profile-analyzers/SKILL.md`](../profile-analyzers/SKILL.md) — invoked conditionally.
-- [`.agents/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) — analyzer-package rules (consulted for the reactive rule walk).
-- [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Git commit rules**, **Push to remote rules**.
+- [`.claude/skills/api-baselines/SKILL.md`](../api-baselines/SKILL.md) — invoked as a sub-step. Read its policy on `LinqToDB.Internal.*` vs other API surface.
+- [`.claude/skills/profile-analyzers/SKILL.md`](../profile-analyzers/SKILL.md) — invoked conditionally.
+- [`.claude/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) — analyzer-package rules (consulted for the reactive rule walk).
+- [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Git commit rules**, **Push to remote rules**.
 
 ## Procedure
 
@@ -78,7 +78,7 @@ Stop and surface to user. Do not improvise — disk-full / locked-file failures 
 If step 1 chose profile-analyzers, the build run already produced the analyzer-perf log. Parse it:
 
 ```
-pwsh -NoProfile -File .agents/scripts/analyzer-profile-report.ps1 -LogPath <log-path-from-step-2> -Top 10
+pwsh -NoProfile -File .claude/scripts/analyzer-profile-report.ps1 -LogPath <log-path-from-step-2> -Top 10
 ```
 
 Show the three rankings to the user. They decide whether to disable any newly-expensive rules (queue another `.editorconfig` edit) or accept the perf hit. Per `/profile-analyzers` Don'ts, only propose disabling rules that are both expensive AND not pulling their weight.
@@ -99,7 +99,7 @@ The user reviews the regenerated baselines per `/api-baselines` policy. Any appr
 
 This is the **single** commit of the release-prep cycle. Earlier tasks (deps / PublicAPI / milestone-check / test-matrix / release-notes / ad-hoc) leave their changes uncommitted on the worktree; this step stages all of them plus anything produced in steps 2-4 of this skill, and commits them together.
 
-Stage all changes (audit `Tests/Tests.Playground/` for accidental scratch — see `agent-rules.md` → **Git commit rules** — and `.agents/` for accidental curation diffs that must NOT land on `release-prep/<ver>`). Commit message structure:
+Stage all changes (audit `Tests/Tests.Playground/` for accidental scratch — see `agent-rules.md` → **Git commit rules** — and `.claude/` for accidental curation diffs that must NOT land on `release-prep/<ver>`). Commit message structure:
 
 ```
 Release <ver>: prep
@@ -142,7 +142,7 @@ Default is one consolidated commit; ask the user if they want a split.
 On explicit user confirmation:
 1. Push the prep branch (creating it on the remote on first push).
 2. If no prep PR exists yet, open one per [`branch-and-pr.md`](../../docs/release/branch-and-pr.md) (`Release prep <ver>`, draft, milestone, `--assignee @me`, body = checklist auto-synced from `release-state.ps1`).
-3. Trigger `/azp run test-all` via `.agents/scripts/azp-run.ps1`. This is the first and only CI trigger for the release-prep cycle.
+3. Trigger `/azp run test-all` via `.claude/scripts/azp-run.ps1`. This is the first and only CI trigger for the release-prep cycle.
 
 ### 7. Hand back to `/release` orchestrator
 

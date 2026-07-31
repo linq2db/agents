@@ -26,7 +26,7 @@ Action:
                 counts: { openIssues, openPRs, staleBaselines }
               }
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]
@@ -103,7 +103,7 @@ function Get-MergedMilestonePRs {
 # -- baselines stale-PR detection --------------------------------------------
 
 # Linq2db.baselines auto-generates one PR per source-repo PR. Head ref
-# naming convention is `baselines/pr_<N>` (per `.agents/docs/pr-and-push.md`).
+# naming convention is `baselines/pr_<N>` (per `.claude/docs/pr-and-push.md`).
 # We list all open PRs on the baselines repo, then match head refs against
 # the set of merged-milestone source PR numbers.
 function Get-OpenBaselinesPRs {

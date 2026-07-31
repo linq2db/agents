@@ -6,7 +6,7 @@ recognizable. Returns a hit/miss list so /kb-refresh can demote confidence
 on stale files.
 
 One permission rule:
-    Bash(pwsh -NoProfile -File .agents/scripts/kb-audit-citations.ps1 *)
+    Bash(pwsh -NoProfile -File .claude/scripts/kb-audit-citations.ps1 *)
 
 Input (stdin, JSON):
   {
@@ -49,7 +49,7 @@ $k = if (Test-IsInteger $m.k) { [int]$m.k } else { 5 }
 $tokenWindow = if (Test-IsInteger $m.tokenWindow) { [int]$m.tokenWindow } else { 3 }
 
 $repoRoot = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path
-$kbRoot   = Join-Path $repoRoot '.agents/knowledge-base'
+$kbRoot   = Join-Path $repoRoot '.claude/knowledge-base'
 
 if (-not (Test-Path $kbRoot)) {
     Write-JsonOutput -InputObject ([pscustomobject]@{ ok = $true; audited = @(); summary = @{ files_audited = 0; files_stale = 0 } })

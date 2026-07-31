@@ -9,7 +9,7 @@ model: sonnet
 
 Read-only baselines review subagent. Invoked by `/review-pr` and `/verify-review`.
 
-The repository layout, filename grammar, branch-naming scheme, and the list of expected cross-provider syntactic variations are defined in `.agents/docs/baselines-repo-layout.md`. Read that file first and reference it — do not restate the layout here.
+The repository layout, filename grammar, branch-naming scheme, and the list of expected cross-provider syntactic variations are defined in `.claude/docs/baselines-repo-layout.md`. Read that file first and reference it — do not restate the layout here.
 
 ## Inputs (provided in the invocation prompt)
 
@@ -23,19 +23,19 @@ The repository layout, filename grammar, branch-naming scheme, and the list of e
 
 - `Read`, `Grep`, `Glob` — read files in both clones when the helper output leaves you with specific paths to inspect.
 - `Bash` — **read-only** usage. The canonical call is:
-  - `pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1` — one JSON-in / JSON-out invocation returns the whole changed-paths list, parsed provider/test/params, and per-file truncated diff bodies.
+  - `pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1` — one JSON-in / JSON-out invocation returns the whole changed-paths list, parsed provider/test/params, and per-file truncated diff bodies.
   Raw `git -C ../linq2db.baselines …` calls are permitted for spot follow-ups (e.g. the full untrimmed body of a single file) but should not be the default — one command per call, never chained.
 
 **Call budget.** Your typical Bash/pwsh/git/gh budget for a single run is **1 `baselines-diff.ps1` call** plus **0–3 `git show` spot reads** when sample diffs are truncated. Every Bash call you issue MUST be recorded in `callLog[]` in your return value (see schema below), with a short `reason`. If your total exceeds the budget, document *why* in each extra entry's `reason` — the parent skill surfaces this to the user verbatim.
 
-Follow `.agents/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). The helper script reads JSON on stdin via heredoc, so no temp files are needed for normal use.
+Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). The helper script reads JSON on stdin via heredoc, so no temp files are needed for normal use.
 
 ## Procedure
 
 1. **Fetch, don't trust a stale clone.** Pass `"fetch": true` in the manifest (below) so the script fetches `origin` before resolving the branch. The local baselines clone is frequently *not* current with the PR's `baselines/pr_<n>` branch — it exists on the remote but was never fetched locally, yielding a false `branch_missing`. Only treat `branch_missing` as the "no baselines" case *after* that fetch. (Surfaced on PR #5378: the reviewer trusted a stale clone and reported `no_baselines` for a branch that existed remotely; a manual `git -C ../linq2db.baselines fetch origin baselines/pr_5378` + three-dot diff then showed 59 added / real modified baselines.)
 2. One batch call to pull everything:
    ```
-   pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1 <<'EOF'
+   pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 <<'EOF'
    { "pr": <pr_number>, "fetch": true }
    EOF
    ```
@@ -48,7 +48,7 @@ Follow `.agents/docs/agent-rules.md` → **Bash command rules** for shell conven
    - `testGroupSummary` — ranking table: `[{test, providerCount, entryCount}, ...]` pre-sorted by entry count desc, then provider count desc, then name asc. **Read this before diving into `testGroups`** to rank work by group size. Again, no ad-hoc probing.
    - `sql` — array of `{path, status, provider, namespace, class, method, params, testKey, diff, diffTruncated}` for every touched SQL baseline. Grammar is already applied.
    - `metrics` — array of `{path, status, tfm, provider, os, diff, diffTruncated}`.
-   - `unknown` — paths that didn't fit either grammar; flag them as anomalies. **`.sql.other` entries are a special case — never "inert" or removable.** A `.sql.other` file is written by `Tests/Base/BaselinesWriter.cs` when a test's direct (`DataConnection`) and remote (`LinqService`) runs emit *different* SQL for the same provider config; the test then **fails** with *"Baselines for remote context doesn't match direct access baselines"* (the `unknown[]` entry's `reason` says so). Treat every `.sql.other` as a real test failure to root-cause, **except** the known pre-existing Oracle entries tracked as #5513 (remote-mode trace drops scalar `IQueryable<T>` aggregate queries). A `.sql.other` that is new on the branch vs. baselines master — or for a test unrelated to the PR — still warrants surfacing to the maintainer (it must not ship silently) even when the PR almost certainly didn't cause it; classify it under `new_suspect` / `changed_suspect` with that framing, never as a benign/removable artifact. See `.agents/docs/testing.md` → *`.sql.other` files — direct-vs-remote SQL trace mismatch*.
+   - `unknown` — paths that didn't fit either grammar; flag them as anomalies. **`.sql.other` entries are a special case — never "inert" or removable.** A `.sql.other` file is written by `Tests/Base/BaselinesWriter.cs` when a test's direct (`DataConnection`) and remote (`LinqService`) runs emit *different* SQL for the same provider config; the test then **fails** with *"Baselines for remote context doesn't match direct access baselines"* (the `unknown[]` entry's `reason` says so). Treat every `.sql.other` as a real test failure to root-cause, **except** the known pre-existing Oracle entries tracked as #5513 (remote-mode trace drops scalar `IQueryable<T>` aggregate queries). A `.sql.other` that is new on the branch vs. baselines master — or for a test unrelated to the PR — still warrants surfacing to the maintainer (it must not ship silently) even when the PR almost certainly didn't cause it; classify it under `new_suspect` / `changed_suspect` with that framing, never as a benign/removable artifact. See `.claude/docs/testing.md` → *`.sql.other` files — direct-vs-remote SQL trace mismatch*.
    - `testGroups` — pre-built map `<testBase> → { test, providerCount, entryCount, providers[], entries[] }` grouping every SQL entry by logical test. Use this as the primary grouping key.
    - `changePatterns` — pre-compressed groups of `sql[]` entries sharing a normalised diff body: `[{testBase, patternHash, providerCount, providers[], sampleProvider, samplePath, sampleUrl, sampleStatus, sampleDiff, sampleDiffTruncated, status, sizeMetrics, regressionArchetypes}, ...]`. Sorted by providerCount desc. **Use this as your primary reading surface** — one sample per pattern instead of reading every provider's diff. `sampleUrl` is a GitHub blob URL on the baselines branch (null for deletions); `sampleStatus` is the per-sample git status (`A`/`M`/`D`); `sampleDiff` is the raw diff body truncated per `maxDiffBytes`; `sizeMetrics` is `{addedBytes, removedBytes, netDelta, growthRatio, addedLines, removedLines}` per pattern; `regressionArchetypes` is a string array of archetype names that fired on this pattern (empty when none). The current normaliser is intentionally conservative; it does NOT normalise alias names (beyond short forms like `t_1`), paging syntax, boolean rendering, or many other routine variations.
    - `sizeOutliers` — top-20 patterns by absolute net byte delta (threshold: `|netDelta| ≥ 200` bytes OR `growthRatio ≥ 3.0` or `≤ 0.33`). Each entry mirrors the matching `changePatterns[]` row plus `absNetDelta` for ranking. Surfaces tests whose shape grew or shrank dramatically vs master, including single-provider rare patterns the providerCount-sorted main list hides.
@@ -150,7 +150,7 @@ Rules for `compressionFeedback[]`:
     }
   ],
   "callLog": [
-    { "command": "pwsh -NoProfile -File .agents/scripts/baselines-diff.ps1", "reason": "initial grouping" },
+    { "command": "pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1", "reason": "initial grouping" },
     { "command": "git -C ../linq2db.baselines show origin/baselines/pr_5478:PostgreSQL.13/…sql", "reason": "sampleDiff truncated at 16 KiB, needed full body to rule out anomaly" }
   ]
 }

@@ -45,7 +45,7 @@ doesn't write its own (currently: milestone-audit emits to stdout
 and prefetch redirects it; the other three write their plan files
 directly).
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]
@@ -88,7 +88,7 @@ function Get-PlanPath {
 # Each entry describes one sub-task's pre-fetch invocation. Fields:
 #   key             short identifier — names the plan file slug
 #   label           human-readable name for logging
-#   scriptFile      .ps1 under .agents/scripts/ to invoke
+#   scriptFile      .ps1 under .claude/scripts/ to invoke
 #   chainArgs       array of pre-action argument arrays (PublicAPI runs
 #                   build → discover → plan as three chained invocations)
 #   mainArgs        argument array for the final invocation

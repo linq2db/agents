@@ -1,6 +1,6 @@
 ---
 name: release-test-matrix
-description: Manual test-matrix walkthrough for release prep — LINQPad 5 (.lpx), LINQPad 7+ (nugets), NuGet T4 scaffold (Tests.T4.Nugets), T4 templates (Tests.T4), CLI scaffold, plus the T4 binary prerequisite and per-provider DB init that gate them. Mostly user-driven (Visual Studio is the test runner for T4 templates) but the skill keeps the order straight, surfaces what to check, gates on per-track pass/fail, and accrues "how do I init this provider" / "exact T4 build command" answers into `.agents/docs/release/` for next time. Invoked by `/release` step 4 or directly when running release prep.
+description: Manual test-matrix walkthrough for release prep — LINQPad 5 (.lpx), LINQPad 7+ (nugets), NuGet T4 scaffold (Tests.T4.Nugets), T4 templates (Tests.T4), CLI scaffold, plus the T4 binary prerequisite and per-provider DB init that gate them. Mostly user-driven (Visual Studio is the test runner for T4 templates) but the skill keeps the order straight, surfaces what to check, gates on per-track pass/fail, and accrues "how do I init this provider" / "exact T4 build command" answers into `.claude/docs/release/` for next time. Invoked by `/release` step 4 or directly when running release prep.
 ---
 
 # /release-test-matrix
@@ -22,9 +22,9 @@ description: Manual test-matrix walkthrough for release prep — LINQPad 5 (.lpx
 
 ## Required reading
 
-- [`.agents/docs/release/linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) — accrued LINQPad smoke + targeted-change rows.
-- [`.agents/docs/release/provider-db-init.md`](../../docs/release/provider-db-init.md) — accrued per-provider container + DB-init invocations.
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) — local-nuget-server folder + other user-specific paths.
+- [`.claude/docs/release/linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) — accrued LINQPad smoke + targeted-change rows.
+- [`.claude/docs/release/provider-db-init.md`](../../docs/release/provider-db-init.md) — accrued per-provider container + DB-init invocations.
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — local-nuget-server folder + other user-specific paths.
 
 ## Procedure overview
 
@@ -81,7 +81,7 @@ This is a single gate question, not a workflow. DB2 iSeries provider often lags 
 Record the decision in release state for 4.3 / 4.4 to consume:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 4.2 -Status done -Annotation "DB2 iSeries: <enabled|disabled>"
+pwsh -NoProfile -File .claude/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 4.2 -Status done -Annotation "DB2 iSeries: <enabled|disabled>"
 ```
 
 Configuration knob location for the LINQPad build: ask user on first run, record in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) under **DB2 iSeries toggle**.
@@ -172,7 +172,7 @@ Mirrors every `RunCliTool()` call in `Tests/Tests.T4/Cli/*.tt` and runs them in 
    ```
 2. Dry-run to see the full plan (114 raw rows; ~107 after default skips):
    ```
-   pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 -DryRun
+   pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 -DryRun
    ```
 3. Ask the user about provider availability — at minimum confirm:
    - **Azure / Azure.MI** — skipped by default; only enable if the user has an external Azure SQL DB.
@@ -180,12 +180,12 @@ Mirrors every `RunCliTool()` call in `Tests/Tests.T4/Cli/*.tt` and runs them in 
    - Any docker container the user wants to skip (e.g. `-SkipProviders SapHana,Informix`).
 4. Sanity-check on one row first:
    ```
-   pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 -Templates Default -Providers SQLite
+   pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 -Templates Default -Providers SQLite
    ```
    Confirm exit 0 + zero `git diff` under `Tests/Tests.T4/Cli/Default/SQLite/`.
 5. Run the full matrix:
    ```
-   pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1
+   pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1
    ```
    Defaults: 6 in parallel, 120s per-invocation timeout. Tune via `-Parallelism` / `-TimeoutSec`.
 6. Check generated-file diff across all `Tests/Tests.T4/Cli/<Template>/<Key>/` folders.
@@ -230,7 +230,7 @@ Whenever a step asks the user a question the skill couldn't answer from existing
    - User-specific paths (local nuget server) → [`external-repos.md`](../../docs/release/external-repos.md).
    - Anything not fitting → new section in `linqpad-test-checklist.md`.
 2. After saving, end the turn with:
-   > 📌 Reload session to pick up `.agents/docs/release/` edits before continuing the test matrix.
+   > 📌 Reload session to pick up `.claude/docs/release/` edits before continuing the test matrix.
 3. The user reloads and re-invokes the orchestrator; state resume picks up at the same track.
 
 ## Don'ts

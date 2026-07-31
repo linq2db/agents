@@ -28,7 +28,7 @@ The product lives in `Source/`. Each top-level project is one assembly:
 - **`Source/Shared/`** — shared sources (`JetBrains.Annotations`, `SharedAssemblyInfo`) auto-`Compile`-included into every C# project (`Directory.Build.props:193`). See [SHARED-INTERNAL](../areas/SHARED-INTERNAL/INDEX.md).
 - **`Tests/`** — `Tests/Base/` (harness + provider fixtures), `Tests/Linq/` (per-feature integration tests), `Tests/EntityFrameworkCore/` (per-EF-major tests), `Tests/FSharp/`, `Tests/Tests.T4/`, `Tests/Tests.Benchmarks/`, `Tests/Tests.Playground/`, `Tests/VisualBasic/`, `Tests/Model/` (shared POCOs). See [TESTS-INFRA](../areas/TESTS-INFRA/INDEX.md), [TESTS-LINQ](../areas/TESTS-LINQ/INDEX.md), siblings.
 - **`Build/`** — Azure pipelines (`Build/Azure/pipelines/`), per-TFM provider matrix JSON (`Build/Azure/net100/`, `net80/`, `net90/`, `netfx/`), local docker setup scripts, plus `Directory.Build.props`, `linq2db.slnx`, `global.json`. See [BUILD](../areas/BUILD/INDEX.md).
-- **`.claude/`** — Claude Code instruction corpus (`CLAUDE.md`, agents, skills, scripts, docs). See [AGENTS-INFRA](../areas/AGENTS-INFRA/INDEX.md). The KB itself lives under `.agents/knowledge-base/` and is excluded from indexer scans.
+- **`.claude/`** — Claude Code instruction corpus (`CLAUDE.md`, agents, skills, scripts, docs). See [AGENTS-INFRA](../areas/AGENTS-INFRA/INDEX.md). The KB itself lives under `.claude/knowledge-base/` and is excluded from indexer scans.
 
 ## LINQ → SQL pipeline at a glance
 
@@ -59,7 +59,7 @@ See [query-pipeline.md](query-pipeline.md) for the full narrative with all citat
 - LINQ → SQL pipeline narrative: [query-pipeline.md](query-pipeline.md)
 - Public namespaces and stability commitment: [public-api.md](public-api.md)
 - Per-area indices: under `../areas/<area>/INDEX.md` (produced by step 3)
-- Authoritative design invariants (do not contradict): [`.agents/docs/code-design.md`](../../docs/code-design.md), [`.agents/docs/architecture.md`](../../docs/architecture.md)
+- Authoritative design invariants (do not contradict): [`.claude/docs/code-design.md`](../../docs/code-design.md), [`.claude/docs/architecture.md`](../../docs/architecture.md)
 
 <details><summary>Coverage</summary>
 

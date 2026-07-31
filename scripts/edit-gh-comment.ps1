@@ -17,7 +17,7 @@ get it wrong (motivating session: PR #5467 release-notes-draft PATCH on
 as the comment body). This script does the wrapper construction, the PATCH,
 and a byte-compare verification in one allowlisted call:
 
-    Bash(pwsh -NoProfile -File .agents/scripts/edit-gh-comment.ps1 *)
+    Bash(pwsh -NoProfile -File .claude/scripts/edit-gh-comment.ps1 *)
 
 Contract
 --------

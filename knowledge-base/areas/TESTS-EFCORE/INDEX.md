@@ -29,7 +29,7 @@ The shared `Tests.EntityFrameworkCore.props` (`Tests/EntityFrameworkCore/Tests.E
 
 `#if EF8`-gated source file: `Tests/FSharpTests.cs` -- active only from EF8 onwards.
 
-`AssemblyInfo.TestProgress.cs` -- applies `[assembly: TestProgressReporter]` to all EF csproj variants; opt-in live progress heartbeat for long runs, enabled by the `--test-progress` CLI option (see `.agents/docs/testing.md` -> *Monitoring a long run*; no longer an environment variable -- PR #5621 replaced the earlier `LINQ2DB_TEST_PROGRESS` env-var mechanism).
+`AssemblyInfo.TestProgress.cs` -- applies `[assembly: TestProgressReporter]` to all EF csproj variants; opt-in live progress heartbeat for long runs, enabled by the `--test-progress` CLI option (see `.claude/docs/testing.md` -> *Monitoring a long run*; no longer an environment variable -- PR #5621 replaced the earlier `LINQ2DB_TEST_PROGRESS` env-var mechanism).
 
 ## Subsystems
 

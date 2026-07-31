@@ -21,10 +21,10 @@ This skill is the **PR-author** companion to `/review-pr` and `/verify-review`
 | `/copilot-loop` | PR author | "verify and address copilot comments" |
 
 Shared reference material:
-- **Review orchestration:** `.agents/docs/review-orchestration.md`
-- **GitHub review API:** `.agents/docs/github-review-api.md`
-- **PR-and-push rules:** `.agents/docs/pr-and-push.md`
-- **agent-rules:** `.agents/docs/agent-rules.md`
+- **Review orchestration:** `.claude/docs/review-orchestration.md`
+- **GitHub review API:** `.claude/docs/github-review-api.md`
+- **PR-and-push rules:** `.claude/docs/pr-and-push.md`
+- **agent-rules:** `.claude/docs/agent-rules.md`
 
 ## When to run
 
@@ -74,7 +74,7 @@ rule). Don't silently discard.
 ### 3. Load PR context, identify the latest Copilot review
 
 ```
-pwsh -NoProfile -File .agents/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
 ```
 
 Parse the output (stdout JSON, or its persisted file under
@@ -158,12 +158,12 @@ For each thread in the work list, write one item to
 
 All replies get `resolve: true` except the explicit deferred case.
 
-Manifest shape per `.agents/scripts/post-pr-thread-replies.ps1` header.
+Manifest shape per `.claude/scripts/post-pr-thread-replies.ps1` header.
 
 ### 10. Post replies + resolve
 
 ```
-pwsh -NoProfile -File .agents/scripts/post-pr-thread-replies.ps1 \
+pwsh -NoProfile -File .claude/scripts/post-pr-thread-replies.ps1 \
   -ManifestFile .build/.agents/pr<n>-thread-replies-round<r>.json
 ```
 
@@ -174,7 +174,7 @@ decides whether to retry the failed posts.
 ### 11. Auto-wait for the next Copilot review
 
 ```
-pwsh -NoProfile -File .agents/scripts/wait-for-review.ps1 \
+pwsh -NoProfile -File .claude/scripts/wait-for-review.ps1 \
   -Pr <n> \
   -SinceSubmittedAt <lastReviewSubmittedAt-iso8601> \
   -BotLoginRegex copilot \
@@ -209,8 +209,8 @@ Whatever ends the loop (convergence, timeout, user `Ctrl+C`, error):
 ## Don'ts
 
 - Do not auto-defer findings the agent can't fix. Surface them to the user.
-- Do not commit playground scratch or `.agents/` curation diffs accidentally
-  carried over (per `agent-rules.md` → *Carrying `.agents/` curation*).
+- Do not commit playground scratch or `.claude/` curation diffs accidentally
+  carried over (per `agent-rules.md` → *Carrying `.claude/` curation*).
 - Do not skip the calibration list in step 5 — bots are systematically wrong
   on `PublicAPI.Unshipped.txt` drift and framework-API-removal claims.
 - Do not invent fixes for findings classified as **Inaccurate at HEAD** —

@@ -8,7 +8,7 @@ line. Runs `docker stop <names...>` once for the whole set. Silent no-op
 when the file is missing or empty. Errors go to stderr but never change
 the exit code (Claude Code should not treat cleanup failures as fatal).
 
-Wired in the user's `.agents/settings.local.json` under `hooks.SessionEnd`.
+Wired in the user's `.claude/settings.local.json` under `hooks.SessionEnd`.
 #>
 
 $ErrorActionPreference = 'Continue'

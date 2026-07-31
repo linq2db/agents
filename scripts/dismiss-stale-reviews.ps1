@@ -2,14 +2,14 @@
 dismiss-stale-reviews.ps1 — dismiss lingering CHANGES_REQUESTED reviews on a PR
 after follow-up commits addressed them (when GitHub's auto-dismissal didn't fire).
 
-Codifies .agents/docs/pr-and-push.md -> "Stale CHANGES_REQUESTED reviews after
+Codifies .claude/docs/pr-and-push.md -> "Stale CHANGES_REQUESTED reviews after
 follow-up commits". Finds the numeric REST review ids (GraphQL ids don't work for
 the PUT) and dismisses each with a non-empty message (empty -> HTTP 422). GLUE
 ONLY — dismissing is a visible action on someone else's review, so the
 ask-the-user gate stays with the agent/skill; run this only after confirmation.
 
-  pwsh -NoProfile -File .agents/scripts/dismiss-stale-reviews.ps1 -Pr 5503
-  pwsh -NoProfile -File .agents/scripts/dismiss-stale-reviews.ps1 -Pr 5503 -DryRun
+  pwsh -NoProfile -File .claude/scripts/dismiss-stale-reviews.ps1 -Pr 5503
+  pwsh -NoProfile -File .claude/scripts/dismiss-stale-reviews.ps1 -Pr 5503 -DryRun
 #>
 param(
     [Parameter(Mandatory)][int]$Pr,

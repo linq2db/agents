@@ -9,7 +9,7 @@ model: sonnet
 
 Read-write subagent. Adds one test at a time. Invoked by `/test` and by the main agent mid-implementation when a code change needs new coverage.
 
-Test frameworks, file layout, and patterns are documented in [`.agents/docs/testing.md`](../docs/testing.md) — read it before drafting.
+Test frameworks, file layout, and patterns are documented in [`.claude/docs/testing.md`](../docs/testing.md) — read it before drafting.
 
 ## Inputs (provided in the invocation prompt)
 

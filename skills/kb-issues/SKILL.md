@@ -1,6 +1,6 @@
 ---
 name: kb-issues
-description: Query and act on the detected-issues store under .agents/knowledge-base/detected-issues/. Filter via the shared selection grammar (random N, by area, severity, category, source, file, status). Per-result actions include showing detail, creating a GitHub issue (delegates to /create-issue), driving /fix-issue, marking wontfix / duplicate / dismissed / triaged.
+description: Query and act on the detected-issues store under .claude/knowledge-base/detected-issues/. Filter via the shared selection grammar (random N, by area, severity, category, source, file, status). Per-result actions include showing detail, creating a GitHub issue (delegates to /create-issue), driving /fix-issue, marking wontfix / duplicate / dismissed / triaged.
 ---
 
 # /kb-issues
@@ -26,7 +26,7 @@ Only when the user explicitly invokes `/kb-issues`. Typical prompts:
 
 ## Pre-conditions
 
-- `.agents/knowledge-base/detected-issues/index.json` exists (`/kb-build` step 10 has run at least once). If not, print "No detected issues yet — run /kb-build (step 10) or /kb-refresh first" and exit.
+- `.claude/knowledge-base/detected-issues/index.json` exists (`/kb-build` step 10 has run at least once). If not, print "No detected issues yet — run /kb-build (step 10) or /kb-refresh first" and exit.
 
 ## Steps
 
@@ -48,7 +48,7 @@ Special quick-form: a bare `all` filters to `status: open` by default (most comm
 # Read directly via Read tool
 ```
 
-Read `.agents/knowledge-base/detected-issues/index.json`.
+Read `.claude/knowledge-base/detected-issues/index.json`.
 
 Apply the filter:
 - IDs / ranges → exact match on `id`.
@@ -95,7 +95,7 @@ If > 5 items selected for a write action, ask `Apply <action> to <N> items? [y/N
 
 #### `d` — Detail
 
-For each selected ID, `Read` `.agents/knowledge-base/detected-issues/items/<id>.md` and print the content. After printing, return to the action prompt for the same selection.
+For each selected ID, `Read` `.claude/knowledge-base/detected-issues/items/<id>.md` and print the content. After printing, return to the action prompt for the same selection.
 
 #### `g` — Create GH issue
 
@@ -104,11 +104,11 @@ For each selected item:
 1. Skip if `gh_issue` already populated; surface `Already linked to gh#<N>`.
 2. Read `items/<id>.md` to get the body. Construct a `/create-issue` invocation prompt:
    - **Title**: the issue's `title` field, prefixed with the area code: `[<area>] <title>`.
-   - **Body**: the item's `## Pattern matched`, `## Why it matters`, `## Suggested fix`, `## Excerpt` sections, plus a footer `_Generated from KB detected-issue [DI-NNNN](.agents/knowledge-base/detected-issues/items/DI-NNNN.md)_`.
+   - **Body**: the item's `## Pattern matched`, `## Why it matters`, `## Suggested fix`, `## Excerpt` sections, plus a footer `_Generated from KB detected-issue [DI-NNNN](.claude/knowledge-base/detected-issues/items/DI-NNNN.md)_`.
 3. Delegate to `/create-issue` (the user-facing skill). Wait for completion — `/create-issue` will return the new issue number.
 4. After success, update the KB:
    ```bash
-   pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+   pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
    {"op":"apply-fences","agentOutput":"=== KB-INDEXER OUTPUT v1 ===\n=== INDEX-PATCH: detected-issues/index.json ===\n{\"op\":\"update\",\"id\":\"<DI-id>\",\"patch\":{\"status\":\"accepted\",\"gh_issue\":<N>}}\n=== END INDEX-PATCH ===\n=== END KB-INDEXER OUTPUT ===","currentSha":"<sha>"}
    EOF
    ```
@@ -176,7 +176,7 @@ For any write action affecting > 5 items, the confirmation prompt is mandatory. 
 Every status change made via this skill appends to `state/audit-log.md`:
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "append-audit", "event": "kb-issues triage", "lines": [
   "DI-0042 → wontfix (reason: ...)",
   "DI-0099 → accepted (#5512)"

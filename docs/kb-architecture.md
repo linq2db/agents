@@ -1,11 +1,11 @@
 # Knowledge base architecture
 
-Reference for the persistent knowledge base under `.agents/knowledge-base/`. Auto-imported by every `kb-*` skill and every KB indexer agent. Skills do not restate this file — they reference it.
+Reference for the persistent knowledge base under `.claude/knowledge-base/`. Auto-imported by every `kb-*` skill and every KB indexer agent. Skills do not restate this file — they reference it.
 
 ## Directory layout
 
 ```
-.agents/knowledge-base/
+.claude/knowledge-base/
   README.md                              # what's here, how to read, how to (re)build
   glossary.md                            # domain terminology
   state/

@@ -2,14 +2,14 @@
 close-stale-baselines.ps1 — close the stale baselines PR for a linq2db PR and
 delete its branch, then prune the local baselines clone.
 
-Codifies .agents/docs/pr-and-push.md -> "After test renames / moves / deletes:
+Codifies .claude/docs/pr-and-push.md -> "After test renames / moves / deletes:
 clean up stale baselines" (also the CONFLICTING-baselines case). GLUE ONLY — the
 TRIGGER decision (a follow-up actually renamed/moved/deleted a test, or master
 moved and the baselines PR went CONFLICTING) and the user go-ahead for this
 destructive action on a sibling repo stay with the agent/skill.
 
-  pwsh -NoProfile -File .agents/scripts/close-stale-baselines.ps1 -Pr 5503
-  pwsh -NoProfile -File .agents/scripts/close-stale-baselines.ps1 -Pr 5503 -DryRun
+  pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr 5503
+  pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr 5503 -DryRun
 
 Resolves the baselines PR on linq2db.baselines keyed to head `baselines/pr_<n>`,
 closes it with an explanatory comment, deletes the branch ref (treating an

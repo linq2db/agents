@@ -24,7 +24,7 @@ Layout (mirrored from CLI.ttinclude + each `<Template>.tt`):
 Default behaviour:
 
   1. RepoRoot defaults to the script's `..\..` (two levels up from
-     `.agents/scripts/`), i.e. the repo containing this `.agents` folder.
+     `.claude/scripts/`), i.e. the repo containing this `.claude` folder.
      Override with `-RepoRoot` when running from a different worktree.
   2. CliDll defaults to `<RepoRoot>/.build/publish/LinqToDB.CLI/Debug/net9.0/win-x64/dotnet-linq2db.dll`.
      The script does NOT build the CLI — caller must have a successful
@@ -53,18 +53,18 @@ Parameters:
 Usage:
 
   # Dry-run the full matrix.
-  pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 -DryRun
+  pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 -DryRun
 
   # Sanity check on SQLite only (no docker).
-  pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 `
+  pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 `
        -Templates Default -Providers SQLite
 
   # Skip extra providers (no SapHana running).
-  pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 `
+  pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 `
        -SkipProviders SqlServer.Azure,SqlServer.Azure.MI,SapHana,SqlCe
 
   # Run full matrix, machine-readable result.
-  pwsh -NoProfile -File .agents/scripts/release-test-cli-scaffold.ps1 -OutputJson
+  pwsh -NoProfile -File .claude/scripts/release-test-cli-scaffold.ps1 -OutputJson
 #>
 
 param(
@@ -83,7 +83,7 @@ $ErrorActionPreference = 'Stop'
 
 # --- Defaults derived from script location ------------------------------------------------------
 if (-not $RepoRoot) {
-    # Script is at <repo>/.agents/scripts/release-test-cli-scaffold.ps1
+    # Script is at <repo>/.claude/scripts/release-test-cli-scaffold.ps1
     $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 }
 if (-not $CliDll) {

@@ -13,7 +13,7 @@ Shared resolver for `/review-pr` and `/verify-review`. Takes a single user-suppl
 
 Try in order, stop at the first match.
 
-1. **PR number or URL.** Extract the number. **Do not** run `gh pr view` here — the caller's subsequent `pr-context.ps1` call (per `.agents/docs/pr-context-prep.md` → *Context load*) returns full PR metadata (`title`, `body`, `baseRefName`, `headRefName`, `milestone`, `labels`, `state`, `isDraft`, `url`, etc.) as part of its main load, so an extra `gh pr view` is redundant and just costs a permission prompt.
+1. **PR number or URL.** Extract the number. **Do not** run `gh pr view` here — the caller's subsequent `pr-context.ps1` call (per `.claude/docs/pr-context-prep.md` → *Context load*) returns full PR metadata (`title`, `body`, `baseRefName`, `headRefName`, `milestone`, `labels`, `state`, `isDraft`, `url`, etc.) as part of its main load, so an extra `gh pr view` is redundant and just costs a permission prompt.
 
 2. **Issue / task number.** Find PRs that reference it.
    ```

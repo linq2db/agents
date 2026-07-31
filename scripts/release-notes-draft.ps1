@@ -50,7 +50,7 @@ Actions
                     { missingDraft[]: { pr, title, url },
                       missingWiki[]:  { pr, title, url, hasDraft, omit } }
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 Marker scheme mirrors `release-state.ps1` (start/end + machine block).
 #>
 
@@ -528,7 +528,7 @@ function Do-ApplyWiki {
     if (-not $ver) { Exit-WithError 'manifest.version (or -Version) required' }
     $clone = if ($m.wikiClone) { [string]$m.wikiClone } elseif ($WikiClone) { $WikiClone } else { Exit-WithError 'manifest.wikiClone (or -WikiClone) required' }
     if (-not (Test-Path -LiteralPath $clone)) {
-        Exit-WithError "wiki clone not found at '$clone' — clone it once (on Windows use the no-checkout + sparse-checkout recipe in .agents/docs/release/external-repos.md; a plain 'git clone' fails on the colon-named wiki page)"
+        Exit-WithError "wiki clone not found at '$clone' — clone it once (on Windows use the no-checkout + sparse-checkout recipe in .claude/docs/release/external-repos.md; a plain 'git clone' fails on the colon-named wiki page)"
     }
     $page = if ($m.page) { [string]$m.page } else { 'Releases-and-Roadmap.md' }
     $pagePath = Join-Path $clone $page

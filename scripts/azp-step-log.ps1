@@ -23,8 +23,8 @@ take that record's log.url from the JSON and fetch it directly.
 
 Invoke directly via the PowerShell tool (preferred), NOT wrapped in Bash:
 
-    .agents\scripts\azp-step-log.ps1 -BuildId 22116 -StepName 'RAM disk'
-    .agents\scripts\azp-step-log.ps1 -BuildId 22116 -StepName 'RAM disk' -WriteDir .build/.agents/azp-22116
+    .claude\scripts\azp-step-log.ps1 -BuildId 22116 -StepName 'RAM disk'
+    .claude\scripts\azp-step-log.ps1 -BuildId 22116 -StepName 'RAM disk' -WriteDir .build/.agents/azp-22116
 
 Output: single JSON document on stdout with the matched steps' name / state /
 result and on-disk log paths. Grep the persisted log for the content you need.

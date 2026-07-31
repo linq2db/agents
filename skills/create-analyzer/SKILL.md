@@ -5,7 +5,7 @@ description: Scaffold a new user-facing Roslyn analyzer (and optional code fix) 
 
 # create-analyzer
 
-Scaffolds a new rule in the `linq2db.Analyzers` package. The package's structure, conventions, and gotchas are the source of truth in [`.agents/docs/authoring-analyzers.md`](../../docs/authoring-analyzers.md) — read it first; this skill only wires up the boilerplate consistently.
+Scaffolds a new rule in the `linq2db.Analyzers` package. The package's structure, conventions, and gotchas are the source of truth in [`.claude/docs/authoring-analyzers.md`](../../docs/authoring-analyzers.md) — read it first; this skill only wires up the boilerplate consistently.
 
 ## When to run
 
@@ -30,4 +30,4 @@ When the user asks to add a new user-facing analyzer/code-fix rule. If the `Sour
 
 7. **Dogfood.** After the unit fixtures pass, run [`/dogfood-analyzer <id>`](../dogfood-analyzer/SKILL.md) over `Tests/Linq` (the richest real corpus) to validate report mode (no crash / no false positives / no missed sites) and, if there's a code fix, code-fix mode (compiles / trivia preserved / **every** convertible site applied / skips justified). Resolve findings before proposing the PR — dogfooding catches defects unit fixtures miss (the `BatchFixer` under-application on #5703), and a same-cause bailout cluster is a signal to add a default-off opt-in option (step 3).
 
-Do **not** commit — commits require an explicit user request (`.agents/docs/agent-rules.md` → Git commit rules).
+Do **not** commit — commits require an explicit user request (`.claude/docs/agent-rules.md` → Git commit rules).

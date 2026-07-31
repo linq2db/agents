@@ -22,7 +22,7 @@ measurement — `mismatches` is 0 exactly when nothing but identifiers moved.
 
 Invocation
 ----------
-    pwsh -NoProfile -File .agents/scripts/baselines-pr-scan.ps1 -Pr 5733
+    pwsh -NoProfile -File .claude/scripts/baselines-pr-scan.ps1 -Pr 5733
 
 Parameters
 ----------
@@ -66,7 +66,7 @@ delta is NOT name-only, and `mismatchSamples` shows the first few.
 
 Note: comparisons are Ordinal throughout. A case-only rename (`@Usage` ->
 `@usage`) is a real rename and PowerShell's default case-insensitive `-ne`
-would silently drop it — see `.agents/docs/script-authoring.md` → Gotchas.
+would silently drop it — see `.claude/docs/script-authoring.md` → Gotchas.
 #>
 
 [CmdletBinding()]

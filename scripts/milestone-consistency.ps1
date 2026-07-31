@@ -33,8 +33,8 @@ Actions
            Out: { ok, pr, milestone, results[]: { issue, from, to, ok },
                   skipped[]: { issue, from, relation, milestoneState, reason } }
 
-Conventions: `.agents/docs/script-authoring.md`,
-`.agents/docs/github-authoring.md` (PATCH-verify, numeric-id milestone).
+Conventions: `.claude/docs/script-authoring.md`,
+`.claude/docs/github-authoring.md` (PATCH-verify, numeric-id milestone).
 #>
 
 [CmdletBinding()]

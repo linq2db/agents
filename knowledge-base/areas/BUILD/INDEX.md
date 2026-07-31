@@ -238,9 +238,9 @@ Instructs Copilot to ignore intentional formatting differences (column-aligned c
 ## See also
 
 - [architecture overview](../../architecture/overview.md)
-- [CLAUDE.md](../../../../CLAUDE.md) -- build commands reference
-- `.agents/docs/testing.md`
-- `.agents/docs/ci-tests.md`
+- [CLAUDE.md](../../../CLAUDE.md) -- build commands reference
+- `.claude/docs/testing.md`
+- `.claude/docs/ci-tests.md`
 
 <details><summary>Coverage</summary>
 

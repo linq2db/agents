@@ -1,4 +1,4 @@
-# Authoring scripts under `.agents/scripts/`
+# Authoring scripts under `.claude/scripts/`
 
 When and *whether* to reach for a script lives in [agent-rules.md](agent-rules.md) → *PowerShell Core scripts for complex operations*. This doc covers how to write one once you've decided to.
 
@@ -20,7 +20,7 @@ When and *whether* to reach for a script lives in [agent-rules.md](agent-rules.m
   - **Structured / nested inputs (arrays of files, hunks, comments):** accept a `-ManifestFile <path>` parameter and read the JSON via the shared `Read-ManifestFromFileOrStdin` helper. Caller writes the manifest to `.build/.agents/<script>-<id>.json`, then invokes `pwsh -NoProfile -File <path> -ManifestFile <json>`.
   - **Stdin JSON** (legacy): keep accepting it for shell heredoc callers and pre-existing flows. New scripts should not require it.
 - Common helpers live in `_shared.ps1`, dot-sourced at the top of each script (`. "$PSScriptRoot/_shared.ps1"`). Use `Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile` for the structured-input pattern — it falls back to stdin when the parameter is empty.
-- Invoke as `pwsh -NoProfile -File .agents/scripts/<name>.ps1 -<Param> <value>` from Bash. `-NoProfile` skips user profile load (faster startup, no side effects).
+- Invoke as `pwsh -NoProfile -File .claude/scripts/<name>.ps1 -<Param> <value>` from Bash. `-NoProfile` skips user profile load (faster startup, no side effects).
 - Do not write scratch files unless the manifest asks for one. When a caller needs to stream a large body into the script, accept either an inline field (`"body"`) or a file path (`"bodyFile"`) and resolve it server-side.
 - Fan-out parallelism inside a script uses `Start-ThreadJob` or `ForEach-Object -Parallel` — both require PowerShell 7+ and run independent subprocess invocations without adding any Bash-call cost to the caller.
 - **Resolve DB connection strings from config — never hardcode them.** A committed script that needs a provider connection string looks it up **by name** from `DataProviders.json` / `UserDataProviders.json` (walk `MyConnectionStrings` → `LocalConnectionStrings` → `CommonConnectionStrings`, exactly as `release-test-cli-scaffold.ps1`'s `CN()` helper does), rather than inlining a server / port / password. File-DB providers (SQLite / DuckDB / Access) may compose their `Data Source=` path in-script — that's a repo-relative file path, not a secret. (Corrected on #1553: `Tests/FSharp.Scaffold/generate.ps1` hardcoded the PostgreSQL / SQL Server strings.)

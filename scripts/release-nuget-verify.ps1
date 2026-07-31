@@ -31,7 +31,7 @@ Re-run is idempotent — packages can take minutes to appear on
 nuget.org after CI publishes. The script does not poll/wait;
 caller's responsibility (orchestrator) to re-invoke.
 
-Conventions: `.agents/docs/script-authoring.md`.
+Conventions: `.claude/docs/script-authoring.md`.
 #>
 
 [CmdletBinding()]

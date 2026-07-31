@@ -27,18 +27,18 @@ User-invoked. Good moments:
 
 Read these once at start (not on every re-entry):
 
-- [`.agents/docs/release/overview.md`](../../docs/release/overview.md) — high-level layout + cross-links.
-- [`.agents/docs/release/branch-and-pr.md`](../../docs/release/branch-and-pr.md) — branch name + PR body conventions.
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) — sibling clone paths (linq2db.docs, linq2db.baselines), wiki page names, GitHub release template anchor.
-- [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Creating a new branch**, **Git commit rules**, **Push to remote rules**, **Pull request rules**.
+- [`.claude/docs/release/overview.md`](../../docs/release/overview.md) — high-level layout + cross-links.
+- [`.claude/docs/release/branch-and-pr.md`](../../docs/release/branch-and-pr.md) — branch name + PR body conventions.
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — sibling clone paths (linq2db.docs, linq2db.baselines), wiki page names, GitHub release template anchor.
+- [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Creating a new branch**, **Git commit rules**, **Push to remote rules**, **Pull request rules**.
 
 ## Procedure
 
 ### 0. Session-reload notice
 
-Whenever this skill or any sub-skill instructs the user to edit `.agents/` (record a new package rule, add a provider init step, add an external-repo path, etc.), the turn must end with:
+Whenever this skill or any sub-skill instructs the user to edit `.claude/` (record a new package rule, add a provider init step, add an external-repo path, etc.), the turn must end with:
 
-> 📌 Reload session to pick up `.agents/` edits before continuing.
+> 📌 Reload session to pick up `.claude/` edits before continuing.
 
 Same applies whenever a new sub-skill is added or an existing one materially changes during the interactive build-out of this skill set.
 
@@ -82,7 +82,7 @@ Offer pre-fetch when at least two of tasks 1/2/3/5 are still `open`:
 On `yes`:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-prefetch.ps1 -Action discover-all -Version <ver> -Milestone <ver> -PrepPR <n> -SkipFresh
+pwsh -NoProfile -File .claude/scripts/release-prefetch.ps1 -Action discover-all -Version <ver> -Milestone <ver> -PrepPR <n> -SkipFresh
 ```
 
 The script's output shows per-task `status` (`ok` / `cached` / `error`) and elapsed time. Surface failures to the user — a script error here is a real issue (build broke, gh auth lapsed, etc.) and blocks the next phase.
@@ -92,7 +92,7 @@ The script's output shows per-task `status` (`ok` / `cached` / `error`) and elap
 **Status probe.** To inspect what's cached without re-fetching:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-prefetch.ps1 -Action status -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-prefetch.ps1 -Action status -Version <ver>
 ```
 
 Returns per-task `exists` / `ageMinutes` / `sizeBytes`. Useful when resuming a session and deciding whether a fresh pre-fetch is worth the wall-clock vs. running tasks one-at-a-time.
@@ -127,7 +127,7 @@ Status tokens: `[ ]` open · `[x]` done · `[~]` in progress · `[-]` user-skipp
 
 For each user pick (or the "next recommended" task):
 
-1. **CI probe.** Before dispatching, call `release-state.ps1 -Action ci-probe -Version <ver> -PrepPR <n>`. The probe runs `gh pr checks <n> --json name,status,conclusion,detailsUrl` and diffs run IDs against `state.ci.lastReportedRunIds[]`. On a **new** failed/cancelled run, fetch top-of-log via `pwsh -NoProfile -File .agents/scripts/azp-build-failures.ps1 -BuildId <buildId>` and surface a compact summary (job name + first failing test/build error). User must acknowledge ("noted" / "investigate" / "ignore for now") before continuing — `release-state.ps1 -Action ci-ack` records the run IDs as reported.
+1. **CI probe.** Before dispatching, call `release-state.ps1 -Action ci-probe -Version <ver> -PrepPR <n>`. The probe runs `gh pr checks <n> --json name,status,conclusion,detailsUrl` and diffs run IDs against `state.ci.lastReportedRunIds[]`. On a **new** failed/cancelled run, fetch top-of-log via `pwsh -NoProfile -File .claude/scripts/azp-build-failures.ps1 -BuildId <buildId>` and surface a compact summary (job name + first failing test/build error). User must acknowledge ("noted" / "investigate" / "ignore for now") before continuing — `release-state.ps1 -Action ci-ack` records the run IDs as reported.
 
 2. **Invoke sub-skill.** Map the pick to the right skill:
 
@@ -185,18 +185,18 @@ Before every push:
 3. After the push, ask: "re-trigger `/azp run test-all`?"
    - Default **yes, re-trigger** if user is mid-other-prep and CI was already in flight.
    - Default **no** if the just-pushed change was non-functional (whitespace, comment, doc-only).
-4. On `yes`, dispatch via `.agents/scripts/azp-run.ps1` (see [`ci-tests.md`](../../docs/ci-tests.md)) targeting `test-all` on the prep PR.
+4. On `yes`, dispatch via `.claude/scripts/azp-run.ps1` (see [`ci-tests.md`](../../docs/ci-tests.md)) targeting `test-all` on the prep PR.
 
 Same rule applies to force-pushes after rebase.
 
 ## First-run docs
 
-Every sub-skill that hits an unknown (new package without a known release-notes URL, new provider without a recorded DB-init invocation, new external-repo path) writes the user-provided answer to the corresponding `.agents/docs/release/<topic>.md` and ends the turn with the session-reload notice from step 0. This is how the skill set learns across releases.
+Every sub-skill that hits an unknown (new package without a known release-notes URL, new provider without a recorded DB-init invocation, new external-repo path) writes the user-provided answer to the corresponding `.claude/docs/release/<topic>.md` and ends the turn with the session-reload notice from step 0. This is how the skill set learns across releases.
 
 ## Don'ts
 
 - Do not run any sub-skill's work inline. The contract is that each sub-skill owns its own approval gates.
 - Do not auto-commit, auto-push, auto-merge, auto-tag, auto-publish. Every shared-state mutation needs an explicit user request (per `agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**).
 - Do not silently skip a checklist item. Every `[-]` skip needs the user's explicit "skip this".
-- Do not edit `.agents/` files committed on the `release-prep/<ver>` branch. `.agents/` changes always live on `infra/agents-curation` per `agent-rules.md` → **Carrying `.agents/` curation across branch switches**. The orchestrator surfaces this rule whenever it switches branches.
+- Do not edit `.claude/` files committed on the `release-prep/<ver>` branch. `.claude/` changes always live on `infra/agents-curation` per `agent-rules.md` → **Carrying `.claude/` curation across branch switches**. The orchestrator surfaces this rule whenever it switches branches.
 - Do not assume `/version-bump`'s default `infra/bump-versions` branch is the right target during release prep — it's not. Run the edit logic on `release-prep/<ver>` directly (step 1a).

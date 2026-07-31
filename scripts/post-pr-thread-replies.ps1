@@ -23,7 +23,7 @@ draft review on the same PR, every reply here fails with HTTP 422
 `user_id can only have one pending review per pull request`. When a run both posts
 a draft review (post-pr-review.ps1) and disposes threads, call THIS script FIRST,
 before creating the draft. If the draft already exists, post replies only after the
-user submits it. See .agents/docs/review-orchestration.md -> submit-all mode.
+user submits it. See .claude/docs/review-orchestration.md -> submit-all mode.
 
 Contract
 --------
@@ -33,7 +33,7 @@ Input — two forms (preferred first)
 
 (1) Manifest file (preferred — single allowlist-friendly command line):
 
-      pwsh -NoProfile -File .agents/scripts/post-pr-thread-replies.ps1 -ManifestFile .build/.agents/pr5503-thread-replies.json
+      pwsh -NoProfile -File .claude/scripts/post-pr-thread-replies.ps1 -ManifestFile .build/.agents/pr5503-thread-replies.json
 
     The manifest file contains exactly the same JSON shape as the stdin form below.
 

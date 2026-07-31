@@ -2,7 +2,7 @@
 kb-usage-audit.ps1 — Knowledge-base *consultation* audit.
 
 Parses Claude Code session transcripts and reports how often the knowledge
-base under `.agents/knowledge-base/` is actually consulted during work, as
+base under `.claude/knowledge-base/` is actually consulted during work, as
 distinct from being built/refreshed. Authoritative + retroactive: it reads the
 real tool-call records, so it is immune to the injected CLAUDE.md / skill-list
 prose that mentions "knowledge-base" / "/kb-ask" in every session.
@@ -22,10 +22,10 @@ Classification per session:
   none        — neither.
 
 Usage:
-  pwsh -NoProfile -File .agents/scripts/kb-usage-audit.ps1
-  pwsh -NoProfile -File .agents/scripts/kb-usage-audit.ps1 -Json
-  pwsh -NoProfile -File .agents/scripts/kb-usage-audit.ps1 -Since 2026-04-01
-  pwsh -NoProfile -File .agents/scripts/kb-usage-audit.ps1 -TranscriptDir <path>
+  pwsh -NoProfile -File .claude/scripts/kb-usage-audit.ps1
+  pwsh -NoProfile -File .claude/scripts/kb-usage-audit.ps1 -Json
+  pwsh -NoProfile -File .claude/scripts/kb-usage-audit.ps1 -Since 2026-04-01
+  pwsh -NoProfile -File .claude/scripts/kb-usage-audit.ps1 -TranscriptDir <path>
 
 Default output is a human-readable text report. -Json emits a single JSON
 object (consumed by the /kb-status skill). Nothing is written to disk.

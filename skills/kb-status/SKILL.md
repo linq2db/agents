@@ -18,7 +18,7 @@ Prints a compact dashboard of the KB's current state. Read-only — never modifi
 ### 1. Pull state summary
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-state.ps1 <<'EOF'
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 {"op": "summary"}
 EOF
 ```
@@ -56,7 +56,7 @@ retroactive view comes from the transcript scanner (parses real tool-call
 records, immune to the injected prose that mentions the KB in every session):
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/kb-usage-audit.ps1 -Json
+pwsh -NoProfile -File .claude/scripts/kb-usage-audit.ps1 -Json
 ```
 
 Returns `{totalSessions, maintenance, nonMaintenance, consulted, consultedPctOfNonMaint, mechanism:{askSkill,research,search,directRead}, lastConsult, topAreas[], byMonth[]}`. A session is *consulted* if it ran `/kb-ask`/`/kb-issues`, spawned `kb-research`, ran `kb-search`, or (in a non-maintenance session) read a KB file.

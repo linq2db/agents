@@ -76,7 +76,7 @@ Fix: <fix>
 Invoke in one Bash call:
 
 ```
-pwsh -NoProfile -File .agents/scripts/post-pr-review.ps1 -ManifestScript .build/.agents/pr<n>-manifest.ps1
+pwsh -NoProfile -File .claude/scripts/post-pr-review.ps1 -ManifestScript .build/.agents/pr<n>-manifest.ps1
 ```
 
 ### Manifest-to-finding mapping

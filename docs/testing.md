@@ -86,8 +86,8 @@ A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.jso
 Read the heartbeat directly, or with the summary helper (the `/test-progress` skill reports the latest run):
 
 ```bash
-pwsh -NoProfile -File .agents/scripts/test-status.ps1          # newest run, one-line summary
-pwsh -NoProfile -File .agents/scripts/test-status.ps1 -Raw     # dump the raw JSON
+pwsh -NoProfile -File .claude/scripts/test-status.ps1          # newest run, one-line summary
+pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw     # dump the raw JSON
 ```
 
 **Caveat:** under a `--filter`, `total` reflects the *discovered* (pre-filter) test count, so it over-counts and `etaSec` is unreliable; `total`/`etaSec` are exact only for full, unfiltered runs (the case this is built for). `completed` and `currentTest` are always accurate.
@@ -99,7 +99,7 @@ Tests run against multiple database providers. Configuration comes from `UserDat
 2. This gives you SQLite-based testing out of the box.
 3. Add connection strings for other databases as needed.
 
-After the file exists, `/test-providers` is the supported way to enable / disable providers per TFM bucket and to start the docker containers behind them. `/test` reads the resulting state but never edits it — see [`.agents/skills/test-providers/SKILL.md`](../skills/test-providers/SKILL.md).
+After the file exists, `/test-providers` is the supported way to enable / disable providers per TFM bucket and to start the docker containers behind them. `/test` reads the resulting state but never edits it — see [`.claude/skills/test-providers/SKILL.md`](../skills/test-providers/SKILL.md).
 
 **For a single run, prefer `--provider` over editing the `Providers` array** — it runs exactly the named providers (any with a connection string defined) without touching the file; see *Scoping a run to specific providers* below. Editing `UserDataProviders.json` is for changing the **default** set (used when no `--provider` is passed), connection strings, and `BaselinesPath`.
 

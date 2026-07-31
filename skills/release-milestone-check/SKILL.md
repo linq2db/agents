@@ -26,14 +26,14 @@ description: Pre-release milestone audit. Confirms there are no open issues or P
 
 ## Required reading
 
-- [`.agents/docs/pr-and-push.md`](../../docs/pr-and-push.md) → **When follow-up commits rename / move / delete tests, close the existing baselines PR**.
+- [`.claude/docs/pr-and-push.md`](../../docs/pr-and-push.md) → **When follow-up commits rename / move / delete tests, close the existing baselines PR**.
 
 ## Procedure
 
 ### 1. Run the audit
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-milestone-audit.ps1 -Action audit -Milestone <ver> [-PrepPR <n>]
+pwsh -NoProfile -File .claude/scripts/release-milestone-audit.ps1 -Action audit -Milestone <ver> [-PrepPR <n>]
 ```
 
 The script:
@@ -88,7 +88,7 @@ User can pick `merge <n>` or `close <n>`. User runs the action themselves:
 For each merged milestone PR (the `mergedPRs[]` from step 1), check that the issues it closes share its milestone:
 
 ```
-pwsh -NoProfile -File .agents/scripts/milestone-consistency.ps1 -Action check -Pr <n>
+pwsh -NoProfile -File .claude/scripts/milestone-consistency.ps1 -Action check -Pr <n>
 ```
 
 Collect the `laggards[]` across all merged PRs into one list. Each laggard carries `relation` + `likelyIntentional`: a laggard whose issue sits on an **earlier or already-closed** milestone (`likelyIntentional: true`) is a legitimate cross-milestone case — the fix shipped in a past release and this PR is a follow-up such as a test-enable (e.g. #5559 closing #4783, fixed back in 6.2.0). Don't reassign those (it would corrupt the historical milestone); `assign` skips them by default. For the remaining laggards (`relation: none`/`later`), **propose** assigning the PR's milestone and, on user confirmation, run `-Action assign -Pr <n>` (REST PATCH by numeric milestone id; verifies after; `-IncludeReleased` overrides the skip if you truly mean to move a released-milestone issue). Milestone is metadata, but the change is visible — propose, then confirm. (Same helper runs from `/review-pr` on discrepancy and from the on-merge flow in [`pr-and-push.md`](../../docs/pr-and-push.md).)
@@ -102,7 +102,7 @@ PRs merged by the user without the agent have no release-notes draft and no wiki
 If after user actions both lists are empty:
 
 ```
-pwsh -NoProfile -File .agents/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 3 -Status done -Annotation "<N items resolved>"
+pwsh -NoProfile -File .claude/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 3 -Status done -Annotation "<N items resolved>"
 ```
 
 If anything remains open after the user's intended actions but those actions haven't completed yet (e.g. user said `merge` but hasn't merged): keep task 3 `in-progress`, not `done`. The orchestrator re-runs `/release-milestone-check` on next dispatch to verify.

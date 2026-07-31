@@ -22,8 +22,8 @@ description: Post-release-merge tasks. Verifies every expected linq2db nuget pub
 
 ## Required reading
 
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) — linq2db.docs path + GitHub release template anchor (`v6.0.0`).
-- [`.agents/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) — exact `gh release create` invocation, exact docs PR submodule sync command (first-run-confirmable).
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — linq2db.docs path + GitHub release template anchor (`v6.0.0`).
+- [`.claude/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) — exact `gh release create` invocation, exact docs PR submodule sync command (first-run-confirmable).
 
 ## Phase state
 
@@ -46,7 +46,7 @@ CI builds and publishes nugets on the release-branch merge. Packages can take **
 Action:
 1. Run the verifier:
    ```
-   pwsh -NoProfile -File .agents/scripts/release-nuget-verify.ps1 -Action verify -Version <ver>
+   pwsh -NoProfile -File .claude/scripts/release-nuget-verify.ps1 -Action verify -Version <ver>
    ```
    The script:
    - Discovers packable projects under `Source/` and `NuGet/` — every csproj that isn't `<IsPackable>false</IsPackable>`. Dedupes by `<PackageId>` (or filename fallback) — EF variants share an ID.

@@ -169,7 +169,7 @@ No dependency on `SQL-PROVIDER` builder/optimizer classes -- the AST is the *bot
 - [`areas/SQL-PROVIDER/INDEX.md`](../SQL-PROVIDER/INDEX.md) -- primary consumer.
 - [`areas/EXPR-TRANS/INDEX.md`](../EXPR-TRANS/INDEX.md) -- primary producer.
 - [`areas/LINQ/INDEX.md`](../LINQ/INDEX.md) -- query-execution layer.
-- `.agents/docs/code-design.md` -> "SQL AST types live in `LinqToDB.Internal.SqlQuery`".
+- `.claude/docs/code-design.md` -> "SQL AST types live in `LinqToDB.Internal.SqlQuery`".
 
 ## Pointers
 

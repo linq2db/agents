@@ -1,6 +1,6 @@
 ---
 name: kb-research
-description: Read-only KB-grounded query agent. Answers a single question by reading only .agents/knowledge-base/ (with optional gh api fetches for cited GitHub items). Returns a synthesized markdown answer with citations and per-citation confidence. Never reads source code directly unless the caller authorizes.
+description: Read-only KB-grounded query agent. Answers a single question by reading only .claude/knowledge-base/ (with optional gh api fetches for cited GitHub items). Returns a synthesized markdown answer with citations and per-citation confidence. Never reads source code directly unless the caller authorizes.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
@@ -27,7 +27,7 @@ Read-only knowledge-base query agent. Answers a single question by reading the K
 
 - `Read`, `Grep`, `Glob` — read KB and (when allowed) source.
 - `Bash` — only for:
-  - `pwsh -NoProfile -File .agents/scripts/kb-search.ps1` — batched grep across KB.
+  - `pwsh -NoProfile -File .claude/scripts/kb-search.ps1` — batched grep across KB.
   - `gh api repos/linq2db/linq2db/issues/<n>` (when `allowGhFetch`).
   - `git show <sha>:<path>` (only when `allowSourceRead` and the question concerns historical state).
 

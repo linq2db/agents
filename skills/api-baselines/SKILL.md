@@ -17,7 +17,7 @@ Only when the user explicitly invokes this skill or asks to refresh / update the
 
 Check the current branch (`git rev-parse --abbrev-ref HEAD`).
 
-- If the current branch **is** `master`: stop and ask the user where to land the change. Refreshing baselines on `master` directly is not appropriate. Offer to create a new branch `infra/refresh-api-baselines` from `origin/master` (per **Creating a new branch** in `.agents/docs/agent-rules.md`). Wait for confirmation.
+- If the current branch **is** `master`: stop and ask the user where to land the change. Refreshing baselines on `master` directly is not appropriate. Offer to create a new branch `infra/refresh-api-baselines` from `origin/master` (per **Creating a new branch** in `.claude/docs/agent-rules.md`). Wait for confirmation.
 - If the current branch **is not** `master`: ask the user whether to:
   1. Refresh baselines on the **current branch**, or
   2. Create a new branch `infra/refresh-api-baselines` from `origin/master` (per the agent-rules branching workflow — `git fetch origin master`, handle dirty tree by asking, then branch).
@@ -77,7 +77,7 @@ Determine the **containing namespace**:
 - For `N:Ns.Sub` → namespace is the value itself.
 - For nested types (`T:Ns.Outer+Inner` or `T:Ns.Outer.Inner` where `Inner` is nested) — only the leading namespace segments matter; if in doubt, treat the longest leading dotted prefix that appears before the first PascalCase type-looking segment as the namespace. When ambiguous, prefer flagging over silently allowing.
 
-A change is **policy-allowed** iff the namespace equals `LinqToDB.Internal` or starts with `LinqToDB.Internal.`. Any other namespace is a **policy violation** — this matches the rule that `/review-pr` applies per [`.agents/docs/api-surface-classification.md`](../../docs/api-surface-classification.md), so the two skills stay consistent about what "public API change" means.
+A change is **policy-allowed** iff the namespace equals `LinqToDB.Internal` or starts with `LinqToDB.Internal.`. Any other namespace is a **policy violation** — this matches the rule that `/review-pr` applies per [`.claude/docs/api-surface-classification.md`](../../docs/api-surface-classification.md), so the two skills stay consistent about what "public API change" means.
 
 Also consider **removed** `<Suppression>` blocks (lines beginning with `-`): a removed suppression usually just means a previously-broken API was fixed or removed and no longer needs suppression. These are informational, not violations — do not block on them, but mention them in the summary if any non-`LinqToDB.Internal.*` ones disappeared.
 
@@ -116,4 +116,4 @@ Wait for the user's response.
 
 ### 6. Do not commit, push, or open a PR
 
-Per `.agents/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, all of those actions need their own explicit user request. This skill's job ends after the diff is reviewed and either kept or reverted.
+Per `.claude/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, all of those actions need their own explicit user request. This skill's job ends after the diff is reviewed and either kept or reverted.

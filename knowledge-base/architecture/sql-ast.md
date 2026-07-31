@@ -99,7 +99,7 @@ The production SQL emitter is `BasicSqlBuilder` and its provider-specific subcla
 
 ## Namespace placement rule
 
-The repo's convention — pinned in `.agents/docs/code-design.md` → "SQL AST types live in `LinqToDB.Internal.SqlQuery`" — is that every AST node belongs in the `LinqToDB.Internal.SqlQuery` namespace. This holds for everything used only during query construction, translation, and rendering: `SqlField`, `SqlSelectClause`, every `Sql*Expression`, every `Sql*Statement`, every visitor.
+The repo's convention — pinned in `.claude/docs/code-design.md` → "SQL AST types live in `LinqToDB.Internal.SqlQuery`" — is that every AST node belongs in the `LinqToDB.Internal.SqlQuery` namespace. This holds for everything used only during query construction, translation, and rendering: `SqlField`, `SqlSelectClause`, every `Sql*Expression`, every `Sql*Statement`, every visitor.
 
 The reason: AST types are not part of the stable public API. linq2db users build queries via LINQ — they should never see a `SqlField` directly. Treating the AST as `internal` keeps the option to refactor it freely across major versions.
 

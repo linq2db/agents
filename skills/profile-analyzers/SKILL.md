@@ -40,8 +40,8 @@ The provided scripts already pass all four.
 
 ## Required reading
 
-- [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Bash command rules**, **Running tests** (we're not running tests here, but the build-vs-test separation is the same).
-- [`.agents/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) → analyzer-package rules (when an analyzer regresses, the per-package note may capture the workaround).
+- [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Bash command rules**, **Running tests** (we're not running tests here, but the build-vs-test separation is the same).
+- [`.claude/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) → analyzer-package rules (when an analyzer regresses, the per-package note may capture the workaround).
 
 ## Procedure
 
@@ -52,7 +52,7 @@ Tell the user: "this is a full Release rebuild with `-v:detailed`, expected wall
 ### 2. Run the instrumented rebuild
 
 ```
-pwsh -NoProfile -File .agents/scripts/analyzer-profile-build.ps1 -LogPath .build/.agents/analyzer-build.log
+pwsh -NoProfile -File .claude/scripts/analyzer-profile-build.ps1 -LogPath .build/.agents/analyzer-build.log
 ```
 
 Defaults: `-SolutionPath linq2db.slnx`, `-Target Rebuild`. The script:
@@ -66,7 +66,7 @@ If the rebuild halts on a pre-existing analyzer error on an unrelated file, pass
 ### 3. Parse the log
 
 ```
-pwsh -NoProfile -File .agents/scripts/analyzer-profile-report.ps1 -LogPath .build/.agents/analyzer-build.log -Top 10
+pwsh -NoProfile -File .claude/scripts/analyzer-profile-report.ps1 -LogPath .build/.agents/analyzer-build.log -Top 10
 ```
 
 Output: three pretty tables on stdout, plus a one-line diagnostics header (per-analyzer rows / project reports / distinct analyzers).
@@ -83,7 +83,7 @@ The agent reads the tables and presents to the user, flagging the dominant offen
 
 ### 5. (Optional) Compare against the previous baseline
 
-Not implemented yet — there is no committed baseline file. When this skill is invoked from `/release-deps`, surface the report and ask the user to **eyeball-compare against memory** of the prior release's profile. A future iteration may persist a baseline JSON under `.agents/docs/release/analyzer-perf-baseline.json` and produce an automatic delta.
+Not implemented yet — there is no committed baseline file. When this skill is invoked from `/release-deps`, surface the report and ask the user to **eyeball-compare against memory** of the prior release's profile. A future iteration may persist a baseline JSON under `.claude/docs/release/analyzer-perf-baseline.json` and produce an automatic delta.
 
 ### 6. Disable rules (if user agrees)
 
@@ -103,10 +103,10 @@ Keep the reason terse (slow / noisy / redundant); the total-seconds figure from 
 
 ## Scripts
 
-- `.agents/scripts/analyzer-profile-build.ps1` — shuts down the build servers, runs `dotnet build -t:Rebuild` with the four non-obvious flags, writes the log, returns `{ logPath, exitCode, elapsedMs }`.
-- `.agents/scripts/analyzer-profile-report.ps1` — parses the log, emits the three rankings as pretty tables (or JSON via `-AsJson`).
+- `.claude/scripts/analyzer-profile-build.ps1` — shuts down the build servers, runs `dotnet build -t:Rebuild` with the four non-obvious flags, writes the log, returns `{ logPath, exitCode, elapsedMs }`.
+- `.claude/scripts/analyzer-profile-report.ps1` — parses the log, emits the three rankings as pretty tables (or JSON via `-AsJson`).
 
-Both follow [`.agents/docs/script-authoring.md`](../../docs/script-authoring.md) conventions.
+Both follow [`.claude/docs/script-authoring.md`](../../docs/script-authoring.md) conventions.
 
 ## Don'ts
 

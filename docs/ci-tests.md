@@ -71,18 +71,18 @@ Posting is publicly visible and incurs CI cost, so follow the standard confirmat
 
 When a CI build fails, the per-task error messages aren't in the GitHub check-runs annotations — they're inside the Azure DevOps build logs. The `dev.azure.com/linq2db` build API is publicly readable (no auth), but the hand-flow is fiddly: hit `/timeline?api-version=7.0` for the JSON list of failed `Task` records, then `/logs/<id>` for each one's raw log, then regex for `Failed <TestName>... Error Message:` blocks.
 
-Use [`.agents/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
+Use [`.claude/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
 
 ```
-pwsh -NoProfile -File .agents/scripts/azp-build-failures.ps1 -BuildId <n>
+pwsh -NoProfile -File .claude/scripts/azp-build-failures.ps1 -BuildId <n>
 ```
 
 Output: JSON with `{ buildId, logsDir, failedTaskCount, tasks: [{ name, logUrl, logPath, failures: [{ test, errorMessage }] }] }`. Logs persist under `.build/.agents/azp-<n>/` for follow-up `Read` / `Grep`. **Prefer the script's parsed `failures[]` over hand-grepping those raw logs** — a bare `TestName("Provider…")` grep also matches the log's diagnostic / progress lines (lane diagnostics, timing, retry echoes), inflating the failing set (once turned PG failures on 9.2–10 into a false "all 9.2–12 fail"). If you must grep the raw log, anchor on the runner's `failed` marker (`failed.*TestName`) and dedupe. When the build is red for a **non-test** reason (compile error in a `Build …` step, restore failure, or a `Command line` step wrapping `dotnet build`/`publish`), `failedTaskCount` is `0` and a `buildFailures: [{ name, issues, logPath, errors }]` array carries the failure — don't read `failedTaskCount: 0` as "nothing failed". Note the timeline `issues` are often only a generic wrapper (`Cmd.exe exited with code '1'`) for `Command line` steps; the real `CSxxxx`/`MAxxxx`/`MSBxxxx` message is in the fetched task log (`logPath`) and parsed into `errors[]`, so read those, not just `issues`. One recurring non-test red is the **`Publish to Azure Artifacts feed`** step failing with HTTP **402 (Payment Required — artifact quota / billing)**: it's pure infra, unrelated to the code, and shows up in `buildFailures[]` — don't read a build that's red *only* for this as broken tests (it bit a green master build at build 21987).
 
-To read a **specific step's log by name** — including a *succeeded* diagnostic step whose value is its stdout (a CI probe printing a summary block, a setup step's timing), which `azp-build-failures.ps1` never surfaces — use [`.agents/scripts/azp-step-log.ps1`](../scripts/azp-step-log.ps1) rather than hand-running the `curl …/timeline | python`-to-find-the-log-id-then-`curl …/logs/<id>` dance:
+To read a **specific step's log by name** — including a *succeeded* diagnostic step whose value is its stdout (a CI probe printing a summary block, a setup step's timing), which `azp-build-failures.ps1` never surfaces — use [`.claude/scripts/azp-step-log.ps1`](../scripts/azp-step-log.ps1) rather than hand-running the `curl …/timeline | python`-to-find-the-log-id-then-`curl …/logs/<id>` dance:
 
 ```
-pwsh -NoProfile -File .agents/scripts/azp-step-log.ps1 -BuildId <n> -StepName '<name-substring>'
+pwsh -NoProfile -File .claude/scripts/azp-step-log.ps1 -BuildId <n> -StepName '<name-substring>'
 ```
 
 Output: JSON `{ buildId, stepName, logsDir, steps: [{ name, state, result, logPath }] }`; `-StepName` is a case-insensitive substring (matches all Task records containing it). A matched-but-pending step reports `logPath: null` (no log until it starts) rather than failing. `Read` / `Grep` the persisted `logPath`.

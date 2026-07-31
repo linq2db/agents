@@ -1,6 +1,6 @@
 ---
 name: test-providers
-description: Configure the local test environment — enable / disable test-provider entries in `UserDataProviders.json` per TFM bucket, manage the docker containers those providers need (start / stop / setup-script run), and reset the file from `UserDataProviders.json.template`. Owns every edit to `UserDataProviders.json` and every `docker start` / `docker stop` call across the `.agents/` toolset; `/test` and `test-runner` consume the resulting state read-only.
+description: Configure the local test environment — enable / disable test-provider entries in `UserDataProviders.json` per TFM bucket, manage the docker containers those providers need (start / stop / setup-script run), and reset the file from `UserDataProviders.json.template`. Owns every edit to `UserDataProviders.json` and every `docker start` / `docker stop` call across the `.claude/` toolset; `/test` and `test-runner` consume the resulting state read-only.
 ---
 
 # test-providers
@@ -9,8 +9,8 @@ User-triggered workflow for managing the local test environment that `/test` run
 
 Shared reference material:
 
-- **Test database catalog** (provider IDs → setup script → container → image → preference): [`.agents/docs/test-databases.md`](../../docs/test-databases.md)
-- **`UserDataProviders.json` shape**: see `UserDataProviders.json.template` at the repo root and the **Test Database Configuration** section of [`.agents/docs/testing.md`](../../docs/testing.md)
+- **Test database catalog** (provider IDs → setup script → container → image → preference): [`.claude/docs/test-databases.md`](../../docs/test-databases.md)
+- **`UserDataProviders.json` shape**: see `UserDataProviders.json.template` at the repo root and the **Test Database Configuration** section of [`.claude/docs/testing.md`](../../docs/testing.md)
 
 ## When to run
 
@@ -54,7 +54,7 @@ The clause may appear before or after the provider list; parse it once, then str
 An optional `worktree <abs-path>` clause (distinct from the `in <bucket>` clause) points the skill at a git **worktree** instead of the primary clone. When present:
 
 - All `UserDataProviders.json` reads (step 2) and edits (step 5b) target `<worktree>/UserDataProviders.json`, not cwd.
-- A fresh worktree has no `UserDataProviders.json` (only the template is tracked). If it's absent, **seed it first** by copying the primary clone's (or the sibling clone's) copy into `<worktree>/UserDataProviders.json`, then apply the enable/disable edits — see [`.agents/docs/worktree.md`](../../docs/worktree.md) → *`UserDataProviders.json` in a worktree*.
+- A fresh worktree has no `UserDataProviders.json` (only the template is tracked). If it's absent, **seed it first** by copying the primary clone's (or the sibling clone's) copy into `<worktree>/UserDataProviders.json`, then apply the enable/disable edits — see [`.claude/docs/worktree.md`](../../docs/worktree.md) → *`UserDataProviders.json` in a worktree*.
 - Backups (step 5a) still go to `.build/.agents/`.
 - Container actions are unchanged — containers are shared across clones, so `docker start` / `docker stop` need no path adjustment.
 
@@ -68,7 +68,7 @@ Bare-family / version-only inputs are normalised to fully-qualified provider IDs
 
 Run one shell command per invocation; no chaining, no shell control flow. (Claude Code: every Bash call is allowlist-matched as one opaque string, so this also minimises permission prompts.) Concretely:
 
-- One Bash call per command. No `&&` / `||` / `;` chaining; no shell control flow. (Also enforced by the rules in `.agents/docs/agent-rules.md`.)
+- One Bash call per command. No `&&` / `||` / `;` chaining; no shell control flow. (Also enforced by the rules in `.claude/docs/agent-rules.md`.)
 - Batch independent inspects in a single assistant turn (multiple parallel Bash tool calls), not one chained string.
 - Setup scripts under `Data/Setup Scripts/<name>.cmd` must be run from that directory — issue `cd "Data/Setup Scripts" && <script>.cmd` is **not** allowed; use the script's documented invocation form via a single command (e.g. invoke through `pwsh -NoProfile -File ...` if a sequence is required, or just `Data/Setup\ Scripts/<script>.cmd` from the repo root if the script supports it). When the script truly requires a `cd` first, wrap the two-step sequence in a small pwsh under `.build/.agents/` rather than chaining.
 

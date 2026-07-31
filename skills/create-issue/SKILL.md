@@ -31,7 +31,7 @@ Only when the user explicitly asks to create / file / open an issue, task, bug, 
 
 ### 2. Check for duplicates
 
-Follow the search discipline in [`.agents/docs/issue-search.md`](../../docs/issue-search.md) in **topic mode** — extract distinctive terms, run parallel searches, rank, present. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
+Follow the search discipline in [`.claude/docs/issue-search.md`](../../docs/issue-search.md) in **topic mode** — extract distinctive terms, run parallel searches, rank, present. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
 
 - **continue** — no duplicate, proceed to step 3
 - **reference #N** — existing issue is related, reference it in the new body's "Notes" section but still file
@@ -159,7 +159,7 @@ Always propose one (numbered list). Fetch:
 gh api repos/linq2db/linq2db/milestones?state=open --jq '.[] | {number, title}'
 ```
 
-Present in the order defined in [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Pull request rules** → **Milestone** (next-version first, then remaining versioned by version, then non-versioned alphabetical).
+Present in the order defined in [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Pull request rules** → **Milestone** (next-version first, then remaining versioned by version, then non-versioned alphabetical).
 
 Allow the user to reply with a number, a title, or "none" to skip.
 

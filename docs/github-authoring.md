@@ -29,7 +29,7 @@ Also applies to your **own** submitted review/comment — overwriting erases pub
 
 ### Verify after every manual PATCH / PUT
 
-**Prefer the dedicated scripts for body edits** — `.agents/scripts/pr-body-edit.ps1` (PR description; anchor-based insert) and `.agents/scripts/edit-gh-comment.ps1` (issue / PR-issue comment; PATCH + byte-compare). Both round-trip the body through `Invoke-Gh` + `[System.IO.File]` UTF-8 I/O, immune to every trap below. Hand-roll a `gh api` PATCH only when neither fits.
+**Prefer the dedicated scripts for body edits** — `.claude/scripts/pr-body-edit.ps1` (PR description; anchor-based insert) and `.claude/scripts/edit-gh-comment.ps1` (issue / PR-issue comment; PATCH + byte-compare). Both round-trip the body through `Invoke-Gh` + `[System.IO.File]` UTF-8 I/O, immune to every trap below. Hand-roll a `gh api` PATCH only when neither fits.
 
 **`pr-body-edit.ps1` only inserts — to *remove* or *replace* a section, borrow its staging step rather than hand-rolling the fetch.** Run it with `"dryRun": true` (any insertion you also want, or a no-op one), which writes the current body to `.build/.agents/pr<n>-body-before.txt` and the candidate to `pr<n>-body-after.txt` through the same UTF-8 file I/O. `Edit` the *after* file to delete or rewrite the section, then push it with `gh pr edit <n> --body-file <that file>` — a file hand-off, so no console-code-page decoding and no newline collapse. One PATCH, and the removal and any insertions land together instead of in two states. (Used on #5720 to drop a *Known cost* section that a follow-up commit had falsified while appending the new commit bullets.)
 

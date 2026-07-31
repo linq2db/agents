@@ -5,7 +5,7 @@
 // count of sessions that started, so usage can be reported as a ratio even for
 // sessions that never touch the KB.
 //
-// Wired in `.agents/settings.local.json` (gitignored) under hooks.SessionStart
+// Wired in `.claude/settings.local.json` (gitignored) under hooks.SessionStart
 // with async:true. Pairs with `track-kb-usage.js` (the numerator).
 //
 // Payload (stdin JSON): { session_id, cwd, source, hook_event_name, ... }.
@@ -19,7 +19,7 @@ process.stdin.on('end', () => {
     try {
         const data = JSON.parse(input || '{}');
         const base = data.cwd || process.cwd();
-        const dir = path.join(base, '.build', '.agents');
+        const dir = path.join(base, '.build', '.claude');
         fs.mkdirSync(dir, { recursive: true });
         const rec = {
             ts: new Date().toISOString(),

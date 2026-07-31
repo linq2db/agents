@@ -22,9 +22,9 @@ description: Post-prep-merge release publishing flow. Opens the release PR (mast
 
 ## Required reading
 
-- [`.agents/docs/release/external-repos.md`](../../docs/release/external-repos.md) — linq2db.baselines path + GitHub release template anchor.
-- [`.agents/docs/agent-rules.md`](../../docs/agent-rules.md) → **Push to remote rules**, **Pull request rules**, **Git commit rules**.
-- [`.agents/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) → the baselines anchor commit + exact gh release invocation are first-run-confirmable.
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — linq2db.baselines path + GitHub release template anchor.
+- [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Push to remote rules**, **Pull request rules**, **Git commit rules**.
+- [`.claude/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) → the baselines anchor commit + exact gh release invocation are first-run-confirmable.
 
 ## Phase state
 
