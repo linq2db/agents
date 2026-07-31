@@ -2,6 +2,8 @@
 
 Reference for the persistent knowledge base under `.claude/knowledge-base/`. Auto-imported by every `kb-*` skill and every KB indexer agent. Skills do not restate this file — they reference it.
 
+**Cross-repo coupling.** The KB *describes* linq2db but *lives* in the corpus repo (the `.claude/` submodule), so every SHA it records — `last_verified_sha` in file frontmatter, `state/cursors.json`'s `code.sha` / `commits.sha` / wiki sha — refers to **linq2db**, never to a corpus commit. Nothing enforces that the two stay in step: the superproject's `.claude` gitlink says nothing about which product SHA the KB was indexed from, and a KB write is a corpus commit that must be pushed to the agents repo like any other. Transient caches stay superproject-side under `.build/.agents/kb-*` (gitignored).
+
 ## Directory layout
 
 ```
@@ -60,7 +62,7 @@ kind: architecture | convention | decision | area-index | issues | tech-debt | p
 sources: [code | git | gh-issues | gh-prs | gh-discussions | wiki]   # which sources fed this file
 confidence: high | medium | low
 last_verified: 2026-04-25                # ISO date
-last_verified_sha: <commit-sha>          # repo HEAD when this file was last verified
+last_verified_sha: <commit-sha>          # linq2db origin/master HEAD when this file was last verified
 coverage_tier_1: <visited>/<total>       # omit on files that don't have Tier-classified inputs (e.g. decisions)
 coverage_tier_2: <visited>/<total>
 ---

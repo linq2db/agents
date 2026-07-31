@@ -70,7 +70,7 @@ Find the **first step where status ≠ `done`** (in id order). That's the target
 git rev-parse origin/master
 ```
 
-**Use `origin/master` — NOT local `HEAD`.** The KB tracks the upstream master branch (same rule as `/kb-refresh` per [`kb-refresh-cursors.md`](../../docs/kb-refresh-cursors.md)). If the active local branch has unpushed feature work (e.g. an `infra/agents-curation` branch with `.claude/` edits), recording local `HEAD` in `last_verified_sha` will silently break `/kb-refresh` — the next refresh diffs `cursors.code.sha..origin/master`, and a SHA that's not on master can't be diffed against master. Run `git fetch origin master` first if `origin/master` is stale.
+**Use `origin/master` — NOT local `HEAD`.** The KB tracks the upstream master branch (same rule as `/kb-refresh` per [`kb-refresh-cursors.md`](../../docs/kb-refresh-cursors.md)). If the active local branch has unpushed feature work, recording local `HEAD` in `last_verified_sha` will silently break `/kb-refresh` — the next refresh diffs `cursors.code.sha..origin/master`, and a SHA that's not on master can't be diffed against master. Run `git fetch origin master` first if `origin/master` is stale.
 
 **Then verify the working tree actually contains that commit** — the indexer agents read source files from the working tree, so if the checkout is behind or diverged from `origin/master`, they index **stale on-disk source**:
 
@@ -80,8 +80,8 @@ git merge-base --is-ancestor <currentSha> HEAD
 
 If this exits non-zero (`currentSha` is not an ancestor of `HEAD`), **resolve it yourself before spawning any agent; don't hand it back to the user:**
 
-- **If the working tree is clean** (`git status --porcelain` empty): `git merge origin/master --no-edit` into the current branch (the established sync pattern for a long-lived curation branch — brings master's `Source/` / `Tests/` in while keeping the branch's own `.claude/knowledge-base/`), then re-run the `git merge-base --is-ancestor` guard and proceed. Leave the merge commit **unpushed** — pushing is a separate, explicitly-requested user action.
-- **If the merge conflicts, or the tree was dirty:** stop and ask the user — don't auto-resolve conflicts or silently stash. A worktree checked out at `origin/master` (carrying the KB across per [`../../docs/worktree.md`](../../docs/worktree.md)) is the fallback.
+- **If the working tree is clean** (`git status --porcelain` empty): bring master's `Source/` / `Tests/` in with `git merge origin/master --no-edit` (or `git pull --ff-only` when the branch *is* master), then re-run the `git merge-base --is-ancestor` guard and proceed. The KB is unaffected either way — it lives in the `.claude/` submodule, so it is identical on every linq2db branch. Leave any merge commit **unpushed** — pushing is a separate, explicitly-requested user action.
+- **If the merge conflicts, or the tree was dirty:** stop and ask the user — don't auto-resolve conflicts or silently stash. A worktree checked out at `origin/master` is the fallback; bootstrap its `.claude/` first per [`../../docs/worktree.md`](../../docs/worktree.md) (the KB arrives with it, and KB writes there land in *that* checkout's corpus copy — push them from there).
 
 Do **not** work around a failed guard by reading `git show <sha>:<path>` in the agents — it is fragile per-file and easy to get partially wrong across a large scan.
 

@@ -4,7 +4,9 @@ Claude-Code-tool-specific Windows gotchas. The tool-neutral git / gh / docker / 
 
 ## `Glob` may return empty for documented paths on Windows
 
-The Claude Code `Glob` tool can return "No files found" on Windows for paths that the file system actually contains — observed pattern is forward-slash patterns missing files whose canonical paths use backslashes. Symptom: an agent that grepped `Glob` for `.claude/scripts/<name>.ps1` mentioned in `agent-rules.md` got an empty result and reimplemented the script's job with raw `gh pr comment --body-file` instead of using the existing helper. The script existed on disk; Glob just didn't find it.
+The Claude Code `Glob` tool can return "No files found" for paths the file system actually contains. Symptom: an agent that globbed for a `.claude/scripts/<name>.ps1` named in `agent-rules.md` got an empty result and reimplemented the script's job with raw `gh pr comment --body-file` instead of using the existing helper. The script existed on disk; Glob just didn't find it.
+
+**A large share of those misses had a single cause, now removed: `Glob` does not traverse a symlink used as a *path component*.** Measured 2026-07-31, while `.claude` was still a symlink to `.agents/`: `Glob(".claude/skills/*/SKILL.md")` → 0 files, `Glob(".agents/skills/*/SKILL.md")` → 35, and passing the symlink as the `path` *root* (rather than inside the pattern) worked. `Read` and `Grep` resolved the link either way, which is why the failures looked arbitrary. The corpus is now a real directory at `.claude/`, so documented `.claude/...` patterns glob normally — this is also *why* corpus paths are spelled `.claude/` everywhere rather than behind a compatibility symlink. Don't reintroduce one.
 
 When CLAUDE.md / a SKILL / `agent-rules.md` mentions a specific script or doc path:
 

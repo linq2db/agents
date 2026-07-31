@@ -1,6 +1,6 @@
 ---
 name: audit-agents
-description: Audit the linq2db `.claude/` instruction corpus (docs, skills, agents, hooks, scripts) + the per-agent entry points `AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` for duplicated rules, dead references, terminology drift, retired-path mentions, SKILL template gaps, `linq2db.slnx` mismatches, and auto-memory entries that would be better as project-level rules. Reports findings in severity order and offers per-finding patches after explicit user confirmation. Read-only until confirmation.
+description: Audit the linq2db `.claude/` instruction corpus (docs, skills, agents, hooks, scripts) + the per-agent entry points `AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` for duplicated rules, dead references, terminology drift, retired-path mentions, SKILL template gaps, superproject trampoline drift, and auto-memory entries that would be better as project-level rules. Reports findings in severity order and offers per-finding patches after explicit user confirmation. Read-only until confirmation.
 ---
 
 # /audit-agents
@@ -18,7 +18,7 @@ User-triggered static audit of the `.claude/` tree and the per-agent entry point
 - `.claude/agents/*.md` — subagent contracts.
 - `.claude/skills/*/SKILL.md` — user-triggered skills.
 - `.claude/scripts/*.ps1` — PowerShell helpers called by skills.
-- `.claude/settings.local.json` — gitignored personal settings (audit for *presence* and slnx entry only, not content).
+- `.claude/settings.local.json` — gitignored personal settings (audit for *presence* only, not content).
 
 **Read-only inspection.** The user-level auto-memory directory referenced under this session's `# auto memory` system-prompt section. The audit reads `MEMORY.md` and the pointed-to memory files to surface **promotion candidates** — entries whose content is project-truthy and would benefit other agents on this codebase if lifted into `.claude/`. Never edit, delete, or rewrite memory files; the user owns that surface.
 
@@ -27,8 +27,7 @@ User-triggered static audit of the `.claude/` tree and the per-agent entry point
 ## Shared reference material
 
 - **Agent rules** (branching, Bash, GitHub content): `.claude/docs/agent-rules.md`
-- **Claude Code setup** (`.claude/` layout + `.claude` symlink, settings precedence): `.claude/docs/claude-setup.md`
-- **Slnx sync procedure**: `.claude/skills/update-slnx/SKILL.md`
+- **Claude Code setup** (`.claude/` layout, submodule mechanics, settings precedence): `.claude/docs/claude-setup.md`
 
 ## When to run
 
@@ -43,7 +42,7 @@ Eleven check categories, reported with a per-finding severity (**error** / **war
 | Category | Severity | Description |
 |---|---|---|
 | **Dead reference** | error | A link / path / `@import` points to a file that doesn't exist. Examples: `.claude/docs/foo.md` referenced from a skill after `foo.md` was renamed; `@.claude/docs/missing.md` at top of `CLAUDE.md`. |
-| **Slnx mismatch** | error | A file exists under `.claude/` but isn't listed in `linq2db.slnx`, or `linq2db.slnx` lists a `.claude/` path that doesn't exist. Always-included entries (`AGENTS.md`, `CLAUDE.md`, `.claude/settings.local.json`) are exempt from the "missing on disk" variant. |
+| **Trampoline drift** | error | linq2db's root `AGENTS.md` / `CLAUDE.md` no longer match what the corpus expects of them: an `@` import naming a corpus file that doesn't exist, a missing import from the always-loaded set declared in `.claude/CLAUDE.md`, or substantive rule content living in a trampoline instead of the corpus. The corpus is a submodule, so these two superproject files are the only place its load order can silently rot. See [`audit-agents-checks.md`](../../docs/audit-agents-checks.md) → §2b. |
 | **Template gap** | error / warning / info | Required frontmatter or section is missing or wrong. **Skills:** missing `name` / `description` / H1 (error); missing "When to run"-ish or "Steps"-ish (warning); missing "Don'ts" (info). **Agents:** missing `name` / `description` / `tools` / `model` (error); `model` value not in `{opus, sonnet, haiku}` (error); model assignment looks off for the agent's role (warning, creative — see [`audit-agents-checks.md`](../../docs/audit-agents-checks.md) → §2c). |
 | **Duplicated rule** | warning | Two or more files restate the same normative rule with different wording. Flag when the content is the same and the wording diverges (otherwise identical copies are fine — the divergence is the problem). Propose consolidating into one canonical location and linking. Also covers **contradictory** rules (two docs giving opposite guidance for the same case — compare guidance, not wording) and a **boundary smell** (a doc reaching into a neighboring subsystem's internals it isn't about). See [`audit-agents-checks.md`](../../docs/audit-agents-checks.md) → §2d. |
 | **Retired-path ref** | warning | A doc / skill mentions a file path or directory that no longer exists in the repo (not just `.claude/`). Common after refactors that move `Source/LinqToDB.Common → Source/LinqToDB/Internal/Common` etc. |
@@ -63,10 +62,9 @@ Out-of-scope non-findings (deliberately skipped): grammar / typos, stylistic pre
 Batched reads — `Glob` / `Read` can run in parallel:
 
 - `Glob` for `.claude/**/*.md` and `.claude/scripts/*.ps1`; read the root entry points `AGENTS.md`, `CLAUDE.md`, and `.github/copilot-instructions.md`.
-- Read `linq2db.slnx` once and extract every `<File Path="...">` whose path starts with `.claude/` or equals `AGENTS.md` / `CLAUDE.md`.
-- Read `.gitignore` to identify gitignored paths under `.claude/` (for slnx exemption logic).
+- Read `.claude/CLAUDE.md`'s declared always-loaded set (the import list the root trampoline is expected to carry) for §2b.
 
-Produce three lists: **prose-files**, **script-files**, **slnx-claude-entries**.
+Produce two lists: **prose-files** and **script-files**.
 
 ### 2. Run the eleven checks
 
@@ -76,7 +74,7 @@ Checks are mostly independent; run their searches in parallel where you can. Eac
 {
   "id": "<category>-<short-slug>",
   "severity": "error|warning|info",
-  "category": "dead-reference|slnx-mismatch|template-gap|duplicated-rule|retired-path|terminology-drift|refactor-candidate|memory-promotion-candidate|wordiness|stale-model-workaround|stale-memory-reference",
+  "category": "dead-reference|trampoline-drift|template-gap|duplicated-rule|retired-path|terminology-drift|refactor-candidate|memory-promotion-candidate|wordiness|stale-model-workaround|stale-memory-reference",
   "location": "<file>:<line-range or section>",
   "summary": "<one line>",
   "details": "<2–5 lines of context>",
@@ -86,11 +84,11 @@ Checks are mostly independent; run their searches in parallel where you can. Eac
 ```
 
 `fixKind` drives how step 4 offers the patch:
-- **mechanical** — the fix is a single, obvious edit (broken link to updated path, add missing slnx entry, add missing section header). Show as a diff and offer to apply.
+- **mechanical** — the fix is a single, obvious edit (broken link to updated path, add missing section header). Show as a diff and offer to apply.
 - **creative** — the fix involves a judgment call (how to merge two duplicated rules, which section to promote to the canonical doc). Surface the finding, propose an approach, let the user direct.
 - **manual-only** — the fix needs non-local work (reorganize three files, split a skill). Log the finding, don't auto-patch.
 
-Per-check rules (2a Dead-reference, 2b Slnx-mismatch, 2c Template-gap, 2d Duplicated-rule, 2e Retired-path, 2f Terminology-drift, 2g Refactor-candidate, 2h Memory-promotion, 2i Wordiness, 2j Stale-model-workaround, 2k Stale-memory-reference) live in [`audit-agents-checks.md`](../../docs/audit-agents-checks.md). Run them in parallel where possible; each emits zero or more finding records of the shape above.
+Per-check rules (2a Dead-reference, 2b Trampoline-drift, 2c Template-gap, 2d Duplicated-rule, 2e Retired-path, 2f Terminology-drift, 2g Refactor-candidate, 2h Memory-promotion, 2i Wordiness, 2j Stale-model-workaround, 2k Stale-memory-reference) live in [`audit-agents-checks.md`](../../docs/audit-agents-checks.md). Run them in parallel where possible; each emits zero or more finding records of the shape above.
 
 ### 3. Assemble the report
 
@@ -102,7 +100,7 @@ Audit report (17 findings):
 Errors (4)
   1. [dead-reference] .claude/skills/review-pr/SKILL.md:42 → .claude/docs/old-review-docs.md (file missing)
   2. [dead-reference] CLAUDE.md:9 → @.claude/docs/agent-rules.md (file exists; check frontmatter casing)
-  3. [slnx-mismatch] 2 files on disk not in linq2db.slnx: …
+  3. [trampoline-drift] CLAUDE.md (superproject) imports 2 of 3 files in the always-loaded set: …
   4. [template-gap] .claude/skills/audit-agents/SKILL.md: missing frontmatter `description:`
 
 Warnings (9)
@@ -131,11 +129,7 @@ For `fixKind: "creative"`, don't propose a single diff. Instead present 2–3 pl
 
 For `fixKind: "manual-only"`, log the finding and move on — don't block the loop on user input.
 
-### 5. Apply slnx updates (if any)
-
-If any `slnx-mismatch` findings were approved for fixing, at the end of the loop **invoke `/update-slnx`** rather than hand-editing the slnx. The slnx is owned by that skill's canonical procedure.
-
-### 6. Report
+### 5. Report
 
 End with a short summary:
 - **Applied:** N findings (by category)
@@ -143,12 +137,12 @@ End with a short summary:
 - **Manual-only:** K findings — list IDs
 - **Still open:** any finding that surfaced during the loop but wasn't resolved.
 
-Don't commit. Per `.claude/docs/agent-rules.md` → *Git commit rules*, commits need an explicit user request. The audit leaves the working tree staged-or-unstaged for the user to review and commit on their terms.
+Don't commit. Per `.claude/docs/agent-rules.md` → *Git commit rules*, commits need an explicit user request. The audit leaves the working tree staged-or-unstaged for the user to review and commit on their terms — and since the corpus is a submodule, those edits are invisible to the superproject's `git status`, so say explicitly that they are pending in `.claude/`.
 
 ## Don'ts
 
 - Do not run the audit spontaneously or "as a bonus" during unrelated work.
-- Do not hand-edit `linq2db.slnx` directly for slnx-mismatch findings. Always route through `/update-slnx`.
+- Do not "fix" a trampoline-drift finding by moving corpus content into the superproject's `AGENTS.md` / `CLAUDE.md`. The trampolines stay pointer-only; the fix goes in the corpus, or (for a genuinely new always-loaded file) in the trampoline's import list alone.
 - Do not auto-apply fixes without confirmation — even mechanical ones. The `batch-mechanical` option exists for the user to opt in explicitly.
 - Do not flag style / grammar / formatting nits that don't affect rendering or semantic meaning. This skill is scoped to drift and decay, not polish.
 - Do not edit, delete, or rewrite anything inside the auto-memory directory. The check in [`audit-agents-checks.md`](../../docs/audit-agents-checks.md) → §2h is read-only — promotion candidates are surfaced as findings; the user decides whether to copy the rule into `.claude/` and whether to clean up the memory entry afterwards.

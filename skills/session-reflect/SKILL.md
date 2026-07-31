@@ -20,7 +20,7 @@ This skill is the mirror of `/audit-agents`. Audit finds drift in existing instr
 - **Agent rules** (Bash, branching, commit, GitHub content): `.claude/docs/agent-rules.md`
 - **Claude Code setup** (`.claude/` layout, settings): `.claude/docs/claude-setup.md`
 - **Auto-memory system** — documented in the system prompt under *auto memory*; stored at the user-level memory directory (`~/.claude/projects/<repo>/memory/`) with an `MEMORY.md` index plus per-fact `.md` files using the four types `user` / `feedback` / `project` / `reference`.
-- **Sibling skills** to propose hooking into: `/audit-agents` (static lint), `/fewer-permission-prompts` (permission allowlist tuning), `/update-slnx` (solution sync).
+- **Sibling skills** to propose hooking into: `/audit-agents` (static lint), `/fewer-permission-prompts` (permission allowlist tuning), `/chores` (periodic-maintenance dashboard).
 
 ## When to run
 

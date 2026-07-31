@@ -1,6 +1,6 @@
 # Per-provider container + DB init for release testing
 
-Release testing (LINQPad 5/7+, T4, NuGet-T4, CLI) reads connection strings from settings directly — providers do **not** need to be enabled in `UserDataProviders.json`. The only env prep is: container start + database init via the matching script under `Data\Setup Scripts\` (in the linq2db repo, not this curation workspace).
+Release testing (LINQPad 5/7+, T4, NuGet-T4, CLI) reads connection strings from settings directly — providers do **not** need to be enabled in `UserDataProviders.json`. The only env prep is: container start + database init via the matching script under `Data\Setup Scripts\` (in the linq2db repo, not the corpus).
 
 Per-provider entries below capture the exact invocation so `release-test-matrix` can run them without re-asking the user.
 

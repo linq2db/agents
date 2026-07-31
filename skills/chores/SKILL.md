@@ -1,6 +1,6 @@
 ---
 name: chores
-description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Surveys staleness signals across the project (`.claude/` audit lag, slnx sync, Knowledge Base cursors, KB issue queue, API baselines drift, permission-allowlist lag) and renders a single table the user can pick from instead of remembering which periodic skill to run when. Each row hands off to the actual maintenance skill that performs the work — `chores` itself runs no maintenance, just routes. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
+description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Surveys staleness signals across the project (`.claude/` audit lag, unpushed corpus commits, Knowledge Base cursors, KB issue queue, API baselines drift, permission-allowlist lag) and renders a single table the user can pick from instead of remembering which periodic skill to run when. Each row hands off to the actual maintenance skill that performs the work — `chores` itself runs no maintenance, just routes. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
 ---
 
 # /chores
@@ -11,7 +11,7 @@ description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Sur
 
 **Isn't:**
 
-- Not the actual worker — every chore handoff goes to a dedicated skill (`/audit-agents`, `/kb-refresh`, `/update-slnx`, etc.).
+- Not the actual worker — every chore handoff goes to a dedicated skill (`/audit-agents`, `/kb-refresh`, `/api-baselines`, etc.). The one exception is the corpus-pushed row, which has no skill: it reports, and committing / pushing stays the user's call.
 - Not for the work skills (`/review-pr`, `/verify-review`, `/fix-issue`, `/create-issue`, `/find-issues`, `/merge-duplicates`, `/test`, `/test-providers`, `/kb-ask`, `/kb-build`, `/kb-status`). Those are user-driven, not periodic.
 - Not for `/session-reflect` — that one needs the *current conversation*, can't be batched.
 
@@ -31,8 +31,8 @@ Each row is one maintenance task the skill knows about. The **Signal** column sa
 
 | Chore | Skill | Signal of staleness |
 |-------|-------|---------------------|
-| Audit `.claude/` for drift | `audit-agents` | count of commits to `.claude/**` since the last commit whose subject contains `audit` (case-insensitive substring). ≥ 20 → 🔴, ≥ 10 → 🟡 |
-| Sync `.claude/` ↔ `linq2db.slnx` | `update-slnx` | diff between on-disk `.claude/**` files (excluding `.claude/knowledge-base/**`, which is intentionally not in the slnx) and `<File Path="...">` entries under `.claude/` in `linq2db.slnx`. ≥ 1 add/remove → 🔴 |
+| Audit `.claude/` for drift | `audit-agents` | count of **corpus** commits since the last one whose subject contains `audit` (case-insensitive substring) — `git -C .claude log`, *not* the superproject's log, which never touches `.claude/**` and would report 0 forever. ≥ 20 → 🔴, ≥ 10 → 🟡 |
+| Corpus pushed to the agents repo | — | `git -C .claude status --porcelain` (uncommitted corpus edits) plus `git -C .claude log --oneline @{u}..` (committed but unpushed). Either non-empty → 🔴 with the count; neither → 🟢. Both are invisible to the superproject's `git status` (`submodule.ignore = all`), and an uncommitted corpus edit is what the user's parallel curation can wipe. No skill to hand off to — the fix is `git -C .claude commit` / `push`, which needs the user's go-ahead |
 | Refresh Knowledge Base | `kb-refresh` | `.claude/knowledge-base/state/cursors.json`: take the oldest `updated_at` / `verified_at` across active sources (`code`, `issues`, `prs`, `discussions`, `wiki`, `commits`). ≥ 14 days → 🔴, ≥ 7 days → 🟡. If `code.sha` is `null`, KB is unbuilt → `?` with note "run `/kb-build` first" |
 | KB issue queue triage | `kb-issues` (filtered: open severity high+med) | count of files under `.claude/knowledge-base/detected-issues/**` whose YAML frontmatter has `severity: high` or `severity: med` and `status: open`. ≥ 5 → 🔴, ≥ 1 → 🟡. If directory doesn't exist (KB unbuilt) → `?` |
 | Refresh API baselines | `api-baselines` | count of commits to `Source/**/*.cs` since the last commit touching any `Source/**/CompatibilitySuppressions.xml`. ≥ 50 → 🔴, ≥ 20 → 🟡 |
@@ -40,7 +40,7 @@ Each row is one maintenance task the skill knows about. The **Signal** column sa
 | Context budget (always-loaded set) | `audit-agents` | total bytes of `CLAUDE.md` + every doc reachable via the `@import` chain from it (currently three files: `CLAUDE.md` + `AGENTS.md` + `.claude/docs/agent-rules.md`). ≥ 90 KB → 🔴, ≥ 60 KB → 🟡. Every conversation pays this on startup; hands off to `audit-agents` (its refactor-candidate check proposes the section relocations). |
 | Bump versions for next release _(opt-in)_ | `version-bump` | never auto-flagged. Surfaced with a `—` in the **Overdue?** column. The user picks it explicitly when prepping a release |
 
-If a signal can't be computed (KB not present, slnx unreadable, transcript path unknown), the row's **Overdue?** column shows `?` and **Note** explains. The chore is still pickable, but the skill doesn't push it.
+If a signal can't be computed (KB not present, corpus submodule not populated, transcript path unknown), the row's **Overdue?** column shows `?` and **Note** explains. The chore is still pickable, but the skill doesn't push it.
 
 ## Procedure
 
@@ -64,7 +64,7 @@ The probes are read-only and should complete in seconds. If any probe takes more
 | # | Chore                              | Skill                       | Last         | Overdue?  |
 |---|------------------------------------|-----------------------------|--------------|-----------|
 | 1 | Audit `.claude/` for drift         | `audit-agents`              | 2026-04-21   | 🔴 overdue |
-| 2 | Sync `.claude/` ↔ `linq2db.slnx`   | `update-slnx`               | 2026-05-01   | 🟢 fresh  |
+| 2 | Corpus pushed to the agents repo   | —                           | 2026-05-01   | 🟢 fresh  |
 | 3 | Refresh Knowledge Base             | `kb-refresh`                | 2026-04-30   | 🟢 fresh  |
 | 4 | KB issue queue triage              | `kb-issues` (high+med)      | n/a (12 open)| 🔴 overdue |
 | 5 | Refresh API baselines              | `api-baselines`             | 2026-04-12   | 🟡 watch  |

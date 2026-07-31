@@ -70,9 +70,9 @@ If the bisect cost looks large up front (> 200 commits in the range), surface it
 
 1. Confirm the working tree is clean (the bisect worktree's detached edits don't propagate — they're independent).
 2. Create the branch from fresh `origin/master` **in its own worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*): `git fetch origin master` → `git worktree add -b issue/<n>-<kebab-slug> ../<clone-dir>.<kebab-slug> origin/master`. Slug per agent-rules; verb-led (`enable-enum-mapping-test`, `enable-cte-alias-test`). Do the remaining steps against that worktree path.
-3. If carrying `.claude/` from `infra/agents-curation` (per agent-rules → *Carrying `.claude/` curation across branch switches*), do it now: `git checkout origin/infra/agents-curation -- .claude/`. These changes must NOT be committed on this branch.
+3. Bootstrap the worktree's `.claude/` (a fresh worktree gets an empty submodule dir — see [`worktree.md`](../../docs/worktree.md) → *Bootstrapping `.claude/` in a worktree*), otherwise the agent works there with no rules loaded.
 4. Edit each gated test to remove `[ActiveIssue]`. One-line change per test (the attribute on its own line).
-5. Stage **only** the test file(s): `git add <test-file>`. If `.claude/` was carried, `git restore --staged .claude/` immediately after to drop the auto-stage.
+5. Stage **only** the test file(s): `git add <test-file>`.
 
 ### 5. Commit + push
 
@@ -134,7 +134,7 @@ End with:
 - Don't trust the close-comment attribution. The reporter cites symptoms; the bisect cites the cause. Per [`bug-investigation.md`](../../docs/bug-investigation.md) → *Enabling an `[ActiveIssue]` test after the issue closes*.
 - Don't edit `UserDataProviders.json` or `docker start <name>` from this skill. Env state is the user's; if the bisect's provider matrix is empty, ask the user to enable providers via `/test-providers` and resume.
 - Don't switch the primary clone to the working branch — branch work goes in a worktree (agent-rules → *Creating a new branch*).
-- Don't commit `.claude/` carryover on the working branch. Stage only the test file(s).
+- Don't stage a `.claude` gitlink bump. Stage only the test file(s).
 - Don't push without an explicit user ask, even when the commit is ready (agent-rules → *Push to remote rules*).
 - Don't backfill the issue milestone silently. Propose the value, get user OK, then PATCH.
 - Don't expand scope beyond the test enablement — fixing the underlying bug if step 2 fails is out of scope; that's `/fix-issue` territory.

@@ -2,12 +2,13 @@
 
 Canonical contributor instructions for AI coding agents working **on** the linq2db codebase. Agent-agnostic by default; tool-specific mechanics are called out inline with **Claude Code:** / **Codex:** / **Copilot:** prefixes.
 
-> **How each agent loads this file**
-> - **Codex** reads root `AGENTS.md` natively (plus `~/.codex/AGENTS.md` as a user-level override). This file is your primary instruction set.
-> - **Claude Code** loads it via `@AGENTS.md` from `CLAUDE.md`, then layers the Claude-only operational overlay (`.claude/docs/agent-rules.md`) on top. See `CLAUDE.md`.
-> - **Copilot** reads `.github/copilot-instructions.md`; that file points here for the full ruleset.
+> **Where this file lives and how each agent loads it**
+> This is the canonical copy, at `.claude/AGENTS.md` — inside the agent-instruction corpus, which is a git submodule ([linq2db/agents](https://github.com/linq2db/agents)) mounted at `.claude/` in a linq2db checkout. linq2db's *root* `AGENTS.md` is a trampoline that points here; don't edit that one.
+> - **Codex** reads root `AGENTS.md` natively (plus `~/.codex/AGENTS.md` as a user-level override), which sends it here. This file is your primary instruction set.
+> - **Claude Code** loads it via the root `CLAUDE.md` trampoline's imports, then layers the Claude-only operational overlay (`.claude/docs/agent-rules.md`) on top. See `.claude/CLAUDE.md`.
+> - **Copilot** reads `.github/copilot-instructions.md`, which is self-contained — GitHub-side review can't read submodule content, so rules it must honour are inlined there rather than linked from here.
 >
-> Detail docs under `.claude/docs/` are referenced by link. Codex/Copilot don't auto-load them — open them on demand. Claude pulls the Claude-relevant ones via its overlay. (`.claude/` is a symlink to `.claude/`, so either path resolves.)
+> Detail docs under `.claude/docs/` are referenced by link. Codex/Copilot don't auto-load them — open them on demand. Claude pulls the Claude-relevant ones via its overlay. Paths are spelled relative to the linq2db root, which is what tool calls resolve against; from inside the corpus repo, drop the `.claude/` prefix.
 
 This is *contributor* guidance (how to develop linq2db). It is **not** the consumer-facing library-usage pack that ships in NuGet.
 
@@ -74,7 +75,7 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 - **Multi-commit feature branches:** prefer `git merge origin/master` over rebase when the branch is long-lived / already has merge commits; rebase only short-lived linear branches.
 - Conflict-resolution patterns for recurring collisions (`LinqOptions` positional record's 5 sites, params inserted ahead of optionals, end-appended serialized enums): [.claude/docs/pr-and-push.md](.claude/docs/pr-and-push.md) → *Merging master into a feature PR — recurring conflict recipes*.
 
-> **Claude Code:** branch-based work goes in a `git worktree`, never by switching the primary clone; `.claude/` curation carry-over rules apply. See the overlay.
+> **Claude Code:** branch-based work goes in a `git worktree`, never by switching the primary clone — and a fresh worktree needs its `.claude/` corpus bootstrapped before any work happens there. See the overlay.
 
 ## Working discipline
 
@@ -125,7 +126,7 @@ Containers (`oracle11`, `postgres*`, `mysql*`, `db2`, etc.) are user-managed; ag
 
 ## Per-agent overlays
 
-- **Claude Code** — `CLAUDE.md` (entry) + [.claude/docs/agent-rules.md](.claude/docs/agent-rules.md) (operational overlay: shell/tool rules, permission patterns, worktrees, subagent verification, skill invocation) + [.claude/docs/claude-setup.md](.claude/docs/claude-setup.md). Skills/agents/hooks live under `.claude/` (discovered via the `.claude` symlink).
+- **Claude Code** — the root `CLAUDE.md` trampoline (entry) → [.claude/CLAUDE.md](.claude/CLAUDE.md) + [.claude/docs/agent-rules.md](.claude/docs/agent-rules.md) (operational overlay: shell/tool rules, permission patterns, worktrees, corpus/submodule mechanics, subagent verification, skill invocation) + [.claude/docs/claude-setup.md](.claude/docs/claude-setup.md). Skills / subagents / hooks / rules live under `.claude/`, where Claude Code discovers them natively.
 - **Codex** — this file (root `AGENTS.md`). Nothing else required; `~/.codex/AGENTS.md` is the optional user-level override.
 - **Copilot** — `.github/copilot-instructions.md` (review heuristics + pointer here).
 

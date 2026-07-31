@@ -6,7 +6,8 @@ Paths and references used by the release skills. Pre-seeded with known defaults;
 
 | Repo | Path | Purpose | Verified |
 |------|------|---------|----------|
-| `linq2db` | `../linq2db` | primary product repo (this curation workspace is a separate clone from it) | conventional |
+| `linq2db` | `../linq2db` | primary product repo (a separate sibling clone from the one the agent runs in) | conventional |
+| `agents` | mounted at `.claude/` | the agent-instruction corpus, as a submodule of this clone; corpus commits go here, never to a linq2db branch | fixed |
 | `linq2db.baselines` | `../linq2db.baselines` | test result baselines; read by `/review-pr`, reset by `/release-publish` step 3 | conventional |
 | `linq2db.docs` | `../linq2db.docs` | documentation source repo; docs PR opened here by `/release-postpublish` step 2. **Not** `linq2db.github.io` — that's the published site, updated by CI from this repo | conventional |
 | `linq2db.wiki` | `../linq2db.wiki` | hosts the release-notes page (`Releases-and-Roadmap.md`). **Read** via `https://raw.githubusercontent.com/wiki/linq2db/linq2db/<page>.md` on demand (not exposed under the REST `/contents/` endpoint). **Write** needs the local clone (`git clone https://github.com/linq2db/linq2db.wiki.git`); `/release-notes apply` regenerates the version section there, shows the diff, and pushes on confirm. | — |

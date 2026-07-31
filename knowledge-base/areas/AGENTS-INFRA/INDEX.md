@@ -85,7 +85,6 @@ Each skill occupies its own folder; every folder currently contains only `SKILL.
 - `/copilot-loop` -- iterative Copilot-review response loop; reads pending Copilot review comments, groups by thread, routes reply/resolve to `post-pr-thread-replies.ps1`.
 - `/api-baselines` -- regenerates `Source/**/CompatibilitySuppressions.xml` via `dotnet pack -p:ApiCompatGenerateSuppressionFile=true`; gates on non-`LinqToDB.Internal.*` changes; never hand-edits baselines directly.
 - `/version-bump` -- bumps `<Version>` and four `<EFxVersion>` values in `Directory.Build.props` in a single `Edit` call; requires explicit user confirmation.
-- `/update-slnx` -- syncs the `/.claude/*` virtual folders in `linq2db.slnx` with on-disk `.claude/` contents; always-included entries: `CLAUDE.md` and `.claude/settings.local.json`.
 - `/session-reflect` -- harvests current conversation for durable knowledge; routes findings to `.claude/` (project-scoped) or user-level auto-memory; six buckets: feedback, doc, script, skill, agent, permission.
 
 ### Agents (`.claude/agents/*.md`)
@@ -256,7 +255,6 @@ A user-level hook `~/.claude/hooks/check-bash-chain.js` (not in this repo) enfor
 | `.claude/skills/test-progress/SKILL.md` | Test run heartbeat toggle |
 | `.claude/skills/api-baselines/SKILL.md` | API baseline refresh |
 | `.claude/skills/version-bump/SKILL.md` | Version bump |
-| `.claude/skills/update-slnx/SKILL.md` | Solution file sync |
 | `.claude/skills/audit-agents/SKILL.md` | Instruction corpus audit |
 | `.claude/skills/session-reflect/SKILL.md` | Session harvest skill |
 | `.claude/skills/chores/SKILL.md` | Maintenance dashboard / chore dispatcher |
@@ -409,5 +407,5 @@ Read (this run -- delta):
 - `.claude/skills/test-progress/SKILL.md` -- new skill `/test-progress`: toggles `LINQ2DB_TEST_PROGRESS` in `settings.local.json` env block; `on`/`off` (sets `"0"`, does not remove key)/`status` actions; invokes `test-status.ps1` for status; scope limited to Claude-launched runs.
 - `.claude/skills/test/SKILL.md` -- added step 3.1a "Long runs -- auto-trace + background monitor": auto-invokes `/test-progress on`, runs `test-runner` with `run_in_background: true`, polls heartbeat mid-run; updated step 3.3 to pass `repoRoot` for worktrees; added worktree `repoRoot` threading from args clause.
 
-NOTE (indexer): the on-disk `.claude/` tree is the `infra/agents-curation` branch (ahead of `origin/master`); this INDEX reflects that current on-disk state, which is the correct representation for the KB living on this branch. `last_verified_sha` is stamped to the `origin/master` refresh anchor.
+NOTE (indexer): the `.claude/` tree is its own repo ([linq2db/agents](https://github.com/linq2db/agents), branch `master`), mounted as a submodule — so this INDEX tracks the corpus repo's tip, independently of which linq2db branch the superproject sits on. `last_verified_sha` refers to the **linq2db** commit the rest of the KB was indexed from, not to a corpus commit.
 </details>

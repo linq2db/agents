@@ -18,7 +18,7 @@ Two traps when paginating a GraphQL connection (e.g. a PR's `reviewThreads`, whi
 
 ## `git show <ref>:<path>` is path-mangled when the ref contains `/`
 
-Git Bash on Windows treats `<ref>:<path>` as a Unix-style `PATH` list (`:`-separated) when both halves look path-ish, so a ref like `infra/agents-curation` produces `'infra\agents-curation;.claude\hooks\foo.ps1'` and dies with `fatal: ambiguous argument`. Single-token refs (a SHA or `master`) usually escape the heuristic. Workaround: read the blob in two allowlist-friendly steps — `git ls-tree <ref> <path>` returns `<mode> blob <sha> <path>`, then `git cat-file -p <sha>` prints the content. Both match `Bash(git *)` and avoid the colon entirely.
+Git Bash on Windows treats `<ref>:<path>` as a Unix-style `PATH` list (`:`-separated) when both halves look path-ish, so a ref like `issue/5432-fix-cte-aliases` produces `'issue\5432-fix-cte-aliases;Source\LinqToDB\foo.cs'` and dies with `fatal: ambiguous argument`. Single-token refs (a SHA or `master`) usually escape the heuristic. Workaround: read the blob in two allowlist-friendly steps — `git ls-tree <ref> <path>` returns `<mode> blob <sha> <path>`, then `git cat-file -p <sha>` prints the content. Both match `Bash(git *)` and avoid the colon entirely.
 
 ## Cloning the `linq2db.wiki` repo — fixed, with a colon-page fallback
 

@@ -98,7 +98,7 @@ Mechanics that are non-obvious (each cost a debugging cycle on #5703 — the ski
 
 ## Registration
 
-Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (via `/update-slnx`). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).
+Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).
 
 ## How the rules reach a consumer, and how a consumer turns them off
 

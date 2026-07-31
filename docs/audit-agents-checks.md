@@ -1,6 +1,6 @@
 # Audit-agents per-check rules
 
-Per-check rules invoked from [`/audit-agents`](../skills/audit-agents/SKILL.md) → step 2 ("Run the eleven checks"). The skill's orchestration (enumerate corpus → run checks → assemble report → offer patches → apply slnx → report) lives in the SKILL.md; the rules below are the body of step 2.
+Per-check rules invoked from [`/audit-agents`](../skills/audit-agents/SKILL.md) → step 2 ("Run the eleven checks"). The skill's orchestration (enumerate corpus → run checks → assemble report → offer patches → report) lives in the SKILL.md; the rules below are the body of step 2.
 
 Each check produces zero or more finding records of the shape defined in the SKILL.md ("Run the eleven checks" intro). Run them in parallel where possible; checks are mostly independent.
 
@@ -10,14 +10,15 @@ For every Markdown link `[text](path)`, `path]` reference, `@path` import, and e
 
 Proposed fix (mechanical when the file was renamed and there's one plausible new target; creative when ambiguous): suggest the new path or ask.
 
-## 2b. Slnx-mismatch check
+## 2b. Trampoline-drift check
 
-Diff on-disk `.claude/` files against `linq2db.slnx` entries starting with `.claude/` or equal to `AGENTS.md` / `CLAUDE.md`.
+The corpus is a git submodule at `.claude/`, so linq2db's root `AGENTS.md` and `CLAUDE.md` are the only corpus-dependent files *outside* the corpus — and the only place its load order can rot silently, since a corpus commit can't touch them. Check three things:
 
-- **On disk, not in slnx** — error unless the file is gitignored AND not an always-included exception (`.claude/settings.local.json`). Fix: run `/update-slnx`.
-- **In slnx, not on disk** — error unless the file is an always-included exception. Fix: run `/update-slnx`.
+- **Every `@` import in the root `CLAUDE.md` resolves** — a `@.claude/<path>` naming a file the corpus no longer has means that content stopped loading. Error, mechanical fix (retarget or drop the import).
+- **The import set matches what the corpus declares.** `.claude/CLAUDE.md` states the always-loaded set (`.claude/AGENTS.md`, `.claude/CLAUDE.md`, `.claude/docs/agent-rules.md`); the trampoline must carry exactly those, in that order. A corpus file added to that declaration without the matching trampoline edit is an error — it reads as loaded and isn't. Note the fix needs a **linq2db** commit, not a corpus one.
+- **Neither trampoline carries substantive rules.** They are pointers: a heading, the import list, a do-not-edit note. Normative content there is invisible to the corpus's own history and to `/audit-agents`' other checks — flag it as an error with the fix being "move it into the corpus".
 
-Don't emit individual edit patches for slnx mismatches — the slnx structure is owned by `/update-slnx`. Emit a single aggregated finding pointing at the skill.
+Also confirm `.github/copilot-instructions.md` is **self-contained** — GitHub-side Copilot review reads the linq2db repo, where submodule content isn't checked out, so a rule it must honour has to be inline rather than behind a `.claude/` link. A pointer for humans is fine; a pointer standing in for the rule is a warning.
 
 ## 2c. Template-gap check
 
@@ -58,7 +59,7 @@ This is not a full-text dedup — it's a fixed list of "rules that must live in 
 
 ## 2e. Retired-path check
 
-`Grep` the corpus for path-ish tokens (`Source/\S+`, `Tests/\S+`, `Build/\S+`, `Data/\S+`, `.claude/\S+`) and check each against `Glob`. Flag tokens that look like paths and don't resolve. Skip ones inside code fences that are illustrative examples (common pattern: `Source/LinqToDB/...` as a placeholder).
+`Grep` the corpus for path-ish tokens (`Source/\S+`, `Tests/\S+`, `Build/\S+`, `Data/\S+`, `.claude/\S+`) and check each against `Glob`. Flag tokens that look like paths and don't resolve. Skip ones inside code fences that are illustrative examples (common pattern: `Source/LinqToDB/...` as a placeholder). **`.claude/…` tokens only resolve when the submodule is populated** — in a fresh clone or a non-bootstrapped worktree every corpus path reads as retired, so confirm `.claude/AGENTS.md` exists before trusting a batch of `.claude/` findings.
 
 Distinguish: a path that never existed (probably an example) vs. a path that clearly used to exist. Heuristic: if the parent directory exists and the filename has the standard repo shape (`<PascalCase>.cs`, `<kebab>.md`), it's likely a real retired path.
 
@@ -101,7 +102,7 @@ Inspect the user's auto-memory store for entries whose content would help every 
 | Type | Promotion candidate? | Heuristic |
 |---|---|---|
 | `user` | Never. | User-personal by definition (role, knowledge profile, preferred response style). Promoting these is a category error — they describe one human, not the codebase. |
-| `feedback` | Sometimes. | Project-truthy when the rule is **incident-driven** ("we got burned when…", "CI rejects X because…", "the slnx skill prompts twice when…") or **tooling-driven** (shape-of-tool requirements that any agent on this repo would hit). Personal when the rule is a **preference** ("I like terse responses", "no apologies"). The `**Why:**` line is the strongest signal — incidents and tool failures generalise; tastes don't. |
+| `feedback` | Sometimes. | Project-truthy when the rule is **incident-driven** ("we got burned when…", "CI rejects X because…", "`dotnet test` needs `--project` under MTP…") or **tooling-driven** (shape-of-tool requirements that any agent on this repo would hit). Personal when the rule is a **preference** ("I like terse responses", "no apologies"). The `**Why:**` line is the strongest signal — incidents and tool failures generalise; tastes don't. |
 | `project` | Sometimes. | Project-truthy when the fact is **durable and codebase-relevant** — a milestone driving prioritisation, a stakeholder ask shaping scope, a long-running initiative. Skip when the fact is **conversation-scoped** ("currently fixing #5414") or about the user's own queue. |
 | `reference` | Sometimes. | Project-truthy when the pointer is to a **project-shared resource** — a Linear board, dashboard, or wiki for *this* repo / service. Skip when it's a **personal tool** the user uses to organise their own work. |
 

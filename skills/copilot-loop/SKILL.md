@@ -209,8 +209,9 @@ Whatever ends the loop (convergence, timeout, user `Ctrl+C`, error):
 ## Don'ts
 
 - Do not auto-defer findings the agent can't fix. Surface them to the user.
-- Do not commit playground scratch or `.claude/` curation diffs accidentally
-  carried over (per `agent-rules.md` → *Carrying `.claude/` curation*).
+- Do not commit playground scratch, and do not stage a `.claude` gitlink bump
+  (per `agent-rules.md` → *The corpus is a submodule*) — corpus fixes prompted by
+  a review comment are committed inside `.claude/`, not onto the PR branch.
 - Do not skip the calibration list in step 5 — bots are systematically wrong
   on `PublicAPI.Unshipped.txt` drift and framework-API-removal claims.
 - Do not invent fixes for findings classified as **Inaccurate at HEAD** —
