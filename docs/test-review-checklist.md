@@ -35,6 +35,14 @@ When the test is named `TrimEndN` / `OrderByDesc` / `XyzAsync`, the LINQ project
 
 A regression test for a cross-provider bug needs a `[DataSources]` (or `[IncludeDataSources(...)]`) parameter, otherwise it runs against the default provider only and misses the providers where the bug actually manifests. New tests using `GetDataConnection()` / `GetDataContext()` without a `context` parameter are a red flag — read the surrounding fixture for the convention.
 
+### A new exact-value test whose provider set spans flavors the author didn't verify
+
+When a PR adds a test asserting *exact* types or literal strings per provider (a reader/type matrix, provider-specific formatting) and its `[IncludeDataSources(...)]` set spans distinct engine *flavors* — `MySql*` + `MariaDB`, `AllFirebird`, `AllSqlServer` across the MS/System providers, `ClickHouse` across its three drivers — check the PR body's "verified locally against …" list against that set. Flavors present in the attribute but absent from the verified list are an untested assertion, not coverage: same-family engines diverge on reader metadata even for identical SQL. Flag as MIN with the unverified flavor named.
+
+Softer evidence than code, so keep it at MIN: the author may have verified more than they wrote down.
+
+(Surfaced on #5678: `MySqlConnectorProviderSpecificReadMatrix` included `AllMariaDB` while the body listed only Oracle/DB2/PostgreSQL/DuckDB/Access as verified; MariaDB narrows `CAST(x AS SIGNED)` to `INT` where MySQL reports `BIGINT`, so two rows were wrong and the MariaDB leg was the build's only red job.)
+
 ### Time-based assertions / DB-server-vs-runner timezone
 
 `Sql.GetDate()` / server-side `NOW()` / `CURRENT_TIMESTAMP` returns the DB server's local time, which may differ from the runner's `DateTime.Now` by hours when the DB runs in Docker or on a remote host. Assertions on:
