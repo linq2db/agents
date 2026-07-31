@@ -74,8 +74,8 @@ Only after the user confirms the summary + slug. Follow `.claude/docs/agent-rule
 
 1. Check for a dirty working tree. If dirty, stop and ask whether to stash.
 2. `git fetch origin master` — keep the base fresh.
-3. Create the branch **in a worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*: "Worktrees are the default for branch-based task work"): `git worktree add -b issue/<n>-<slug> ../<clone-dir>.<slug> origin/master`, where `<clone-dir>` is this clone's folder name.
-4. Confirm the branch is checked out in the worktree (`git -C ../<clone-dir>.<slug> rev-parse --abbrev-ref HEAD`), and do all subsequent work against that path.
+3. Create the branch **in a worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*: "Worktrees are the default for branch-based task work"): `git worktree add -b issue/<n>-<slug> <worktrees-root>/<slug> origin/master`, where `<worktrees-root>` is the user's worktrees location (see [`worktree.md`](../../docs/worktree.md) → *`<worktrees-root>` — where worktrees go*).
+4. Confirm the branch is checked out in the worktree (`git -C <worktrees-root>/<slug> rev-parse --abbrev-ref HEAD`), and do all subsequent work against that path.
 5. Provision the worktree per [`worktree.md`](../../docs/worktree.md) — both the `.claude/` bootstrap (a fresh worktree has an empty corpus dir, so the agent would run with no rules) and `UserDataProviders.json` placement apply. Test runs from here go through `/test` with `worktree <abs-worktree-path>` (agent-rules → *Running tests*), never a hand-run `dotnet test`.
 
 Do **not** commit yet — the branch starts empty relative to master.

@@ -69,7 +69,7 @@ If the bisect cost looks large up front (> 200 commits in the range), surface it
 ### 4. Branch + remove `[ActiveIssue]`
 
 1. Confirm the working tree is clean (the bisect worktree's detached edits don't propagate — they're independent).
-2. Create the branch from fresh `origin/master` **in its own worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*): `git fetch origin master` → `git worktree add -b issue/<n>-<kebab-slug> ../<clone-dir>.<kebab-slug> origin/master`. Slug per agent-rules; verb-led (`enable-enum-mapping-test`, `enable-cte-alias-test`). Do the remaining steps against that worktree path.
+2. Create the branch from fresh `origin/master` **in its own worktree**, not by switching the primary clone (agent-rules → *Creating a new branch*): `git fetch origin master` → `git worktree add -b issue/<n>-<kebab-slug> <worktrees-root>/<kebab-slug> origin/master` (`<worktrees-root>` per [`worktree.md`](../../docs/worktree.md) → *`<worktrees-root>` — where worktrees go*). Slug per agent-rules; verb-led (`enable-enum-mapping-test`, `enable-cte-alias-test`). Do the remaining steps against that worktree path.
 3. Bootstrap the worktree's `.claude/` (a fresh worktree gets an empty submodule dir — see [`worktree.md`](../../docs/worktree.md) → *Bootstrapping `.claude/` in a worktree*), otherwise the agent works there with no rules loaded.
 4. Edit each gated test to remove `[ActiveIssue]`. One-line change per test (the attribute on its own line).
 5. Stage **only** the test file(s): `git add <test-file>`.
