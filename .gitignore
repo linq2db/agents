@@ -1,0 +1,6 @@
+# Personal, machine-local Claude Code project settings: permission allowlists,
+# hook wiring, model/effort preferences, env vars. Never committed - see
+# docs/claude-setup.md. The superproject's .gitignore cannot reach in here,
+# so this file is what keeps a mounted checkout clean.
+settings.local.json
+CLAUDE.local.md
