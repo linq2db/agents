@@ -395,6 +395,14 @@ When debugging query translation or provider issues,
 use `Console.WriteLine` to output intermediate values or SQL fragments.
 Do not introduce logging dependencies.
 
+### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
+
+NUnit's multiple-assert scope only accumulates failures reported through NUnit's own assertion machinery. **Shouldly throws a plain `ShouldAssertException`**, which propagates straight out of the block — so a fixture wrapping a dozen `ShouldBe` assertions in `using (Assert.EnterMultipleScope())` still stops at the first mismatch and reports exactly one failure.
+
+Consequence when reading such a test's CI failure: **the reported mismatch is not necessarily the only one.** Don't fix just that row and assume green. Get the whole picture in one run with a temporary probe that collects every actual value into a list and ends with `Assert.Fail(string.Join(...))` — the `Assert.Fail` is required, since MTP hides a passing test's stdout (see *Capturing a passing test's exception / stack* below). Revert the probe before committing.
+
+(Surfaced on #5678: `MySqlConnectorProviderSpecificReadMatrix` reported one `Int32`/`Int64` mismatch on MariaDB.11; the probe showed two rows diverged.)
+
 ### Capturing a passing test's exception / stack
 
 The MTP runner surfaces per-test stdout only for **failed / skipped** tests — a passing test's `TestContext.Out.WriteLine` / `Console.WriteLine` is generated but never routed to the run output (also why `/test` reports succeeded tests by count only). So when a test passes via `Assert.Throws<T>` and you need the *caught* exception's full stack — e.g. to find where deep in the pipeline it's thrown — printing it from inside the test shows nothing.
