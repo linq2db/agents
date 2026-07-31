@@ -6,7 +6,11 @@ Each check produces zero or more finding records of the shape defined in the SKI
 
 ## 2a. Dead-reference check
 
-For every Markdown link `[text](path)`, `path]` reference, `@path` import, and every inline `file:line` reference in a `.md` or `.ps1` file, resolve `path` against the repo root. Flag paths that don't exist. Skip external URLs (`http://`, `https://`, `mailto:`) and absolute Windows/Unix paths outside the repo. For `@path` in `CLAUDE.md` (Claude Code's import syntax), check the exact path.
+**Markdown links: run `pwsh -NoProfile -File .claude/scripts/check-corpus-links.ps1`** rather than resolving them by hand. It walks every tracked `.md`, handles both corpus link conventions (superproject-relative `.claude/docs/foo.md` and file-relative `../AGENTS.md`), and returns `{ checked, skipped, broken: [{ file, target, line }] }`. Targets owned by the superproject (`Source/**`, `linq2db.slnx`, `CONTRIBUTING.md`, …) come back as `skipped`, not broken — they legitimately don't exist in a standalone corpus clone.
+
+Two known-noisy classes in its `broken` list, both pre-existing rather than new drift: KB area files link `INDEX.md` siblings that were never generated, and `](url)` / `](<sampleUrl>)` placeholders inside prose parse as links. **Compare the count against the previous run instead of expecting zero** — a jump is the signal.
+
+For the reference kinds the script doesn't cover — `@path` imports in the root `CLAUDE.md` trampoline (check the exact path; see §2b), bare `path]` references, and inline `file:line` citations in `.md` / `.ps1` — resolve against the repo root by hand. Skip external URLs (`http://`, `https://`, `mailto:`) and absolute paths outside the repo.
 
 Proposed fix (mechanical when the file was renamed and there's one plausible new target; creative when ambiguous): suggest the new path or ask.
 
