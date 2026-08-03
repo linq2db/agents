@@ -12,6 +12,14 @@ Paths and references used by the release skills. Pre-seeded with known defaults;
 | `linq2db.docs` | `../linq2db.docs` | documentation source repo; docs PR opened here by `/release-postpublish` step 2. **Not** `linq2db.github.io` — that's the published site, updated by CI from this repo | conventional |
 | `linq2db.wiki` | `../linq2db.wiki` | hosts the release-notes page (`Releases-and-Roadmap.md`). **Read** via `https://raw.githubusercontent.com/wiki/linq2db/linq2db/<page>.md` on demand (not exposed under the REST `/contents/` endpoint). **Write** needs the local clone (`git clone https://github.com/linq2db/linq2db.wiki.git`); `/release-notes apply` regenerates the version section there, shows the diff, and pushes on confirm. | — |
 
+### The raw wiki URL is CDN-cached — don't re-audit straight after a push
+
+`raw.githubusercontent.com/wiki/...` sits behind a CDN, so for a few minutes after a wiki push it still serves the **pre-push** copy, and different requests can hit edges of different freshness (two fetches seconds apart legitimately disagreeing). `release-notes-audit.ps1` reads exactly that URL, so `/release-notes-validate` run immediately after `/release-notes apply` reports **false coverage gaps** for the items just added — and the audit doesn't persist the text it matched against, so the gap looks real.
+
+Confirm against the **local clone** (or the rendered `https://github.com/linq2db/linq2db/wiki/<page>` page) before treating a post-push gap as genuine: a length delta equal to the text you just added is the tell. Re-running the audit with `-FreshnessMin 0` does not help — that only bypasses the *plan* cache, not the CDN. (Surfaced 2026-08-03 on 6.4.0: local clean tree 170554 chars containing the new `#5617` citation vs 170485 from the raw endpoint, a 69-char delta exactly matching the addition.)
+
+Also note `release-prefetch.ps1 -SkipFresh` means *skip tasks whose plan is already fresh* — it does **not** force re-discovery. Use `-FreshnessMin 0` for that.
+
 If a recorded path doesn't exist on disk, the skill asks the user once and updates this table. `/release-notes apply-wiki` stops and asks the user to clone `linq2db.wiki` once if the path is absent — it never auto-clones.
 
 ### Windows: cloning `linq2db.wiki` (colon-in-filename gotcha — fixed, fallback below)
