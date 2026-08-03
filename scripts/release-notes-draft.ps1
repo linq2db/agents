@@ -294,6 +294,9 @@ function Get-ComponentRank {
     if ($Name -ieq 'LinqToDB') { return 0 }
     if ($Name -ieq 'LinqToDB CLI' -or $Name -ieq 'linq2db.cli') { return 300 }
     if ($Name -imatch '^(LinqToDB|linq2db)') { return 100 }
+    # Project areas whose header doesn't start with LinqToDB/linq2db need an explicit rank,
+    # otherwise they fall into the 1000 database bucket and sort in among the providers.
+    if ($Name -ieq 'Analyzers') { return 400 }
     return 1000
 }
 
@@ -347,11 +350,20 @@ function Build-VersionSection {
             $label = if ($ct -ieq 'Breaking') { '##### ⚠ Breaking changes' } else { "##### $ct" }
             [void]$lines.Add($label)
             [void]$lines.Add('')
-            $bullets = @($byComp[$comp][$ct]) | Sort-Object @{Expression={[int]$_.pr}}
+            # -Stable: several bullets can share one PR number (a PR spanning two change types, or
+            # two separate findings from one PR). Sort-Object is unstable by default, so equal keys
+            # would come out in arbitrary order and a regenerate would reshuffle already-published
+            # bullets — churn in the diff and loss of the authored sequence.
+            $bullets = @($byComp[$comp][$ct]) | Sort-Object -Stable @{Expression={[int]$_.pr}}
             foreach ($b in $bullets) {
                 $ref = if ($b.url) { "[#$($b.pr)]($($b.url))" } else { "#$($b.pr)" }
                 $txt = ([string]$b.text).Trim()
-                if ($deepDiveAnchorByPr.ContainsKey([int]$b.pr)) {
+                # The anchor map is keyed by PR, so every bullet of a deep-dive PR would get the link.
+                # A PR can also carry an unrelated bullet (e.g. a Fixed side effect alongside its Added
+                # feature); linking that one points the reader at a spotlight about something else.
+                # Per-bullet noDeepDiveLink opts out.
+                $skipLink = $b.PSObject.Properties['noDeepDiveLink'] -and [bool]$b.noDeepDiveLink
+                if (-not $skipLink -and $deepDiveAnchorByPr.ContainsKey([int]$b.pr)) {
                     $txt = $txt.TrimEnd() + " See [details](#$($deepDiveAnchorByPr[[int]$b.pr])) below."
                 }
                 [void]$lines.Add("- $txt ($ref)")
