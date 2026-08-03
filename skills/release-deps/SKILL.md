@@ -101,6 +101,12 @@ For every analyzer package being bumped (Meziantou.Analyzer, NUnit.Analyzers, Mi
 
 This replaces the old reactive "build → see what fires → ask per rule → re-build" cycle. Predictive answers from the changelog let the build pass on first try.
 
+**Every analyzer package bumped here books a post-build profiling pass.** A severity decision made from a changelog says nothing about what the rule *costs*: a newly-enabled rule can land among the most expensive analyzers in the build, and a package bump can regress an already-enabled rule without adding any new rule at all. Neither is visible until the shipping rule set is measured. So record the bumped analyzer ids + the newly-enabled rule ids in the deps state, and tell the user that [`/release-verify`](../release-verify/SKILL.md) step 3 will run [`/profile-analyzers`](../profile-analyzers/SKILL.md) **after** its build goes clean, to produce new-rule costs, regression deltas against the previous release's baseline, and an explicit disable-candidate list.
+
+Do **not** run the profiling build from this skill — it needs a clean tree, which only exists after `/release-verify` step 2 closes. Enabling a rule here on changelog reasoning alone is expected and fine; the perf verdict is deferred, not skipped.
+
+When rendering rules for the user's severity decisions, link each rule id to its documentation page rather than printing a bare id (Meziantou: `https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/<ID>.md`) — the user reads the doc per rule to decide, and a bare id costs them a search each time.
+
 #### 4b. Polyfill new-APIs review
 
 For every polyfill package being bumped (Meziantou.Polyfill, etc.):

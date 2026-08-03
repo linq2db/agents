@@ -81,9 +81,27 @@ The agent reads the tables and presents to the user, flagging the dominant offen
 - **Top N busiest analyzers** — sum across projects; uniformly expensive analyzers rise.
 - **Top N projects by total analyzer time** — which projects dominate the build cost.
 
-### 5. (Optional) Compare against the previous baseline
+### 5. Compare against the previous baseline, then re-save it
 
-Not implemented yet — there is no committed baseline file. When this skill is invoked from `/release-deps`, surface the report and ask the user to **eyeball-compare against memory** of the prior release's profile. A future iteration may persist a baseline JSON under `.claude/docs/release/analyzer-perf-baseline.json` and produce an automatic delta.
+The baseline lives at **`.claude/docs/release/analyzer-perf-baseline.json`** — in the corpus, so it persists across releases and across clones. Shape:
+
+```json
+{
+  "capturedOn": "<iso-date>",
+  "release": "<version the capture was taken during>",
+  "analyzerPackages": { "Meziantou.Analyzer": "3.0.138", "NUnit.Analyzers": "4.14.0" },
+  "busiestAnalyzers": [ { "analyzer": "<id>", "totalSeconds": 0 } ],
+  "projectTotals":    [ { "project": "<name>", "totalSeconds": 0 } ]
+}
+```
+
+Procedure:
+
+1. **If the file exists**, diff the current run's `busiestAnalyzers` against it and report, per analyzer: `totalSeconds` now, then, and the delta (absolute + %). Sort by regression size, not by absolute cost — a rule that went 40s → 400s matters more than one that has always cost 500s. Rules absent from the baseline are `new`; rules absent from the current run were disabled or removed since.
+2. **If the file does not exist** (first capture, or the analyzer set changed shape), say so plainly and treat the whole run as the initial baseline — do **not** silently present absolute numbers as if they were deltas.
+3. **After the user finishes their disable decisions** (step 6), write the run back as the new baseline, including the analyzer package versions it was measured at. Without this write-back, the next release has nothing to diff and the regression check degrades to eyeballing.
+
+The baseline is a corpus file, so the write is a `.claude/` submodule commit pushed to the agents repo — never onto a linq2db branch (see [`agent-rules.md`](../../docs/agent-rules.md) → *The corpus is a submodule*). Because the measurement is machine-dependent (CPU count, disk), treat cross-machine deltas as directional only; a baseline captured on a different machine than the current run should be flagged as such rather than reported as a regression.
 
 ### 6. Disable rules (if user agrees)
 
@@ -91,6 +109,15 @@ Editing `.editorconfig` is a repo-wide change. Before touching it:
 
 - Confirm with the user which rules to disable.
 - Only propose disabling rules that are **(a) disproportionately expensive AND (b) not pulling their weight** (false-positive heavy, or redundant with another rule). Expensive-but-valuable rules stay.
+
+Present the outcome as an explicit **disable-candidate table**, not as "here are the three rankings, you decide". One row per candidate:
+
+| Rule | Total | Δ vs baseline | Newly enabled? | Verdict |
+|---|---|---|---|---|
+| `MA0xxx` | 812s | +770s (new) | yes, this release | candidate — cost is 18% of analyzer time, rule is redundant with CAxxxx |
+| `CAxxxx` | 640s | +25s | no | accepted cost — high value, no regression |
+
+Rules that are expensive but staying belong in the table too, marked *accepted cost* — that record is what stops the next release from re-litigating the same rule.
 
 When disabling, follow the existing convention in `.editorconfig` (numerically ordered under `###### Meziantou.Analyzers` and the corresponding sections for other analyzer families). Add a short reasoning suffix on the `severity = none` line:
 

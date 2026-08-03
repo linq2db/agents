@@ -21,7 +21,9 @@ When a rule is added or amended, the modifying skill prompts session-reload.
 
 - **Shipping runtime packages:** `Microsoft.Extensions.*`, `System.*` referenced by published linq2db assemblies. Default rule: pin to the initial .NET version (e.g. 8.0.0 / 9.0.0); only bump if flagged vulnerable.
 - **Test-only references:** opposite rule — latest stable is always proposed.
-- **Analyzers:** prerelease versions allowed (analyzers are dev-time only, not transitively visible to consumers).
+- **Analyzers:** prerelease versions allowed (analyzers are dev-time only, not transitively visible to consumers). Two obligations apply to *every* analyzer-package bump, regardless of package:
+  - **Rule-catalog catch-up** before the build (`/release-deps` step 4a) — new rules get a severity decision each. Render each rule id as a link to its doc page, not a bare id.
+  - **Post-build profiling pass** after the build is clean (`/release-verify` step 3 → `/profile-analyzers`) — measures what the newly-enabled rules actually cost, diffs already-enabled rules against `analyzer-perf-baseline.json` to catch regressions introduced by the bump alone, and yields an explicit disable-candidate list. A severity decision taken from a changelog is not a cost decision; the cost verdict is deferred to this pass, never skipped.
 - **Database providers:** per-provider rules vary widely (some providers have schema-init compatibility quirks tied to specific versions). Capture each as a row when encountered.
 - **Self-references:** `linq2db.t4models` is bumped post-release by `/release-postpublish` step 4 to the just-released version; not by `/release-deps`.
 - **`*LatestForNuget` / `*LatestNuget` MSBuild properties** (e.g. `$(Net8LatestForNuget)`, `$(EF3LatestNuget)`): contain the **lowest** / initial version of a .NET-X / EF-X line, used by published nuspec contracts. **Always pinned at `X.0.0` (or for EF: at the lowest supported minor, e.g. `3.1.0` for EF Core 3.1).** Do **not** ask per-package for any `<PackageVersion>` whose `Version="$(*LatestForNuget|*LatestNuget)"`. Only change when the pinned version becomes unlisted on nuget.org or is flagged vulnerable — in that case bump to the next stable X.0.y.
@@ -112,7 +114,17 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 
 - **Release notes URL:** https://system.data.sqlite.org/home/doc/trunk/www/news.md
 - **Update rule:** **Public-API surface diff via fuget** (see *Fuget API-diff procedure*) — show diff to user before committing.
+- **Also:** subject to the *SQLite version-assert sync* rule below.
 - **Last verified:** 2026-05-15 on release 6.3.0
+
+## SourceGear.sqlite3 (and the SQLite version-assert sync rule)
+
+- **What it is:** supplies the patched native `e_sqlite3.dll` for **CVE-2025-6965 / GHSA-2m69-gcr7-jv3q** (SQLite < 3.50.2), because `SQLitePCLRaw.lib.e_sqlite3` (<= 2.1.11, pulled via `Microsoft.Data.Sqlite` / `Microsoft.EntityFrameworkCore.Sqlite`) has no patched release. Rationale is recorded in `Directory.Packages.props` near the entry. Deployed by `SQLite.Runtime.props` into `sds/runtimes/`; consumed by tests (`Tests/linq2db.Providers.props`), `NuGet/NuGet.csproj`, and the LINQPad driver.
+- **Update rule — run the version-assert test locally BEFORE pushing.** Whenever **SQLite itself or any SQLite provider** moves — `SourceGear.sqlite3`, `System.Data.SQLite`, `Microsoft.Data.Sqlite` (note: it rides `$(Net10Latest)`, so it moves *silently* with that property), or `Microsoft.EntityFrameworkCore.Sqlite` — the asserted SQLite version can change. Run `TestDbVersion` (`Tests/Linq/DataProvider/SQLiteTests.cs`) locally, read the actual `select sqlite_version()` results, and update the expectations. **The test is `[Explicit]`, so a normal test run and CI both skip it** — it must be selected deliberately, which is exactly why a stale assert otherwise survives until it wastes a CI run.
+- **Two files to update together** (the test's own comment names the second one):
+  1. `Tests/Linq/DataProvider/SQLiteTests.cs` — the `expectedVersion` switch: one arm for `SQLiteClassic` + the two MiniProfiler variants (driven by `SourceGear.sqlite3`'s native lib), one for `SQLiteMS` (driven by Microsoft.Data.Sqlite's own SQLitePCLRaw bundle). The two providers legitimately report **different** versions — don't "fix" that to a single value.
+  2. `Build/Azure/README.md` — the SQLite test-matrix rows hardcode both the version **and** a `https://www.sqlite.org/releaselog/<v_v_v>.html` link, so each needs the number *and* the URL slug updated (underscores, e.g. `3_53_4`).
+- **Last verified:** 2026-08-03 on release 6.4.0 (SourceGear.sqlite3 3.50.4.5 -> 3.53.4; asserts were `SQLiteClassic` "3.50.4" / `SQLiteMS` "3.46.1")
 
 ## dotMorten.Microsoft.SqlServer.Types
 
@@ -179,7 +191,8 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
   - `VersionOverride` site referencing `$(EF3NpgsqlVersion)` → pinned at `4.1.14` (last npgsql 4.1.x — paired with EF Core 3.1).
   Update each row only within its own major.
 - **API surface diff via fuget** (see *Fuget API-diff procedure*) — apply per row that bumps.
-- **Last verified:** 2026-05-15 on release 6.3.0
+- **API-diff exclusions:** `Npgsql.Internal.*` (driver-internal surface, not a consumer contract; linq2db references none of it — verified by grep on 6.4.0 prep when `Npgsql.Internal.Postgres.DataTypeName.FromDisplayName` was removed in 10.0.3).
+- **Last verified:** 2026-08-03 on release 6.4.0
 
 ## Newtonsoft.Json
 
@@ -234,7 +247,8 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
      <PackageVersion Include="Net.IBM.Data.Db2"     Version="10.0.0.100"  Condition="'$(TargetFramework)'=='net10.0'" />
      ```
      Same pattern for `-lnx` and `-osx`. Apply on every X.x → (X+1).x bump that drops a supported TFM.
-  2. **CI install scripts.** Versions are also pinned in `Build/Azure/scripts/db2.provider.sh` (lnx) and `Build/Azure/scripts/mac.db2.provider.sh` (osx). **Do not** update these scripts when adding a new TFM-conditional entry — the CI runs against the lower-TFM matrix and needs the older client. Only update the scripts when the lower-TFM matrix is bumped or dropped.
+  2. **CI install scripts must be kept in sync — one branch per TFM.** Versions are pinned in `Build/Azure/scripts/db2.provider.sh` (lnx) and `Build/Azure/scripts/mac.db2.provider.sh` (osx). Both now carry the *same* TFM conditional as `Directory.Packages.props` (`if [ "$TFM" = "net10.0" ]` → 10.x, else → 9.x) and state `MUST match Net.IBM.Data.Db2-<plat> in Directory.Packages.props for this TFM` in a comment. So **every bump of either row updates the matching script branch**: bumping the net10 row bumps `DB2_PKG_VERSION` in the `net10.0` branch of both scripts; bumping the lower row bumps the `else` branch. Note both scripts also back the **informix** CI legs (`test-matrix.yml` `script_linux_local` / `script_macos_local`), not just db2, so a wrong version there breaks two providers.
+     - *(Superseded rule, kept for context: this entry previously said "do not update these scripts when adding a TFM-conditional entry — CI runs the lower-TFM matrix and needs the older client." That predated the scripts gaining their own TFM conditional; since then, leaving them alone silently pins CI to a stale client. Corrected 2026-08-03 during 6.4.0 prep.)*
   3. **API-surface diff via fuget** (see *Fuget API-diff procedure*) — diff between the previous active version and the new active version, reviewed by the user before commit.
 - **Per-platform availability:** versions may differ across `-lnx` / `-osx` / windows variants. Update each to whatever's available; don't force them to the same version if one platform's release lags.
 - **Last verified:** 2026-05-15 on release 6.3.0
@@ -244,6 +258,7 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 - **Release notes URL:** _none — release notes ship in the package README on nuget.org (https://www.nuget.org/packages/Oracle.ManagedDataAccess#readme-body-tab)_
 - **Update rule:** Two version sites with **different ceilings**:
   1. The plain `<PackageVersion Include="Oracle.ManagedDataAccess" />` entry in `Directory.Packages.props` is **capped at the latest 21.x** stable. Versions 23.x produce test failures in linq2db (currently). Do not bump past 21.x without an explicit retest pass.
+     - **"Capped at 21.x" means bump to the newest 21.x — not hold at the current value.** The discovery plan's `latestRelease` is the absolute latest (a 23.x), so this row needs the in-line maximum computed from the version cache (`.build/.agents/release-<ver>-deps-cache/oracle.manageddataaccess.json`, filter `21.*`, exclude prerelease). Reading only `latestRelease` makes the row look policy-blocked with no action, which silently skips real 21.x patches. (Caught by the user on 6.4.0 prep: proposed "no change" at 21.21.0 when 21.22.0 and 21.23.0 were both available.)
   2. The `$(OracleManagedLinqPadVersion)` property (referenced by the LINQPad-side `VersionOverride` site) **may be bumped to the latest stable** of the 23.x line. Updating the property cascades to every site that references it.
 - **API surface diff via fuget** (see *Fuget API-diff procedure*) — apply on every bump of either site.
 - **Last verified:** 2026-05-15 on release 6.3.0
@@ -263,12 +278,16 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 ## Meziantou.Analyzer
 
 - **Release notes URL:** https://github.com/meziantou/Meziantou.Analyzer/releases
+- **Rule catalog diff (cheapest reliable method):** the release notes span dozens of point releases, so don't read them serially. Diff the rule *docs* between the two tags — `gh api repos/meziantou/Meziantou.Analyzer/git/trees/<ver>?recursive=1` filtered to `^docs/Rules/MA[0-9]+[.]md$` gives the full catalog per version, and the set difference is the new-rule list. For new **options** on existing rules, use `gh api repos/meziantou/Meziantou.Analyzer/compare/<old>...<new>` filtered to the same path and read added lines matching `MA0\d{3}\.` — an option change shows as a doc edit on an existing rule. Default severities come from the README rule table (`Id|Category|Description|Severity|Is enabled|Code fix|Configurable`), not the per-rule docs.
+- **Rendering:** present each rule as a markdown link to `https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/<ID>.md`, never as a bare `MAxxxx` — the user opens the doc per rule to decide severity.
 - **Update rule:** On every bump:
-  1. Read release notes between current and target version. Identify new rules (`MAxxxx`) and new rule options.
+  1. Diff the rule catalog per the method above. Identify new rules (`MAxxxx`) and new rule options.
   2. Enable each new rule as **error** severity in the repo `.editorconfig`. For new rule **options** (not new rules), ask the user before enabling.
+     - An option on a rule that is currently `severity = none` is a **no-op** — say so when proposing it, and ask whether the user also wants the rule re-enabled (which may carry a large build cost) or just the option line recorded for later.
   3. After update + verification Release build, observe which new rules raised errors. For each rule that raised errors, ask the user: fix the errors, or disable the rule (set severity = none in `.editorconfig`).
-  4. **First-time-this-rule update only:** also catch up on previously-missed rules — audit the analyzer's full rule catalog at the target version against the current `.editorconfig` and enable any missing rules using the same procedure. Do **not** touch rules that were already explicitly enabled or disabled in `.editorconfig`.
-- **Last verified:** 2026-05-15 on release 6.3.0
+  4. **Once the build is clean**, run the profiling pass (`/release-verify` step 3) — Meziantou is historically the dominant analyzer cost in this repo (6.3.0 prep disabled `MA0002` at ~995s/build and `MA0182` at ~1233s/build purely on cost), so both newly-enabled rules and regressions on existing ones need measuring before the release ships.
+  5. **First-time-this-rule update only:** also catch up on previously-missed rules — audit the analyzer's full rule catalog at the target version against the current `.editorconfig` and enable any missing rules using the same procedure. Do **not** touch rules that were already explicitly enabled or disabled in `.editorconfig`.
+- **Last verified:** 2026-08-03 on release 6.4.0 (3.0.85 → 3.0.138: 12 new rules MA0201-MA0212, 8 existing rules gained options)
 
 ## Microsoft.CodeAnalysis.CSharp.Workspaces (+ Microsoft.CodeAnalysis.CSharp for the analyzer project)
 

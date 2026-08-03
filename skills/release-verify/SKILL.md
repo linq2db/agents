@@ -1,6 +1,6 @@
 ---
 name: release-verify
-description: Final verification phase of release prep. Runs **one** Release build (or `/profile-analyzers` if analyzer packages were bumped this release) to validate that the cumulative state from all earlier release-prep tasks (deps + PublicAPI + milestone-check + test-matrix + release-notes + ad-hoc) compiles cleanly. Reactively walks any new analyzer-rule errors with the user (fix or disable per rule). Refreshes API baselines via `/api-baselines`. Commits the consequent fixes (rule disables, baseline updates, code patches) as a single "release prep verification" commit on the prep PR. Invoked by `/release` step 6 after every other release-prep task is `[x]` or `[-]`.
+description: Final verification phase of release prep. Runs **one** Release build to validate that the cumulative state from all earlier release-prep tasks (deps + PublicAPI + milestone-check + test-matrix + release-notes + ad-hoc) compiles cleanly. Reactively walks any new analyzer-rule errors with the user (fix or disable per rule). When any analyzer package was bumped this release, runs `/profile-analyzers` **after** the build is clean to catch performance regressions in new *and* existing rules and surface disable candidates. Refreshes API baselines via `/api-baselines`. Commits the consequent fixes (rule disables, baseline updates, code patches) as a single "release prep verification" commit on the prep PR. Invoked by `/release` step 6 after every other release-prep task is `[x]` or `[-]`.
 ---
 
 # /release-verify
@@ -9,9 +9,9 @@ description: Final verification phase of release prep. Runs **one** Release buil
 
 **Is:** the single verification gate at the end of release prep. Owns the **only** Release build of the release-prep cycle (every prior sub-skill is forbidden from running its own verification build). Combines four things into one pass so the build+fix loop happens once, not per-task:
 
-1. Release build of `linq2db.slnx` (or profile-analyzers, see step 1).
+1. Release build of `linq2db.slnx`.
 2. Reactive analyzer-rule catch-up — for any new analyzer error the build surfaces, ask user fix-or-disable per rule (the equivalent of step 4a in the new `/release-deps` for analyzer rules that escaped the predictive audit).
-3. (Conditional) `/profile-analyzers` perf check if analyzer packages were bumped this release.
+3. (Conditional) `/profile-analyzers` perf check if analyzer packages were bumped this release — **run only once the build from step 2 is clean**, so the measurement reflects the shipping rule set rather than a half-fixed tree.
 4. `/api-baselines` refresh — regenerate `CompatibilitySuppressions.xml` files.
 
 All consequent edits (`.editorconfig` rule disables, `CompatibilitySuppressions.xml` regenerations, code fixes) batch into a single follow-up commit on the prep PR.
@@ -36,13 +36,13 @@ All consequent edits (`.editorconfig` rule disables, `CompatibilitySuppressions.
 
 ## Procedure
 
-### 1. Pick the verification build mode
+### 1. Determine whether an analyzer profiling pass is owed
 
-Read the deps state (`release-state.ps1 -Action load`). If `state.deps.applied[]` includes any analyzer package — id matches `*Analyzer`, `*Analyzers`, `BannedApi*`, `PublicApi*`, `AsyncFixer`, `Lindhart.Analyser.*`, or sits in the `Build: Analyzers and Tools` `<ItemGroup>` of `Directory.Packages.props` — the verification build is `/profile-analyzers` (which is itself a Release rebuild with `-p:ReportAnalyzer=true -v:detailed`, so it covers both the build verification and the analyzer perf check).
+The verification build is **always** plain `dotnet build linq2db.slnx -c Release` (3-8 min). Do **not** substitute `/profile-analyzers` for it — an instrumented rebuild over a tree that still has analyzer errors produces a partial report (projects that fail `CoreCompile` emit no analyzer rows), which is exactly the measurement you need to be trustworthy.
 
-Otherwise, the verification build is plain `dotnet build linq2db.slnx -c Release`.
+Read the deps state (`release-state.ps1 -Action load`). If `state.deps.applied[]` includes any analyzer package — id matches `*Analyzer`, `*Analyzers`, `BannedApi*`, `PublicApi*`, `AsyncFixer`, `Lindhart.Analyser.*`, or sits in the `Build: Analyzers and Tools` `<ItemGroup>` of `Directory.Packages.props` — then a **profiling pass is owed** and runs at step 3, after step 2's fix loop reaches clean. Record the bumped analyzer ids so step 3 can't be silently skipped; if `state.deps.applied[]` is unavailable, fall back to `git diff origin/master -- Directory.Packages.props` and read the analyzer rows.
 
-Tell the user which mode and the wall-clock estimate (10-25 min for profile-analyzers; 3-8 min for plain). Wait for explicit go-ahead — never auto-launch a build inside `/release-verify`.
+Tell the user the plan and the total wall-clock estimate: 3-8 min for the verification build, plus 10-25 min for the profiling pass if one is owed. Wait for explicit go-ahead — never auto-launch a build inside `/release-verify`.
 
 ### 2. Run the build (loop until clean)
 
@@ -73,17 +73,23 @@ Walk the user through each. Apply minimal fixes. Re-run the build. Loop until cl
 
 Stop and surface to user. Do not improvise — disk-full / locked-file failures need the user's environment intervention.
 
-### 3. (Conditional) Profile analyzers — if mode = profile-analyzers
+### 3. (Conditional) Profile analyzers — owed whenever an analyzer package was bumped
 
-If step 1 chose profile-analyzers, the build run already produced the analyzer-perf log. Parse it:
+**Precondition: step 2's build is clean.** A profiling run over a failing tree measures only the projects that compiled, so its rankings under-report and its deltas against the previous release are meaningless. Never run this before step 2 closes.
 
-```
-pwsh -NoProfile -File .claude/scripts/analyzer-profile-report.ps1 -LogPath <log-path-from-step-2> -Top 10
-```
+Invoke `Skill('profile-analyzers')` (it gates on its own user confirmation for the 10-25 min rebuild). This is a *second*, instrumented rebuild on top of step 2's verification build — the one sanctioned exception to the one-build rule, because the two builds answer different questions ("does it compile" vs "what does the shipping rule set cost").
 
-Show the three rankings to the user. They decide whether to disable any newly-expensive rules (queue another `.editorconfig` edit) or accept the perf hit. Per `/profile-analyzers` Don'ts, only propose disabling rules that are both expensive AND not pulling their weight.
+The pass must answer three things, not just render rankings:
 
-If the user disables anything, re-run the build verification (step 2) once more to confirm clean.
+1. **New-rule cost.** For every rule newly enabled this release (from `/release-deps` step 4a's decisions), its measured cost. A rule enabled on changelog reasoning alone can turn out to be one of the most expensive in the build.
+2. **Existing-rule regressions.** Compare per-analyzer totals against the previous release's saved report (`.claude/docs/release/analyzer-perf-baseline.json`, per [`/profile-analyzers`](../profile-analyzers/SKILL.md) step 5). An analyzer-package bump can make an already-enabled rule dramatically slower without adding any new rule — that regression is invisible without the baseline diff.
+3. **Disable candidates.** Produce an explicit candidate list rather than leaving the user to read three tables. Each candidate needs: rule id, total seconds, delta vs baseline (or `new`), and a value judgement. Per `/profile-analyzers` Don'ts, only propose rules that are **both** disproportionately expensive **and** not pulling their weight — an expensive-but-valuable rule stays and is reported as accepted cost.
+
+The user decides per candidate. Disables queue `.editorconfig` edits in the same numerical-position convention as step 2a.
+
+After the pass, save the new report as the baseline for the next release (`/profile-analyzers` step 5) — otherwise the next release has nothing to diff against and this step degrades to eyeballing.
+
+If the user disables anything, re-run the verification build (step 2) once more to confirm clean. Re-running the *profiling* build to measure the delta is optional and usually not worth another 10-25 min — note the expected saving from the report instead.
 
 ### 4. Refresh API baselines
 
@@ -150,7 +156,9 @@ The orchestrator marks task 6 `[x]` and proceeds to step 5 (prep-merge gate). Th
 
 ## Don'ts
 
-- Do **not** run multiple verification builds. The whole point of this skill is one build per release prep — if step 2 needs to re-build after fixes, that's expected; if step 3 (profile-analyzers) needed a re-build after disables, that's expected; otherwise no extra builds.
+- Do **not** run multiple verification builds. The whole point of this skill is one build per release prep — if step 2 needs to re-build after fixes, that's expected; step 3's instrumented profiling rebuild is the one sanctioned extra build (and only when an analyzer package was bumped); otherwise no extra builds.
+- Do **not** use the profiling rebuild as the verification build, and do **not** profile before step 2 is clean. Projects that fail `CoreCompile` emit no analyzer rows, so the report silently under-reports and the baseline delta becomes garbage.
+- Do **not** skip step 3 when an analyzer package was bumped, and do **not** reduce it to "here are three tables". It owes new-rule costs, existing-rule regression deltas, and an explicit disable-candidate list.
 - Do **not** disable analyzer rules without explicit user approval per rule.
 - Do **not** push without explicit user request (per `agent-rules.md` → **Push to remote rules**).
 - Do **not** commit `TreatWarningsAsErrors=false` or any other temporary unblock flag.
