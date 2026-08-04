@@ -73,6 +73,14 @@ Output: three pretty tables on stdout, plus a one-line diagnostics header (per-a
 
 For programmatic consumption: `-AsJson` returns `{ slowestPairs, busiestAnalyzers, projectTotals, diagnostics }` to stdout (see the script's comment header).
 
+**Shut the build servers down again before the next build.** `-p:UseSharedCompilation=false` gives every project its own `csc.exe` instead of reusing the compiler server, and those processes outlive the run holding handles on the analyzer and source-generator assemblies — exactly the DLLs every other project loads as an analyzer. The next `dotnet build` then dies with `CS2012: Cannot open '…LinqToDB.Analyzers.dll' (or CodeGenerators.dll) for writing`, which reads like a corrupt tree rather than a stale lock. The build script shuts servers down *before* its own run, not after, so the mess lands on whoever builds next:
+
+```
+dotnet build-server shutdown
+```
+
+If that alone doesn't clear it, kill leftover `dotnet` / `csc` / `VBCSCompiler` processes older than the current run. On a shared or multi-worktree machine check first that no *other* build is in flight — `build-server shutdown` is global per-SDK (see [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*). (Cost two full build cycles to diagnose on 6.4.0, twice.)
+
 ### 4. Present the three rankings
 
 The agent reads the tables and presents to the user, flagging the dominant offender(s):
