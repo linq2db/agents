@@ -5,17 +5,35 @@ move for release prep. Distinct from `api-baselines` (which handles
 
 Actions:
 
-  build       Run `dotnet build linq2db.slnx -c Release` and capture
-              stdout+stderr to .build/.agents/release-<ver>-publicapi-raw.txt.
+  build       Run `dotnet build linq2db.slnx -c Release
+              -p:RunApiAnalyzersDuringBuild=true` and capture stdout+stderr to
+              .build/.agents/release-<ver>-publicapi-raw.txt.
+              The flag is NOT optional: Source/Directory.Build.props gates the
+              Microsoft.CodeAnalysis.PublicApiAnalyzers PackageReference itself
+              on it, defaulting to false, so an ordinary Release build never
+              loads the analyzers and reports zero RS diagnostics no matter how
+              much drift exists. CI only enables them for PRs targeting
+              `release`, which makes this the sole gate before that PR.
               Inputs:   -Version <ver>  [-Configuration <Release|Debug|Testing|Azure>]
               Output:   { ok, statusCode, rawFile, lineCount }
 
-  discover    Parse the raw build log for RS0016 (missing-from-declared-API)
-              and RS0017 (in-declared-API-not-in-code) diagnostics.
-              When any are present the orchestrator stops and asks the user
-              to fix via IDE quick-fix — this script does NOT auto-apply.
+  discover    Parse the raw build log for RS0016 (missing-from-declared-API),
+              RS0017 (in-declared-API-not-in-code) and RS0025 (declared more
+              than once across the API files) diagnostics.
+              Note RS0025 masks RS0016: while the declared set is malformed by
+              duplicates the analyzer stops reporting missing symbols, so
+              clearing RS0025 reveals more RS0016. Expect several passes.
               Inputs:   -Version <ver>  [-RawFile <path>]
-              Output:   { ok, rsFindings[], rs0016Count, rs0017Count }
+              Output:   { ok, rsFindings[], rs0016Count, rs0017Count, rs0025Count }
+
+  fix-drift   Transcribe the discovered diagnostics into PublicAPI.Unshipped.txt
+              entries so plan/apply can move them into Shipped. Writes only what
+              a diagnostic reported, never a declaration inferred from source.
+              Dry-run unless -Apply. Asserts before writing (RS0016 symbols must
+              be absent, RS0017 present, RS0025 duplicates still declared in the
+              flat file) and refuses to write on any mismatch.
+              Inputs:   -Version <ver>  [-RawFile <path>] [-Apply]
+              Output:   { ok, edits[], assertionFailures[], written[] }
 
   plan        Walk every PublicAPI.Shipped.txt + sibling PublicAPI.Unshipped.txt
               pair under Source/. Compute the move (sorted union + Unshipped
@@ -54,14 +72,15 @@ codefix output exactly.
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('build','discover','plan','diff','apply')]
+    [Parameter(Mandatory)][ValidateSet('build','discover','plan','diff','apply','fix-drift')]
     [string]$Action,
 
     [string]$Version,
     [string]$Configuration = 'Release',
     [string]$RawFile,
     [string]$SourceRoot,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Apply
 )
 
 $global:ScriptBaseName = 'release-publicapi-reconcile'
@@ -149,7 +168,11 @@ function Write-PublicApiFile {
 function Do-Build {
     if (-not $Version) { Exit-WithError "build: -Version required" }
     $raw = Get-RawFilePath -Ver $Version -Override $RawFile
-    $args = @('build','linq2db.slnx','-c',$Configuration,'--nologo','/clp:NoSummary')
+    # -p:RunApiAnalyzersDuringBuild=true is load-bearing, not a tuning knob:
+    # without it Source/Directory.Build.props omits the PublicApiAnalyzers
+    # PackageReference entirely and the build reports zero RS diagnostics
+    # regardless of actual drift. Global property, so it reaches every project.
+    $args = @('build','linq2db.slnx','-c',$Configuration,'-p:RunApiAnalyzersDuringBuild=true','--nologo','/clp:NoSummary')
 
     # Stream to file while running. Use Invoke-Process to merge stdout+stderr.
     $r = Invoke-Process -FilePath 'dotnet' -ArgumentList $args
@@ -176,8 +199,19 @@ function Do-Build {
 #   <path>(<line>,<col>): <sev> <code>: <message> [<projectFile>[::<TFM>]]
 # RS0016 message: "Symbol '<symbol>' is not part of the declared public API."
 # RS0017 message: "Symbol '<symbol>' is part of the declared API, but is either not public or could not be found."
+# RS0025 message: "The symbol '<symbol>' appears more than once in the public API files."
+# Note the lower-case 's' in RS0025's leading "The symbol" — hence (?:The s|S)ymbol.
+# For RS0016/RS0017 <file> is the source file; for RS0025 it is the PublicAPI
+# file holding the duplicate, which is what makes tombstone placement possible.
 # We capture the project + TFM tail when present so the orchestrator can group findings.
-$script:DiagRx = '(?im)^(?<file>[^()]+)\((?<line>\d+),(?<col>\d+)\):\s+(?<sev>error|warning)\s+(?<code>RS0016|RS0017):\s+Symbol\s+''(?<symbol>[^'']+)''\s+(?<rest>[^\[]*)(?:\[(?<projTfm>[^\]]+)\])?'
+# Deliberately NOT anchored at ^, and the file group must start at a drive
+# letter and may not span " -> ": under a parallel solution build MSBuild
+# interleaves a project-output line with a diagnostic on the same physical line
+# ("  linq2db.Benchmarks -> C:\...dllC:\...\PublicAPI.Shipped.txt(12,1): error
+# RS0025: ..."), and a ^-anchored greedy [^()]+ then captures both paths as the
+# file. Counts survive that (the symbol group is still correct) but RS0025
+# tombstone placement reads the file path, so it resolved to a bogus directory.
+$script:DiagRx = '(?im)(?<file>[A-Za-z]:\\(?:(?!\s->\s)[^()\r\n])*?)\((?<line>\d+),(?<col>\d+)\):\s+(?<sev>error|warning)\s+(?<code>RS0016|RS0017|RS0025):\s+(?:The s|S)ymbol\s+''(?<symbol>[^'']+)''\s+(?<rest>[^\[]*)(?:\[(?<projTfm>[^\]]+)\])?'
 
 function Do-Discover {
     if (-not $Version) { Exit-WithError "discover: -Version required" }
@@ -208,6 +242,7 @@ function Do-Discover {
     }
     $rs0016 = @($findings | Where-Object { $_.code -eq 'RS0016' })
     $rs0017 = @($findings | Where-Object { $_.code -eq 'RS0017' })
+    $rs0025 = @($findings | Where-Object { $_.code -eq 'RS0025' })
     Write-JsonOutput @{
         ok           = $true
         action       = 'discover'
@@ -215,7 +250,173 @@ function Do-Discover {
         rsFindings   = $findings
         rs0016Count  = @($rs0016).Count
         rs0017Count  = @($rs0017).Count
+        rs0025Count  = @($rs0025).Count
+        # Unique symbol counts matter more than diagnostic counts: one symbol is
+        # reported once per TFM (and RS0025 once per hosting file), so the raw
+        # totals run several times the number of entries actually needed.
+        uniqueSymbols = @($findings | ForEach-Object { $_.symbol } | Sort-Object -Unique).Count
         clean        = (@($findings).Count -eq 0)
+    }
+}
+
+# -- Phase: fix-drift --------------------------------------------------------
+
+function Read-ApiLines {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    return @(Read-PublicApiLines $Path | Where-Object { $_ -and $_ -ne '#nullable enable' })
+}
+
+function Do-FixDrift {
+    if (-not $Version) { Exit-WithError "fix-drift: -Version required" }
+    $raw = Get-RawFilePath -Ver $Version -Override $RawFile
+    if (-not (Test-Path -LiteralPath $raw)) {
+        Exit-WithError "fix-drift: raw build log not found at $raw — run -Action build first"
+    }
+    $text = [System.IO.File]::ReadAllText($raw, [System.Text.UTF8Encoding]::new($false))
+
+    $diags = @()
+    foreach ($m in [regex]::Matches($text, $script:DiagRx)) {
+        $projTfm = $m.Groups['projTfm'].Value
+        $csproj  = $projTfm
+        $tfm     = $null
+        if ($projTfm -and $projTfm -match '^(?<p>.+)::TargetFramework=(?<t>[^:]+)$') {
+            $csproj = $Matches['p']
+            $tfm    = $Matches['t']
+        }
+        $diags += [ordered]@{
+            code   = $m.Groups['code'].Value
+            symbol = $m.Groups['symbol'].Value
+            file   = $m.Groups['file'].Value.Trim()
+            csproj = $csproj
+            tfm    = $tfm
+        }
+    }
+
+    # edits: Unshipped path -> set of lines to add
+    $edits    = @{}
+    $failures = @()
+    function Add-Edit {
+        param([string]$Path, [string]$Line)
+        if (-not $edits.ContainsKey($Path)) {
+            $edits[$Path] = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        }
+        [void]$edits[$Path].Add($Line)
+    }
+
+    # RS0025 — tombstone the duplicate copy beside the file that hosts it, but
+    # only after confirming the flat file still declares the symbol; otherwise
+    # the tombstone would remove the sole declaration.
+    foreach ($g in @($diags | Where-Object { $_.code -eq 'RS0025' } | Group-Object { "$($_.file)|$($_.symbol)" })) {
+        $d          = $g.Group[0]
+        $shippedDir = Split-Path -Parent $d.file
+        $flatShip   = Join-Path (Split-Path -Parent $shippedDir) 'PublicAPI.Shipped.txt'
+        if ((Read-ApiLines $d.file) -cnotcontains $d.symbol) {
+            $failures += "RS0025 '$($d.symbol)': no longer present in $($d.file) — log is stale, the duplicate is already gone"
+            continue
+        }
+        if ((Read-ApiLines $flatShip) -cnotcontains $d.symbol) {
+            $failures += "RS0025 '$($d.symbol)': not declared in flat $flatShip — tombstoning the per-TFM copy would drop the only declaration"
+            continue
+        }
+        Add-Edit -Path (Join-Path $shippedDir 'PublicAPI.Unshipped.txt') -Line "*REMOVED*$($d.symbol)"
+    }
+
+    # RS0016 / RS0017 — place per flagging TFM, promoting to the flat file only
+    # when every per-TFM directory the project owns flagged the symbol. A
+    # project family sharing one flat file (EF3/EF8/EF9/EF10) turns a wrongly
+    # flattened RS0016 into RS0017s on its siblings.
+    foreach ($code in @('RS0016','RS0017')) {
+        foreach ($g in @($diags | Where-Object { $_.code -eq $code } | Group-Object { "$($_.csproj)|$($_.symbol)" })) {
+            $d       = $g.Group[0]
+            $apiRoot = Join-Path (Split-Path -Parent $d.csproj) 'PublicAPI'
+            if (-not (Test-Path -LiteralPath $apiRoot)) {
+                $failures += "$code '$($d.symbol)': no PublicAPI directory under $(Split-Path -Parent $d.csproj)"
+                continue
+            }
+            $line = if ($code -eq 'RS0017') { "*REMOVED*$($d.symbol)" } else { $d.symbol }
+
+            $declared = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            foreach ($f in @(Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter 'PublicAPI.Shipped.txt')) {
+                foreach ($l in (Read-ApiLines $f.FullName)) { [void]$declared.Add($l) }
+            }
+            if ($code -eq 'RS0016' -and $declared.Contains($d.symbol)) {
+                $failures += "RS0016 '$($d.symbol)': already declared — log is stale relative to the tree"
+                continue
+            }
+            if ($code -eq 'RS0017' -and -not $declared.Contains($d.symbol)) {
+                $failures += "RS0017 '$($d.symbol)': not declared — nothing to tombstone, log is stale"
+                continue
+            }
+
+            $presentDirs = @(Get-ChildItem -LiteralPath $apiRoot -Directory | ForEach-Object Name | Sort-Object)
+            $flagged     = @($g.Group | ForEach-Object { $_.tfm } | Where-Object { $_ } | Sort-Object -Unique)
+
+            if ($presentDirs.Count -gt 0 -and $flagged.Count -gt 0 -and
+                @(Compare-Object $presentDirs $flagged -SyncWindow 0).Count -eq 0) {
+                Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
+            } elseif ($flagged.Count -eq 0) {
+                Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
+            } else {
+                foreach ($t in $flagged) {
+                    $dir = Join-Path $apiRoot $t
+                    if (-not (Test-Path -LiteralPath $dir)) {
+                        $failures += "$code '$($d.symbol)': no PublicAPI directory for TFM $t under $apiRoot"
+                        continue
+                    }
+                    Add-Edit -Path (Join-Path $dir 'PublicAPI.Unshipped.txt') -Line $line
+                }
+            }
+        }
+    }
+
+    $editSummary = @($edits.Keys | Sort-Object | ForEach-Object {
+        [ordered]@{ path = $_; lines = @($edits[$_]) ; count = $edits[$_].Count }
+    })
+
+    if ($failures.Count -gt 0) {
+        Write-JsonOutput @{
+            ok                = $false
+            action            = 'fix-drift'
+            error             = 'assertion-failures'
+            assertionFailures = $failures
+            edits             = $editSummary
+            message           = 'Log and tree disagree — no files were modified. Re-run -Action build to refresh the log.'
+        }
+        return
+    }
+
+    if (-not $Apply) {
+        Write-JsonOutput @{
+            ok       = $true
+            action   = 'fix-drift'
+            dryRun   = $true
+            edits    = $editSummary
+            written  = @()
+            message  = 'Dry run — pass -Apply to write.'
+        }
+        return
+    }
+
+    $written = @()
+    foreach ($p in ($edits.Keys | Sort-Object)) {
+        $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($l in (Read-ApiLines $p)) { [void]$set.Add($l) }
+        foreach ($l in $edits[$p])         { [void]$set.Add($l) }
+        $arr = $set.ToArray()
+        [array]::Sort($arr, [System.StringComparer]::Ordinal)
+        $bom = Test-HasUtf8Bom -Path $p
+        Write-PublicApiFile -Path $p -Lines (@('#nullable enable') + @($arr)) -WithBom:$bom
+        $written += $p
+    }
+
+    Write-JsonOutput @{
+        ok           = $true
+        action       = 'fix-drift'
+        dryRun       = $false
+        edits        = $editSummary
+        written      = $written
+        writtenCount = $written.Count
     }
 }
 
@@ -497,10 +698,11 @@ function Do-Apply {
 # -- dispatch ----------------------------------------------------------------
 
 switch ($Action) {
-    'build'    { Do-Build }
-    'discover' { Do-Discover }
-    'plan'     { Do-Plan }
-    'diff'     { Do-Diff }
-    'apply'    { Do-Apply }
-    default    { Exit-WithError "unknown action: $Action" }
+    'build'     { Do-Build }
+    'discover'  { Do-Discover }
+    'plan'      { Do-Plan }
+    'diff'      { Do-Diff }
+    'apply'     { Do-Apply }
+    'fix-drift' { Do-FixDrift }
+    default     { Exit-WithError "unknown action: $Action" }
 }
