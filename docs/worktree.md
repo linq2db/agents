@@ -55,9 +55,11 @@ Two consequences:
 
 ## Regenerating API baselines from a worktree
 
-`/api-baselines` has **no repo-root override** (unlike `/test`) — it deletes and regenerates `Source/**/CompatibilitySuppressions.xml` against the session's cwd, which is the *primary* clone. So when the API-surface change under review lives on a branch checked out in a worktree, invoking the skill regenerates the **wrong** clone's baselines (primary clone's branch, which lacks the change) and produces a meaningless or empty diff.
+`/api-baselines` takes a **`repoRoot` argument** (added 2026-08-04) — pass `repoRoot <abs-worktree-path>` and it addresses the branch check, the suppression-file Glob, the `dotnet pack`, and the diff/revert against that tree. `/release-verify` step 4 passes its worktree automatically. Prefer this over the manual recipe below.
 
-Run the skill's underlying tool command in the worktree instead — it's the sanctioned action the skill wraps, not a hand-edit (which stays banned, per [`agent-rules.md`](agent-rules.md) → *Agent guardrails* → **Never hand-edit API baseline files**):
+Without it the skill defaults to the session cwd, which is the *primary* clone — usually on `master`, so it regenerates the wrong tree's baselines and produces a diff that is empty or plausible-but-wrong.
+
+The manual equivalent below remains valid (e.g. to regenerate a single project rather than all packable ones). It is the sanctioned action the skill wraps, not a hand-edit (which stays banned, per [`agent-rules.md`](agent-rules.md) → *Agent guardrails* → **Never hand-edit API baseline files**):
 
 1. From the worktree (`Set-Location <worktree>` so `global.json` resolves), run `dotnet pack <Source/Project>/<Project>.csproj -c Release -p:ApiCompatGenerateSuppressionFile=true` for each affected project. `ApiCompatGenerateSuppressionFile=true` overwrites the file with all current suppressions, so the git diff is the minimal delta for the change.
 2. Do the `LinqToDB.Internal.*` policy review by hand on the diff (the skill's value-add): any non-`Internal.*` suppression added is a public-contract break needing explicit user sign-off.

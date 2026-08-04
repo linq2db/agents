@@ -7,6 +7,21 @@ description: Refresh API compatibility baselines (CompatibilitySuppressions.xml)
 
 User-triggered workflow to regenerate the `CompatibilitySuppressions.xml` baselines that ApiCompat uses to track intentional public-API changes. Equivalent to running `UpdateBaselines.cmd` at the repo root, plus policy checks.
 
+## Target repository root
+
+Every step below operates on a **target root**, `<repoRoot>`. It defaults to the session's working directory (the primary clone), but the caller may pass an explicit absolute path — `repoRoot <abs-path>` in the skill arguments — and then **all** of these must be addressed against it, not the cwd:
+
+| Step | Honour `<repoRoot>` by |
+|---|---|
+| branch check | `git -C <repoRoot> rev-parse --abbrev-ref HEAD` |
+| find + delete suppressions | `Glob` with `path: <repoRoot>`, pattern `Source/**/CompatibilitySuppressions.xml` |
+| regenerate | `Set-Location <repoRoot>; dotnet pack …` **as one PowerShell call** — the tool's cwd does not survive between invocations, so a standalone `Set-Location` leaves the pack running in the primary clone |
+| diff / revert | `git -C <repoRoot> diff` / `git -C <repoRoot> checkout --` / `git -C <repoRoot> clean -f` |
+
+**Why this matters:** branch work happens in a worktree ([`agent-rules.md`](../../docs/agent-rules.md) → *Creating a new branch*), so during release prep the branch under test is **not** the primary clone. Running against the cwd there regenerates the wrong tree's baselines — the primary clone is typically on `master`, which lacks the API change — and yields a diff that is empty or, worse, plausible-looking and wrong. `/release-verify` step 4 passes its worktree path for exactly this reason.
+
+Everything else is unchanged: `dotnet pack` is still the only sanctioned way to write these files, and hand-editing them stays banned regardless of which root you target.
+
 ## When to run
 
 Only when the user explicitly invokes this skill or asks to refresh / update the API baselines. Do not run it as part of unrelated work — regenerating these files masks real API breakages.
@@ -15,7 +30,7 @@ Only when the user explicitly invokes this skill or asks to refresh / update the
 
 ### 1. Choose the branch
 
-Check the current branch (`git rev-parse --abbrev-ref HEAD`).
+Check the current branch (`git -C <repoRoot> rev-parse --abbrev-ref HEAD`).
 
 - If the current branch **is** `master`: stop and ask the user where to land the change. Refreshing baselines on `master` directly is not appropriate. Offer to create a new branch `infra/refresh-api-baselines` from `origin/master` (per **Creating a new branch** in `.claude/docs/agent-rules.md`). Wait for confirmation.
 - If the current branch **is not** `master`: ask the user whether to:
@@ -30,16 +45,16 @@ Do not regenerate anything until the branch decision is made.
 
 ### 2. Delete existing suppression files
 
-Equivalent to `DEL /S Source\CompatibilitySuppressions.xml` from `UpdateBaselines.cmd`. Find every `CompatibilitySuppressions.xml` under `Source/` (use Glob: `Source/**/CompatibilitySuppressions.xml`) and delete each one.
+Equivalent to `DEL /S Source\CompatibilitySuppressions.xml` from `UpdateBaselines.cmd`. Find every `CompatibilitySuppressions.xml` under `<repoRoot>/Source/` (use Glob with `path: <repoRoot>` and pattern `Source/**/CompatibilitySuppressions.xml`) and delete each one.
 
 **This deletion is only permitted with the skill actually loaded.** Deleting these files from outside the skill — an ad-hoc `Remove-Item`, or running `UpdateBaselines.cmd` (whose first line is the same `DEL /S`) — reads as a hand-edit of a generated baseline and is denied, citing `agent-rules.md` → *Never hand-edit API baseline files* back at you. Invoke `Skill(api-baselines)` first, then delete; don't try to route around the denial with a different deletion tool. (Both shapes were denied on #5723 before the skill was invoked.)
 
 ### 3. Regenerate baselines
 
-Run from the repo root (use `-p:` not `/p:` — on Git Bash / MSYS, `/p:...` is path-mangled into a Windows path and MSBuild rejects it with `MSB1009: Project file does not exist`):
+Run from `<repoRoot>` (use `-p:` not `/p:` — on Git Bash / MSYS, `/p:...` is path-mangled into a Windows path and MSBuild rejects it with `MSB1009: Project file does not exist`). Chain the `Set-Location` into the same PowerShell call so the pack actually runs in the target tree:
 
 ```
-dotnet pack -p:ApiCompatGenerateSuppressionFile=true
+Set-Location <repoRoot>; dotnet pack -p:ApiCompatGenerateSuppressionFile=true
 ```
 
 This re-runs ApiCompat across all packable projects and writes fresh `CompatibilitySuppressions.xml` files next to each project that has API differences against its baseline package.
@@ -63,7 +78,7 @@ When invoked from `/release-verify` (as its step 4), the analyzer-error walk has
 After regeneration, diff the suppression files against `HEAD`:
 
 ```
-git diff -- 'Source/**/CompatibilitySuppressions.xml'
+git -C <repoRoot> diff -- 'Source/**/CompatibilitySuppressions.xml'
 ```
 
 **Pair adds against removes first.** Before classifying anything, walk through the diff and pair each added `<Suppression>` block with a removed block that has the **same `(DiagnosticId, Target, Left, Right)` tuple**. These are re-orderings inside the file (the regenerator may sort entries differently than the previous run) and represent **no semantic change** — drop them from both the "added" and "removed" sets. Apply the namespace check only to the residual additions.
@@ -112,7 +127,7 @@ If there **are** policy violations, end the report with this exact warning, then
 Wait for the user's response.
 
 - If the user **approves**: leave the regenerated files in place and report done. Do not commit.
-- If the user **rejects** / asks to revert: restore the prior baselines with `git checkout -- 'Source/**/CompatibilitySuppressions.xml'` (and `git clean -f` for any newly-created suppression files that didn't exist before — check `git status` first to identify them). Confirm the working tree matches `HEAD` for these paths after the revert.
+- If the user **rejects** / asks to revert: restore the prior baselines with `git -C <repoRoot> checkout -- 'Source/**/CompatibilitySuppressions.xml'` (and `git -C <repoRoot> clean -f` for any newly-created suppression files that didn't exist before — check `git -C <repoRoot> status` first to identify them). Confirm the working tree matches `HEAD` for these paths after the revert.
 
 ### 6. Do not commit, push, or open a PR
 

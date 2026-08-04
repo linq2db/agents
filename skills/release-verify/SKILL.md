@@ -93,7 +93,7 @@ If the user disables anything, re-run the verification build (step 2) once more 
 
 ### 4. Refresh API baselines
 
-Invoke `Skill('api-baselines')`. That skill:
+Invoke `Skill('api-baselines')`, **passing the prep worktree as `repoRoot`** (`repoRoot <abs-worktree-path>`) whenever the prep branch lives in a worktree — which is the normal case. Without it the skill regenerates the primary clone's baselines, and since that clone is usually on `master` the diff comes back empty or plausible-but-wrong. That skill:
 
 - Deletes existing `CompatibilitySuppressions.xml` files under `Source/`.
 - Re-runs `dotnet pack -p:ApiCompatGenerateSuppressionFile=true` to regenerate them.
