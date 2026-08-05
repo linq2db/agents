@@ -53,9 +53,17 @@ Runs once when the orchestrator transitions `state.currentPhase` from `prep` to 
 Action:
 1. Remove the prep worktree (the branch is now squash-merged to master, the worktree is no longer needed):
    ```
-   git -C <main-checkout> worktree remove <prep-worktree-path>
+   git -C <main-checkout> worktree remove --force <prep-worktree-path>
    ```
-   This deletes the entire `<repo>.release-<version>/` directory including any leftover `.build/`, scratch files, and the worktree's `.git` administrative entry.
+   This deletes the whole worktree directory including any leftover `.build/`, scratch files, and the worktree's `.git` administrative entry.
+
+   **`--force` is mandatory, not a dirty-tree escape hatch.** Since the corpus became a submodule at `.claude/` ([#5735](https://github.com/linq2db/linq2db/pull/5735)), every linq2db worktree contains a submodule, and plain `git worktree remove` refuses outright:
+
+   ```
+   fatal: working trees containing submodules cannot be moved or removed
+   ```
+
+   The message says nothing about submodules being *dirty* — it fires on a pristine tree too, so don't go hunting for uncommitted changes. Still check `git -C <prep-worktree-path> status --short` first (and `git -C <prep-worktree-path>/.claude status`) so `--force` isn't masking real work; confirm the removal with `git worktree list`.
 2. (Optional) Clean the main checkout's build artifacts to reclaim space — Release pack of all family scaffold packages typically leaves 1 GB+ in `.build/bin` + `.build/obj`:
    ```
    dotnet build-server shutdown    # release file locks first
@@ -91,21 +99,26 @@ Action:
 
 The next step force-resets `linq2db.baselines/master` to the anchor — that invalidates every currently-open baselines PR (their diffs target a master that no longer exists). Triage them **before** the reset so the stale state doesn't linger after CI re-opens fresh baselines PRs against the reset master.
 
+Use `.claude/scripts/baselines-triage.ps1` — it owns the whole step (list → resolve every parent's state + milestone in **one** GraphQL round-trip → classify → comment + close in parallel). Hand-rolling it costs 2 + 2N `gh` calls and walks into two traps: `gh --body` is banned repo-wide, and the comment text contains backticks, which a shell reads as command substitution. The script passes `--body-file` for exactly that reason.
+
 Action:
-1. List open baselines PRs:
+1. Dry-run to get the plan (no mutations):
    ```
-   gh pr list --repo linq2db/linq2db.baselines --state open --json number,title,headRefName,createdAt --limit 50
+   pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version <ver>
    ```
-2. For each, look up the corresponding linq2db PR's milestone (the baselines PR title format is `Baselines for https://github.com/linq2db/linq2db/pull/<n>`). One `gh pr view <n> --repo linq2db/linq2db --json milestone,state` per parent PR.
-3. Group by milestone:
-   - **Current release milestone (e.g. 6.3.0):** these are the ones we WANT regenerated. Tell the user to re-run CI on the parent linq2db PR after the reset — that produces a fresh baselines PR against the reset master. Don't auto-close.
-   - **Other milestones, in-progress, closed parent, or stale (already-shipped milestone):** close the baselines PR + delete its branch. Post a one-line comment first so the parent-PR author knows why:
-     ```
-     gh pr comment <n> --repo linq2db/linq2db.baselines --body "Closing as stale after `linq2db.baselines/master` was reset to anchor for the <ver> release. Re-run CI on the parent linq2db PR to regenerate."
-     gh pr close <n> --repo linq2db/linq2db.baselines --delete-branch
-     ```
-   Parallelize the per-PR comment + close calls (low GitHub-API impact; 4-way `ForEach-Object -Parallel` works).
-4. Surface counts: "N closed, M for current-milestone (told user to re-run CI on parent PRs)." Update step status `done`.
+   Returns `{ total, keep[], close[] }`. Classification:
+   - **`keep[]`** — parent is on the release milestone. These are the ones we WANT regenerated, so they're never auto-closed. Tell the user to re-run CI on those parent PRs after the reset.
+   - **`close[]`** — everything else: another milestone, no milestone, a closed/merged parent, or a title with no parseable `/pull/<n>`. All are stale the moment master moves.
+2. Surface the plan as a table (baselines PR → parent → parent milestone) and get explicit confirmation. **Call out when a `close[]` parent is still open** — each one costs its author a CI re-run, and a release can legitimately land with every open baselines PR belonging to the *next* milestone (6.4.0: all 12 were open parents, 10 on 6.5.0). That's the norm, not an anomaly, but the user decides.
+3. On confirmation, apply:
+   ```
+   pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version <ver> -Apply
+   ```
+   Per-PR rows come back in `results[]` with independent `comment` / `close` status, so a partial failure is visible per item rather than collapsing into one exit code.
+4. **Verify against the repo, not the script's own summary** (`agent-rules.md` → *a reported result is a claim, not evidence*): `gh pr list --repo linq2db/linq2db.baselines --state open` should be empty of the closed set, and `gh api repos/linq2db/linq2db.baselines/git/matching-refs/heads/baselines --jq 'length'` should drop by the number closed.
+5. Surface counts: "N closed, M for current-milestone (told user to re-run CI on parent PRs)." Update step status `done`.
+
+**A leftover `baselines/pr_<n>` branch with no open PR is not yours to delete.** The ref-count check in step 4 can show a residue branch whose PR was closed in an earlier release's triage without `--delete-branch`. Leave it: per `agent-rules.md` → *never delete a user-owned artifact*, and CI force-pushes over that head ref on the parent's next run anyway. Note it and move on. (6.4.0: `baselines/pr_5376` survived, parent open on 6.5.0.)
 
 ### 3. Reset baselines repo HEAD
 
@@ -113,20 +126,36 @@ This is a destructive operation on a shared repo. **Two-tier confirmation: descr
 
 Read the baselines anchor commit from [`first-run-todos.md`](../../docs/release/first-run-todos.md) (or its successor doc once stable). Current documented value: `f6b4f6278e5e53f38b6a26350f80b0609b37e86e` ("update gitattributes"). Surface to user on every release for confirmation — anchor may shift over time.
 
+**Reset the *remote ref*, not a working tree.** The goal is `origin/master == anchor`; a local checkout is only a means to that end, and reaching for one drags in problems that have nothing to do with the release. Inspect the clone's state first and pick the cheapest path.
+
 Action:
 1. In `linq2db.baselines` clone (path from `external-repos.md`):
    ```
-   git -C <baselines-path> fetch origin
-   git -C <baselines-path> switch master
-   git -C <baselines-path> log --oneline -5
+   git -C <baselines-path> fetch origin --prune
+   git -C <baselines-path> branch -vv --list
+   git -C <baselines-path> rev-list --count <anchor-sha>..origin/master
    ```
-2. Surface to user:
+   `branch -vv` is the load-bearing one: it shows where local `master` points and whether it is checked out in **another worktree** (a `+` prefix and a path in parentheses). `--prune` also confirms the step-2 branch deletions landed.
+
+2. **Confirm the discarded commits are all regenerable baselines** before proposing the reset:
+   ```
+   git -C <baselines-path> log --format=%s <anchor-sha>..origin/master --invert-grep --grep='^Baselines for'
+   ```
+   Everything this prints should still be a baselines commit under a different title (per-CI-leg PRs land as `[Linux / DuckDB] baselines (#NNNN)`). Anything that looks like a real config change (`.gitattributes`, `.gitignore`, tooling) means the anchor is stale — stop and ask rather than discarding it.
+
+3. Surface to user:
    > _"About to **force-reset** `linq2db.baselines` master to commit `<anchor-sha>` ("update gitattributes") and force-push. This discards N commits of baselines on top — they'll be regenerated cleanly by CI on the release PR. Confirm to proceed."_
-3. On explicit `yes`:
+
+4. On explicit `yes`, push the ref. **Prefer the no-checkout form**, which needs no branch switch and touches no working tree:
    ```
-   git -C <baselines-path> reset --hard <anchor-sha>
-   git -C <baselines-path> push origin master --force-with-lease
+   git -C <baselines-path> push origin <anchor-sha>:refs/heads/master --force-with-lease
    ```
+   When local `master` is already at the anchor (common — it stays parked there between releases), `push origin master:master --force-with-lease` is equivalent and reads more obviously.
+
+   Fall back to `switch master` + `reset --hard <anchor-sha>` + `push origin master --force-with-lease` only when you actually want the local branch moved. Two ways that bites:
+   - **`master` may be checked out in another worktree**, so `git switch master` fails with `fatal: 'master' is already used by worktree at …` — including when that worktree's directory has been deleted and only a stale registration remains (`git worktree prune` clears it, but you don't need to).
+   - **The main checkout may be parked on a stale `baselines/pr_<n>` branch with a huge dirty tree** (6.4.0: 281 399 pending deletions). A branch switch there is a long, risky operation that the reset does not require.
+
    `--force-with-lease` (not bare `--force`) protects against races — if someone else pushed to master after our fetch, the push fails and we re-verify.
 
    **Misleading remote line:** GitHub may print `remote: - Cannot force-push to this branch` followed by a successful `+ <oldSha>...<newSha> master -> master (forced update)` line. The "Cannot force-push" line is a non-blocking server-side warning hook; the push actually succeeded. Verify with `git -C <baselines-path> ls-remote origin master` — if it returns the anchor SHA, you're done.
@@ -201,6 +230,8 @@ Action:
 ### 7. Copy + tag baselines on releases branch
 
 The `releases` branch in `linq2db.baselines` holds **one squashed commit per release** ("Baselines v6.2.0", "Baselines v6.2.1", "Baselines v6.3.0", …) where each commit's tree is the full baselines for that version. `releases` is **a parallel history to `master`** — common ancestor is the initial commit, so `merge --ff-only origin/master` will not work and is not the intended convention. The actual procedure: snapshot master's current tree onto a new commit on releases, tag, push. Like step 6, runs in parallel with `/release-postpublish`.
+
+**This step genuinely needs a checkout** — unlike step 3, which only moves a ref. Re-read the clone state you captured in step 3 before switching: the main checkout may be parked on a stale `baselines/pr_<n>` branch with a very large dirty tree, and `releases` may be claimed by another worktree. If `git switch releases` can't run cleanly, add a dedicated worktree for it (`git -C <baselines-path> worktree add <path> releases`) rather than forcing the switch — the point is a clean snapshot commit, and a forced switch risks carrying unrelated deletions into it.
 
 Action:
 1. Fetch + switch + snapshot master's tree onto the releases working dir:

@@ -65,6 +65,20 @@ The manual equivalent below remains valid (e.g. to regenerate a single project r
 2. Do the `LinqToDB.Internal.*` policy review by hand on the diff (the skill's value-add): any non-`Internal.*` suppression added is a public-contract break needing explicit user sign-off.
 3. A **clean** (empty) diff means the change isn't ApiCompat-flagged — no baseline update is needed. (Surfaced on #5639: a shipped public static field→property regen was a no-op — see auto-memory `project_apicompat_field_to_property_noop`.)
 
+## `git worktree remove` always needs `--force` — the corpus is a submodule
+
+Plain `git worktree remove <path>` refuses on **every** linq2db worktree:
+
+```
+fatal: working trees containing submodules cannot be moved or removed
+```
+
+Since the agent-instruction corpus became a submodule at `.claude/` ([#5735](https://github.com/linq2db/linq2db/pull/5735)), every worktree contains one, so this is unconditional — not a symptom of a dirty tree, an unpushed submodule commit, or a lock. `git` declines to reason about nested `.git` administrative files at all. `--force` removes it fine.
+
+Because the failure mode is a *flat refusal* rather than a warning, don't read it as "something in here is unsaved" and go hunting. Do the check explicitly instead, since `--force` will discard whatever it finds: `git -C <path> status --short` **and** `git -C <path>/.claude status` (the superproject's status is blind to the corpus — `submodule.ignore = all`). Then remove with `--force` and confirm via `git worktree list`.
+
+Surfaced during 6.4.0 release-prep cleanup, on a worktree whose tree was completely clean.
+
 ## Removing a worktree blocked by file locks
 
 `git worktree remove --force <path>` may fail with `error: failed to delete '<path>': Permission denied` when the worktree was recently built — VBCSCompiler / MSBuild server still holds file handles inside `.build/bin/` even though git's internal worktree registration was successfully dropped (`git worktree list` no longer shows it).
