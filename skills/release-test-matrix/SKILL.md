@@ -44,6 +44,8 @@ After picking a track:
 
 T4 templates under `Tests/Tests.T4/` and `Tests/Tests.T4.Nugets/` consume binaries produced by a Debug build targeting net462. Without this, T4 templates fail with missing-assembly errors.
 
+**This output is a prerequisite for tracks 4.5, 4.6 and 4.7 — keep it until all three are done.** It is easy to assume 4.5 is nuget-only and reclaim the disk after 4.7; it isn't (see track 4.5 step 2a and [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) → *T4 build prerequisite*). If disk pressure forces a cleanup mid-matrix, clear `.build/obj` and the Release artifacts instead, not `.build/bin/Tests/Debug/net462/`.
+
 **Steps:**
 
 1. From the repo root, run the documented T4 build command. **First run:** ask the user for the exact command — record in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) under **T4 build prerequisite** and prompt session-reload.
@@ -57,6 +59,29 @@ Tick `4.0` once user confirms the build succeeded.
 ## Track 4.1 — Provider container + DB init
 
 Release testing reads connection strings from settings — **no `UserDataProviders.json` enable is needed**. The only env prep is: start the docker container + run the matching setup script(s) from `Data\Setup Scripts\` (in the linq2db repo).
+
+> **The container set is per-track, not global — derive it from the track you are about to run.**
+> 4.1 is not a one-off "start the databases" step you can do once and forget. Each track pins *different versions* of the same engines, so a set sized from the previous track leaves containers stopped and the run fails partway, provider by provider. Derive it fresh, and start the containers for **that** track before handing it to the user:
+>
+> | Track | Derive the connection-name set from |
+> |---|---|
+> | 4.5 NuGet T4 | `Grep` `GetConnectionString\("([^"]+)"\)` over `Tests/Tests.T4.Nugets/Templates/*.tt` |
+> | 4.6 T4 templates | same pattern over `Tests/Tests.T4/Databases/*.tt` and `Tests/Tests.T4/Default/*.tt` |
+> | 4.7 CLI scaffold | `release-test-cli-scaffold.ps1 -DryRun` — it prints every row's full connection string |
+> | 4.3 / 4.4 LINQPad | user-driven; ask which providers they intend to click through |
+>
+> Then map each connection name to its container via the port/host in `UserDataProviders.json` → `MyConnectionStrings` (e.g. `PostgreSQL.16` → `pgsql16`, `Firebird.5` → `firebird50`, `SqlServer.2019` → `sql2019`), and remember that one container can back several names — `clickhouse` serves the Octonica, Driver and MySql-protocol rows on three ports; `hana2` serves both `SapHana.Native` and `SapHana.Odbc`.
+>
+> Observed on 6.4.0, where all three tracks disagreed:
+>
+> | Engine | 4.5 | 4.6 | 4.7 |
+> |---|---|---|---|
+> | Firebird | 5 | 2.5, 3, 4 | 5 |
+> | PostgreSQL | 16 | 9.5, 11, 16 | 10 |
+> | SQL Server | 2019 | 2017, 2019, 2025 (+Northwind) | 2017, 2019, 2025 (+Northwind) |
+> | MySQL family | MariaDB.11 | MySql.8.0, MySqlConnector.8.0, MariaDB.11 | MySqlConnector.8.0, MariaDB.11 |
+>
+> Note also that different connection names on the *same* engine can mean different **databases** that each need their own `CreateDatabase` seeding — `MySql.8.0` (`testdata`) vs `MySqlConnector.8.0` (`testdataconnector`), and `Informix` (native IDS, port 9088, `testdataids`) vs `Informix.DB2` (DRDA, port 9189, `testdatadb2`). Seeding one does not seed the other.
 
 **Steps:**
 
@@ -135,7 +160,16 @@ Tests.T4.Nugets validates T4 templates that consume linq2db.t4models from a publ
 **Steps:**
 
 1. Set the local nuget version in `Tests/Tests.T4.Nugets/Directory.Packages.props`. Find the property (likely `<Version>` in the props' PropertyGroup) and update to the just-built local version (e.g. `6.3.0-local.1`). Confirm the exact property name on first run (record in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) under **Tests.T4.Nugets version property**).
-2. **Copy the rebuilt `.nupkg` files to `<repo>/.build/package/release/`** — that's the local-folder source `Tests/Tests.T4.Nugets/nuget.config` points at (the `linq2db-testing` source maps `linq2db*` patterns to that folder via `packageSourceMapping`). The user's remote nuget feed (Track 4.4) is **not** the source for Track 4.5 — pushing there does nothing for this restore. After the copy, run `dotnet restore Tests/Tests.T4.Nugets/Tests.T4.Nugets.slnx --force` to pull the new versions.
+2. **Pack the packages into `<repo>/.build/package/release/`** — the local-folder source `Tests/Tests.T4.Nugets/nuget.config` points at (the `linq2db-testing` source maps `linq2db*` patterns to that folder via `packageSourceMapping`). The user's remote nuget feed (Track 4.4) is **not** the source for Track 4.5 — pushing there does nothing for this restore. Then `dotnet restore Tests/Tests.T4.Nugets/Tests.T4.Nugets.slnx --force`.
+
+   No copy step is needed: `dotnet pack -c Release` writes straight to `.build/package/release/` (the .NET artifacts layout lowercases the configuration pivot), which is that exact folder.
+
+   **Pack 16 packages, and mind the ordering and the two traps** (full detail in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md)):
+   - `Source/LinqToDB/LinqToDB.csproj` (core `linq2db`) + the 14 packable `NuGet/*/linq2db.*.csproj` projects + **`Source/LinqToDB.Analyzers.CodeFixes/`**, which carries `<PackageId>linq2db.Analyzers</PackageId>`. Core `linq2db` depends on it in every TFM group since [#5720](https://github.com/linq2db/linq2db/pull/5720), and `packageSourceMapping` means its absence fails restore with `NU1101` rather than falling back to nuget.org. `Source/LinqToDB.Analyzers/` is `IsPackable=false` — packing it exits 0 and produces nothing.
+   - **Build `NuGet/NuGet.csproj` first** (it's `IsPackable=false`). It populates the provider assets — notably `clidriver` for `linq2db.DB2` / `linq2db.Informix` / `linq2db.t4models` — that those packages then inject at pack time. Pack without it and they ship missing the whole native folder while still reporting success. Verify after packing: each of the three should contain ~223 `clidriver` entries.
+   - Use `-p:PackageVersion=<ver>-local.<N>`, never `-p:Version=` (CS7034/CS7035).
+
+2a. **Do not clear `.build/bin` before this track.** `Tests.T4.Nugets`'s templates load `linq2db.Tests.Base.dll` from `.build/bin/Tests/Debug/net462/` for the config-driven connection-string resolver, so track 4.0's Debug output must still be present. If it was cleared, rebuild with `dotnet build Tests\Linq\Tests.csproj -c Debug -f net462` — the `Tests` folder is `Tests/Linq/Tests.csproj`'s output, *not* `Tests/Base`'s.
 3. Ask user to open the test solution in Visual Studio and run all T4 templates from the `Tests.T4.Nugets` project **except `t4model`**.
 4. After those complete, ask user to reload the solution (to drop the T4 cache) and run the `t4model` template.
 5. Check generated-file diff in `Tests/Tests.T4.Nugets` working tree. Expected: small or zero diff. Unexpected diff → investigate (likely a code change that broke scaffold output; surfaces a release-blocker).
@@ -163,6 +197,15 @@ The CLI tool (`linq2db.cli`) scaffolds database models. Two ways to exercise it:
 ### Recommended — automated, parallel via `release-test-cli-scaffold.ps1`
 
 Mirrors every `RunCliTool()` call in `Tests/Tests.T4/Cli/*.tt` and runs them in parallel against the locally-built CLI artifact (`<RepoRoot>/.build/publish/LinqToDB.CLI/Debug/net9.0/win-x64/dotnet-linq2db.dll`). No nuget install needed; depends only on track 4.0's Debug build.
+
+> **The script's matrix is a hand-maintained copy of the templates — verify it before trusting its row count.** It drifts when a provider is added to the `.tt` files and not to the script, and the failure is silent: the run reports "N ok, 0 failed" while a whole provider is never exercised. Cross-check first:
+>
+> ```
+> Grep 'RunCliTool\("([^"]+)"' over Tests/Tests.T4/Cli/*.tt   # providers the templates drive
+> release-test-cli-scaffold.ps1 -DryRun                        # providers the script will run
+> ```
+>
+> A provider in the first list and not the second means the matrix needs a row (and its `Tests/Tests.T4/Cli/*/<Provider>/` baselines are going unverified). On 6.4.0 the script was missing **Ydb** entirely — 5 rows and 57 committed baseline files — so a clean "112/112 pass" was really 112 of 117, and the untested provider was the one that release had just finished ([#5564](https://github.com/linq2db/linq2db/pull/5564)). A "same number of rows as last release" sanity check would not have caught it either; only the template cross-check does.
 
 **Steps:**
 

@@ -228,6 +228,7 @@ $matrix = @(
     @{ p='ClickHouseMySql'; cn='ClickHouse.MySql';    key='ClickHouse.MySql';   cs=$null;          pl=$null;        add=$null         }
     @{ p='ClickHouseHttp';  cn='ClickHouse.Driver';   key='ClickHouse.Driver';  cs=$null;          pl=$null;        add=$null         }
     @{ p='ClickHouseTcp';   cn='ClickHouse.Octonica'; key='ClickHouse.Octonica';cs=$null;          pl=$null;        add=$null         }
+    @{ p='Ydb';             cn='YDB';                 key='Ydb';                cs=$null;          pl=$null;        add=$null         }
     # All-only extras (Azure variants); AllOnly => Default/Fluent/NoMetadata/T4 skip these
     @{ p='SQLServer';       cn='SqlServer.Azure';     key='SqlServer.Azure';    cs=$null;          pl=$null;        add=$null; AllOnly=$true }
     @{ p='SQLServer';       cn='SqlServer.Azure.MI';  key='SqlServer.Azure.MI'; cs=$null;          pl=$null;        add=$null; AllOnly=$true }

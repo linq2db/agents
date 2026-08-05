@@ -1,14 +1,15 @@
 <#
 linqpad-local-push.ps1 — build + push the LINQPad local-driver nuget closure to a test feed.
 
-Packs the LINQPad-driver dependency closure (linq2db core, Tools, Scaffold, LINQPad)
-at a single <version>-local.<N> prerelease and pushes all four to a NuGet feed so
-LINQPad 7+/9 can install the just-built driver. Mirrors /release-test-matrix Track 4.4;
-used for LINQPad verification during release prep or feature work.
+Packs the LINQPad-driver dependency closure (linq2db.Analyzers, linq2db core, Tools,
+Scaffold, LINQPad) at a single <version>-local.<N> prerelease and pushes all five to a
+NuGet feed so LINQPad 7+/9 can install the just-built driver. Mirrors /release-test-matrix
+Track 4.4; used for LINQPad verification during release prep or feature work.
 
-The closure MUST be pushed at the same version — LINQPad references Scaffold->Tools->core,
-which are not on nuget.org at a -local version. Use `PackageVersion` (NOT `Version`, which
-would propagate the prerelease suffix into AssemblyVersion and fail CS7034/CS7035).
+The closure MUST be pushed at the same version — LINQPad references Scaffold->Tools->core
+->Analyzers, none of which are on nuget.org at a -local version. Use `PackageVersion` (NOT
+`Version`, which would propagate the prerelease suffix into AssemblyVersion and fail
+CS7034/CS7035).
 
 The feed is USER-SPECIFIC — there is no default. Pass -FeedUrl (recorded in auto-memory
 `user-local.nuget-server` / docs/release/external-repos.md). NuGet versions are immutable:
@@ -48,11 +49,18 @@ if (-not (Test-Path (Join-Path $RepoRoot 'Directory.Build.props'))) {
 if (-not $OutDir) { $OutDir = Join-Path $RepoRoot '.build/.agents/linqpad-nuget' }
 
 # closure: order matters only for readability; each pack builds its own deps
+#
+# linq2db.Analyzers is packed by LinqToDB.Analyzers.CodeFixes (PackageId override) — the
+# sibling LinqToDB.Analyzers project is IsPackable=false and packs to nothing. It joined the
+# closure with #5720, which made core linq2db declare a dependency on it in EVERY TFM group;
+# omit it and LINQPad's restore of the -local.N driver fails with NU1101, because that version
+# exists on neither the test feed nor nuget.org.
 $projects = [ordered]@{
-    'linq2db'          = 'Source/LinqToDB/LinqToDB.csproj'
-    'linq2db.Tools'    = 'Source/LinqToDB.Tools/LinqToDB.Tools.csproj'
-    'linq2db.Scaffold' = 'Source/LinqToDB.Scaffold/LinqToDB.Scaffold.csproj'
-    'linq2db.LINQPad'  = 'Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj'
+    'linq2db.Analyzers' = 'Source/LinqToDB.Analyzers.CodeFixes/LinqToDB.Analyzers.CodeFixes.csproj'
+    'linq2db'           = 'Source/LinqToDB/LinqToDB.csproj'
+    'linq2db.Tools'     = 'Source/LinqToDB.Tools/LinqToDB.Tools.csproj'
+    'linq2db.Scaffold'  = 'Source/LinqToDB.Scaffold/LinqToDB.Scaffold.csproj'
+    'linq2db.LINQPad'   = 'Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj'
 }
 
 # --- base version -----------------------------------------------------------
