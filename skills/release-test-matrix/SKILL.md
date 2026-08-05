@@ -160,6 +160,8 @@ Tests.T4.Nugets validates T4 templates that consume linq2db.t4models from a publ
 **Steps:**
 
 1. Set the local nuget version in `Tests/Tests.T4.Nugets/Directory.Packages.props`. Find the property (likely `<Version>` in the props' PropertyGroup) and update to the just-built local version (e.g. `6.3.0-local.1`). Confirm the exact property name on first run (record in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) under **Tests.T4.Nugets version property**).
+
+   **This edit is local testing scratch — revert it before the prep commit.** `git checkout -- Tests/Tests.T4.Nugets/Directory.Packages.props` once the track is ticked. A `-local.<N>` version has no meaning outside this machine's feed and only ever confuses the next reader. Note that 6.3.0 shipped with `6.3.0-local.2` committed, so the in-tree value is *not* a precedent to follow — check what the file looked like at the previous release tag rather than assuming its current content is intentional. Same applies to any other version pin touched for local testing during tracks 4.4–4.7.
 2. **Pack the packages into `<repo>/.build/package/release/`** — the local-folder source `Tests/Tests.T4.Nugets/nuget.config` points at (the `linq2db-testing` source maps `linq2db*` patterns to that folder via `packageSourceMapping`). The user's remote nuget feed (Track 4.4) is **not** the source for Track 4.5 — pushing there does nothing for this restore. Then `dotnet restore Tests/Tests.T4.Nugets/Tests.T4.Nugets.slnx --force`.
 
    No copy step is needed: `dotnet pack -c Release` writes straight to `.build/package/release/` (the .NET artifacts layout lowercases the configuration pivot), which is that exact folder.

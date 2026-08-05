@@ -139,6 +139,27 @@ MSYS_NO_PATHCONV=1 docker exec firebird50 bash -c '/usr/local/firebird/bin/fireb
 
 Commands that don't reference container-side paths (`docker exec firebird50 isql -version`) are unaffected.
 
+## A published container port always accepts connections — `Test-NetConnection` proves nothing
+
+Docker Desktop's port proxy binds the host-side port for the container's whole lifetime, independent of
+whether anything inside the container is listening. So `Test-NetConnection localhost -Port 50000` returns
+`TcpTestSucceeded: True` for a container whose service crashed at startup, never started, or is still
+initializing — the TCP handshake completes against the proxy, not the service. The same applies to
+`telnet`, `nc -z`, and any other connect-only check.
+
+To establish that a containerised service is actually up, probe **inside** the container or through its
+own protocol:
+
+```
+docker exec <container> ss -lntp                    # is anything bound in the container's netns?
+docker logs --tail 50 <container>                   # startup complete, or a crash loop?
+docker exec <container> db2cli validate -connect …  # the service's own client
+```
+
+Hit on 6.4.0 while diagnosing DB2: the port test "confirmed reachability" for hours while the real
+failure was client-side (`SQLAllocHandle` failing before any socket was opened). A green connect-only
+check is weak evidence at best — don't let it eliminate a hypothesis.
+
 ## Native-command stdout is decoded via the console code page, not UTF-8
 
 Capturing `gh` / `git` / other native-command output that may contain non-ASCII (emoji, em-dash, accented letters) into a pwsh variable mangles the bytes before any string op runs — the robot emoji `🤖` (UTF-8 `F0 9F A4 96`) comes back as the literal 4-character sequence `≡ƒñû`, subsequent `.Contains(robot)` / `.Replace(robot, …)` silently misses, and the garbled bytes get round-tripped back to GitHub. **Don't capture body-ish output into a variable for string surgery.** Options in priority order:
@@ -242,6 +263,48 @@ function Filter-Items {
 ```
 
 This bit `Build-Themes` during `/kb-build` step 8 — the function returned 0 themes for closed-issue clusters even when 187 closed issues existed, because an outer `$stopWords` reference wasn't reliably captured. Symptom: silent miss-rate, no parse error, no exception. Hard to detect without separate validation tests.
+
+### `Set-Location` does not change the directory .NET APIs and native processes resolve against
+
+`Set-Location` (and `cd`) updates PowerShell's *provider* location. It does **not** update
+`[System.Environment]::CurrentDirectory`, which is what .NET file APIs and child processes actually
+use. So after `Set-Location <worktree>`, a relative path handed to a .NET method still resolves
+against the shell's original directory:
+
+```powershell
+Set-Location C:\Worktrees\linq2db\release-6.4.0
+[System.IO.Compression.ZipFile]::OpenRead('.build\package\release\pkg.nupkg')
+# Could not find a part of the path 'C:\GitHub\linq2db.claude\.build\package\release\pkg.nupkg'
+```
+
+**Always pass absolute paths to .NET file APIs** (`[System.IO.*]`, `ZipFile`, `File`, `Directory`).
+PowerShell *cmdlets* (`Get-ChildItem`, `Test-Path`, `Copy-Item`) honour the provider location and are
+unaffected — which is what makes this confusing: the same relative path works in one call and fails
+in the next line. Same root cause as native processes inheriting the wrong working directory (see
+`Start-Process -WorkingDirectory`, and the `cmd /c <script>.cmd` case below).
+
+**Order the destructive step last.** This bites hardest in a delete-then-write sequence: on 6.4.0 an
+`ExtractToDirectory` with a relative source failed *after* `Remove-Item` had already removed the
+target, leaving the LINQPad 5 driver uninstalled rather than replaced. Verify the source resolves
+(`Test-Path`) before deleting the destination, or extract to a temp location and swap.
+
+### Method calls on a collection are distributed to its elements (member enumeration)
+
+A PowerShell function returning a collection type unrolls it into the pipeline, so the caller gets
+`object[]`, not the original object. Calling a method the *array* doesn't have then silently invokes
+it on every **element** instead:
+
+```powershell
+function Get-Set { $s = [System.Collections.Generic.HashSet[string]]::new(); ...; return $s }
+$a = Get-Set; $b = Get-Set
+$a.SetEquals($b)   # "[System.String] does not contain a method named 'SetEquals'" — once per element
+```
+
+Return with the unary comma to suppress unrolling: `return ,$s`. The dangerous variant is when the
+distributed call *succeeds*: `.Contains()` exists on both `HashSet[string]` and `object[]`, so the
+same code silently switches from set semantics to array scanning and still produces a plausible
+answer. Hit on 6.4.0 comparing declared-API sets, where it briefly supported a wrong conclusion
+before the error on a later line exposed it.
 
 ### `Get-ChildItem -Filter` only supports `*` and `?`
 
