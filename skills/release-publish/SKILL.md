@@ -248,30 +248,41 @@ Action:
 
 The `releases` branch in `linq2db.baselines` holds **one squashed commit per release** ("Baselines v6.2.0", "Baselines v6.2.1", "Baselines v6.3.0", …) where each commit's tree is the full baselines for that version. `releases` is **a parallel history to `master`** — common ancestor is the initial commit, so `merge --ff-only origin/master` will not work and is not the intended convention. The actual procedure: snapshot master's current tree onto a new commit on releases, tag, push. Like step 6, runs in parallel with `/release-postpublish`.
 
-**This step genuinely needs a checkout** — unlike step 3, which only moves a ref. Re-read the clone state you captured in step 3 before switching: the main checkout may be parked on a stale `baselines/pr_<n>` branch with a very large dirty tree, and `releases` may be claimed by another worktree. If `git switch releases` can't run cleanly, add a dedicated worktree for it (`git -C <baselines-path> worktree add <path> releases`) rather than forcing the switch — the point is a clean snapshot commit, and a forced switch risks carrying unrelated deletions into it.
+**A tagged baselines release is a *snapshot of master*, nothing more.** The new commit's tree must equal `origin/master`'s tree exactly. Files left over from previous releases are not carried forward — baselines are keyed by fully-qualified test name and never auto-prune, so `releases` otherwise accumulates orphans from renamed or no-longer-capturing tests indefinitely.
+
+> **Do not use `git checkout origin/master -- .` for this.** It *overlays* master onto the existing `releases` tree: it adds and overwrites, but never deletes paths that exist on `releases` and not on master. The result is a union, not a snapshot. On 6.4.0 that would have carried **2,078** stale files (master 309,352 files, releases 281,409, of which 2,078 were releases-only) — and earlier tags produced this way already carry theirs.
+
+**No checkout is required.** Build the commit from master's tree directly, which also sidesteps the state this clone is usually in (main checkout parked on a stale `baselines/pr_<n>` branch with a huge dirty tree, `master` possibly claimed by another — sometimes stale — worktree) and avoids materialising ~300 k small files on disk.
 
 Action:
-1. Fetch + switch + snapshot master's tree onto the releases working dir:
+1. Fetch, then resolve master's tree and the current `releases` head:
    ```
-   git -C <baselines-path> fetch origin
-   git -C <baselines-path> switch releases
-   git -C <baselines-path> checkout origin/master -- .
+   git -C <baselines-path> fetch origin --prune
+   git -C <baselines-path> rev-parse 'origin/master^{tree}'
+   git -C <baselines-path> rev-parse origin/releases
    ```
-   `checkout origin/master -- .` populates the working tree + index with master's tree without moving HEAD. The diff against the current `releases` HEAD is the full release-vs-previous-release baseline delta (typically thousands of files, hundreds of thousands of lines).
-2. Commit (no body needed — the tag is the navigation handle):
+2. Create the snapshot commit with master's tree, parented on `releases` (no body — the tag is the navigation handle):
    ```
-   git -C <baselines-path> commit -m "Baselines v<version>"
+   git -C <baselines-path> commit-tree <master-tree-sha> -p <releases-head-sha> -m "Baselines v<version>"
    ```
-3. Tag — convention is `v<ver>` (confirmed via `git tag -l`: v6.0.0, v6.1.0, v6.2.0, v6.2.1, …). Verify the convention on first run for a new repo.
+3. Move the branch and tag the new commit. Pass the expected old value to `update-ref` so a concurrent change fails the call instead of being clobbered:
    ```
-   git -C <baselines-path> tag v<version>
+   git -C <baselines-path> update-ref refs/heads/releases <new-commit-sha> <releases-head-sha>
+   git -C <baselines-path> tag v<version> <new-commit-sha>
    ```
-4. Push branch + tag separately (don't use `--tags` — that pushes every local tag including junk):
+   Tag convention is `v<ver>` (confirmed via `git tag -l`: v6.0.0, v6.1.0, v6.2.0, v6.2.1, v6.3.0, …). Verify on first run for a new repo.
+4. **Verify it is a true snapshot before pushing** — this is the whole point of the step:
+   ```
+   git -C <baselines-path> rev-parse 'v<version>^{tree}'          # must equal <master-tree-sha>
+   git -C <baselines-path> ls-tree -r --name-only v<version> | wc -l   # must equal master's file count
+   ```
+   A `git diff --shortstat v<prev> v<version>` is useful context for the user (6.4.0: 272 585 files changed, 1 478 404 insertions, 1 082 475 deletions) but is *not* the check — only the tree equality is.
+5. Push branch + tag separately (don't use `--tags` — that pushes every local tag including junk):
    ```
    git -C <baselines-path> push origin releases
    git -C <baselines-path> push origin v<version>
    ```
-5. Update step status `done`. Capture the new releases-branch HEAD SHA in `state.publish.baselinesReleasesSha`.
+6. Update step status `done`. Capture the new releases-branch HEAD SHA in `state.publish.baselinesReleasesSha`.
 
 ## Recovery procedures
 
