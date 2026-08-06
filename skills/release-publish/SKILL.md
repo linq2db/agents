@@ -163,13 +163,30 @@ Action:
 
 ### 4. Prerelease-nuget team-test gate [R2-A in plan]
 
-CI on the release PR produces prerelease nugets to pipeline artifacts. This step blocks until the user confirms team tests passed.
+CI produces prerelease nugets to pipeline artifacts. This step blocks until the user confirms team tests passed.
+
+**Testing should already be under way.** [`/release-verify`](../release-verify/SKILL.md) step 6a hands the team nugets from the **prep PR**, because `build.yml` (`with_nugets: true`, triggers on every PR) publishes a `nugets` artifact on each prep push. Treat this step as *confirmation plus delta-check*, not the first ask — if `state.publish.steps.team-test.note` records an earlier handover, name the build the team already tested and ask only about what changed since.
+
+**The delta matters.** Fixes routinely land between the prep-PR build and the release PR — on 6.4.0 both #5743 and #5744 merged after the prep merge, so the release PR's bits were not what the team first received. Compare the artifact the team tested against the current release-PR build and say plainly which commits are new.
 
 Action:
 1. Get the build run and its artifact URL: `gh pr checks <release-pr> --json name,link` — the `link` is the pipeline URL to surface to the user.
    `azp-build-failures.ps1 -BuildId <buildId>` is for *diagnosing failures*, not for links: it emits `{buildId, logsDir, failedTaskCount, tasks[]}` and carries no pipeline/build web URL (only per-task API `logUrl`s), so it has nothing to surface on a green build.
+
+   **Confirm the artifact exists rather than inferring it from the check colour.** A release PR's aggregated checks can be red for reasons that have nothing to do with packaging, so query the artifacts directly:
+   ```
+   (Invoke-RestMethod "https://dev.azure.com/linq2db/<project-guid>/_apis/build/builds/<id>/artifacts?api-version=7.0").value
+   ```
+   Expect `nugets` (~1.2 GB) and `linq2db_linqpad_lpx` (~75 MB).
+
+   **A red `default` check does not necessarily block this step.** Two traps, both hit on 6.4.0:
+   - The release PR's head **is** `master`, so `master` *push* builds alias onto the PR's check list. A failure there may belong to a master build, not the PR's own build — always resolve the `buildId` behind a failing check and read its `sourceBranch` before treating it as a release blocker.
+   - `Publish to Azure Artifacts feed` and `Publish to Nuget.org` are **skipped on PR builds** and run only on master pushes. An `HTTP 402 (Payment Required — max quantity has been exceeded)` from the Artifacts feed therefore fails master builds while leaving the release PR's packaging entirely intact. It is a real infrastructure problem, but not a gate on this step.
 2. Print:
    > _"Prerelease nugets ready at `<CI artifact URL>`. Notify the team for their custom testing (whatever validation they own outside CI test-all). Reply `tests green, proceed` when ready, or `regression found, paused: <description>` to pause the release."_
+
+   When the team already tested a prep-PR build, use instead:
+   > _"The team tested build `<prep build id>` from the prep PR. The release PR's build `<id>` adds: `<commits merged since>`. Confirm the team is happy with the delta — `tests green, proceed`, or `regression found, paused: <description>`."_
 3. Block. Two valid replies:
    - **`tests green, proceed`** → update step status `green`. Continue to step 5.
    - **`regression found, paused: <reason>`** → update step status `paused` with reason in `state.publish.steps.team-test.note`. Skill stops. On resume:

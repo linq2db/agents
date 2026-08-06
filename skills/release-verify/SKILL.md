@@ -150,6 +150,25 @@ On explicit user confirmation:
 2. If no prep PR exists yet, open one per [`branch-and-pr.md`](../../docs/release/branch-and-pr.md) (`Release prep <ver>`, draft, milestone, `--assignee @me`, body = checklist auto-synced from `release-state.ps1`).
 3. Trigger `/azp run test-all` via `.claude/scripts/azp-run.ps1`. This is the first and only CI trigger for the release-prep cycle.
 
+### 6a. Hand the team prerelease nugets — at prep stage, not at publish
+
+**The prep PR already produces installable packages, so team testing starts here** rather than waiting for the publish phase. `build.yml` sets `with_nugets: true` and triggers on **every** PR (`pr: branches: include: '*'`), so each push to the prep branch yields a `build` run carrying:
+
+| Artifact | Typical size |
+|---|---|
+| `nugets` | ~1.2 GB |
+| `linq2db_linqpad_lpx` | ~75 MB |
+
+This is a *different* path from the `default` pipeline's `Nugets Generation` job, which only runs for a `release`-targeting PR — don't wait on that one to hand packages over. (Verified on 6.4.0: prep PR #5741 build 22626 published `nugets` at 1210 MB and the `.lpx` at 73.5 MB, days before the release PR existed.)
+
+Once the `build` check for the prep PR is green, tell the user:
+
+> _"Prerelease nugets for `<ver>` are ready on the prep PR: `<build results URL>&view=artifacts` (`nugets`, plus `linq2db_linqpad_lpx` for the LINQPad 5 driver). Worth handing these to the team now — their validation runs in parallel with the rest of prep instead of serializing after the release PR opens. Any regression they find is much cheaper to fix while the prep branch is still open."_
+
+Do **not** block on the answer — this is a heads-up that starts a parallel clock, not a gate. The gate itself stays at [`/release-publish`](../release-publish/SKILL.md) step 4, which confirms the result and re-checks any delta merged after the prep PR.
+
+Record what was handed over in `state.publish.steps.team-test.note` (build id + artifact) even though the phase hasn't started, so step 4 knows testing began early and against which bits.
+
 ### 7. Hand back to `/release` orchestrator
 
 The orchestrator marks task 6 `[x]` and proceeds to step 5 (prep-merge gate). The prep PR is now in CI's hands.
