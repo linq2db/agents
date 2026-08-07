@@ -6,20 +6,6 @@ When the first real release surfaces an answer, update the corresponding doc and
 
 ## Open questions
 
-### Docs PR submodule sync step (skill: /release-postpublish, step 2)
-
-- **Question:** in the `linq2db.docs` repo, what's the exact step to "synchronize submodules" — `git submodule update --remote`? With or without `--recursive`? Which submodule pins to the release tag — the `linq2db` submodule itself, others?
-- **Doc to update:** new section in [`overview.md`](./overview.md) (or carve out `docs-pr-flow.md` once steps stabilize across multiple releases).
-
-### GitHub release `gh release create` exact form (skill: /release-postpublish, step 3)
-
-- **Question:** exact `gh release create` invocation that:
-  - Tags the release commit on `release` branch (tag form `<ver>` or `v<ver>` — confirm on first run via `gh release list --repo linq2db/linq2db --limit 5`, per the skill).
-  - Uses `--generate-notes` so the **New Contributors** auto-section appears.
-  - Attaches only the `.lpx` artifact (no `.lpx6`, no `.nupkg`).
-  - Body is a terse summary keyed off the full release notes on wiki.
-- **Doc to update:** new section in [`overview.md`](./overview.md), or carve out `github-release.md`.
-
 ### Baselines repo anchor commit verification (skill: /release-publish, step 3)
 
 - **Question:** is `f6b4f6278e5e53f38b6a26350f80b0609b37e86e` still the right reset target for the baselines repo before each release, or does this evolve as the baselines repo gets re-anchored?
@@ -41,6 +27,14 @@ When the first real release surfaces an answer, update the corresponding doc and
 ### Per-provider DB init invocations (skill: /release-test-matrix, step 4.1) — partially resolved on 6.3.0
 
 [`provider-db-init.md`](./provider-db-init.md) carries the db2 entry (last verified 2026-05-16 on release 6.3.0). Still accruing one entry per provider as each is first exercised — keep appending there rather than re-opening this row.
+
+### Docs PR submodule sync step (skill: /release-postpublish, step 2) — resolved on 6.4.0
+
+`git -C <docs-path> submodule update --remote submodules/linq2db`. Scoped to that one path on purpose: the repo also has `submodules/LinqToDB.Identity` (tracking `master`), which a release sync must not bump. `submodules/linq2db` tracks branch `release`, so `--remote` lands on the release-branch head with no explicit SHA. Full step, plus the vendored-docfx Roslyn dependency it sits next to, is written up in [`/release-postpublish`](../../skills/release-postpublish/SKILL.md) step 2.
+
+### GitHub release creation (skill: /release-postpublish, step 3) — resolved on 6.4.0
+
+There is no manual `gh release create` — **CI already made the draft**. `build-job.yml`'s *Create Release Draft* step runs on the release-branch build with `--draft --fail-on-no-commits --generate-notes --latest`, attaching the `.lpx` (the `.lpx6` attachment was dropped for 6.5.0 onward). Step 3 therefore PATCHes that draft's body and the user publishes it. Tag form is `v<ver>`, and the tag **must** end up on a commit reachable from `master` — see the warning in the skill, and the `tag_name`-strip trap when PATCHing a draft.
 
 ### Local NuGet test feed (skill: /release-test-matrix, step 4.4) — resolved
 

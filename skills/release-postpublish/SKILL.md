@@ -67,27 +67,56 @@ Action:
 
 ### 2. Docs PR (linq2db.docs)
 
-The docs site is built from a separate repo `linq2db.docs` (not `linq2db.github.io` — that's the published site, CI-updated from `linq2db.docs`).
+The docs site is built from a separate repo (not `linq2db.github.io` — that's the published site, CI-updated from this one).
+
+**The GitHub repo is `linq2db/docs`, even though the local clone is conventionally `../linq2db.docs`.** Every `gh` call needs `--repo linq2db/docs`; `linq2db/linq2db.docs` does not exist and fails with *"Could not resolve to a Repository"*. Confirm with `git -C <docs-path> remote -v` rather than inferring the slug from the directory name.
 
 Action:
 1. Verify clone exists at the path recorded in `external-repos.md` (default `../linq2db.docs`). If missing, ask user for the correct path; record + session-reload.
-2. **First run:** ask user for the exact submodule sync command. Most likely:
+2. **Sync only the linq2db submodule.** The repo has two (`git -C <docs-path> submodule status`): `submodules/linq2db`, which tracks branch **`release`** (so `--remote` lands exactly on the release-branch head), and `submodules/LinqToDB.Identity`, which tracks `master` and must **not** be bumped by a release sync. Name the path explicitly:
    ```
-   git -C <docs-path> submodule update --init --remote
+   git -C <docs-path> submodule update --remote submodules/linq2db
    ```
-   or with `--recursive` if submodules nest. Record in `first-run-todos.md` → resolved section under **Docs PR submodule sync step**.
+   A bare `--remote` moves both.
 3. Create branch + sync + commit:
    ```
    git -C <docs-path> fetch origin
    git -C <docs-path> switch -c docs/release-<ver> origin/master
-   git -C <docs-path> submodule update --remote      # or the confirmed variant
-   git -C <docs-path> add .            # only after surfacing the diff for user review
+   git -C <docs-path> submodule update --remote submodules/linq2db
+   git -C <docs-path> diff --submodule=short        # expect exactly one pointer change
+   git -C <docs-path> add submodules/linq2db        # explicit pathspec, not `add .`
    git -C <docs-path> commit -m "Sync to linq2db <ver>"
    git -C <docs-path> push -u origin docs/release-<ver>
    ```
-   Each git mutation is confirmed before run (per `agent-rules.md` → Git commit rules / Push to remote rules). No other repo changes besides submodule sync.
+   Each git mutation is confirmed before run (per `agent-rules.md` → Git commit rules / Push to remote rules). The expected diff is one line — `-Subproject commit <old>` / `+Subproject commit <new>` — matching the release merge commit on `release`.
 4. Create the PR (target: `master` on the docs repo). Title: `Docs: linq2db <ver>`. Body: bullet list of new public-API doc URLs that should be live post-merge.
-5. Wait for CI to pass. Ask user to merge (or do `gh pr merge --merge` themselves).
+5. Wait for CI to pass. Ask user to merge (or do `gh pr merge --squash --delete-branch` themselves — all three merge modes are enabled but the history is linear `(#NN)` squashes, and `delete_branch_on_merge` is **false**, so pass `--delete-branch` explicitly).
+
+#### The vendored `docfx/` must track linq2db's Roslyn version
+
+The docs repo vendors a **custom docfx build** (`<docs-path>/docfx/`, from `MaceWindu/docfx` branch `custom/linq2db`) rather than using the published tool. Its bundled `Microsoft.CodeAnalysis` has to be **>= the `Microsoft.CodeAnalysis.CSharp` version in linq2db's `Directory.Packages.props`**, because linq2db's `CodeGenerators` source generator is built against it. When docfx's Roslyn is older, the generator refuses to load and the build fails in a way that does not name the real cause:
+
+```
+warning: FailedToLoadAnalyzer: ... AnalyzerName: CodeGenerators,
+         ErrorCode: ReferencesNewerCompiler, ReferencedCompilerVersion: <x>
+error: ExpressionBuilder.cs(38,44): error CS8795: Partial method
+       'ExpressionBuilder.FindBuilderImpl' must have an implementation part
+```
+
+The generated half of the partial never exists, so metadata extraction yields nothing and the run ends with `warning: No .NET API detected for .`. **This recurs on every linq2db Roslyn bump** — 6.3.0 needed 5.0 → 5.3, 6.4.0 needed 5.3 → 5.6. Check it up front: compare `Microsoft.CodeAnalysis.CSharp` in linq2db's `Directory.Packages.props` against `(Get-Item <docs-path>/docfx/Microsoft.CodeAnalysis.CSharp.dll).VersionInfo.ProductVersion`.
+
+To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`, branch `custom/linq2db`):
+
+1. Bump all eight `Microsoft.CodeAnalysis*` pins in its `Directory.Packages.props` to linq2db's version.
+2. `dotnet publish src/docfx/docfx.csproj -c Release -f <tfm> -o <staging>` — take `<tfm>` from the vendored `docfx/docfx.runtimeconfig.json` (`net9.0` as of 6.4.0), not from the csproj's `TargetFrameworks`.
+3. **Overlay** the staging output onto `<docs-path>/docfx/`; do **not** delete the directory first.
+4. Rebuild the docs locally to verify *before* committing either repo.
+
+> **Overlay, never replace.** `dotnet publish` emits ~487 files; the vendored directory holds ~875. The difference is a `templates/` tree (388 files) that publish never produces — docfx packs templates in its `PackTool` target — plus a committed `.playwright/` folder. Wiping and copying silently destroys them; docs PR **#62 ("Restore docfx/templates…")** exists because that already happened once. After copying, assert the count: `templates/` must still hold 388 files, and `git status` should show **zero deletions**.
+
+Expect the refresh to add files as well as modify them (Roslyn 5.6 brought 15 new `Microsoft.Extensions.*` / `System.*` dependencies). A commit of ~79 changed files with 0 deletions is the healthy shape.
+
+**A Roslyn bump can expose latent bugs in the custom patch.** The custom `VisitorHelper.GetGlobalId` had a null-dereference on symbols whose `ContainingAssembly` is null (reached via `XmlComment.ResolveCrefLink`) that had never fired, because the build always died at CS8795 first. Fixed in `MaceWindu/docfx` `591d070e7`. If the refreshed build fails somewhere inside `Docfx.Dotnet`, check the custom patch (`git show <custom-commit>`) before assuming an upstream docfx bug.
 6. After merge, verify a known new API doc URL resolves on the published site. **First run:** ask the user for a known-good URL pattern (e.g. `https://linq2db.github.io/api/LinqToDB.<new-type>.html`); record in `external-repos.md` → docs-site verification.
 7. Mark step `done`.
 
@@ -114,6 +143,14 @@ Action:
    ```
    Or the user clicks "Publish release" on GitHub manually.
 5. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
+
+**The pipeline already created a draft — fill it, don't create a second one.** The release build's *Create Release Draft* step (`build-job.yml`) opens the draft as soon as the release branch builds, with only a one-line body (`[Release notes](…) [Nugets](…)`) plus `--generate-notes` output. This step's job is to replace that body with the authored one, so the flow is a **PATCH of the existing draft**, not a `gh release create`.
+
+**Keep *New Contributors*, drop *What's Changed*.** `--generate-notes` emits all three of `What's Changed`, `New Contributors` and `Full Changelog` in a single API call — there is no flag to select among them, which is why the pipeline keeps the flag (the contributor credit is wanted) and the *body* is trimmed by hand here. Cut everything from `## What's Changed` up to `## New Contributors`; on 6.4.0 that took the body from 21 KB of 126 PR titles down to 5.1 KB. Compose it by slicing the fetched body at the `## New Contributors` anchor and prepending the authored preamble.
+
+**Source the preamble from the release-notes harvest, not from PR titles.** Task 5 of the prep phase already produced curated per-PR blurbs at `.build/.agents/release-<ver>-notes-harvest.json`; read `items[]` where `includeBrief && !omit` (36 entries on 6.4.0). Structure follows the previous release's body: `Highlights of this release:` → `Provider-specific highlights:` → per-tool sections → `[Full release notes](<wiki-anchor>)` + `[Nugets](…)`.
+
+> **`tag_name` is stripped by a PATCH that omits it.** Sending only `body` to `PATCH /repos/{o}/{r}/releases/{id}` on a **draft** release silently resets the tag to `untagged-<hash>`. Always include `tag_name`, `target_commitish` and `name` in the payload, then re-fetch and verify all of them plus the body (`github-authoring.md` → *draft-release `tag_name` strip on PATCH*). Hit on 6.4.0 despite being documented.
 
 > ### ⚠ The release tag must land on `master`, never on the release-branch merge commit
 >
@@ -168,7 +205,11 @@ Don't auto-retrigger CI repeatedly while parked; one retrigger after the deferre
 
 ### 5. Close release milestone
 
-Final action — closes the milestone tracking issues + PRs that landed in this release. Run **only after all earlier steps are `done`**: nuget publish complete, docs PR merged, GH release published, bump PR open (merge timing is user-driven).
+Closes the milestone tracking issues + PRs that landed in this release.
+
+**Preconditions are only these two:** the release has shipped (packages live on nuget.org, GitHub release published) **and** the milestone has no open issues or PRs. It does **not** wait on the docs PR merging or the bump PR existing — neither is tracked by the release milestone, so gating on them just leaves a finished, empty milestone open for no reason. Numbered last because that is usually when it becomes clean, not because the other steps block it: close it the moment both preconditions hold, which is often right after step 3. (Closed this way on 6.4.0 — 175 closed / 0 open, with the docs PR still open and no bump PR yet.)
+
+**Don't let it slip.** This is the step most easily dropped, because by now the visible work is done and attention has moved to the next cycle. When reporting remaining postpublish work, list it explicitly rather than summarising the tail as "docs + bump" — an empty milestone left open is invisible until someone goes looking for it. (On 6.4.0 the user had to ask.)
 
 Action:
 1. Verify the milestone has no open issues/PRs left:
