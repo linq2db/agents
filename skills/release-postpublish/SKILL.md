@@ -115,7 +115,30 @@ Action:
    Or the user clicks "Publish release" on GitHub manually.
 5. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
 
-**Optional early draft:** During release prep (`/release-deps`/`/release-test-matrix` phase), the user may draft the GH release body early — and it's a strict win to do so, since `gh release create --draft` is cheap and lets the user iterate on body text incrementally without skill round-trips. If they did the early draft, this step (1) re-targets the draft to the actual release-branch HEAD via `gh release edit <tag> --target <new-sha>` (the early draft typically targeted the in-flight master HEAD), (2) attaches the `.lpx` (early draft has no artifact), (3) surfaces the URL again with the "you can tune text on GitHub" reminder, (4) waits for user `publish`.
+> ### ⚠ The release tag must land on `master`, never on the release-branch merge commit
+>
+> Whatever path creates the tag, it has to point at a commit **reachable from `master`** — i.e. the `master`-side (second) parent of the `master` → `release` merge, not the merge commit itself.
+>
+> **Why it matters.** `gh release create --fail-on-no-commits` (used by the release pipeline's *Create Release Draft* step) calls `isNewRelease`, which compares `{latest-release-tag}...HEAD` — where `HEAD` is the **default branch** — and accepts **only** `status == "ahead"`. A tag on the release-branch merge commit is unreachable from `master`, so the comparison returns `"diverged"` and gh reports *"no new commits since the last release"* even when there are hundreds. It ignores `--target` entirely: only the *previous* release's tag position matters.
+>
+> **The damage is deferred by exactly one release**, which is what makes this so easy to reintroduce: mis-tagging release *N* breaks release *N+1*'s build, not its own. On 6.4.0, `Create Release Draft` failed this way, and because it runs inside `build_job` — which `build_nugets_job` gates on via `dependsOn: build_job` + `condition: succeeded()` — the entire **nuget.org publish was skipped**. A cosmetic notes step blocked the actual release.
+>
+> **Content is identical either way**, so there is no reason to prefer the merge commit: the release merge brings `master` into `release`, so the merge commit's tree equals the `master`-side parent's tree (verified on 6.4.0 — both `841dc683d5`; and on 6.3.0 — both `51c6c066a1`).
+>
+> Get the right SHA from the merge commit, then verify before relying on it:
+> ```
+> gh api repos/linq2db/linq2db/git/commits/<release-merge-sha> --jq '.parents[1].sha'
+> gh api "repos/linq2db/linq2db/compare/<that-sha>...HEAD?per_page=1" --jq '{status, behind_by}'
+> ```
+> Require `status == "ahead"` and `behind_by == 0`.
+>
+> **If a past release was mis-tagged**, move the tag rather than editing the release (the stored `target_commitish` is only consulted when the tag is *created*, so editing it changes nothing once the tag exists):
+> ```
+> gh api -X PATCH repos/linq2db/linq2db/git/refs/tags/<tag> -f sha=<master-side-sha> -F force=true
+> ```
+> Only safe while the release is not immutable — check `gh release view <tag> --json isImmutable`. (Done for `v6.3.0` on 2026-08-07: `b8263fd60` → `24d6a8e05`, identical trees, which unblocked the 6.4.0 release build.)
+
+**Optional early draft:** During release prep (`/release-deps`/`/release-test-matrix` phase), the user may draft the GH release body early — and it's a strict win to do so, since `gh release create --draft` is cheap and lets the user iterate on body text incrementally without skill round-trips. If they did the early draft, this step (1) re-targets the draft via `gh release edit <tag> --target <sha>` to the **`master`-side parent of the release merge** — *not* the release-branch HEAD, per the warning above — (2) attaches the `.lpx` (early draft has no artifact), (3) surfaces the URL again with the "you can tune text on GitHub" reminder, (4) waits for user `publish`.
 
 ### 4. Next-version bump PR (+ new milestone + `linq2db.t4models` re-pin) [R2-H]
 

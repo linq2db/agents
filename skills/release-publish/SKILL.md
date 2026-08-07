@@ -324,6 +324,20 @@ Procedure (verified on 6.3.0 — `linq2db.cli` at 416 MB exceeded 250 MB ceiling
 
 7. **Flag downstream impact** to the user: if any deferred package is referenced by `Directory.Packages.props` in the next-version-bump PR (e.g. `linq2db.t4models` re-pin), that PR's CI will fail until the deferred package finally publishes. User merges the bump PR manually after.
 
+### A failed release build must be re-queued, not retried
+
+When the `default` build on `refs/heads/release` fails, **queue a brand-new run** (AzDO → Run pipeline → branch `release`). Do **not** use "retry failed jobs" on the existing build.
+
+Artifact publication is not idempotent within a build id. `build_job` publishes the `nugets` and `linq2db_linqpad_lpx` pipeline artifacts *before* the later steps run, so a retry re-executes `Publish linq2db nugets` against a build that already has them and dies with:
+
+```
+##[error]Artifact nugets already exists for build <id>.
+```
+
+That failure then cascades exactly like the original one: `Create Release Draft` is skipped (`and(succeeded(), …)`), `build_nugets_job` is skipped (`dependsOn: build_job` + `condition: succeeded()`), and **nothing publishes**. The retry therefore cannot succeed no matter what the original failure was, and it masks whether your fix worked. (6.4.0: build 22646 failed on the release-draft step, the retry failed on the artifact collision, and only fresh build 22647 published.)
+
+**Reading a red release build:** `build_nugets_job` gating on `build_job` means a purely cosmetic failure — a release-notes step, say — silently blocks the entire nuget.org publish. Always check *which* task failed before assuming the packages are the problem, and check whether the `nugets` artifact exists (it usually does, since it is published early); if it does, the manual-push recovery above is available without rebuilding.
+
 ## Don'ts
 
 - Do **not** auto-run `git reset --hard` or `git push --force` in step 3. Always two-tier confirm (describe + confirm + execute), and always with `--force-with-lease`, never bare `--force`.
