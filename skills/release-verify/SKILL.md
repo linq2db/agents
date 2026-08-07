@@ -101,6 +101,23 @@ Invoke `Skill('api-baselines')`, **passing the prep worktree as `repoRoot`** (`r
 
 The user reviews the regenerated baselines per `/api-baselines` policy. Any approved changes accumulate on the prep branch's working tree.
 
+### 4a. Run the release-only packaging guards against the packed output
+
+`Build/Azure/scripts/verify-nuget-sizes.ps1` and `verify-analyzer-delivery.ps1` are the fail-fast gates that stand between a packaging defect and a broken release. They are invoked **only** from `nuget-job.yml`, whose job runs on the `default` pipeline for `master` pushes and `release`-targeting PRs — never on a prep PR. So a packaging break lands on `master`, survives the whole prep cycle unseen, and first surfaces on the release PR, where it blocks the publish.
+
+Step 4 has just packed every project, so the artifacts are already on disk. Run both against them:
+
+```
+pwsh -NoProfile -File Build/Azure/scripts/verify-nuget-sizes.ps1      -PackagesDir <repoRoot>/.build/package/release -WarnMB 180 -FailMB 200
+pwsh -NoProfile -File Build/Azure/scripts/verify-analyzer-delivery.ps1 -PackagesDir <repoRoot>/.build/package/release
+```
+
+(`<repoRoot>` is the prep worktree. `.build/package/release` is where `dotnet pack` writes — the lowercased configuration pivot of the .NET artifacts layout. `nuget-job.yml` points at `.build/nugets` instead because it works from the *downloaded* pipeline artifact, so don't copy that path.)
+
+Exit 0 on both, or surface the violations and stop — a failure here is release-blocking and far cheaper to fix now than on the release PR.
+
+Worth the ~10 seconds: on 6.4.0 `verify-analyzer-delivery` would have caught [#5743](https://github.com/linq2db/linq2db/pull/5743) (`linq2db.FSharp` packing `exclude="Build,Analyzers"`, suppressing the analyzer subtree for its consumers) two days before it actually surfaced — as a *failed release build* that skipped the nuget.org publish entirely.
+
 ### 5. Consolidated release-prep commit
 
 This is the **single** commit of the release-prep cycle. Earlier tasks (deps / PublicAPI / milestone-check / test-matrix / release-notes / ad-hoc) leave their changes uncommitted on the worktree; this step stages all of them plus anything produced in steps 2-4 of this skill, and commits them together.
