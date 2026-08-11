@@ -87,6 +87,25 @@ pwsh -NoProfile -File .claude/scripts/azp-step-log.ps1 -BuildId <n> -StepName '<
 
 Output: JSON `{ buildId, stepName, logsDir, steps: [{ name, state, result, logPath }] }`; `-StepName` is a case-insensitive substring (matches all Task records containing it). A matched-but-pending step reports `logPath: null` (no log until it starts) rather than failing. `Read` / `Grep` the persisted `logPath`.
 
+**Azure log ids are per *build* — never carry one across builds.** `/logs/1202` is a different step in every build, and fetching it against the wrong build returns *another job's* log with no error: same shape, plausible numbers, wrong provider. Resolve the log from that build's own `/timeline` every time — which is what `azp-step-log.ps1 -StepName` and `azp-job-durations.ps1 -WithTestCounts` both do. The symptom to watch for is an internal contradiction: a "test duration" that exceeds or undershoots the step's own wall time. (Surfaced while comparing DB2 timings across builds 22710 and 22726: log id 1202 was the DB2 step in 22726 but a different provider's in 22710, yielding `9871 tests / 4m 04s` for a step whose timeline duration was 7.21 min. The wrong figure was one step away from a public PR comment.)
+
+**Per-job test counts: parse the step log, not the test-runs API.** `_apis/test/runs?buildUri=vstfs:///Build/Build/<id>` returns a single aggregate record with no usable per-job breakdown — don't re-attempt it. The runner's own summary block at the end of each test step's log carries `total:` / `skipped:` / `duration:`, and those lines are ANSI-colorized, so strip escape sequences before matching. `azp-job-durations.ps1 -WithTestCounts` does this.
+
+### Did a change make CI faster or slower?
+
+To evaluate a performance claim — a PR asserting a speedup, or a suspicion that something regressed — compare the same job/task across recent builds with [`.claude/scripts/azp-job-durations.ps1`](../scripts/azp-job-durations.ps1) rather than hand-rolling `/definitions` → `/builds` → `/timeline` → `/logs`. Add `-WithTestCounts` whenever the claim is about *speed*, because duration alone can't be read without the count beside it:
+
+```
+pwsh -NoProfile -File .claude/scripts/azp-job-durations.ps1 -Definition test-all -JobFilter 'Tests (.NET 10): DB2 LUW' -WithTestCounts
+```
+
+Reading the result:
+
+- **Pair builds with matching test counts.** The suite's size drifts between runs, so a duration delta across different counts proves nothing. Filter to a `JobFilter` that resolves to the narrow **Task** record, not the enclosing Job — the Job includes agent acquisition and container setup.
+- **Establish the pre-change band before judging a single post-change run.** Variance on this matrix runs ±0.5 min on a 7-minute step; one faster run is not a speedup.
+- **`test-all` runs only on `/azp run test-all`**, so the series is sparse and interleaved across different PRs' merge commits — check `branch` / `sha` before treating two builds as comparable.
+- Dropping `-WithTestCounts` and widening `-JobFilter` to `Tests:` answers "which legs are actually slow?" — worth doing before accepting any claim about a provider's relative cost. (On #5754 that ranked the DB2 leg 35th of 54 jobs, against a PR body calling it "by far the slowest provider".)
+
 ## Is a CI failure PR-introduced or pre-existing?
 
 To attribute a PR's failing jobs without a local build, compare the **master** Azure build whose `sourceVersion` equals the PR's merge-base. Get the merge-base with `git merge-base origin/master origin/<branch>`, list recent master builds (`…/_apis/build/builds?branchName=refs/heads/master&$top=8`), find the build whose `sourceVersion` matches, and run `azp-build-failures.ps1` on it. If master-at-merge-base is test-green, every failure on the PR is PR-introduced. This is the CI-side analogue of the local-worktree merge-base comparison in [`bug-investigation.md`](bug-investigation.md) → *Behavior-preserving refactor* — cheaper (no checkout/build, just two parsed build results), and it settled that all of PR #5485's Firebird failures were the PR's own (master build 21987 at the merge-base was clean).

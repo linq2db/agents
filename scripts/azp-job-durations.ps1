@@ -32,15 +32,29 @@ included (startTime is when the record began, not when the build was queued).
 A single build is one sample on shared hosted agents — read a band across
 several builds, never a single pair.
 
+-WithTestCounts adds the other half of a valid comparison: the **test count** of
+each matched Task, parsed from the runner's summary block in that task's own log.
+The suite's size drifts between runs, so a duration delta between builds with
+different counts is not evidence — pair builds whose `tests` match before drawing
+any conclusion. Costs one log download per matched Task, so combine it with a
+narrow -JobFilter. Logs land under -WriteDir for follow-up Read / Grep.
+
+Note the log is always resolved from that build's own timeline: Azure log ids are
+**per build**, so a log id carried across builds silently returns a different
+job's output (see ci-tests.md).
+
 Invoke directly via the PowerShell tool (preferred), NOT wrapped in Bash:
 
     .claude\scripts\azp-job-durations.ps1 -Definition test-all -JobFilter YDB
     .claude\scripts\azp-job-durations.ps1 -Definition test-all -JobFilter YDB -Top 20
     .claude\scripts\azp-job-durations.ps1 -Definition 4 -JobFilter 'Firebird' -Branch refs/heads/master
+    .claude\scripts\azp-job-durations.ps1 -Definition test-all -JobFilter 'Tests (.NET 10): DB2' -WithTestCounts
 
 Output: single JSON document on stdout — the resolved definition, then one
 `records[]` entry per matched timeline record (build id, source branch/sha, the
-record's name / type / result, and minutes), newest build first.
+record's name / type / result, and minutes), newest build first. With
+-WithTestCounts, matched Task records also carry `tests` / `skipped` /
+`testDuration` / `logPath`.
 #>
 
 param(
@@ -48,6 +62,8 @@ param(
     [Parameter(Mandatory)][string]$JobFilter,
     [int]$Top = 10,
     [string]$Branch,
+    [switch]$WithTestCounts,
+    [string]$WriteDir,
     [string]$Org = 'linq2db',
     [string]$Project = '0dcc414b-ea54-451e-a54f-d63f05367c4b'
 )
@@ -56,6 +72,26 @@ $global:ScriptBaseName = 'azp-job-durations'
 . "$PSScriptRoot/_shared.ps1"
 
 $apiBase = "https://dev.azure.com/$Org/$Project/_apis/build"
+
+if ($WithTestCounts) {
+    if (-not $WriteDir) { $WriteDir = '.build/.agents/azp-durations' }
+    New-Item -ItemType Directory -Force -Path $WriteDir | Out-Null
+}
+
+# Parse the runner's end-of-run summary out of a task log. The count lines are
+# ANSI-colorized, so strip escape sequences before matching; the last summary in
+# the log wins (a task can host more than one assembly run).
+function Get-TestSummary {
+    param([string]$LogPath)
+    $summary = [ordered]@{}
+    foreach ($raw in (Get-Content -LiteralPath $LogPath)) {
+        $line = $raw -replace "`e\[[0-9;]*[a-zA-Z]", ''
+        if     ($line -match 'total:\s*(\d+)\s*$')   { $summary['tests']        = [int]$Matches[1] }
+        elseif ($line -match 'skipped:\s*(\d+)\s*$') { $summary['skipped']      = [int]$Matches[1] }
+        elseif ($line -match '\bduration:\s*(\S.*)$'){ $summary['testDuration'] = $Matches[1].Trim() }
+    }
+    return $summary
+}
 
 # --- resolve the definition (numeric id passes through, name is looked up) ----
 $defId   = 0
@@ -120,7 +156,7 @@ foreach ($b in $builds.value) {
             $minutes = [math]::Round((([datetime]$r.finishTime) - ([datetime]$r.startTime)).TotalMinutes, 1)
         }
 
-        $records += [pscustomobject]@{
+        $entry = [ordered]@{
             buildId = $b.id
             branch  = $b.sourceBranch
             sha     = if ($b.sourceVersion) { $b.sourceVersion.Substring(0, [math]::Min(8, $b.sourceVersion.Length)) } else { $null }
@@ -130,6 +166,22 @@ foreach ($b in $builds.value) {
             result  = $r.result
             minutes = $minutes
         }
+
+        if ($WithTestCounts -and $r.type -eq 'Task' -and $r.result -eq 'succeeded' -and $r.log -and $r.log.url) {
+            $slug    = ($r.name.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+            $logPath = Join-Path $WriteDir "$($b.id)-$slug.log"
+            try {
+                Invoke-WebRequest -Uri $r.log.url -OutFile $logPath -UseBasicParsing | Out-Null
+                foreach ($kv in (Get-TestSummary -LogPath $logPath).GetEnumerator()) { $entry[$kv.Key] = $kv.Value }
+                $entry['logPath'] = $logPath
+            }
+            catch {
+                # One unreadable log must not sink the whole comparison.
+                $entry['note'] = "log fetch failed: $_"
+            }
+        }
+
+        $records += [pscustomobject]$entry
     }
 }
 
