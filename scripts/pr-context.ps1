@@ -153,7 +153,7 @@ $jobs.prMeta = Start-ThreadJob -ScriptBlock {
     Invoke-GhJson @(
         'pr','view',"$using:pr",
         '--repo',$using:repoFull,
-        '--json','number,title,body,baseRefName,headRefName,headRefOid,milestone,labels,state,isDraft,url,mergeable,additions,deletions,changedFiles,author'
+        '--json','number,title,body,baseRefName,headRefName,headRefOid,milestone,labels,state,isDraft,url,mergeable,additions,deletions,changedFiles,author,createdAt,mergedAt,closedAt'
     )
 }
 $jobs.reviews = Start-ThreadJob -ScriptBlock {

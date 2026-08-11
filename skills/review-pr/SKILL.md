@@ -72,6 +72,8 @@ Using `pr.baseRefName` from step 2's context output, if it is not `master`, warn
 
 Wait for an explicit `y`. No other guards (no draft-PR guard, no size guard).
 
+**A merged PR is reviewable, but the disposition set changes — say so up front.** When `pr.state` is `MERGED`, run the review normally (line comments still anchor fine on the merged commit), but surface the consequences before the mode-choice gate rather than discovering them mid-walk: a `fix` means a **follow-up PR branched from `origin/master`**, never the merged PR's branch; the author's body and commit message are frozen (and any wrong claim in them is now permanent, which raises the value of posting a correcting *comment*); there is no baselines branch to review and no milestone gate left to enforce. `state` / `mergedAt` / `createdAt` / `closedAt` all come from the context load — don't spend a `gh pr view` re-deriving them.
+
 ### 3b. Verify 3rd-party behavior claims in the linked issue
 
 If the PR scope summary or linked issue body rests on an external-system claim — a DB version feature, SQL-standard requirement, driver behavior — verify it per [`create-issue.md`](../create-issue/SKILL.md) → step 1 sub-point 3 (**Verify any 3rd-party behavior claim against upstream docs**) before spawning the reviewers.
