@@ -51,6 +51,9 @@ Output (stdout, single JSON object)
     "netNegative": [ ... ],
     "signal": { "pattern": "^\\s*DECLARE\\s", "added": 2267, "removed": 2267,
                 "filesWithDelta": [ { "file": "...", "added": 4, "removed": 2 } ] },
+    "casts":  { "prefix":  { "added": 547, "removed": 494 },
+                "postfix": { "added": 66,  "removed": 309 },
+                "perFileLosses": [ { "file": "...", "prefixNet": 0, "postfixNet": -3 } ] },
     "providers": [ { "provider": "SQLite.Classic", "files": 41 }, ... ],
     "renames": {
       "mismatches": 0,
@@ -135,6 +138,13 @@ $diff = (Git -GitArgs @('diff', '-U0', $range)).stdout
 $signalRe = [regex]::new($Signal)
 $normRe   = [regex]::new("(?<=[$([regex]::Escape($IdentifierPrefixes))])[A-Za-z_][A-Za-z0-9_]*")
 
+# Casts are spelled two ways, and a sweep that knows only one under-reports without saying so:
+# most providers write CAST(x AS T), while PostgreSQL and DuckDB write x::T. Counted apart so a
+# "no cast lost" claim is checked against the dialect the provider actually emits - matching only
+# CAST( on a PostgreSQL-heavy diff returns a confident, specific, wrong answer.
+$castPrefixRe  = [regex]::new('CAST\s*\(', 'IgnoreCase')
+$castPostfixRe = [regex]::new('::\w+')
+
 $stats           = [System.Collections.Generic.List[object]]::new()
 $renameMap       = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
 $mismatchCount   = 0
@@ -152,9 +162,14 @@ function Flush-File {
     foreach ($l in $Added)   { if ($signalRe.IsMatch($l)) { $sigAdd++ } }
     foreach ($l in $Removed) { if ($signalRe.IsMatch($l)) { $sigDel++ } }
 
+    $preAdd = 0; $preDel = 0; $postAdd = 0; $postDel = 0
+    foreach ($l in $Added)   { $preAdd += $castPrefixRe.Matches($l).Count; $postAdd += $castPostfixRe.Matches($l).Count }
+    foreach ($l in $Removed) { $preDel += $castPrefixRe.Matches($l).Count; $postDel += $castPostfixRe.Matches($l).Count }
+
     $script:stats.Add([pscustomobject]@{
         file = $File; add = $Added.Count; del = $Removed.Count
         sigAdd = $sigAdd; sigDel = $sigDel
+        castPreAdd = $preAdd; castPreDel = $preDel; castPostAdd = $postAdd; castPostDel = $postDel
     })
 
     # Rename extraction only makes sense on a symmetric change-block.
@@ -228,6 +243,15 @@ foreach ($s in $stats) {
     }
 }
 
+$castLosses = @()
+foreach ($s in $stats) {
+    $preNet  = $s.castPreAdd  - $s.castPreDel
+    $postNet = $s.castPostAdd - $s.castPostDel
+    if ($preNet -lt 0 -or $postNet -lt 0) {
+        $castLosses += [pscustomobject]@{ file = $s.file; prefixNet = $preNet; postfixNet = $postNet }
+    }
+}
+
 $renames = @()
 foreach ($e in ($renameMap.Values | Sort-Object -Property hits -Descending)) {
     $renames += [pscustomobject]@{
@@ -264,6 +288,17 @@ $result = [ordered]@{
         added          = ($stats | Measure-Object -Property sigAdd -Sum).Sum
         removed        = ($stats | Measure-Object -Property sigDel -Sum).Sum
         filesWithDelta = $sigFiles
+    }
+    casts     = [ordered]@{
+        prefix  = [ordered]@{
+            added   = ($stats | Measure-Object -Property castPreAdd  -Sum).Sum
+            removed = ($stats | Measure-Object -Property castPreDel  -Sum).Sum
+        }
+        postfix = [ordered]@{
+            added   = ($stats | Measure-Object -Property castPostAdd -Sum).Sum
+            removed = ($stats | Measure-Object -Property castPostDel -Sum).Sum
+        }
+        perFileLosses = $castLosses
     }
     providers = $providerList
     renames   = [ordered]@{
