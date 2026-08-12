@@ -98,6 +98,7 @@ Before reporting a task as infeasible ("can't bisect", "can't build", "runtime t
 - `UserDataProviders.json` (root) and a sibling `linq2db` clone's `UserDataProviders.json` (alongside this clone, e.g. `../linq2db/UserDataProviders.json`) for connection strings
 - Existing skills (`/test`, `/test-providers`) for workflow coverage
 - `/kb-ask` or `areas/<AREA>/` for prior context on the subsystem (known issues, decisions, patterns) before declaring something unknown or infeasible — see *Consult the knowledge base* above
+- Measuring or profiling **query-build performance** → [`measuring-query-build.md`](measuring-query-build.md) (BenchmarkDotNet's child-process toolchain fails in this repo — use the manual-runner pattern; `dotnet-trace` is installed, and [`../scripts/speedscope-top.csx`](../scripts/speedscope-top.csx) reads its output). Interpretation rules — a work count is not a time measurement — in [`bug-investigation.md`](bug-investigation.md) → *Perf work*.
 - Investigating a **red CI run**'s per-test failures → `.claude/scripts/azp-build-failures.ps1 -BuildId <n>` (see [`ci-tests.md`](ci-tests.md) → *Reading failed CI test runs*). It does the timeline + parallel `/logs/<id>` fetch + per-failure parse in one call — don't hand-roll the Azure `timeline` + log curl-and-grep flow.
 
 When the capability exists but the runtime cost is real, surface the cost and let the user decide.

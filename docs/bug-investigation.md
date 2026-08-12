@@ -46,6 +46,37 @@ Settle ordering / re-entry questions by instrumenting the code path directly ins
 
 When a bug is order- / timing- / cache-state-sensitive (flips pass↔fail across otherwise-identical runs), instrumentation that does **per-call I/O in a hot path masks it** — the I/O latency changes timing enough to hide the failure. On the #5657 aliasing race, adding `File.AppendAllText` to the `SelectQuery` constructor (hit on every query node) turned the failing test green; the bug only reproduced once the I/O was removed. Instead: stash diagnostic state cheaply on the object (e.g. capture `Environment.StackTrace` into an `internal` field at construction) and write it out **once, at the failure site** (the throw / assertion). That pins the culprit — e.g. the exact `CloneQuery` call-site that created the orphaned node — without altering the timing that produces the bug. Capturing a stack into a field is CPU-only and far less perturbing than file I/O; if even that masks it, narrow the capture to the suspect id range.
 
+## Perf work — a work count is not a time measurement, and a corpus aggregate is not the case you're fixing
+
+Counting operations (node visits, call counts, allocations) is the cheap and often decisive way to
+gate a performance idea, but two inference errors turn it into a wrong conclusion. Both were made and
+caught inside one 2026-08-12 session.
+
+**A share-of-work is not a share-of-time.** Instrumentation showed weak-join dependency scans were
+~25% of *all SQL-visitor node dispatches* for the target shape, which was reported as if a 71%
+reduction there were worth ~17% of the work. It wasn't: the shape performed ~70 700 dispatches inside
+a ~4.5 s build, so visitor dispatch was ≤1% of runtime and the true ceiling was ~0.2%. Before quoting
+a reduction as a benefit, establish what fraction of *runtime* the instrumented subsystem owns — a
+ratio whose denominator is itself a small slice proves nothing about wall-clock. Verify with a
+profile or an A/B timing run (the timing run needs user consent — see
+[`agent-rules.md`](agent-rules.md) → *Confirm before perf runs* territory).
+
+**A corpus aggregate can hide the pathological case that motivated the work.** The full 10 415-test
+suite put the same scans at 0.82% of dispatch with a projected 0.62× speedup, which read as "stop" —
+but the motivating shape was nowhere in that distribution. Measure the motivating case *in isolation*
+as well as the corpus, and say which metrics are dilution-sensitive: a **share of total** shrinks as
+you add unrelated tests, whereas a **maximum** and a **per-call ratio** do not (adding tests can only
+raise a max). When a slice is used as evidence, justify the slice — a filtered
+join/eager-loading-only run reported a max of 3 candidates per call where the unfiltered suite showed
+8, because the filter was chosen before the metric was.
+
+The corollary is that a negative result from counters is only a *gate*, not a verdict: the same
+counters that killed the batching idea also localised the real cost (38 460 lambda compiles for
+`default(T)`), which was 10× larger and in a different subsystem entirely.
+
+Mechanics — writing the benchmark, the traps in this repo's BDN setup, and reading a `dotnet-trace`
+profile — are in [`measuring-query-build.md`](measuring-query-build.md).
+
 ## A narrow-code-path repro looks unbuildable — attempt the contrived mapping anyway
 
 When a fix touches a rarely-hit construction path (inheritance + flattened/dotted-`MemberName` columns + calculated columns simultaneously, a specific optimizer branch, etc.), it's tempting to judge a red→green regression test "not practically constructible" and fall back to guarding it only with the existing suite. Attempt the contrived mapping first — linq2db's attribute/fluent mapping is flexible enough to assemble exotic entity shapes that exercise a single code branch, and proving the fix with a test that's **red before / green after** is worth the effort over static reasoning (which is exactly the "too optimistic" failure mode). Iterate the model in `Tests/Tests.Playground/TestTemplate.cs` on SQLite for speed, confirm it goes red on the un-fixed build, then promote it into the proper `Tests/Linq` fixture (restoring the playground scratch). A real example: a calculated column on an inheritance *subtype* whose complex member is mapped via flattened columns reproduced a descriptor-staleness bug that first looked untestable.

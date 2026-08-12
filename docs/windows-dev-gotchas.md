@@ -288,6 +288,23 @@ in the next line. Same root cause as native processes inheriting the wrong worki
 target, leaving the LINQPad 5 driver uninstalled rather than replaced. Verify the source resolves
 (`Test-Path`) before deleting the destination, or extract to a temp location and swap.
 
+### `Start-Process` pops a console window unless you pass `-NoNewWindow`
+
+`Start-Process` is the natural choice when you need `-WorkingDirectory` *plus* stdout/stderr
+redirection *plus* an exit code (`-Wait -PassThru`) — which is why the benchmark and stack-sweep
+recipes reach for it. By default it launches a console app in its **own new window**, so every
+invocation flashes a window onto the user's desktop; a sweep of N sizes means N windows. Always add
+`-NoNewWindow`:
+
+```powershell
+Start-Process -FilePath dotnet -ArgumentList 'app.dll','arg' -WorkingDirectory $bin `
+    -RedirectStandardOutput $log -RedirectStandardError "$log.err" -Wait -PassThru -NoNewWindow
+```
+
+Plain inline invocation (`& dotnet app.dll`) never does this — the window only appears once you move
+to `Start-Process`. Surfaced 2026-08-12: the user asked *"why you started to run dotnet processes as
+visible windows recently"* after a run of benchmark A/B invocations.
+
 ### Method calls on a collection are distributed to its elements (member enumeration)
 
 A PowerShell function returning a collection type unrolls it into the pipeline, so the caller gets
