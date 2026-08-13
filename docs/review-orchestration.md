@@ -116,6 +116,8 @@ The review itself remains a **PENDING draft** (`event` omitted on the REST revie
 
 #### interactive mode
 
+**An item qualifies only when the answer changes what gets posted.** Walk decisions the user must adjudicate — a finding's severity, whether it ships at all, how an out-of-scope observation is dispositioned, whether an anomaly is real. Do **not** spend a walk turn on how the review *renders*: the `## Baselines` cluster table's wording, which rows carry an editorial note, section ordering, and phrasing are the reviewer's call, and offering them as options with "keep as drafted" recommended just asks the user to ratify a default. Decide those yourself and let the pre-post body preview be where they're seen. (Surfaced on #5750: two consecutive baselines-presentation questions were answered `skip` — every option was a rendering variant.)
+
 Walk every reviewable item in this order:
 
 1. Body-section findings (severity order: BLK → MAJ → MIN → SUG → NIT).

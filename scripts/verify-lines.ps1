@@ -123,6 +123,14 @@ $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
 
 $findings = @()
 if ($m.findings) { $findings = @($m.findings) }
+
+# A manifest whose findings live under some other key (`items`, `comments`, …) would otherwise verify
+# nothing and return a well-formed `findings: []` — indistinguishable from "there was nothing to check".
+# Name the keys we did see so the caller can spot the typo instead of trusting an empty pass.
+if ($findings.Count -eq 0) {
+    $seen = @($m.PSObject.Properties.Name) -join ', '
+    Write-Warning "verify-lines: manifest carried no 'findings' array - nothing was verified. Top-level keys present: $seen"
+}
 $headRef = if ($m.headRef) { [string]$m.headRef } elseif (Test-IsInteger $m.pr) { "origin/pr/$([int]$m.pr)" } else { $null }
 if (-not $headRef) { Exit-WithError 'headRef (or pr to derive it) required' }
 $baseRef = if ($m.baseRef) { [string]$m.baseRef } else { 'origin/master' }
