@@ -71,6 +71,17 @@ Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that driv
 - Run them with `-c Testing` (net10.0-only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
 
+## The runner's `[slow]` line reports assembly arch, not process arch
+
+Microsoft.Testing.Platform's progress output tags still-running tests as `(<exe>|<tfm>|<arch>)` — e.g.
+`EagerLoadMultiLevel("SqlServer.2017") (linq2db.Tests.exe|net462|x86)`. That `arch` is the **assembly's PE machine
+type**, which is I386 for a netfx AnyCPU build even when the process is 64-bit. It is **not** the process
+architecture, and netfx legs are not 32-bit because of it.
+
+Read the step's actual invocation instead — the CI log prints it (`net462\main\x64\linq2db.Tests.exe …`), and the
+`x64`/`x86` path segment is authoritative. Mistaking the label for the process arch on #5614 produced a whole wrong
+analysis (an "OOM family is bitness-wide" reframe) that had to be retracted.
+
 ## Monitoring a long run
 
 A full suite run takes 1–2 hours. To watch progress without scraping console output, the test assembly writes a small JSON heartbeat (updated ~once/sec, immediately on each failure) that you can `Read` at any time. It's **opt-in** via the `--test-progress` command-line option; the reporter is a no-op when the option is absent, so default runs are unaffected.

@@ -109,6 +109,14 @@ When the capability exists but the runtime cost is real, surface the cost and le
 
 When the user gives a rule that names a specific package / file / case, treat it as scoped to that case unless they explicitly generalize ("for all X…", "every Y in this family…"). Don't extrapolate to similar-looking cases without asking — "you gave rule X for P; case Q looks similar — same rule, or different?" An extra question is cheap; silent over-generalization costs a redo of every affected case plus a doc revert.
 
+### Comments justify decisions, not mechanics
+
+**Write a comment only for what the code cannot say: a non-obvious decision, a rejected alternative, a constraint that isn't visible locally.** A change that follows an established pattern in the same file gets **no** comment — the pattern is the explanation. Do not narrate what the line does, and do not turn a commit message's rationale into an inline comment; the commit message already holds it.
+
+The tell that a comment is unwanted: it explains *why this line exists* when the neighbouring code already answers that. On #5614 a one-line `_visited = null;` added to a `Cleanup()` method — which the sibling class already did, i.e. an established cleanup pattern — was given a three-line comment about pooling and retention. Maintainer: *"it is a bit of a PITA that you often generate useless comments … we have established visitor cleanup pattern and never comment trivial code like that."* The rationale belonged in the commit message and the PR body, both of which already carried it.
+
+This is the inline-comment counterpart to the density rule in the system prompt (match the surrounding code's comment density): in this codebase that density is **low**, so the default for a small, pattern-following change is zero comments. Where a comment *is* warranted — a genuinely surprising constraint, a measured trade-off, a workaround for external behaviour — keep it, and state the reason rather than the mechanics.
+
 ### Presenting proposed code changes
 
 See [`AGENTS.md`](../AGENTS.md) → *Presenting proposed code changes* (`+ ` gutter for interleaved snippets; markdown tables stay contiguous). Claude-CLI nuance: `<mark>` inside `<pre>` does **not** render highlighted — use the gutter, never `<mark>` or trailing-sigil markers.
