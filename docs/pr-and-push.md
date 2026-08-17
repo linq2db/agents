@@ -123,6 +123,19 @@ GitHub's branch rename (UI, or `POST repos/<o>/<r>/branches/<b>/rename`) updates
 
 Don't `stash` → `switch` → `--amend` → `switch -` → `stash pop` — the pop can conflict on overlapping files. Use **`pwsh -NoProfile -File .claude/scripts/amend-branch-commit.ps1 -Branch <branch> -Message <text>`** (`-MessageFile <path>` for multi-line; `-Sign` if the original was GPG-signed). It reuses the branch tip's tree (a message/metadata amend — content unchanged), rebuilds the commit object preserving the original author, and atomically retargets the ref with the old-SHA safety check — all while staying on the current branch.
 
+### Splitting two logical changes that share a file into separate commits
+
+`git add -p` / `git add -i` are unavailable (interactive flags aren't supported in this environment), so "one change = one commit, explicit pathspec" needs a non-interactive route when both changes land in the same file. Snapshot-and-replay:
+
+1. Copy the finished file to `.build/.agents/<task>-<file>.bak` (PowerShell tool — `Copy-Item`).
+2. `git checkout -- <file>` to return it to `HEAD`.
+3. Re-apply **only** change A with `Edit` (a `Read` first — the checkout invalidates the harness's file state).
+4. `git commit -F <msg> -- <paths-for-A>` — the explicit pathspec form commits those paths only, no staging step.
+5. Copy the snapshot back over the file, then `git commit -F <msg2> -- <paths-for-B>`.
+6. `git status --short` to confirm the tree is clean and nothing was left behind.
+
+Cheaper than reordering the work, and it keeps each commit's diff reviewable on its own. Used on #5761 to separate a dependency-pin rescope from an unrelated removal, both in `Directory.Packages.props`.
+
 ### Merging master into a feature PR — recurring conflict recipes
 
 When syncing `origin/master` into a long-lived feature PR, three collisions recur:
