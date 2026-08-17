@@ -91,6 +91,40 @@ Output: JSON `{ buildId, stepName, logsDir, steps: [{ name, state, result, logPa
 
 **Per-job test counts: parse the step log, not the test-runs API.** `_apis/test/runs?buildUri=vstfs:///Build/Build/<id>` returns a single aggregate record with no usable per-job breakdown — don't re-attempt it. The runner's own summary block at the end of each test step's log carries `total:` / `skipped:` / `duration:`, and those lines are ANSI-colorized, so strip escape sequences before matching. `azp-job-durations.ps1 -WithTestCounts` does this.
 
+### A job that "hung" with no test failures — read the abandonment marker first
+
+A failed task whose `reportedFailedTotal` is `0`, on a job that ran far past its usual duration, is usually
+**not** a hang in whatever step it stopped on. Check the head of that step's log for:
+
+```
+##[section]This job was abandoned. We have detected that logs from the agent may have not finished
+uploading. We have included our in-memory record of all log lines uploaded before we lost contact with
+the agent:
+```
+
+That is **agent loss**, not a task hang: the log you're reading is a partial in-memory record, the step
+that appears "stuck" is simply the one in flight when the agent died, and every later task shows
+`abandoned`. Diagnose what killed the agent, not the step. On #5614 this presented as 14 Windows jobs all
+"hanging" on `Extract test scripts` (a `DownloadPipelineArtifact` task) — the actual cause was a
+memory-freeing step killing `WindowsTerminal`, which is what the hosted image runs the pipeline agent
+inside, so the kill took the agent's own process tree with it.
+
+Per-task results tell you how far a job got — `/timeline` filtered to the job's children gives each task's
+`result` (`succeeded` / `failed` / `abandoned`) and duration, which separates "the first two TFM steps
+passed normally, the third sat for 316 minutes" from "the job was slow throughout".
+
+To attribute an agent death to one action in a multi-step script, announce each action *before* performing
+it, flush, and pause either side: the last line the agent uploads names the culprit with one-action
+resolution, in a single run. Use the cheapest job that exercises the path (see *When to propose a CI run*),
+and remember a leg may be gated — the Windows DuckDB leg is `full_run`-only, so a scoped `test-duckdb` run
+spawns no Windows job at all until that gate is temporarily lifted.
+
+**Before concluding anything from a `[slow]` line's `|x86` / `|x64` tag, read
+[`testing.md`](testing.md) → *The runner's `[slow]` line reports assembly arch, not process arch*.** That tag
+is the assembly's PE machine type, not the process architecture, and it has now produced a wrong
+bitness-based analysis on #5614 twice. The step's own invocation (`net462\main\x64\linq2db.Tests.exe …`) is
+authoritative.
+
 ### Did a change make CI faster or slower?
 
 To evaluate a performance claim — a PR asserting a speedup, or a suspicion that something regressed — compare the same job/task across recent builds with [`.claude/scripts/azp-job-durations.ps1`](../scripts/azp-job-durations.ps1) rather than hand-rolling `/definitions` → `/builds` → `/timeline` → `/logs`. Add `-WithTestCounts` whenever the claim is about *speed*, because duration alone can't be read without the count beside it:

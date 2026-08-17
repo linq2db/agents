@@ -82,6 +82,24 @@ Read the step's actual invocation instead — the CI log prints it (`net462\main
 `x64`/`x86` path segment is authoritative. Mistaking the label for the process arch on #5614 produced a whole wrong
 analysis (an "OOM family is bitness-wide" reframe) that had to be retracted.
 
+## `ToListAsync` needs `using LinqToDB.Async`
+
+Without it the call binds to .NET 10's `System.Linq.AsyncEnumerable.ToListAsync<TSource>(IAsyncEnumerable<TSource>, …)`,
+which does not accept an `IQueryable`, and the build fails with a misleading
+`CS0411: The type arguments for method … cannot be inferred from the usage`. The error points at the query
+rather than at the missing using, so it reads as a problem with the expression. `LinqToDB` alone is not
+enough — the queryable overloads live in `LinqToDB.Async`.
+
+## Converting a multi-threaded test to async
+
+Tests that fan out synchronous queries over remote (`.LinqService`) contexts starve the thread pool: every
+sync call on a remote context goes through `SafeAwaiter.Run` — `Task.Run(...).GetAwaiter().GetResult()` — so
+each worker holds **two** pool threads while the in-process Kestrel/gRPC host serving those calls needs pool
+threads of its own, and nothing raises the pool floor. Prefer removing the blocking (`await …ToListAsync()`,
+`Task.WhenAll`, workers started as tasks rather than via `Task.Run`) over raising `ThreadPool.SetMinThreads`,
+which only makes the starvation survivable. `ConcurrentRunner`-based tests are unaffected — they use
+dedicated `Thread` objects and cast to `DataConnection`, so they never run remote.
+
 ## Monitoring a long run
 
 A full suite run takes 1–2 hours. To watch progress without scraping console output, the test assembly writes a small JSON heartbeat (updated ~once/sec, immediately on each failure) that you can `Read` at any time. It's **opt-in** via the `--test-progress` command-line option; the reporter is a no-op when the option is absent, so default runs are unaffected.

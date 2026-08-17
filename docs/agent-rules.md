@@ -90,6 +90,18 @@ Reduce round-trips and preserve the user's attention span.
 - **Batch edits on a single config file.** When reshaping multiple sections of one file (several providers across TFMs in `UserDataProviders.json`, several `<PackageReference>` versions in `Directory.Build.props`, etc.), read it once, plan the full edit set, then apply as a single `Edit` — or a back-to-back sequence with no intermediate re-reads when one `Edit` can't span the headings. Incremental nibbles (edit, read back, edit, read back) burn permission surface and miss cross-section invariants.
 - **Two-correction rule — stop repeating, reframe.** If the user corrects the same thing twice and the second attempt still misses, don't fire a third near-identical attempt or restate the correction louder. Stop and change the frame: state in one line what you believe the goal is, then split the task, ask for a concrete expected-output example, or surface a standing instruction that may be pulling against the correction. A third identical try usually signals a goal-level mismatch, not an execution slip — see [`bug-investigation.md`](bug-investigation.md) → *Repeated resistance to a correction signals goal misalignment*.
 
+**Write exactly the list you got approval for — widening it inside shared infrastructure needs its own ask.**
+When the user approves a concrete set (processes to kill, files to delete, packages to bump) and you then
+write it into a shared file — a CI template every job runs, `Directory.Packages.props`, a hook — put *that*
+set in, not a superset you think is obviously implied. Additions you reasoned your way to were not part of
+the analysis the user reviewed, so they land unreviewed in shared infrastructure. Propose them separately;
+they're usually one sentence to describe and cheap to approve. (Surfaced on #5614: a reviewed list of 13
+idle processes to kill was written into `test-workflow-windows.yml` together with four unreviewed
+`Stop-Service -Force` calls on system services — `TrustedInstaller`, `wuauserv`, `WSearch`, `UsoSvc`. The
+auto-mode classifier blocked the edit; re-proposed on its own, the same addition was approved immediately,
+and it turned out to carry a real defect — `Stop-Service` has no `-NoWait`, so it blocks until the service
+stops and hung five jobs inside the step.)
+
 ### Capability self-assessment
 
 Before reporting a task as infeasible ("can't bisect", "can't build", "runtime test outside my reach"), do a one-pass environment check:
