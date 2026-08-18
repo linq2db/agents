@@ -33,6 +33,8 @@ Present the extracted set to the user before searching:
 
 Fire in parallel (one `gh` call each). `--repo linq2db/linq2db` is always set.
 
+**Use `gh issue list --search`, never `gh search issues`.** The standalone `gh search issues --repo linq2db/linq2db "<terms>"` form returns `[]` against this repo even when matching issues plainly exist — the same index-matching failure already documented for `gh pr list --search` on `linq2db.baselines`. Treat an empty `gh search` result as **no signal**, never as "no duplicates": acting on it produces a confident but false all-clear. When the free-text strategies below come back thin, fall back to enumerating by label — `gh issue list --repo linq2db/linq2db --state all --label "<area label>" --limit 30 --json number,title,state` — which matches reliably. (Surfaced filing #5790: four `gh search issues` calls returned `[]`, including `"F# groupJoin"` while #1813 *"LEFT JOIN in F#"* was open; `--label "area: fsharp"` returned all 14 issues in the area immediately.)
+
 ### A — Issues, title+body (broad)
 
 ```
