@@ -12,6 +12,8 @@ Shared vocabulary for `/review-pr` and `/verify-review` and their subagents. Any
 | SUG  | Suggestion | Non-blocking alternative approach, refactor idea. |
 | NIT  | Nit        | Style, typos, XML-doc wording. |
 
+**A PR that only changes an already-broken shape's *failure mode* is not automatically a blocker on that PR.** Before assigning BLK to a silent-wrong-data finding, run the shape on `master`. If master is broken too — it throws, emits invalid SQL, or returns the same wrong answer — then no *working* behaviour regressed, and BLK overstates it however bad the new failure mode looks. The loud-to-silent transition is still real and still worth recording (a visible error becoming a wrong answer is a genuine downgrade), but when the correct fix needs a capability the PR doesn't have, the disposition is a **tracking issue**, and the finding may not belong in the review at all. Reserve BLK for a defect the PR itself introduces into a path that previously worked. (Surfaced on #5701: a trailing `join` after chained F# groupJoins silently returned 2 of 4 rows where master raised `SQLiteException: no such column`. Proposed as BLK; the maintainer's answer was *"why blocker/post anything? it is just another issue to fix later"* — it became #5794 plus an `[ActiveIssue]`-gated regression test, with nothing posted on the PR.) This is the severity counterpart to the *fix-it-here vs track-it-separately* test in [`agent-rules.md`](agent-rules.md) → *Before coding a fix or feature*: that rule decides **where** the fix goes, this one decides **how loud** the finding is.
+
 ### Finding IDs
 
 - Form: `<SEV><NNN>` — severity abbreviation followed by a zero-padded 3-digit number.

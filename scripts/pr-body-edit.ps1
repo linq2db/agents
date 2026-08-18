@@ -48,6 +48,22 @@ Input (stdin, JSON):
     "workDir": ".build/.agents"            // optional — where to stage the before/after body files; default ".build/.agents"
   }
 
+Blank lines around an insertion are the CALLER's job, and the off-by-one bites.
+`text` is inserted verbatim at the anchor boundary, so when the anchor is the last
+text on its line and `position` is `"after"`, the insertion begins immediately after
+that character - there is no implicit newline. A `text` that starts with a single
+newline therefore yields:
+
+    ...end of previous paragraph.
+    ## My New Heading
+
+i.e. a heading glued to the paragraph above it. GitHub still renders it as a heading
+(ATX headings need no preceding blank line), so the mistake is invisible in the
+rendered view and only shows in the source - which is exactly how it survives. Use
+**two** leading newlines to get a blank line, and one trailing newline if the anchor
+resumes text below. Note the script collapses runs of 3+ blank lines, so over-padding
+is safe while under-padding is not.
+
 Rules for `anchor`:
   - Must be ASCII (any UTF-8 is technically accepted but defeats the whole point — the script will reject non-ASCII anchors with a clear error).
   - Must appear in the body. By default must appear EXACTLY ONCE; callers that want the first or last of many duplicates can pass `"matchCount": "first"` or `"matchCount": "last"` on the entry.
