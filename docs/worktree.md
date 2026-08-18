@@ -49,14 +49,17 @@ Two consequences:
 
 **`Set-Location <worktree>` and the `dotnet` call must be a *single* PowerShell tool call.** The PowerShell tool's working directory does **not** survive between invocations in this harness — a standalone `Set-Location C:\…\<worktree>` comes straight back with *"Shell cwd was reset to `<primary clone>`"*, so the following call still runs from the primary clone and `--settings .runsettings` / `global.json` resolve against the wrong tree. Chain them with `;` in one command: `Set-Location <abs-worktree>; dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --filter … -c Debug --settings .runsettings --provider <names> > <abs-log-path> 2>&1`. (The `;` is ordinary PowerShell here — the compound-command restriction in [`agent-rules.md`](agent-rules.md) applies to the **Bash** tool, which is also why this has to go through the PowerShell tool rather than `Bash(pwsh -Command …)`.) Redirect to an absolute log path under the primary clone's `.build/.agents/`, then `Grep` it — the run's own cwd is the worktree, so a relative redirect lands in the wrong tree.
 
-**Run artifacts land in the *primary clone's* `.build/.agents/`, not the worktree's.** The heartbeat
-(`test-progress.<tfm>.<pid>.json`) and anything else a test process writes to a relative path resolve
-against the *process's* working directory, which for a `--project <worktree>/…` run is still the
-inherited primary-clone cwd. So a worktree run's progress file appears under the primary clone even
-though the code, build output and `--settings` all come from the worktree — look there before
-concluding the run isn't reporting. The same applies to temporary in-library instrumentation: hardcode
-an absolute output path or accept that the dump follows the cwd. (Cost two wrong-directory lookups on
-2026-08-12, once while waiting on a full-suite run that was in fact heartbeating normally.)
+**Run artifacts follow the *invoking process's* working directory — check both `.build/.agents/`.** The
+heartbeat (`test-progress.<tfm>.<pid>.json`) and anything else a test process writes to a relative path
+resolve against the *process's* working directory. That is the **primary clone** when the run inherits
+that cwd (a plain `--project <worktree>/…` call), and the **worktree** when the runner `Set-Location`s
+there per the recipe above — both happen, and both happened within one session, one heartbeat landing in
+each tree. So "no heartbeat in this tree" is **not** evidence that the run never started: look in the
+other one before concluding the build failed. The same applies to temporary in-library instrumentation:
+hardcode an absolute output path or accept that the dump follows the cwd. (Cost two wrong-directory
+lookups on 2026-08-12, once while waiting on a full-suite run that was in fact heartbeating normally;
+then on 2026-08-18 a worktree run that had finished 6/6 green was read as a failed build, because only
+the primary clone was checked.)
 
 **EFCore single-test runs (EF3 / EF8 / EF9 / EF10).** EF tests live in their own projects (`Tests/EntityFrameworkCore/Tests.EntityFrameworkCore.EF<n>.csproj`), which `test-runner` targets directly via `--project … Tests.EntityFrameworkCore.EF10.csproj`. **Each is single-TFM, and that TFM is not net10.0 for all of them** — `EF3` → `net462`, `EF8` → `net8.0`, `EF9` → `net9.0`, `EF10` → `net10.0`; pass the matching `-f`. The net462/EF Core 3.1 project is what the CI legs named `EF.Core Tests (NETFX …)` run, so a failure appearing only on NETFX legs reproduces only there. Provider resolution differs from the main suite: `[EFDataSources]` / `[EFIncludeDataSources]` yield `TestConfiguration.UserProviders ∩ TestConfiguration.EFProviders`, where `EFProviders` is a curated list (`SQLiteMS`, `SqlServer2016+MS`, `PostgreSQL13+`, …). So the target provider must be both in that curated set **and** passed via `--provider` (or enabled in the worktree's `UserDataProviders.json`) — enabling a non-EF provider like `SQLite.Classic` resolves **zero** EF tests. `SQLite.MS` needs no container, so it's the cheapest EF target for a worktree run. (Surfaced on PR #5525: a single EF10 `IgnoreQueryFilters([])` regression test was run red→green on `SQLite.MS` via `/test … worktree`.)
 

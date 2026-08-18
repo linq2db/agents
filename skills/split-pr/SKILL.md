@@ -52,6 +52,26 @@ feature branch — the point is to carry none of its history.
 **Cherry-pick** when the change is already an isolated commit on the feature branch (`git cherry-pick <sha>`)
 — it keeps authorship and message. Expect it to apply cleanly if the touched files haven't diverged.
 
+**Take whole files** when the split is defined by a *file list* rather than by commits — a long-lived branch's
+changes are usually smeared across dozens of commits, so cherry-picking is the wrong unit. Per file, diff it
+against master first (`git diff origin/master <feature-branch> -- <path>`) and sort it into one of two piles:
+
+- **only the wanted change** → `git checkout <feature-branch> -- <paths>`, which copies *and* stages it. Batch
+  the whole pile in one call, then `git commit -F- -- <pathspec>` per logical change; the files for the later
+  commits stay staged meanwhile (which is exactly why an amend here needs `--only`, see
+  [`agent-rules.md`](../docs/agent-rules.md) → *Git commit rules*).
+- **wanted and unwanted deltas in the same file** (a metrics removal plus a temporary CI toggle; a refactor
+  plus a matrix field the split doesn't carry) → hand-apply, and re-check the file afterwards for references
+  to anything left behind. Splitting a large file this way is easier as *copy the branch's version, then
+  remove what shouldn't travel* than as a from-scratch re-application — a `${{ each }}` loop or similar is
+  hard to retype faithfully. Park the removed block in a scratch file under `.build/.agents/` if a later
+  commit in the same PR re-adds it.
+
+**Adapt the prose, not just the code.** A comment or commit message copied from the feature branch often
+justifies itself with that branch's premises ("jobs now bundle several providers", "under a full parallel
+run's contention"). On master those clauses are false. Rewrite them to the reason that holds without the
+feature, or the split PR ships a claim its own diff doesn't support.
+
 **Re-apply by hand** when the commit also contains things that shouldn't travel (temporary diagnostics,
 feature-coupled edits), or when the feature branch's version of the file has drifted far from master's. Read
 master's copy of each file first: line numbers and surrounding code differ, and the fix may need adjusting

@@ -206,6 +206,17 @@ $enc    = New-Object System.Text.UTF8Encoding($hasBom)
 
 **Verify with `git diff --stat`, not by eye**: every file should show exactly the line count your transformation changes. A uniform off-by-one across all touched files is the BOM signature. (Surfaced 2026-07-30 adding one `PrivateAssets` attribute to 10 `.csproj` files on #5720 — all ten came back `2 +--`; reverted and redone byte-level.)
 
+### A file that stays dirty after `git restore` — mixed line endings in the committed blob
+
+A tracked file can show a permanent one-line `1 +-` diff that `git restore` does not clear and that looks like a no-op change (identical text on both sides). Under `core.autocrlf=true` that means the *committed blob* has an inconsistent line ending on that line — normally a lone CRLF among LFs, left by some earlier editor — so checkout smudges it to CRCRLF and the commit-time normalization can never reproduce the stored bytes. Confirm rather than chase it:
+
+```
+git diff --ignore-cr-at-eol --stat -- <path>      # empty output => it is only the EOL
+git config --get core.autocrlf                   # true in the affected checkout
+```
+
+It is a property of the blob, not of your work: the same file is clean in a checkout with `core.autocrlf=false`, which is why one clone shows it and another doesn't. Leave it unstaged — it is not yours to fix mid-task, and staging it puts a whitespace-only hunk in the diff. Fixing it properly is its own commit (rewrite the line's ending) on `master`, not a rider on a feature branch. (Surfaced 2026-08-18 in the #5614 worktree: `SelectQueryOptimizerVisitor.cs` line 1056, inherited from #5774, survived two `git restore` calls before the EOL check settled it.)
+
 ### `-UseBasicParsing` is deprecated, not removed
 
 `Invoke-WebRequest` and `Invoke-RestMethod` still accept `-UseBasicParsing` in PowerShell Core 7+. It became a no-op (PS Core uses the basic parser by default), but the parameter itself remains for back-compat with PS 5.1 scripts. Verified on pwsh 7.6.1: `(Get-Command Invoke-WebRequest).Parameters.ContainsKey('UseBasicParsing')` returns `True`; a live HTTPS call with the flag returns status 200. When a review flags a `-UseBasicParsing` call as "will throw at runtime", treat as **Inaccurate** unless you can reproduce a `ParameterBindingException` against pwsh 7+. Surfaced 2026-05-14 on PR #5521 (Copilot review comments 3244572156 / 3244572193 / 3244572209).
