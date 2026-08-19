@@ -94,7 +94,8 @@ After the preview is shown and the user has seen the assembled review body + cou
 > How should we proceed?
 > 1. **interactive** (default) — walk every reviewable item (findings, **out-of-scope observations**, baselines anomalies, audited threads) one-by-one with `prove-with-test+fix | fix | reject | accept-for-post` (out-of-scope observations additionally offer **promote-to-finding / track-issue / leave-as-FYI**). Items accepted for post accumulate into a final draft review at the end.
 > 2. **submit-all** — bulk-post the review draft with all findings; bulk-disposition every audited thread from step 2b (reply+resolve for Fixed/Inaccurate; reply+unresolve for Still-actual threads that were resolved by someone other than `currentUser`).
-> 3. **cancel** — abort; no writes.
+> 3. **save-for-later** — write the whole review to a state file and stop; another session picks it up with `resume`. No GitHub write.
+> 4. **cancel** — abort; no writes.
 
 Wait for explicit choice — do not assume a mode on silence.
 
@@ -162,6 +163,62 @@ At the end of the walk, run the thread-disposition bundle **first** (`post-pr-th
 When every finding was dispositioned `fix` (the `accept-for-post` set is empty), **no draft review is posted** — the pushed commits plus the PR-body `## Follow-up commit(s)` subsection are the entire outcome. Still run the thread-disposition bundle if any prior-review threads were audited; skip the empty draft-review POST.
 
 **Grouping for high item counts (>20).** Before walking, compute clusters on the most-discriminating axis: by file path, by severity, or by shared wording (first 12 words of `why` lowercased — the same dedup key the multi-pass merge uses). Propose the most-clustered axis as a grouping: each group is dispositioned in one step (group-level `fix | reject | accept-for-post` applies to every item in the cluster). The user can accept the group disposition or expand a group to per-item walking. Single-item clusters are flattened back to per-item walking automatically — never wrap one finding in a "group of 1" prompt.
+
+#### save-for-later mode
+
+The review is finished; the disposition isn't. This hands the whole result to a **later session** — usually the one that owns the PR's worktree and will do the fixing — without re-deriving it. That re-derivation is the cost being avoided: a fresh pass is a context load plus two to four subagent runs, and it produces *different* findings, so "just review it again over there" is not the same review.
+
+**Location — always the primary clone**, never the worktree the review ran in:
+
+```
+<primary-clone>/.build/.agents/pr<n>-review-state.json
+```
+
+Resolve the primary clone from anywhere with `git rev-parse --path-format=absolute --git-common-dir` and strip the trailing `/.git`. From inside a worktree that command still returns the **primary** clone's git dir, which is exactly the property this needs — a worktree's own `.build/.agents/` is a different directory that no other session will think to look in. The `pr<n>-` prefix matches the naming convention in [`agent-rules.md`](agent-rules.md) → *Temp files*, so the file is also safe from another session's prefix-scoped cleanup. It is still gitignored scratch, not durable storage: a wiped `.build/` takes the saved review with it. For a handoff that has to outlive the clone, post the PENDING draft instead — that lives on GitHub and `/verify-review` reads it back.
+
+**Print the absolute path back to the user on its own line**, with the per-severity / OOS / thread counts beside it, so the handoff message is copy-pasteable into the next session as-is.
+
+**Never clobber another session's saved review.** `.build/.agents/` is shared across concurrent sessions. If the target file already exists with `status: "open"`, show its `savedAt`, `reviewedHeadSha` and counts and ask overwrite / keep-and-abort — a silent overwrite destroys a review that cost several subagent runs, and nothing about the filename says whose it was.
+
+**What the file carries.** Everything a fresh session needs to walk and post without re-running a single reviewer:
+
+```
+{
+  "schemaVersion": 1,
+  "status": "open",                       // "open" | "consumed"
+  "skill": "review-pr",                   // or "verify-review"
+  "mode": "initial",                      // or "verify"
+  "savedAt": "<ISO-8601>",
+  "savedFrom": "<abs path of the clone or worktree the review ran in>",
+  "pr": { "number": 5791, "title": "…", "url": "…", "headRefName": "…", "baseRefName": "…", "milestone": "…" },
+  "reviewedHeadSha": "<the sha the findings were derived from>",
+  "scope": "<confirmed scope from the pre-review gate>",
+  "idFloor": { "BLK": 1, "MAJ": 1, "MIN": 5, "SUG": 2, "NIT": 1 },
+  "body": "<the assembled review body, verbatim>",
+  "findings": [ { "id", "severity", "file", "line", "line_end", "why", "fix", "suggestion", "disposition" } ],
+  "outOfScopeObservations": [ … ],
+  "priorClaimAudit": [ { "threadId", "verdict", "plannedAction", "replyText" } ],
+  "plannedInPlaceEdits": [ … ],           // verify only — /verify-review step 7's update plan
+  "baselines": { "status", "summary", "anomalies": [ … ] },
+  "apiChanges": [ … ],
+  "ciStatus": "…",
+  "posted": { "draftReviewId": null, "threadRepliesPosted": [] }
+}
+```
+
+`disposition` is `pending` on a straight save from the gate. When `save-for-later` is chosen partway through an interactive walk it carries what the walk already settled (`accept-for-post`, `rejected` + reason, `fixed` + commit sha), so the resuming session walks only what is actually left.
+
+**`posted` is the idempotency record, and it is not optional.** Everything already written to GitHub by the saving session goes here — the pending draft's id, every thread reply already posted. A resuming session that re-posts them duplicates public comments on someone's PR and then hits the one-pending-review-per-user 422 described under *Mode-choice gate* above.
+
+#### Resuming a saved review
+
+Entry point: `/review-pr resume <n>` / `/verify-review resume <n>`. Both read the same file. If the state's `skill` doesn't match the skill that was invoked, say so and resume under the **saved** skill's rules — a `verify` state reinterpreted as an `initial` one loses the prior-findings mapping that verify mode exists for.
+
+1. **Locate** via the same path recipe. No file → say so plainly and offer a fresh review; never fall back to silently re-reviewing, which looks identical to the user and is not.
+2. **Already consumed?** `status: "consumed"` → report when, and stop. A second consumption re-posts what the first already posted.
+3. **Validate against current HEAD — the load-bearing step.** Compare `reviewedHeadSha` against the PR's current `headRefOid`. Equal → straight into the preview and the walk. **Different → the line anchors are no longer trustworthy**: the findings were derived against a tree the PR has moved past, so posting them as line comments can anchor them onto unrelated code, and some are likely already fixed. Offer **`/verify-review`** (the tool built for exactly this — re-verify the saved findings against the new HEAD), **resume body-only** (body-section findings only, line/file anchors dropped), or **fresh review**. Never resume line comments across a moved HEAD on your own initiative.
+4. **Re-enter at the preview**, not at step 1. The state file *is* the reviewers' output — re-running `code-reviewer` / `baselines-reviewer` / the full context load defeats the whole point. Fetch only what validation needs: the current `headRefOid` and whether a pending review already exists.
+5. **On completion, mark rather than delete** — set `status: "consumed"` and `consumedAt` in place. A third session then reads "already consumed on <date>" instead of "not found", and the `posted` record survives. Deleting the file is what makes an accidental double-post indistinguishable from a first run.
 
 ### Command-usage audit (closing step)
 

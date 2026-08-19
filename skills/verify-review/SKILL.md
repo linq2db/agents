@@ -1,6 +1,6 @@
 ---
 name: verify-review
-description: Re-verify prior `/review-pr` findings on a linq2db PR against the current PR HEAD. Collects all prior reviews, parses findings by severity-ID, reruns code-reviewer and baselines-reviewer in `verify` mode, then applies in-place edits (checkbox flips on prior review bodies, annotations + thread resolves on prior review comments) and posts a new draft review for partial fixes and new findings. Requires explicit user confirmation before any GitHub write.
+description: Re-verify prior `/review-pr` findings on a linq2db PR against the current PR HEAD. Collects all prior reviews, parses findings by severity-ID, reruns code-reviewer and baselines-reviewer in `verify` mode, then applies in-place edits (checkbox flips on prior review bodies, annotations + thread resolves on prior review comments) and posts a new draft review for partial fixes and new findings. The final gate can also save the whole verification to a state file instead of posting, for another session to pick up with `/verify-review resume <n>`. Requires explicit user confirmation before any GitHub write.
 ---
 
 # verify-review
@@ -21,6 +21,8 @@ Shared reference material:
 ## When to run
 
 Only when the user explicitly invokes `/verify-review`. Do not run it opportunistically after a PR push.
+
+`/verify-review resume <n>` picks up a verification a previous session saved with the mode-choice gate's `save-for-later` option — it re-enters at the preview instead of re-running the verify pass. Contract, state-file location and the HEAD-staleness validation: [`review-orchestration.md`](../../docs/review-orchestration.md) → **Resuming a saved review**.
 
 ## Steps
 
@@ -133,6 +135,7 @@ Then run the **mode-choice gate** defined in [`review-orchestration.md`](../../d
 
 - On `interactive` (default): walk every reviewable item (partial-fix follow-ups, new findings, out-of-scope observations, baselines anomalies, audited threads) per the orchestration doc's order, with per-item `fix | reject | accept-for-post`. Items accepted for post accumulate into the final draft review; in-place edits run after the walk completes.
 - On `submit-all`: post the new draft review via `post-pr-review.ps1`, run the step-2b thread-disposition bundle through `post-pr-thread-replies.ps1`, and run `apply-verify-writes.ps1` for prior-review in-place edits (step 9 below). One preview, one approval, all writes go.
+- On `save-for-later`: write the state file per the orchestration doc → **save-for-later mode** and stop. `skill: "verify-review"`, `mode: "verify"`, and the planned in-place edits from step 7 carried alongside the findings so the resuming session still has them — they are this skill's half of the outcome and are lost if only `findings[]` is saved. Print the absolute path back with the counts. No GitHub write.
 - On `cancel`: exit without writes.
 
 ### 9. Apply in-place edits

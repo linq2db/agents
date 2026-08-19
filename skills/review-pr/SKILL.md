@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Deep professional review of a linq2db PR. Accepts PR link, PR number, a linked issue/task number, or a branch name. Loads PR + comments + linked issues, prepares a change summary, runs a code-correctness pass and a baselines-diff pass in parallel (a tool with a named-subagent facility can delegate each to one), classifies public-API changes against the PR milestone, assembles a severity-ordered finding list, and posts a draft pending review on GitHub after user confirmation. Never commits or edits code.
+description: Deep professional review of a linq2db PR. Accepts PR link, PR number, a linked issue/task number, or a branch name. Loads PR + comments + linked issues, prepares a change summary, runs a code-correctness pass and a baselines-diff pass in parallel (a tool with a named-subagent facility can delegate each to one), classifies public-API changes against the PR milestone, assembles a severity-ordered finding list, and posts a draft pending review on GitHub after user confirmation. The final gate can also save the whole review to a state file instead of posting, for another session to pick up with `/review-pr resume <n>`. Never commits or edits code.
 ---
 
 # review-pr
@@ -30,6 +30,8 @@ The workflow relies on five PowerShell Core helper scripts to keep the permissio
 ## When to run
 
 Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.claude/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
+
+`/review-pr resume <n>` picks up a review a previous session saved with the mode-choice gate's `save-for-later` option — it re-enters at the preview instead of reviewing again. Contract, state-file location and the HEAD-staleness validation: [`review-orchestration.md`](../../docs/review-orchestration.md) → **Resuming a saved review**.
 
 ## Steps
 
@@ -364,6 +366,7 @@ Then run the **mode-choice gate** defined in [`review-orchestration.md`](../../d
 
 - On `interactive` (default): walk every reviewable item (body / line / file findings, out-of-scope observations, baselines anomalies, audited threads) per the orchestration doc's order, with per-item `fix | reject | accept-for-post`. When the item count exceeds 20, propose groupings first (per the orchestration doc). At the end of the walk, post the accumulated `accept-for-post` set as one draft review and run the same thread-disposition bundle. **Put the closing tally and the post/cancel question in the same turn** — a turn that ends with the final finding table and no question reads as "done" and stalls, costing the user a "and?" to restart it. The tally is the preamble to the question, not a turn of its own.
 - On `submit-all`: post the pending review via `post-pr-review.ps1` and run the step-2b thread-disposition bundle through `post-pr-thread-replies.ps1` (the same call that handles Fixed/Inaccurate replies also carries any `{ unresolve: true }` entries for Still-actual threads closed by others).
+- On `save-for-later`: write the state file per the orchestration doc → **save-for-later mode** and stop. `skill: "review-pr"`, `mode: "initial"`, `body` = the step-8 assembly, `idFloor` = step 5's floor, `reviewedHeadSha` = the `headRefOid` from step 2's context. Print the absolute path back with the counts. No GitHub write.
 - On `cancel`: exit without writes.
 
 **Posting mechanics — manifest-script format, invocation, manifest-to-finding mapping, verify semantics, heredoc caveats, and the stdout reporting shape — are defined in [`.claude/docs/review-posting.md`](../../docs/review-posting.md)**. The skill's job here is to supply the per-review content that fills the manifest template.
