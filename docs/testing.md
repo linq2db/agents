@@ -158,6 +158,13 @@ Most non-file providers (SAP HANA, most Oracle versions, PostgreSQL, MySQL, DB2,
 
 File-based providers (SQLite, SqlCe, Access) don't need a container.
 
+**A wave of failures confined to container-backed providers is a dead container, not a regression.** Before diagnosing code, run `docker ps -a` and compare each failing provider against its container's status. Two shapes recur:
+
+- **The container exited mid-session.** A filter that passed an hour earlier can come back with dozens of failures because the container died in between. The tell is that *every* failing provider is container-backed while the file-based ones (SQLite, DuckDB, SqlCe, Access) all pass, and the failures share a near-identical short duration.
+- **The container reports `Up (healthy)` but refuses connections.** Docker's health state is not a readiness guarantee for the DB's listener — `firebird30` / `firebird40` have shown `Up 22 hours (healthy)` while their mapped ports returned `SocketException: ConnectionRefused`. A restart clears it.
+
+The exception text settles it either way: `ConnectionRefused` / `Unable to complete network request to host` is environment, not code. (Surfaced on #5643: a 40-failure run was `clickhouse` + `mysql` having exited ~1h earlier, and two Firebird reproduction attempts failed against healthy-but-unreachable containers — the local repro had to be abandoned and the diagnosis grounded in CI plus the provider's documented limitation instead.)
+
 **Not netfx-only.** SqlCe and Access — despite being "legacy" providers — run on *every* test TFM (`net462` + `net8.0`/`net9.0`/`net10.0`), enabled in the matching `Providers` bucket. Run their suites on `net10.0` (fast single-TFM), not `net462`. (A bare `pwsh 7` host can't load SqlCe's native engine for ad-hoc probes — see [`windows-gotchas.md`](windows-gotchas.md) — but the test process loads it fine on any TFM.)
 
 ### Provider variant defaults
@@ -429,6 +436,17 @@ Stray `testhost` / runaway processes from earlier iterations are still worth cle
 When debugging query translation or provider issues,
 use `Console.WriteLine` to output intermediate values or SQL fragments.
 Do not introduce logging dependencies.
+
+### `Should.ThrowAsync` doesn't resolve inside `Tests.*` — `Tests.Should` shadows Shouldly's
+
+`Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so `Should.ThrowAsync<T>(…)` fails to compile with `error CS0117: 'Should' does not contain a definition for 'ThrowAsync'` even though Shouldly 4.3 provides it. Use the extension form, which also mirrors the sync `Action` + `ShouldThrow<T>()` shape the fixtures already use:
+
+```csharp
+Func<Task> act = () => db.SomeApiAsync(record);
+await act.ShouldThrowAsync<LinqToDBException>();
+```
+
+`Should.ThrowAsync` *is* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643.)
 
 ### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
 
