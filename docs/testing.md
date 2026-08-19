@@ -437,16 +437,16 @@ When debugging query translation or provider issues,
 use `Console.WriteLine` to output intermediate values or SQL fragments.
 Do not introduce logging dependencies.
 
-### `Should.ThrowAsync` doesn't resolve inside `Tests.*` — `Tests.Should` shadows Shouldly's
+### `Should.Throw` / `Should.ThrowAsync` don't resolve inside `Tests.*` — `Tests.Should` shadows Shouldly's
 
-`Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so `Should.ThrowAsync<T>(…)` fails to compile with `error CS0117: 'Should' does not contain a definition for 'ThrowAsync'` even though Shouldly 4.3 provides it. Use the extension form, which also mirrors the sync `Action` + `ShouldThrow<T>()` shape the fixtures already use:
+`Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so **both** `Should.Throw<T>(…)` and `Should.ThrowAsync<T>(…)` fail to compile with `error CS0117: 'Should' does not contain a definition for 'Throw'` / `'ThrowAsync'`, even though Shouldly 4.3 provides them. The sync form is the one you reach for most often and fails identically — assert it as `Action act = () => …;` then `act.ShouldThrow<T>()`. Use the extension form, which also mirrors the sync `Action` + `ShouldThrow<T>()` shape the fixtures already use:
 
 ```csharp
 Func<Task> act = () => db.SomeApiAsync(record);
 await act.ShouldThrowAsync<LinqToDBException>();
 ```
 
-`Should.ThrowAsync` *is* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643.)
+Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe.)
 
 ### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
 
