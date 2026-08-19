@@ -124,13 +124,19 @@ For every package flagged with the *Fuget API-diff procedure* in `nuget-package-
 2. Apply the package's diff exclusions (per-package list under `**API-diff exclusions:**` in `nuget-package-notes.md`) — strip those namespaces / types from the rendered diff.
 3. Show the filtered diff to the user. They decide: absorb the API change (keep the bump), revert the bump (drop the package from the apply list), or add new exclusions (record in `nuget-package-notes.md`).
 
-#### 4d. Cross-package drift checks
+#### 4d. Cross-package and cross-TFM drift checks
 
 For every package with a recorded drift-alert rule (e.g. `linq2db4iSeries` mirrors the linq2db version it targets — alert when drift exists between its target version and the linq2db release we're shipping):
 
 1. Read the drift-check predicate from the package's `nuget-package-notes.md` entry.
 2. Compute the drift (e.g. compare provider-API surface between linq2db `<dep-target-version>` and the about-to-release linq2db version).
 3. Surface to user. They decide: ship anyway, hold the release until the upstream catches up, or pin our consumer to a workable older version.
+
+**Cross-TFM drift where a consumer compiles its own version table.** A `<PackageVersion>` split across TFM conditions resolves *per consuming project*, so a bump can land on a branch a given consumer never sees. The LINQPad driver is the case that bites, because its versions are not merely restored — they are **compiled in and shipped to users**: `Source/LinqToDB.LINQPad` hands LINQPad the client package ids *and versions* to provision per connection, generated into a `NuGetPackageVersions` class by the `GenerateNuGetPackageVersions` target in `LinqToDB.LINQPad.csproj`. Those item transforms expand against the **driver's own** `TargetFramework` (`net8.0-windows7.0`), so only the net8.0-compatible branch of a conditioned entry is picked up. Bumping a net10.0-conditioned entry alone never reaches the driver, which then keeps telling every user's LINQPad to download the old client, with nothing in the build to say so.
+
+After the per-package decisions are known, for every id named in that target: if the id has more than one `<PackageVersion>` entry, check whether the bump touched the branch the driver actually resolves. Surface each id where it did not. The user decides whether the driver should follow (bump the net8.0 branch in the same change) or deliberately stay behind — some clients genuinely cannot follow: `Net.IBM.Data.Db2` 10.x ships a **net10.0-only** dependency group, so a `lib/net8.0` driver must stay on 9.x. Record either answer in `nuget-package-notes.md` so the next release doesn't re-derive it.
+
+The same shape applies to any future consumer that bakes a resolved version into shipped output rather than just restoring against it — check for new `WithMetadataValue('Identity', …)` transforms over `@(PackageVersion)` when one appears.
 
 #### 4e. Other predictive checks
 
