@@ -10,10 +10,10 @@ Under MTP, `dotnet test` takes the project via `--project` (a solution/filter vi
 
 ```bash
 # Run a single test class or method
-dotnet test --project Tests/Linq/Tests.csproj --filter "FullyQualifiedName~ClassName.MethodName" -f net10.0 --settings .runsettings
+dotnet test --project Tests/Linq/Tests.csproj --filter "FullyQualifiedName~ClassName.MethodName" -f net10.0 --settings .runsettings --test-progress
 
 # Run tests with the lightweight playground solution (faster load)
-dotnet test --solution linq2db.playground.slnf --settings .runsettings
+dotnet test --solution linq2db.playground.slnf --settings .runsettings --test-progress
 ```
 
 **Default to `Tests.Playground` for any iterative test run** — fresh tests, fix-verification on existing tests, ad-hoc repro. The full `Tests/Linq/Tests.csproj` build is ~3+ minutes; the playground project is ~30s. Two distinct shapes:
@@ -22,7 +22,7 @@ dotnet test --solution linq2db.playground.slnf --settings .runsettings
 2. **Iterating on a real test in `Tests/Linq/`** — add `<Compile Include="..\Linq\<sub>\<File>.cs" Link="<File>.cs" />` to `Tests/Tests.Playground/Tests.Playground.csproj`. The link is local scratch and must **not** be committed (same rule). Use this shape when iterating on a test that already lives in `Tests/Linq/` (e.g. a regression test you just wrote alongside a fix) without paying the cost of the full `Tests/Linq/Tests.csproj` multi-TFM build.
 
 ```bash
-dotnet test --project Tests/Tests.Playground/Tests.Playground.csproj --filter "FullyQualifiedName~ClassName.MethodName" -f net10.0 --settings .runsettings
+dotnet test --project Tests/Tests.Playground/Tests.Playground.csproj --filter "FullyQualifiedName~ClassName.MethodName" -f net10.0 --settings .runsettings --test-progress
 ```
 
 Reach for the full `Tests/Linq/Tests.csproj` only when the test target spans many files that would require a wide playground link, or when running a broad filter (e.g. an entire test class).
@@ -30,10 +30,12 @@ Reach for the full `Tests/Linq/Tests.csproj` only when the test target spans man
 **Targeted repro in a worktree — run the MTP exe directly.** `dotnet test --project <path>` can fall back to the legacy VSTest MSBuild target (error: `MSB1001: Unknown switch … --project … --target:VSTest`) when the new-`dotnet test` opt-in isn't resolved for that invocation — e.g. a relative `--project` pointing into a `git worktree` from another checkout's cwd. For a focused run, skip `dotnet test` and invoke the built test executable directly with MTP options:
 
 ```bash
-.build/bin/Tests/Testing/net10.0/linq2db.Tests.exe --provider Firebird.5 --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
+.build/bin/Tests/Testing/net10.0/linq2db.Tests.exe --provider Firebird.5 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
 ```
 
-The `--provider <Name>` flag (repeatable, comma- or space-separated) **replaces** the providers configured in `UserDataProviders.json` for that run — no file edit needed, as long as the provider's connection string is defined in the file. The harness locates `UserDataProviders.json` by walking up the directory tree from the assembly path, so a copy at the worktree root is picked up. Build the project first (`dotnet build <proj> -c Testing -f net10.0`) since you're bypassing `dotnet test`'s implicit build.
+The `--provider <Name>` flag (repeatable, comma- or space-separated) **replaces** the providers configured in `UserDataProviders.json` for that run — no file edit needed, as long as the provider's connection string is defined in the file. The harness locates `UserDataProviders.json` by walking up the directory tree from the assembly path, stopping at the nearest ancestor that has it — so a copy at the worktree root is picked up, and a worktree nested inside the primary clone resolves the clone's file with no copy at all. Build the project first (`dotnet build <proj> -c Testing -f net10.0`) since you're bypassing `dotnet test`'s implicit build.
+
+**`--provider` does not exist on an older checkout — there, editing the file *is* the mechanism.** It arrived with `3c345be327` (PR #5621, 2026-06-17), and the only release tag carrying it is **v6.4.0**; `v6.3.0` and earlier have neither `--provider` nor `--test-progress`. So a bug repro or bisect on an old tag reverts to the pre-#5621 method: select providers by trimming the `Providers` array in `UserDataProviders.json`, and in a worktree drop a **trimmed copy at the worktree root** to override whatever the walk-up would otherwise resolve. Delete that copy when done — being the nearest ancestor, it silently restricts every later run from that tree. Passing `--provider` on such a checkout is not a no-op: it's an unrecognised argument. Those tags also predate MTP, so the runner invocation differs too: classic VSTest takes the project as a **positional** arg (`--project` dies with `MSB1001: Unknown switch`), and `-p:NuGetAudit=false` is needed because old package pins now trip advisories that fail *restore* under warnings-as-errors.
 
 **Verifying an `[ActiveIssue]` gate — filter by fixture, not test name.** A `--filter "Name~<Test>"` (or any filter that names the specific test) makes NUnit *explicitly select* it, which **forces `RunState.Explicit` / `[ActiveIssue]` tests to run** — so a freshly-gated test will appear to "still fail." To confirm a per-provider `[ActiveIssue(Configuration=…)]` gate actually skips, filter by the **fixture** (`FullyQualifiedName~<Fixture>`); the fixture filter respects the ActiveIssue category exclusion and the gated case drops out of the run count. Note what "drops out" looks like: an Explicit test is **excluded from discovery, not skipped**, so the summary reports `skipped: 0` and the gated test appears in neither the run count nor the skip count. The proof the gate holds is therefore its *absence from the failures* — don't go looking for a `skipped: 1` that will never appear. (Confirmed on #5701: a deliberately-failing gated test, added in the same commit, left a `FSharpTests` run at `total: 99, failed: 0, skipped: 0`.)
 
@@ -136,7 +138,9 @@ After the file exists, `/test-providers` is the supported way to enable / disabl
 
 ### `Providers` is keyed by TFM
 
-`UserDataProviders.json` has a top-level section per target framework (`NETFX`, `NET80`, `NET90`, `NET100`), each with its own `Providers` array and each `BasedOn` the shared `MyConnectionStrings` section. To enable a provider for a test run, uncomment it in the section matching your `-f` flag — `NETFX` only affects `net462` runs, `NET100` only affects `net10.0` runs, etc. Editing the wrong section silently does nothing.
+`UserDataProviders.json` has a top-level section per target framework (`NETFX`, `NET80`, `NET90`, `NET100`), each with its own `Providers` array and each `BasedOn` the shared `MyConnectionStrings` section.
+
+**Don't comment/uncomment entries to run a provider — pass `--provider`.** It replaces the active set for that run, so any provider with a connection string runs without the file being touched. The exception is a checkout that predates the flag (pre-#5621, i.e. `v6.3.0` and earlier) — there, trimming these arrays is the only way to scope a run; see *Scoping a run to specific providers* above. The `Providers` arrays define only the **default** set, used when a run passes no `--provider`. When you do change a default, edit the section matching the `-f` flag — `NETFX` only affects `net462` runs, `NET100` only affects `net10.0` runs, etc.; editing the wrong section silently does nothing.
 
 ### How CI resolves test config (`Build/Azure/*.json`) vs local
 
@@ -222,7 +226,7 @@ Each process writes its own `.build/.agents/test-progress.<tfm>.<pid>.json`; pol
 **Derive the `FullyQualifiedName~` filter from the test's `namespace`, not its folder path — and sanity-check the run's test count.** linq2db test namespaces don't mirror the directory tree: `Tests/Linq/Linq/QueryGenerationTests.cs` is `namespace Tests.Linq` (not `Tests.Linq.Linq`), `Tests/Linq/Update/MergeTests.*.cs` is `Tests.xUpdate`. A filter built from the folder (`FullyQualifiedName~Tests.Linq.Linq.QueryGenerationTests`) matches **zero** real tests, so the run is **vacuously green** — only the prepended `CreateDatabase` cases execute (e.g. `total: 3`, "Passed!"). Always `Grep` the file's `^namespace` line to build the filter, and after the run confirm `total` is in the expected ballpark — a suspiciously small `total` on a "passed" run is the tell. (Surfaced verifying #5599/#5169 ungatings: a `Tests.Linq.Linq.*` filter ran 3 tests and reported green before the count exposed it.)
 
 ```bash
-dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~FirebirdTests.DropTableTest" --settings .runsettings
+dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~FirebirdTests.DropTableTest" --settings .runsettings --test-progress
 ```
 
 If your test modifies data, revert changes to avoid side effects in downstream tests.
@@ -239,7 +243,7 @@ The `Testing` config is net10.0-only and a net10.0 run **won't reproduce** such 
 dotnet build Tests/Linq/Tests.csproj -c Debug -f net462
 ```
 ```bash
-.build/bin/Tests/Debug/net462/linq2db.Tests.exe --provider SqlServer.2022 --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<Fixture>.<Test>" --settings .runsettings
+.build/bin/Tests/Debug/net462/linq2db.Tests.exe --provider SqlServer.2022 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<Fixture>.<Test>" --settings .runsettings
 ```
 
 `--provider` supplies the connection string from `DataProviders.json` without editing the enabled-providers list; the net462 exe runs x86. This is the runtime sibling of the compile-time `agent-rules.md` → *TFM API availability* rule.

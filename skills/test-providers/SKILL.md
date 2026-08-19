@@ -54,7 +54,7 @@ The clause may appear before or after the provider list; parse it once, then str
 An optional `worktree <abs-path>` clause (distinct from the `in <bucket>` clause) points the skill at a git **worktree** instead of the primary clone. When present:
 
 - All `UserDataProviders.json` reads (step 2) and edits (step 5b) target `<worktree>/UserDataProviders.json`, not cwd.
-- A fresh worktree has no `UserDataProviders.json` (only the template is tracked). If it's absent, **seed it first** by copying the primary clone's (or the sibling clone's) copy into `<worktree>/UserDataProviders.json`, then apply the enable/disable edits — see [`.claude/docs/worktree.md`](../../docs/worktree.md) → *`UserDataProviders.json` in a worktree*.
+- A fresh worktree has no `UserDataProviders.json` of its own (only the template is tracked) — but that does **not** mean the run has none. When the worktree is **nested** inside the primary clone, the ancestor walk-up finds the primary clone's file and the worktree needs no copy; seeding one there creates a second, diverging file the run will then prefer. Only a **non-nested** worktree needs the copy before the enable/disable edits. Establish which layout you're in first — see [`.claude/docs/worktree.md`](../../docs/worktree.md) → *`UserDataProviders.json` in a worktree*.
 - Backups (step 5a) still go to `.build/.agents/`.
 - Container actions are unchanged — containers are shared across clones, so `docker start` / `docker stop` need no path adjustment.
 
