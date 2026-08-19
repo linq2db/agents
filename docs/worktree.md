@@ -95,6 +95,19 @@ Because the failure mode is a *flat refusal* rather than a warning, don't read i
 
 Surfaced during 6.4.0 release-prep cleanup, on a worktree whose tree was completely clean.
 
+## Recreating a worktree wipes `.build/` — `--no-build` packs then fail
+
+`.build/` is gitignored, so it lives only in the working tree: removing a worktree deletes every compiled output with it, and `git worktree add` brings back none of it. A worktree recreated to make one more fix therefore has *no* build output, and rebuilding just the project you touched populates only that project's `ProjectReference` closure for the TFMs that project targets.
+
+That is what breaks a subsequent `dotnet pack --no-build` (or any script passing it, e.g. [`linqpad-local-push.ps1`](../scripts/linqpad-local-push.ps1) with `-NoBuild`): packing a multi-TFM library needs output for **every** TFM in its `<TargetFrameworks>`, and the ones your project doesn't reference were never built. The error names the missing file rather than the cause:
+
+```
+error NU5026: The file '...\.build\bin\LinqToDB\Release\net10.0\linq2db.dll'
+to be packed was not found on disk.
+```
+
+So after recreating a worktree, drop `--no-build` / `-NoBuild` for the first pack, or build the missing target explicitly (`dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0`). The flag is safe again once a full build has run in that worktree. (Surfaced on #5786: two `-NoBuild` pushes succeeded, the session was finalized, the worktree was recreated for a follow-up fix, and the third failed on `net10.0` — a TFM the LINQPad driver never references.)
+
 ## Removing a worktree blocked by file locks
 
 `git worktree remove --force <path>` may fail with `error: failed to delete '<path>': Permission denied` when the worktree was recently built — VBCSCompiler / MSBuild server still holds file handles inside `.build/bin/` even though git's internal worktree registration was successfully dropped (`git worktree list` no longer shows it).
