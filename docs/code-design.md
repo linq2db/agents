@@ -156,3 +156,11 @@ Very large source files (multi-thousand-line builders, optimizers, AST visitors)
 ### Read back only the columns you consume
 
 When reading values back from a modifying statement — `OUTPUT` / `RETURNING`, or a follow-up `SELECT` — project **only** the columns the caller will actually use, built from the target column set (`new T { col = src.col, … }`); don't select the whole row and then discard all but a few. Over-fetching is wasteful and obscures intent.
+
+### Tuples only when tuples are what's under test
+
+A multi-field tuple used as an internal carrier gets a **record** instead. Maintainer, 2026-08-20: *"we use tuples only when we need to test tuples."* The cost of the tuple is positional access at every read site — `result.Item5`, `result.Item3` — which says nothing about what the value is, and which a reader has to resolve by counting the declaration's type arguments.
+
+The give-away that a tuple has outgrown its place is arity plus distance: constructed in one method and read in another, three or more fields, or a `null` element that needs a cast to disambiguate the overload. Converting also tends to surface latent sloppiness that the tuple's shape was hiding — a `Tuple<…, DbParameter[], Exception?>` whose every construction actually passed `(DbParameter[]?)null` with a `!` suppression becomes an honest `DbParameter[]?` on the record, and the suppressions and casts disappear with it. (Applied on #5614 to `ConcurrentRunner`'s five-wide `Tuple<TParam, TResult, string, DbParameter[], Exception?>`, which became `ConcurrentRunOutcome<TParam, TResult>` with named members.)
+
+This is about carriers, not about `ValueTuple` in general: a two-field local return, a deconstructed `(context, isRemote)` helper result, and any test whose subject *is* tuple mapping are all fine as tuples.
