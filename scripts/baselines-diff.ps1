@@ -100,6 +100,10 @@ status == "branch_missing", only the header fields plus an all-zero
       `coalesce-around-literal-fn` — Coalesce wrap around a function call
         whose args are all numeric/string literals (typically annotation-
         driven, validate with user rather than auto-suspect).
+      `expression-replaced-by-operands` — a CASE/IIF on the - side replaced by
+        the bare columns it chose between. The only archetype for SQL getting
+        *simpler*: the work moved to the client, which changes what DISTINCT
+        sees and leaves a predicate untranslatable.
     The reviewer must classify each — suspect or expected-with-rationale —
     before returning. No cap; the list is the worklist.
   Each `changePatterns[]` entry also carries `sizeMetrics` (the per-pattern
@@ -360,6 +364,40 @@ function Get-RegressionArchetypes {
             name = 'coalesce-around-literal-fn'
             snippet = Get-Utf8SafeTruncate -Text ($m.Value) -MaxBytes 180
         }) | Out-Null
+    }
+
+    # 7. A computed expression on the - side replaced by the bare columns it
+    #    was computed from. Every archetype above detects SQL getting *more*
+    #    complex; this one detects it getting *simpler* because the work moved
+    #    to the client, and what the database stopped computing is invisible to
+    #    a casual read of the diff — "shorter SQL" reads as an improvement.
+    #    It is not: under a set operation DISTINCT then dedupes the operands
+    #    rather than the value that was chosen, and in a predicate there is no
+    #    client-side fallback at all, so the query stops translating.
+    #    ValueConversionTests.ConditionUnionTest case (#5750), where an IIF over
+    #    two converted columns became the three columns it chose between — ten
+    #    rows where three were selected, and a sibling WHERE that threw.
+    #
+    #    A genuine optimizer simplification fires here too. That is a correct
+    #    hit to classify as expected-with-rationale, not a false positive: a
+    #    fold the database stops doing is worth a sentence either way.
+    $foldPattern = '(?i)(?:\bCASE\s+WHEN\b|\bIIF\s*\()'
+    $foldRemoved = [regex]::Matches($removed, $foldPattern).Count
+    $foldAdded = [regex]::Matches($added, $foldPattern).Count
+    if ($foldRemoved -gt $foldAdded) {
+        # Quoting differs per provider - [t].[Col], t."Col", `t`.`Col`, t.Col.
+        $colRefPattern = '(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64})\.(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64})'
+        $removedCols = @([regex]::Matches($removed, $colRefPattern) | ForEach-Object { $_.Value.ToLowerInvariant() } | Select-Object -Unique)
+        # Two or more, so a single column surviving an unrelated rewrite is not
+        # enough: the shape being caught is a construct's operands turning up
+        # in its place.
+        $carried = @([regex]::Matches($added, $colRefPattern) | ForEach-Object { $_.Value } | Where-Object { $removedCols -contains $_.ToLowerInvariant() } | Select-Object -Unique)
+        if ($carried.Count -ge 2) {
+            $hits.Add([ordered]@{
+                name = 'expression-replaced-by-operands'
+                snippet = Get-Utf8SafeTruncate -Text ($carried -join ', ') -MaxBytes 180
+            }) | Out-Null
+        }
     }
 
     return ,$hits.ToArray()

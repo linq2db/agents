@@ -62,7 +62,15 @@ Use the **fully-qualified source ref** (`refs/heads/baselines/pr_<n>:refs/remote
 
 Baselines commits on `baselines/pr_<n>` are scoped **per CI run per provider** — one commit per `[Linux / Oracle 19c] baselines` run, etc. They are NOT scoped per linq2db PR commit. The commit subject is the CI job name in square brackets, body empty.
 
-Practical implication: the baselines repo can answer "when did this baseline change against master?" but cannot answer "which linq2db PR commit introduced the change?". For per-commit attribution, you need a runtime bisect against the linq2db source tree (`git worktree` + `git checkout <sha>` per candidate, run `dotnet test` on the affected fixture, capture emitted SQL).
+Practical implication: the baselines repo can answer "when did this baseline change against master?" but cannot answer "which linq2db PR commit introduced the change?". A runtime bisect against the linq2db source tree (`git worktree` + `git checkout <sha>` per candidate, run `dotnet test` on the affected fixture, capture emitted SQL) gives exact attribution — but **narrow to a commit range first, because the timestamps usually do it for free and often land on a single commit:**
+
+1. **Which run wrote this file.** `git log --format="%h %ad %s" --date=short <branch> -- "<Provider>/…/<Test>(<Provider>).sql"` lists every baselines commit that touched it. Files are only committed when their content changes, so a run that left the file alone produces no entry — the *absence* of a commit for an earlier run is itself the evidence that the SQL was still master's at that point.
+2. **Where the run boundaries are.** The branch log is one commit per job, so a run appears as a dense timestamp cluster. `git log --format="%ad %s" --date=format:"%Y-%m-%d %H:%M" <branch>` filtered to a single recurring job name (`Select-String 'SQL Server 2022'`) prints one line per run and reads as the run history directly.
+3. **Intersect with the PR's commits.** `git log --format="%h %ad %s" --date=format:"%Y-%m-%d %H:%M" origin/master..HEAD` in the source worktree. The change is in the commits between the last run that left the file alone and the run that rewrote it.
+
+On #5750 that reduced a 68-provider baseline change to the seven commits of one round; reading which of those touched the predicate the SQL depended on picked out the single commit, and no bisect was run.
+
+**Diff the branch against both its merge-base and baselines `master`.** `git merge-base origin/master <branch>` then diff the branch against each. Baselines `master` advances as other PRs' baselines merge, so a change that landed there after the branch forked would otherwise be misread as this PR's. Identical output from both diffs proves no such drift is in play; divergent output tells you which files to exclude before attributing anything.
 
 Second implication: **the branch's tip has no relationship to the PR's tip.** Because commits land only when a CI run completes, the branch reflects whatever source the last *finished* run built — so a push after that run leaves the branch describing SQL the current code no longer emits, with no marker on the branch saying so. Before reading a baselines diff as the PR's output, date it:
 
