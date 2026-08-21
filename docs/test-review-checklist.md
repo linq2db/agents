@@ -11,6 +11,14 @@ When a new/modified test calls `LastQuery.ShouldContain("X")` / `Assert.That(Las
 
 Tighten the substring, anchor it (`StartsWith` / `EndsWith`), or invert (`Should.NotContain(<buggy-substring>)`). Flag as MAJ when the test was added specifically to prevent the regression this PR fixes — the test isn't doing its job.
 
+### A baseline file is not an assertion
+
+When a test's only pin on the SQL it generates is the captured baseline, nothing in the test *fails* if the SQL turns out wrong — the baseline simply records whatever was emitted and a reviewer has to notice. That is a weak pin in two specific ways: a value-only assertion frequently passes for SQL that is wrong (`Assert.That(result, Is.EqualTo("123"))` holds for `varchar(4)`, `nvarchar(10)` and `varchar(max)` alike), and a wrong baseline that was captured wrong *from the start* looks like the expected value forever after.
+
+Flag it when a test exists specifically to exercise how something renders — a type, a function, a hint, a dialect construct — but asserts only the round-tripped value. The fix is a `db.LastQuery!.ShouldContain(...)` on the part that matters, subject to the substring rule above. Assert the *distinguishing fragment* rather than the whole statement, so the assertion doesn't couple to per-provider rendering of the surrounding value.
+
+(Surfaced on #5614: `SqlServerFunctionsTests.ConvertTest3/4` + `ConvertWithStyleTest4` had recorded a sibling test's `SqlType` on 20 of 22 SqlServer configurations, on `master`, for as long as the baselines existed — every assert was `Is.EqualTo("123")`, which passes for any string type, so nothing caught it. The maintainer's framing: *"as now it baselines-only source of truth"*.)
+
 ### `LastQuery` capture point
 
 `DataConnection.LastQuery` updates on every `BeforeExecute`, including auxiliary `CreateLocalTable` / `AssertQuery` calls that materialize sources to memory or roundtrip data. If the test executes the target query *after* `AssertQuery` (or any helper that runs its own query), `LastQuery` will hold the last auxiliary query, not the target. The fix is to capture before the auxiliary call or to use a code path that runs only the target query (e.g. `.ToArray()` directly without `AssertQuery`).
