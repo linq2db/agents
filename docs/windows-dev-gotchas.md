@@ -427,6 +427,27 @@ dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0 -p:RunApiAnal
 
 Each RS0016 message quotes the exact line to paste into `PublicAPI.Unshipped.txt` (verbatim, incl. the `static ` / `params ` prefixes). Normal PR CI (`build.yml`) runs with the flag **off**; only the comprehensive `default.yml` / `/azp run test-all` leg turns it on — so missing entries slip through fast iteration and a plain Release build, then fail the comprehensive leg. (Distinct from `CompatibilitySuppressions.xml` / ApiCompat, handled by `/api-baselines`.)
 
+## XML doc comments are validated in Release only — including in `Tests/`
+
+Documentation generation is on for Release alone, and it is **not** scoped to the shipping projects (`Directory.Build.props`):
+
+```
+<GenerateDocumentationFile Condition="'$(Configuration)' == 'Release'">true</GenerateDocumentationFile>
+```
+
+The line's own comment says it is "also required for xml-doc validation". So every doc-comment diagnostic — `CS1574` (unresolvable `cref`), `CS1573` (missing `<param>`), `CS1591` — is invisible to `-c Testing` and to `/test`, and a hard error on CI's Release leg under `TreatWarningsAsErrors`. Two consequences:
+
+- **A cref resolves only against the file's own `using` scope.** A cref naming a type the file doesn't import fails exactly like a cref to a *deleted* type — same `CS1574`, opposite cause (the deletion direction is covered in [`agent-rules.md`](agent-rules.md) → *Build & push gotchas*). It is easiest to write in a **test** file, which imports `LinqToDB` \ `LinqToDB.Mapping` but rarely `LinqToDB.Linq.Translation` \ `LinqToDB.Internal.*`. **Fully qualify the cref** rather than adding a `using` whose only consumer is a doc comment.
+- **The pre-push Release build must target the project you edited.** The `Source/LinqToDB/LinqToDB.csproj` command in the section above structurally cannot see a doc comment under `Tests/`. For a doc-comment change in the test suite:
+
+```
+dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+```
+
+Both flags match what PR CI passes (`build.yml` sets `with_analyzers: false`), so this reproduces that leg exactly — ~3.5 min warm against a red CI cycle.
+
+(#5750: a `<see cref="TranslationProviderFlags.CanLowerIntervalShift"/>` added to `IntervalTranslationTests.Arithmetic.cs`, a file with no `using LinqToDB.Linq.Translation;`, passed a full green `test-all` and failed the `build` check with `CS1574` on all four TFMs.)
+
 ## Bisecting across SDK upgrades
 
 When checking out historic commits to bisect a regression or to confirm "after which PR did the test start passing", the historic code may compile cleanly on the SDK it was written against but trip newer compiler warnings on the current SDK. Combined with `TreatWarningsAsErrors=true` (the default in `Directory.Build.props`), these warnings become build-blocking errors and the test never runs.
