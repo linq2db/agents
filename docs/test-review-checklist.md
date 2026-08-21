@@ -59,6 +59,8 @@ are flaky in those setups. Flag and propose either a server-side-only comparison
 
 Firebird v3 caps identifiers at 31 characters; Oracle at 30 / 128 depending on version; SQL Server at 128. A test-name + GUID combination longer than the smallest provider's limit will fail at table creation on that provider. Either use `TestUtils.GetNext()` for short unique suffixes or let `CreateLocalTable` generate the name (no explicit name argument).
 
+**But not in a test that captures baselines.** `TestUtils.GetNext()` is a process-wide counter, so the number it returns depends on how many other tests called it first. When the generated name reaches captured output — DDL in a schema-provider test, a table name in emitted SQL — that makes the baseline a function of execution order, and it drifts whenever the order changes (a new test, a reordering, parallel execution). Use a fixed per-test suffix instead: within one fixture the tests already differ by prefix, so a literal number per test gives all the uniqueness needed and is identical on every run. `GetNext()` stays correct when the name never reaches a baseline. (Surfaced on #5614: the five `Issue5628` PostgreSQL schema tests moved 62 baseline files purely because their sequence/table suffixes shifted from `_19` to `_109`.)
+
 ### `query.ToSqlQuery()` vs the SQL of an *aggregate* call
 
 `IQueryable.ToSqlQuery()` returns the SQL of the non-terminal sequence — it doesn't include the terminal aggregate's wrapping. To assert SQL emitted by `query.Sum()` / `query.Count()` / `query.Min()`, capture from `db.LastQuery` *after* the terminal aggregate call, not via `query.ToSqlQuery()`. The latter will assert against the wrong SQL and pass for the wrong reason.
