@@ -13,8 +13,13 @@ parsing. This script answers the whole job in one call:
 
     Bash(pwsh -NoProfile -File .claude/scripts/snap-baselines.ps1 *)
 
-Input (stdin, JSON)
--------------------
+Input (-ManifestFile <path>, or JSON on stdin)
+----------------------------------------------
+Prefer `-ManifestFile`: write the JSON to `.build/.agents/<name>.json` and pass
+the path. Stdin still works from a Bash pipe/heredoc, but the *PowerShell tool*
+cannot feed it — `'{json}' | & script.ps1` sends the string down the PowerShell
+pipeline, which is not the console stdin this script reads, so the call dies with
+"no manifest on stdin". See script-authoring.md -> structured inputs.
   {
     "paths":   ["<baselines-clone>/Firebird.4", ...],  // required, non-empty
     "outFile": ".build/.agents/baselines-pre-<run>.json"   // required — hash map written here
@@ -39,19 +44,14 @@ The `outFile` receives a flat `{ "<absolute-path>": "<sha1-hex>", ... }`
 map that `diff-baselines.ps1` consumes.
 #>
 
+param(
+    [string] $ManifestFile
+)
+
 . "$PSScriptRoot/_shared.ps1"
 $global:ScriptBaseName = 'snap-baselines'
 
-$manifest = [Console]::In.ReadToEnd()
-if ([string]::IsNullOrWhiteSpace($manifest)) {
-    Exit-WithError 'no manifest on stdin (expected JSON object with paths[] and outFile)'
-}
-
-try {
-    $cfg = $manifest | ConvertFrom-Json
-} catch {
-    Exit-WithError "manifest is not valid JSON: $($_.Exception.Message)"
-}
+$cfg = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
 
 if (-not $cfg.paths -or $cfg.paths.Count -eq 0) {
     Exit-WithError 'manifest.paths[] is required and must be non-empty'
