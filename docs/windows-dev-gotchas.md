@@ -173,6 +173,10 @@ Capturing `gh` / `git` / other native-command output that may contain non-ASCII 
 
 These are PowerShell-specific quirks that bit during `/kb-build` work and recur in any PS-heavy operation:
 
+### `Select-String` is case-insensitive by default
+
+Unlike `Grep` / `rg`, `Select-String` ignores case unless given `-CaseSensitive`. Filtering build or test output for failures is where this bites: `-Pattern "error [A-Z]{2}"` — meant to catch `error CS0103` / `error MSB1001` — also matches every `Error output` line MTP prints per test, so the result is flooded with noise and the actual diagnostic scrolls off whatever `Select-Object -First N` you applied. Pass `-CaseSensitive` whenever the pattern's discrimination depends on case, and prefer anchoring (`"^failed "`) over bare substrings for run summaries.
+
 ### Bracket-named files trigger PS wildcard handling
 
 `Resolve-Path`, `Get-Item`, and `Test-Path` (without `-LiteralPath`) treat `[` and `]` in path arguments as wildcard metacharacters. A file like `[Internal]-Foo.md` (saw this on a wiki article during step 9) is silently skipped — `Get-Item '[Internal]-Foo.md'` returns nothing, no error. Then downstream code that assumes the result is non-null produces 0-byte writes / null derefs.

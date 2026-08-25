@@ -20,6 +20,18 @@ One property every recipe may rely on, whatever the root is: the worktree is **n
 
 **Never base a worktree on `FETCH_HEAD`.** `FETCH_HEAD` is rewritten by the next `git fetch` (any ref, any worktree sharing the clone), so `git worktree add <path> FETCH_HEAD` can land on a stale/base commit even right after the fetch that set it — and `git show FETCH_HEAD:<path>` and `git worktree add FETCH_HEAD` can disagree about which commit that is. Use the remote-tracking ref (`origin/<branch>`) or the explicit head SHA from `gh pr view <n> --json headRefOid`. After creating a **detached** worktree, verify `git -C <worktree> rev-parse HEAD` matches the intended head before editing — a wrong-base worktree shows the PR's changes as *absent* (the file still has pre-PR content, which reads as "the change isn't there" rather than an error). Recovery: `git -C <worktree> checkout <headSHA>` carries clean working-tree edits onto the right commit for any file the PR doesn't touch. (Surfaced on #5710: `worktree add FETCH_HEAD` landed on the PR base #5605; caught because `TestsInitialization.cs` lacked the PR's preload code.)
 
+## Moving uncommitted work from the primary clone onto a worktree branch
+
+An investigation that starts read-only in the primary clone and *then* produces a shippable fix leaves the change in the wrong place: the primary clone is on `master`, often many commits behind `origin/master`, and the rules forbid switching it. Migrate the change rather than re-typing it:
+
+1. `git fetch origin master`
+2. `git diff --output=.build/.agents/<slug>.patch -- <paths>` — `--output=` writes the patch without a `>` redirect, so the call still matches `Bash(git diff *)` instead of prompting.
+3. `git worktree add -b <branch> <worktrees-root>/<slug> origin/master`
+4. `git -C <worktree> apply --3way <patch>` — `--3way` is what makes a conflict resolvable instead of a flat "patch does not apply". A conflicted file lands `U` in the index; `git -C <worktree> diff --diff-filter=U` shows the markers, and the resolved file needs `git add` to clear the merge state.
+5. `git restore -- <paths>` in the primary clone once the branch commit exists, so the same change isn't carried in two places.
+
+**Re-run the verification on the new base, don't reuse the primary clone's result.** The whole reason for the migration is that the bases differ, so a green run against the stale base says nothing about the branch. Expect the conflict to be *in the method you patched* — a fix and the change that moved master are drawn to the same code. (Surfaced 2026-08-25 on the set-operation concat fix: developed against a primary clone 5 commits behind, and `origin/master` had meanwhile taken #5614, which rewrote the exact `VisitBinary` guard the fix modified. Resolution kept master's lines and re-applied the one-clause change; the re-run on the new base was 375 tests, not the 361 the old base had.)
+
 ## Local / gitignored files in the main repo
 
 When working inside an authorized worktree, local / gitignored files in the *main* repo (`UserDataProviders.json`, `.claude/settings.local.json`, etc.) don't need to be stashed — edits in the worktree leave the main repo untouched. They are also *not carried in*: gitignored files don't come with a new worktree, and `.claude/` itself arrives empty (see *Bootstrapping `.claude/` in a worktree* below), so a worktree starts without the primary clone's permission allowlist and without `UserDataProviders.json`.

@@ -476,6 +476,27 @@ Use `query.ToSqlQuery().Sql` to see a query's SQL without running it. `IQueryabl
 - **Plain linq2db** emits SQL fully offline when the provider version is explicit: `new DataConnection(new DataOptions().UseSqlServer("Server=.;Database=x", SqlServerVersion.v2022, SqlServerProvider.MicrosoftDataSqlClient))`. A dummy connection string works — nothing is opened. Run this from `Tests.Playground` (link the file in), **not** a hand-rolled console placed under the repo root — `Directory.Build.props` / central package management cascade into any project beneath the root and break a stray project's restore (`Unable to find package <name>`, plus unwanted multi-targeting).
 - **EF Core `.ToLinqToDB()`** on SQL Server opens a real connection to auto-detect the server version (`ProviderDetectorBase.DetectServerVersion` → `SqlConnection.Open()`), so it needs a live server even just to emit SQL. SQLite EF Core emits offline.
 
+#### One probe run, then read it
+
+A repro run usually has to answer several questions — did it throw, what was the message, what SQL came out, what did the rows materialize as. Capture the whole run **once** and then `Grep` / `Read` that capture per question; re-running the same test with a widened filter costs a full build-and-run cycle and returns nothing the first run didn't already contain. Two things make the first capture sufficient:
+
+- **`--output Detailed`** — without it MTP hides a *passing* test's stdout, which is the usual reason a second run happens (the SQL and the row dump are both `TestContext.Out`).
+- **Persist it** — `$o = dotnet test … 2>&1; $o | Set-Content <path>` from the PowerShell tool, then filter the file. Filtering the live variable is fine too, as long as it's the same run.
+
+(Surfaced 2026-08-25 on the set-operation concat regression: one playground test was run four times — pass/fail, then the exception message, then the row values, then the SQL — and the pre-regression baseline worktree four more, for seven avoidable build cycles.)
+
+#### Which `SqlErrorExpression` site raised it
+
+The message names the offending expression but not the code that rejected it, and there are ~35 `SqlErrorExpression` / `CreateSqlError` construction sites across the builder — reading them is slower than asking. Temporarily append `Environment.StackTrace` to a file from the 4-argument `SqlErrorExpression` ctor (`Source/LinqToDB/Internal/Expressions/SqlErrorExpression.cs`), gated on an env var so ordinary runs are unaffected, and log the expression with it:
+
+```csharp
+if (Environment.GetEnvironmentVariable("L2DB_ERR_TRACE") == "1")
+    System.IO.File.AppendAllText(@"<abs-path>\errtrace.txt",
+        "=== EXPR: " + expression + " | MSG: " + message + "\n" + Environment.StackTrace + "\n\n");
+```
+
+The stack names the translator, the visitor entry point, and — through the frame names — the build purpose and flags, which is what identifies the branch. Expect **several** traces per query: errors created inside `TryConvertToSql` are discarded by design, so match on the trace whose frames reach the failing consumer (`MergeProjectionHelper.BuildProjectionExpression`, `SelectContext.MakeExpression`, …) rather than the first one logged. Log to an **absolute** path — a relative one follows the invoking process's cwd. Remove the probe with the fix.
+
 ## Baselines
 
 Many tests compare emitted SQL against a stored baseline file. Baselines live **outside the main repo** under the path configured by `BaselinesPath` in `UserDataProviders.json` → `MyConnectionStrings`. With `BaselinesPath` set, a mismatched test overwrites the baseline with the new SQL; subsequent runs compare against the updated file. With `BaselinesPath` unset, baselines are neither written nor compared.
