@@ -24,7 +24,7 @@ Pre-2011 history (older than this repo's initial commit) lives in [BLToolkit](ht
 
 - `dotnet build linq2db.slnx` — full solution
 - `dotnet build linq2db.slnx -c Release` — enables Roslyn analyzers + banned-API checks
-- `dotnet build linq2db.slnx -c Testing` — fast single-TFM (net10.0) iteration
+- `dotnet build <project> -c Testing` — fast single-TFM (net10.0) iteration. **Project-scoped only** — `dotnet build linq2db.slnx -c Testing` fails with `NU1201`, because `Testing` makes `linq2db` net10.0-only while `Tests/Tests.Analyzers` targets net8.0 (it pins the Roslyn-compatible TFM). Point it at the project you're iterating on (`Tests/Linq/Tests.csproj`, `Tests/Tests.Playground/Tests.Playground.csproj`, `Source/LinqToDB/LinqToDB.csproj`), not the solution.
 - `dotnet build Source/LinqToDB/LinqToDB.csproj` — core library only
 
 Solution files: `linq2db.slnx` (full), `linq2db.playground.slnf` (individual tests), `linq2db.Benchmarks.slnf` (benchmarks).
