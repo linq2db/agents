@@ -54,6 +54,15 @@ $ git -C ../linq2db.baselines fetch origin refs/heads/baselines/pr_5678:refs/rem
 
 Use the **fully-qualified source ref** (`refs/heads/baselines/pr_<n>:refs/remotes/...`) for these fetches, and treat a `[deleted]` report as unproven until `ls-remote` agrees. This matters because the review flow reads a missing branch as "no baseline changes" and skips the whole baselines pass — so a spurious deletion silently routes a review past real baselines. (Surfaced on PR #5678, where the short-refspec fetch reported the branch deleted while it in fact carried 83 added baselines.)
 
+**Never use `FETCH_HEAD` as a diff endpoint — always the tracking ref.** A destination-less `git fetch origin baselines/pr_<n>` updates only `FETCH_HEAD`, so `origin/master...FETCH_HEAD` looks like a working range and is the shape you reach for right after fetching. But `FETCH_HEAD` is rewritten by the **next** fetch of any ref in that clone — including one issued by a helper script (`baselines-pr-scan.ps1` fetches `master`) or by a concurrent session sharing the clone. The range then silently describes a different comparison, with no error: every command keeps succeeding and returns a coherent-looking answer for the wrong pair of commits. Fetch into the tracking ref and diff against that:
+
+```
+$ git -C ../linq2db.baselines fetch origin "+refs/heads/baselines/pr_<n>:refs/remotes/origin/baselines/pr_<n>"
+$ git -C ../linq2db.baselines diff --name-status origin/master...origin/baselines/pr_<n>
+```
+
+The failure is worse than a stale read because the wrong answer is *self-consistent*: file lists, per-file diffs and `show` all agree with each other. The tell is a path that should exist and doesn't — cross-check the changed test names against the PR's own `nameStatus` before trusting any count. (Surfaced on PR #5727: mid-review `FETCH_HEAD` moved from the baselines branch to baselines `master`, and the same `--name-only` command that had correctly reported the PR's 136 `EagerLoadingTests` files then reported 183 `ConcurrencyRefreshTests` files — unrelated baselines that master had gained. Caught only because a sample path 404'd; on the counts alone it would have produced a confidently wrong Baselines section.) The `worktree.md` → *Never base a worktree on `FETCH_HEAD`* rule is the same hazard on the checkout side.
+
 ### Merging a baselines PR
 
 `linq2db.baselines` **disallows merge commits** — `gh pr merge --merge` fails with *"Merge commits are not allowed on this repository. (mergePullRequest)"*. Use `gh pr merge <n> --squash` (mark the CI-created draft ready first with `gh pr ready <n>`; `--admin` bypasses any pending check). This comes up when cleaning up a lingering baselines PR whose source linq2db PR has already merged (the baselines PR doesn't auto-close).
