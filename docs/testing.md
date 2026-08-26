@@ -18,6 +18,8 @@ dotnet test --project Tests/Linq/Tests.csproj --filter "FullyQualifiedName~Class
 dotnet test --solution linq2db.playground.slnf --settings .runsettings --test-progress
 ```
 
+**`--filter` takes `FullyQualifiedName~<substring>` — the MTP *graph-query* form silently matches nothing.** A pattern like `/*/*/RemoteContextTests/*` (asm/namespace/class/method, valid in some MTP surfaces) returns **`Zero tests ran` (exit 5)** through `dotnet test` rather than being rejected as a bad pattern, so it is indistinguishable from a filter that legitimately matched nothing — and from the unbuilt-binary case above, which reports identically. Substring matching against the fully-qualified name is what works, and it matches a whole fixture (`FullyQualifiedName~RemoteContextTests`) as readily as one method. Note the multi-filter `|` form under *Targeted repro in a worktree* below is documented for the **test executable**; it is untested through `dotnet test`.
+
 **Default to `Tests.Playground` for any iterative test run** — fresh tests, fix-verification on existing tests, ad-hoc repro. The full `Tests/Linq/Tests.csproj` build is ~3+ minutes; the playground project is ~30s. Two distinct shapes:
 
 1. **Scratch verification** — one-off tests that won't be committed. Edit `Tests/Tests.Playground/TestTemplate.cs` directly with a self-contained fixture (define converters / tables / data inline). No `<Compile Include>` needed; the SDK-style csproj implicitly compiles the project's own `*.cs` files. Revert when done — the template-edit is scratch (per `agent-rules.md` → *Never commit playground scratch*).
