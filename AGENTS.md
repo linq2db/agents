@@ -91,6 +91,10 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 
 - For a non-diff snippet that interleaves new lines with context, prefix new lines with `+ ` (two-char gutter); context lines get two leading spaces. No `<mark>`, no trailing-sigil markers.
 - **Markdown tables must stay contiguous** — never put a paragraph or blank line between rows; it splits the table. Notes go above or below.
+- **Put removals in a fenced `diff` block so they render red.** Terminal-rendered markdown can't colour a table cell or inline text, but it does syntax-highlight a ```` ```diff ```` fence: `-` lines red, `+` lines green. So when a proposal includes deletions — labels to remove, lines to drop, entries to retire — list them as `- <thing>` inside a `diff` fence; additions can stay in ordinary prose or a table. Use one mixed `diff` block when both colours matter. (Distinct from the `+ ` gutter above, which is for a code snippet against context; reach for a real `diff` fence when the *colour* is the point.)
+- **Link every identifier the reader will want to open, rather than naming it bare.** A bare token costs a manual search per occurrence, and these appear in lists where that repeats:
+  - issue / PR numbers → `[#5617](https://github.com/linq2db/linq2db/issues/5617)`. The `/issues/<n>` form redirects for PRs too, so it's safe when the kind is unknown; prefer `/pull/<n>` when you know. Applies to prose *and* table columns that are just numbers.
+  - Meziantou.Analyzer rule ids → `[MA0201](https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/MA0201.md)`, since severity decisions are made by reading each rule's page (the 3.0.85→3.0.138 walk alone had 12). Stated for Meziantou specifically — **don't** assume the same shape for other analyzer families; NUnit.Analyzers and `Microsoft.CodeAnalysis.*` use different doc layouts.
 
 ### Definition of done
 
