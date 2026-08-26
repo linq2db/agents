@@ -18,6 +18,12 @@ Glob is fine for discovery patterns (`Source/**/*.cs`) in the primary clone; the
 
 **Worktree paths are a second Glob blind spot — even for discovery patterns.** `Glob` with a `path` argument pointing at a linked `git worktree` (e.g. `path: "C:\GitHub\<clone>.<slug>"`) can return "No files found" for files that exist there — including plain discovery patterns like `Source/**/*.xml`, not just documentation-named single paths. Confirmed on #5687: `Glob("Source/**/CompatibilitySuppressions.xml", path=<worktree>)` returned empty while the same pattern in the primary clone found both files, and a direct `Read` of the worktree file succeeded. When globbing inside a worktree comes back empty, `Read` a known path (or run the glob in the primary clone and map the relative path across) before concluding the files are absent.
 
+## `Grep` context lines can mangle a leading `//`
+
+`Grep` with `-A` / `-B` / `-C` can render a C# line comment's leading slashes as a stray backslash: a source line reading `\t\t// TODO: Remove in v7` came back in the context block as `\t\t\ TODO: Remove in v7`. That reads as a syntax error in a file that compiles, so the natural reaction is to chase a defect that isn't there.
+
+The tell is that the mangled line is in **context** output (`-A`/`-B`/`-C`), not on a matched line, and that the project builds. `Read` the line before treating it as broken — the file content is correct and only the context rendering dropped a character. (Surfaced 2026-08-26 in `LinqExtensions.Update.cs`, one wasted `Read` to disprove.)
+
 ## Permission-friendly Bash patterns
 
 Patterns that triggered prompts in real sessions and the equivalents that don't. The summary in [`agent-rules.md`](agent-rules.md) → *Bash command rules* names the most-hit ones; this is the full table.

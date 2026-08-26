@@ -112,6 +112,15 @@ which does not accept an `IQueryable`, and the build fails with a misleading
 rather than at the missing using, so it reads as a problem with the expression. `LinqToDB` alone is not
 enough — the queryable overloads live in `LinqToDB.Async`.
 
+**Raw SQL — `db.Execute("…")` needs `using LinqToDB.Data`.** Same shape, different namespace: the
+`Execute` / `ExecuteAsync` / `Execute<T>` extensions on `IDataContext` live in
+`LinqToDB.Data.DataContextExtensions`, so a fixture holding only `using LinqToDB;` fails with
+`CS1061: 'ITestDataContext' does not contain a definition for 'Execute'`. That names the *receiver* type,
+which reads as "the test context can't do this" rather than "a using is missing" — and `ITestDataContext`
+being a test-harness interface makes the wrong reading plausible. Reach for this when a test needs DDL the
+mapping layer can't express (`CREATE TRIGGER`, `CREATE SEQUENCE`); existing users are
+`PostgreSQLSchemaProviderTests` and `CreateData`.
+
 ## Converting a multi-threaded test to async
 
 Tests that fan out synchronous queries over remote (`.LinqService`) contexts starve the thread pool: every

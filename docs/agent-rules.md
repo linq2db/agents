@@ -51,6 +51,10 @@ Split chained work into separate tool calls — parallel when independent, seque
 
 Reserve Bash for `git`, `gh`, `dotnet`, `pwsh`, helper scripts under `.claude/scripts/`.
 
+**The table applies to a background task's output file too — that path is the single most-violated case.** A `run_in_background` completion notification hands you an absolute path, and reaching for `grep -n "error\|failed" <path>` / `tail -30 <path>` / `sed -n '117,200p' <path>` feels like shell work because the path came from the harness rather than from a tool. It isn't: `Grep` with a pattern plus `head_limit` extracts a build/test failure summary from a 600-line log in one call, and `Read` with `offset`/`limit` replaces every `sed`/`tail` slice. Same rule, same reasons — it just doesn't *look* like a repo search. (Counted 12 raw-CLI calls on task-output files in a single #5643 session, alongside correct `Grep`/`Read` use everywhere else in the same session.)
+
+**Finding the newest test heartbeat is `test-status.ps1`, not `ls -t`.** `.claude/scripts/test-status.ps1` reads the latest `.build/.agents/test-progress.<tfm>.<pid>.json` and relays the one-line status. Listing the directory to find the newest file then `Read`ing it is two calls for what the script does in one, and the directory accumulates heartbeats from prior sessions and concurrent runs, so "newest by mtime" is a guess about whose run you are looking at. `/test-progress` wraps the same script. (Done four times in one session before the script was recalled.)
+
 #### Permission-friendly patterns
 
 Patterns that triggered prompts in real sessions — full table in [`windows-gotchas.md`](windows-gotchas.md) → *Permission-friendly Bash patterns*. The four highest-impact:
