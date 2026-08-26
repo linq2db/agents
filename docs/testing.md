@@ -8,6 +8,8 @@ Tests use **NUnit3** with **Shouldly** assertions (not NUnit Assert), running on
 
 Under MTP, `dotnet test` takes the project via `--project` (a solution/filter via `--solution`) — the bare `dotnet test <project>` form is rejected. Always pass `--settings .runsettings` so NUnit honors `AssemblySelectLimit`; otherwise a broad `--filter` can fall back to running the whole assembly.
 
+**Don't pass MSBuild switches to `dotnet test` — they are forwarded to the test platform and silently void the filter.** MTP's `dotnet test` hands arguments it doesn't recognise to the test application rather than rejecting them, so an MSBuild switch like `-m:1` is consumed as a test-platform argument: the run ends in **`Zero tests ran` (exit 5)** with no diagnostic naming the switch. The failure mimics a filter that matched nothing, which is the expensive part — the natural next move is to re-check the filter and the assembly, not the flag you added for an unrelated reason. Keep such switches on the `dotnet build` step and run `dotnet test --no-build` afterwards. (Surfaced on #5737: a filter returning `total: 2` returned `total: 0` after `-m:1` was added to reduce build parallelism.)
+
 ```bash
 # Run a single test class or method
 dotnet test --project Tests/Linq/Tests.csproj --filter "FullyQualifiedName~ClassName.MethodName" -f net10.0 --settings .runsettings --test-progress
