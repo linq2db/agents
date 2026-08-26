@@ -76,7 +76,7 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 - **Multi-commit feature branches:** prefer `git merge origin/master` over rebase when the branch is long-lived / already has merge commits; rebase only short-lived linear branches.
 - Conflict-resolution patterns for recurring collisions (`LinqOptions` positional record's 5 sites, params inserted ahead of optionals, end-appended serialized enums): [.claude/docs/pr-and-push.md](.claude/docs/pr-and-push.md) → *Merging master into a feature PR — recurring conflict recipes*.
 
-> **Claude Code:** branch-based work goes in a `git worktree`, never by switching the primary clone — and a fresh worktree needs its `.claude/` corpus bootstrapped before any work happens there. See the overlay.
+> **Claude Code:** branch-based work goes in a `git worktree`, never by switching the primary clone. The `post-checkout` hook bootstraps the worktree's `.claude/` corpus at checkout time, but only when the *primary* clone's copy of the hook is current — verify the corpus is populated before any work happens there. See the overlay.
 
 ## Working discipline
 
