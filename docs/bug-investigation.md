@@ -120,6 +120,34 @@ whether to ship.
 Mechanics — writing the benchmark, the traps in this repo's BDN setup, and reading a `dotnet-trace`
 profile — are in [`measuring-query-build.md`](measuring-query-build.md).
 
+## To settle a claim about *git's own* behaviour, build a throwaway fixture repo
+
+When the open question is what **git** does — does this hook fire, is this state shared between worktrees,
+what does this command leave HEAD pointing at — don't reason about it and don't experiment on the real
+clone. Build a purpose-made repo pair under `.build/.agents/`: `git init` a submodule repo, `git init` a
+superproject, `submodule add` the first into the second, then drive the actual command. It is a few seconds
+per run, it isolates the variable completely, and — the part that matters on a shared clone — a wrong guess
+costs nothing, where the same probe against the live repo can repoint the real submodule's metadata.
+
+This settled three claims in one sitting on #5820: `git worktree add` **does** fire `post-checkout` (with
+`$3 = 1` and cwd set to the new worktree, confirmed for relative `core.hooksPath`, absolute
+`core.hooksPath`, and the default `.git/hooks` location); a linked worktree gets its **own** submodule git
+dir at `.git/worktrees/<id>/modules/<name>` on git 2.55, leaving the shared `core.worktree` byte-identical
+— refuting a long-standing corpus warning; and `submodule update --init` leaves a detached HEAD whose
+commits are orphaned on the next attach.
+
+Two traps that cost runs, both worth pre-empting:
+
+- **A local-path submodule needs `protocol.file.allow`, propagated to *child* git processes.** `git submodule
+  update` spawns `git clone` in a separate process, and **repo config is not inherited** — only `-c` /
+  `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_0` + `GIT_CONFIG_VALUE_0` reach the child. Writing
+  `protocol.file.allow` into the superproject's `.git/config` looks right and fails with
+  `fatal: transport 'file' not allowed`.
+- **Distinguish a fixture artifact from the defect under test.** The trap above surfaced *through* the hook
+  under test, whose swallowed stderr reported only "offline or clone failed" — so a fixture problem
+  presented as a hook defect and sent the investigation the wrong way. When the thing you're testing
+  swallows errors, unwrap them in the fixture (run the inner command directly) before believing a failure.
+
 ## A test's pass/fail is observed, never inferred — including the red baseline
 
 Never state that a test passes **or fails** without having run it. Claiming a repro is "red" by reasoning

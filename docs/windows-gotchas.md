@@ -41,6 +41,18 @@ Patterns that triggered prompts in real sessions and the equivalents that don't.
 
 When data is already on disk (e.g. `diff-reader.ps1`'s `writeDir` cache at `.build/.agents/pr<n>/`), `Read` or `Grep` it directly rather than re-fetching via `git show … | tail | cat -A` — the `Read` tool preserves tabs and trailing whitespace literally for whitespace-byte inspection.
 
+### `bash` from the PowerShell tool is **WSL** bash, not Git Bash
+
+`& bash <script>` in a PowerShell-tool call resolves to the WSL launcher on `PATH`, not to Git's shell. When no WSL distro is installed (or its disk is gone) it fails with
+
+```
+Failed to attach disk 'C:\Users\<u>\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu…\ext4.vhdx'
+to WSL2: The system cannot find the file specified.
+Error code: Bash/Service/CreateInstance/MountDisk/HCS/ERROR_FILE_NOT_FOUND
+```
+
+decoded as wide characters, so it arrives as spaced-out garbage. The dangerous part is what *doesn't* arrive: the script never ran, so a `-x` trace comes back **empty**, which reads as "the script exited early" rather than "the script was never executed". Call Git's shell by full path instead — `& 'C:\Program Files\Git\bin\sh.exe' -x <script>` — or route the whole thing through the Bash tool, which is Git Bash. (Cost a probe cycle and a wrong intermediate conclusion about a git hook bailing out.)
+
 ### Allowlist entry syntax and target file
 
 - **The prefix-match wildcard is `<command> *`** — space then asterisk (`Bash(git fetch *)`, `Bash(pwsh -NoProfile -File .claude/scripts/post-pr-review.ps1 *)`). The older `<command>:*` form is obsolete and must not be used in new entries. For an exact-match (no-args) pattern, use no wildcard at all: `Bash(git status)`, not `Bash(git status*)`. Some script headers and doc mentions still show the obsolete `:*` form — correct them when noticed, but never propose a new entry in it.
