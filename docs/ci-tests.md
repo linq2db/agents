@@ -51,6 +51,42 @@ Consequences worth remembering:
 
 One `/azp run` per meaningful change. Do not spam — each run consumes CI capacity.
 
+**Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`agent-rules.md`](agent-rules.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run.
+
+### Scoped pipeline vs `test-all` — the mechanical rule
+
+Match the pipeline to the change's blast radius, but note the genuinely scoped case is narrower than it looks: it is a change whose blast radius maps to **one database** — a provider's SQL builder, dialect, or schema provider. Everything else is `test-all`.
+
+**Any change under `Tests/` gets `test-all`, unless the edited file is a provider-specific test whose fixture only runs for that one database.** This is deliberately mechanical, because the judgment-call version of it was overridden four times:
+
+| Change | Recommended | Actual answer |
+|---|---|---|
+| `Source/LinqToDB.EntityFrameworkCore/` cache key (#5780) | `test-sqlite` + `test-sqlserver` | *"all"* |
+| `Source/LinqToDB.FSharp` + one core comment (#5701) | scoped | *"run test-all"* |
+| `Tests/Base/` lane classification + guard (#5614) | — | `test-all` asked for directly |
+| One `[NonParallelizable]` attribute on `Tests/Linq/Common/DefaultValueTests.cs` (#5614) | `test-mysql` (CI caught it there) | *"trigger all tests, not mysql only"* |
+
+The mechanism behind all four: a test surface living inside the main `Tests.Linq` assembly — the EF fixtures, `FSharpTests`, anything in `Tests/Base/` — **runs in every provider leg by construction**. So "the failure only showed up on MySQL" is evidence of one interleaving, not of scope. Offer the scoped option once with the reasoning, then take the answer without re-arguing it; the pipeline choice is the maintainer's.
+
+### An unreleased provider version's own enablement PR is expected to be red
+
+When a **new provider version's** enablement PR has failing CI for that unreleased version, treat the red job as work-in-progress: don't fix it and don't mass-`[ActiveIssue]`-gate its tests. Maintainer: *"there is no sense to fix something that is not released yet."* Gating dozens of tests is a large diff that buries real signal, and fixing a hard provider limitation burns cycles on work that can wait for the release.
+
+Fix only regressions on **released** versions — those have users. On #5485 the released Firebird 2.5/3/4/5 regression was fixed while Firebird 6's ~130 failures were neither fixed nor gated. This scopes out the *keep digging to the root, gating is a fallback* rule in [`AGENTS.md`](../AGENTS.md), which governs released code.
+
+### CI connection strings come from the tracked `DataProviders.json`
+
+The Azure pipelines resolve connection strings from the **tracked `DataProviders.json`** at repo root — never from the gitignored `UserDataProviders.json` or its `.template`, which are local-dev only. Wiring a new provider version into CI therefore needs **three** additions to `DataProviders.json`, alongside the `Build/Azure/**` config: `CommonConnectionStrings.Connections` (local-style port, e.g. `5419`), `AzureConnectionStrings.Connections` (port **5432** — the CI container maps the provider there), and the bare provider-name list further down. Those lines are column-aligned: clone the latest sibling version's line and change only the version and port, keeping the width equal.
+
+Updating only `UserDataProviders.json.template` plus the `Build/Azure/**/pgsqlNN.json` lists is the failure mode — `test-postgresql` could not find the `PostgreSQL.19` connection string because `DataProviders.json` had no entry.
+
+### Validate pipeline YAML before pushing
+
+Run every changed `Build/Azure/pipelines/**` file through a parser before pushing (`python -c "import yaml; yaml.safe_load(open(f))"`). Two traps make this worth the step:
+
+- **A line-deletion edit can merge adjacent lines.** Removing a line by matching `"\n<line>"` → `""` can consume the trailing newline too, collapsing the next line onto the previous one (`x86: true          ${{ if ... }}:`). Match the line *with* surrounding context so the following line keeps its leading newline, and re-grep for merge signatures (`}}            `, `true          ${{`) after any bulk removal.
+- **The failure surfaces as a YAML-compile error, not a test failure.** A bad template fails at pipeline initialization, so `azp-build-failures.ps1` reports `failedTaskCount: 0` **and an empty timeline**. The real message is in the build's `validationResults`: `Invoke-RestMethod ".../build/builds/<id>?api-version=7.0"` → `.validationResults` (e.g. *"Mapping values are not allowed in this context"* with file:line:col).
+
 ## Posting the comment
 
 `/azp` trigger lines start with `/`, which Git Bash silently path-mangles when passed via `gh … --body "/…"` — the comment posts successfully with a `C:/Program Files/Git/azp …` body and no error from `gh`. See [`agent-rules.md`](agent-rules.md) → **Windows Git Bash gotchas** for the full gotcha. Use `--body-file -` with a stdin heredoc so the leading slash survives:
