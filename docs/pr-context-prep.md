@@ -29,7 +29,7 @@ Output is a single JSON object — see the script's header comment for the exact
 | `pr` | title, body, milestone, base/head refs, draft flag, URL |
 | `currentUser` | ID-continuation floor (which prior reviews are "yours") |
 | `reviews`, `reviewComments`, `issueComments` | prior-finding scan, linked-ref scan |
-| `reviewThreads` | databaseId → thread.id map for `/verify-review` step 7 (see below) |
+| `reviewThreads` | databaseId → thread.id map for `/verify-review` step 7 **and `/review-pr` step 2b thread dispositions** (see below) |
 | `closingIssues`, `linkedRefs`, `linkedIssues` | linked-issue context for the subagent briefing |
 | `diffStat`, `nameStatus`, `commits` | change summary bullets |
 | `headSha`, `headRef`, `baseRef` | passed to subagents and to `post-pr-review.ps1`; **`headSha` is authoritative** — don't re-derive from `git log` / `git rev-parse` |
@@ -37,6 +37,8 @@ Output is a single JSON object — see the script's header comment for the exact
 **Never trust a single `first:N` GraphQL page, and read a count that lands on a round cap as truncation rather than a total.** `pr-context.ps1` paginates each growable connection (threads, comments, reviews) to `hasNextPage=false` — commit `005d494cf` — and that must not be regressed to a bare `first:N`. The failure is silent and inverts the conclusion: on #5468 a `reviewThreads(first:100)` cap dropped the tail of 123 threads, **all 21 open ones were in the dropped tail**, and the review reported "0 unresolved" and skipped real still-open findings. So when an audit reports a suspiciously round thread/comment count, re-query with pagination before concluding anything is clear. Sibling caps that *are* intentional: `closingIssuesReferences(first:20)`, and `comments(first:1)` inside a thread node (the first comment is the finding) — but a `first:N` on a top-level connection is a truncation waiting to happen.
 
 `reviewThreads[]` has one entry per GraphQL review thread on the PR, shape `{ threadId, isResolved, firstCommentId }`. Resolve a REST `comment_id` to its thread by matching `firstCommentId == comment_id` (the first comment's `databaseId` equals the REST listing's `id`). `/verify-review` uses this to drive the step 7 per-finding action table — no separate `gh api graphql reviewThreads` call is needed.
+
+**The output is a projection, not the raw GitHub API shape — and a wrong field access fails silently.** The script flattens and trims what it returns, so paths that work against `gh api` come back empty or throw: `reviews[].user` and `reviewComments[].user` are login **strings** (not objects, so `.user.login` yields nothing), `reviewThreads[]` carries only the four fields named above (no `path`, `line`, `author` or `comments[]`), and `commits[]` uses the script's own key names. In PowerShell a wrong path surfaces as blank columns or `InvalidOperation: You cannot call a method on a null-valued expression`, which reads as a broken script rather than a bad access. When you need a thread's path / author, **join** `reviewThreads[].firstCommentId` to `reviewComments[].id` per the paragraph above — the answer is in the payload you already have. (Surfaced on #5766: three wrong accesses plus a `gh api graphql reviewThreads` re-fetch this doc explicitly says is unnecessary.)
 
 The skill does **not** need to re-run `gh api` / `git` calls for anything the script already returned. Subsequent reads of file content and hunks go through `.claude/scripts/diff-reader.ps1` (see the code-reviewer spec).
 
