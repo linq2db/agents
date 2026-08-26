@@ -11,6 +11,22 @@ Env vars are loaded as global properties before evaluation, but the conditional 
 
 Practical: when an env-var override "didn't work", reach for `-p:`. When invoking docfx, edit `docfx.json` metadata entries' `properties` field. See [`linq2db.docs:build.ps1`](https://github.com/linq2db/docs/blob/master/build.ps1) + `source/docfx.json` for the canonical pattern.
 
+## A `-p:` override *replaces* a list property — it does not append to it
+
+`-p:` winning against conditional project assignments (above) is the same mechanism that makes it dangerous for **list** properties like `NoWarn`, `DefineConstants` or `Polyfill`. A global property cannot be appended to from inside the project, so every `<NoWarn>$(NoWarn);CS0649</NoWarn>` in the tree evaluates `$(NoWarn)` to *your* value and the project's own additions are discarded — silently, because the build fails on something unrelated to what you were suppressing.
+
+Suppressing one analyzer rule to get past a pre-existing failure is where this bites:
+
+- `-p:NoWarn=MA0206` on `Tests/Linq/Tests.csproj` wiped `Directory.Build.props:43`'s list (which carries `1591`) and produced **several hundred CS1591s** across the public test helpers. The one rule was suppressed correctly; the collateral was the whole suppression policy.
+- **`WarningsNotAsErrors` is not a substitute.** It demotes warnings that `TreatWarningsAsErrors` promoted — it cannot touch a rule whose `.editorconfig` severity is already `error` (`dotnet_diagnostic.MA0206.severity = error`). The build fails identically.
+- The shape that works is the **full union**, with `%3B` separators — a bare `;` inside `-p:NoWarn="a;b"` is parsed as a switch separator and dies with `MSB1006: Property is not valid. Switch: <second item>`:
+
+```
+dotnet build <proj> -c Release -f net10.0 -p:NoWarn=1573%3B1591%3B…%3BMA0206
+```
+
+Collect the union from `Directory.Build.props`'s `<NoWarn>` plus every `<NoWarn>$(NoWarn);…</NoWarn>` on the project's props chain (`Tests/linq2db.TestProjects.props`, `Tests/linq2db.Providers.props`). Before reaching for any of this, check whether the failing site is pre-existing (`git diff origin/master...HEAD -- <file>`) — if it is, and it sits in a *dependency* project, it aborts the build of everything downstream, which is a different problem from one extra error in the project you care about.
+
 ## Scoping a shared property or override — sweep the consumers first
 
 A property defined in `Directory.Packages.props` (or any shared props file) reaches a project only where that project *opts in*, and the opt-in shape decides the blast radius. Before adding, narrowing or widening one, enumerate every consumer and state which are affected — don't reason from the project you happen to be editing.
