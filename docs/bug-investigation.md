@@ -108,8 +108,116 @@ The corollary is that a negative result from counters is only a *gate*, not a ve
 counters that killed the batching idea also localised the real cost (38 460 lambda compiles for
 `default(T)`), which was 10× larger and in a different subsystem entirely.
 
+**Once a run shows the candidate is *worse*, stop — don't quantify how much worse.** The magnitude of a
+regression carries no decision value: the change is discarded either way. Re-running it, widening the
+sweep range, or establishing the exact percentage spends real wall-clock on a number nobody will act on
+(a re-sweep to establish "+32%" on #5614's stack-use probing cost ~45 minutes and changed nothing).
+Bound the sweep so a regression bails out cheaply — test the baseline-passing point first, and abandon
+the candidate the moment it fails there. Report *"worse than baseline, discarded"* and move on. Spend
+measurement time only on changes that improve or are neutral, where the size of the gain is what decides
+whether to ship.
+
 Mechanics — writing the benchmark, the traps in this repo's BDN setup, and reading a `dotnet-trace`
 profile — are in [`measuring-query-build.md`](measuring-query-build.md).
+
+## A test's pass/fail is observed, never inferred — including the red baseline
+
+Never state that a test passes **or fails** without having run it. Claiming a repro is "red" by reasoning
+about the bug mechanism is the same error as claiming a fix works by reasoning about the change, and it is
+the easier one to make because the mechanism argument feels like evidence. If you haven't run it, write
+*"expected to fail (not yet run)"* — never "red" / "failing".
+
+The failure mode is concrete: a #5364 connection-leak repro was asserted red, and on execution it
+**passed** — the committed WIP tests did not reproduce the bug at all, so every conclusion drawn from the
+"red baseline" was about a test that was green. This is the red-side complement of the
+[`AGENTS.md`](../AGENTS.md) rule *never claim a fix works on reasoning alone*.
+
+## Confirm a conclusion against the primary artifact, not a tool's self-report
+
+When a conclusion rests on something a tool *reports about itself* — a progress line, a status field, a
+banner, an arch or TFM label — confirm it against the **primary artifact** (the actual command line, the
+config, the invocation) before building on it. Labels report what a tool believes; artifacts report what
+ran.
+
+On #5614 the Microsoft.Testing.Platform `[slow]` line printed `(linq2db.Tests.exe|net462|x86)`, which
+became "the netfx legs are 32-bit" and then a whole reframe on top of it — the OOM family is
+bitness-wide, the `#if NETFRAMEWORK` guard is "really about bitness", a lane cap would fix three legs.
+The real invocation was in the same log: `net462\main\x64\linq2db.Tests.exe`. MTP reports the assembly's
+PE machine type (I386 for netfx AnyCPU), not the process architecture. Maintainer: *"netfx is not x86,
+don't fantasize."* One grep of the same log for the invocation is cheap; the wrong version costs a
+retracted analysis.
+
+## Anchor a log extraction to its query — a global grep answers a different question
+
+A test-run log interleaves many queries: setup, `CreateDatabase`, and the test's own. Grepping globally
+for a header or value pattern and taking the first match — or the distinct set — answers a *different*
+question than the one asked, and the answer is plausible enough to report.
+
+Locate the line for the specific query first (a table name, a distinctive predicate), then walk to its
+associated metadata: `Select-String` for the query to get its `LineNumber`, then scan **backwards** for
+the nearest preceding header. State which query a quoted value came from. Extracting a trace header with
+`grep -o -m 4 -E "^-- SQLite..."` returned `-- SQLite.MS SQLite`, nearly reported as "the custom
+provider's name does not leak into baselines"; anchoring to the test's own query and scanning back gave
+`-- SQLite.MS.MaxInList1 SQLite` — the opposite conclusion. The first match had come from the
+`CreateDatabase` step.
+
+## Empirical + regression-test evidence is the standard for translator engine behaviour
+
+When translator code relies on a documented engine construct for provider-specific null / short-circuit /
+type-coercion behaviour — Access `IIf` short-circuiting around `CStr(NULL)`, Oracle `||` empty-string
+identity, Sybase `''` storage — do **not** raise the absence of a primary-source docs citation as a
+finding. The codebase's definition of "verified" is a regression test that exercises the path, and a
+comment saying *"verified empirically by test X"* is sufficient documentation. Speculative
+"what if a future engine version reverts this" worrying is not a defect; the Access SQL engine has had
+`IIf` short-circuit since 1992. (Raised on #5504 against the Access `IIf` comment and dismissed.)
+
+Flagging **is** warranted for the inverse cases: an *undocumented* engine quirk being relied on ("this
+passes today but isn't documented anywhere"), or behaviour that has been observed to vary across engine
+versions.
+
+## For an unreachable-code finding, prove whether the capability is *needed*
+
+Proving unreachability is half the work. Unreachability alone leaves two live options — wire it up, or
+delete it — and choosing between them is a design call you're handing back to the author. Establishing
+that the behaviour already works *without* the dead code turns the finding into a clean deletion and
+removes the judgement call; establishing that it **is** needed turns it into a real defect rather than a
+cleanliness nit.
+
+So look for existing tests that exercise the shape the dead code claims to serve. If they pass, name the
+path that already provides it and recommend removal. Only propose wiring it up when no existing coverage
+produces the wanted behaviour. On #5750 `MergeProjectionHelper.CanMerge` was reported unreachable with a
+recommendation to let the author wire-up-or-delete; the maintainer's answer was *"well, prove it is needed
+with test first maybe?"* — two existing tests already projected a composite with a divergent member under
+`UNION ALL` on every provider and read both rows correctly via the branch-at-a-time path, so the
+per-member granularity the hook existed for was already there and it became a straight removal of the
+hook, its delegate and its ctor parameter.
+
+## Measure a finding to resolution rather than posting it hedged
+
+When a finding's severity *or existence* turns on an unmeasured question, the probe is the recommended
+option — not "post it with a caveat". A finding that survives only by being demoted is noise: it costs the
+author attention and resolves nothing, whereas a measurement either produces something worth acting on or
+kills it. Offer the probe for out-of-scope observations and low-severity items too, not just in-scope
+findings. On one #5750 walk this happened four times, against a recommendation to just post, every time.
+
+Two consequences:
+
+- **When the probe refutes the premise, propose `drop` — not a downgraded severity.** Refutation and a
+  pushed fix are both valid endings; a hedged comment is not.
+- **Dropping the finding does not always mean dropping the knowledge.** When the refutation rests on a
+  fact that is itself non-obvious, the finding dies but the fact earns a comment at the site — otherwise
+  the next reader re-derives the same suspicion, or "fixes" the correct code. On #5786 an observation that
+  the driver's generated client versions were frozen at the net8.0 branch was refuted (the DB2 10.x
+  packages ship a net10.0-only dependency group, so a `lib/net8.0` driver *must* stay on 9.x); proposed as
+  a clean drop, the answer was *"there still need to be a comment about this pitfall"*. Distinguish this
+  from re-adding the finding as a comment-shaped `SUG`: the comment records **why the code is right**, not
+  a residual doubt that it might be wrong.
+
+**Every probe carries a control that fails if the probe itself is wrong** — same-unit arithmetic beside
+the cross-unit case, a hand-written converter beside the declared one, an inside-the-bound value beside
+the past-the-bound one. On #5750 the controls caught a bad probe twice (a value seeded into a
+`[Duration(Day)]` column truncated to zero; a fluent complex-column mapping that needed validating before
+its result meant anything). Without one, "the feature is broken" and "my probe is wrong" look identical.
 
 ## A narrow-code-path repro looks unbuildable — attempt the contrived mapping anyway
 
