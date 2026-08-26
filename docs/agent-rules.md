@@ -68,6 +68,7 @@ MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` 
 
 - `gh api` rejects a leading-slash endpoint (use `gh api user`, never `gh api /user`).
 - `git show <ref>:<path>` fails with `ambiguous argument` when `<ref>` contains `/` — use `git ls-tree` + `git cat-file -p` instead.
+- **`git ls-tree … -- '<glob>'` does not glob, and an empty result is not absence.** The pathspec matches literal paths / directory prefixes, so `-- '*Foo*'` or `-- '**/Foo*'` exits **0 with no output** even when matching files exist — indistinguishable from "nothing there". Enumerate with `git diff --name-only <base>...<ref>` or `git ls-files`, then filter with `Grep`. This bites hardest right after the rule above sends you to `ls-tree`: on #5764 **both** review subagents hit it in one session, and one concluded "no baseline files exist for either new test" — abandoning an empirical probe — while 100 such files were on the branch.
 - **`gh … --body` is banned.** Always `--body-file <path>` or `--body-file -`. For `/azp run …` triggers use `.claude/scripts/azp-run.ps1`. (`gh … --body @-` is *not* stdin either — it sets the body to the literal string `@-`.)
 - `git fetch <headRefName>` of a fork PR may produce no usable ref — fetch via `refs/pull/<n>/head:refs/remotes/origin/pr/<n>`.
 - Transient `fatal error — add_item (… errno 1)` on fork bursts (and sometimes single sequential calls): retry once; if it recurs, switch to the PowerShell tool rather than retry-looping.
