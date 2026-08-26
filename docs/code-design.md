@@ -50,6 +50,30 @@ A fix scoped to a helper / peripheral API (e.g. `ToSqlQuery`'s by-name `Query<T>
 
 An opt-in companion interface extending an existing public contract (e.g. a schema-aware extension of `IMetadataReader`) defaults to **public, in the same namespace as the contract it extends** — not `LinqToDB.Internal.*`, and not `InternalsVisibleTo` (the repo uses none). An extension seam that third parties may implement has no value hidden; it is part of the same contract surface. (User decision on #5675, overriding a proposed `Internal.Metadata` placement: "no value in hiding it".) This does not soften the SQL AST rule below — AST construction types are *not* extension seams and MUST stay in `LinqToDB.Internal.SqlQuery`.
 
+### Never `InternalsVisibleTo` — widen to public in an `Internal.*` namespace
+
+linq2db deliberately carries **no** `[assembly: InternalsVisibleTo(...)]`, and none should be added — not even to give tests access to an `internal` type. IVT makes a member look reachable from a test while it stays unavailable to real consumers, so the test proves something about an accessibility level the product doesn't offer.
+
+When a test needs an `internal` cache or primitive, either widen the type to `public` inside its `Internal.*` use-at-your-own-risk namespace (`QueryCache` is a `public sealed class` in `LinqToDB.Internal.Linq` for exactly this reason — add the `PublicAPI.Unshipped.txt` entries), or expose a purpose-built public diagnostic such as `Tools.GetCacheEntryCounts()`. This is the same reasoning as **Provider-called core methods are public, not internal** above, arriving from the test side.
+
+### Propose the minimal API surface first
+
+When adding public API, propose the **minimal viable surface** — the one or two methods that satisfy the cited issue — then list the *possible* further overloads and ask which to keep before writing them. Do not build out full symmetric overload sets (sync × async × `IDataContext` × `IQueryable` × projected × non-projected × update × delete) up front.
+
+Over-building costs review rounds and `PublicAPI.Unshipped.txt` churn, and the surplus gets cut: 16 proposed `ConcurrencyExtensions` overloads on #5642 were trimmed to 4 (update write-back only) over three rounds, each group questioned in turn. **Don't grow core builder API for a helper-only fix** above is the same preference applied to core surface.
+
+### New API parameters take the weakest useful type
+
+For a **new** public API parameter, prefer the weakest useful type — `IEnumerable<T>` over `T[]` — and fold an optional second dimension into `params` so two overloads collapse into one. Materialize to an array inside the method for query-cache stability.
+
+An **already-shipped** parameter type can't change (an existing `params Type[]` overload stays), but a new sibling is free to use the weaker type. On #5525 this collapsed `IgnoreFilters(string[])` + `IgnoreFilters(string[], Type[])` into a single `IgnoreFilters(IEnumerable<string> filterKeys, params Type[] entityTypes)`.
+
+### Throw when a provider can't honour the contract — don't degrade to best-effort
+
+When a provider cannot honour an API's documented contract, make the API **throw / report unsupported** for that provider rather than silently falling back to a best-effort heuristic. A path that can't guarantee the contract returns misleading results, which is worse than an explicit failure.
+
+Prefer the **broad** throw over the narrow one: on #5643 `UpdateOptimisticWithRefresh`, a no-rowcount `SELECT` fallback mutated the entity yet returned the documented `0`-means-concurrency-failure sentinel, and the verify-by-written-columns fallback was itself unreliable (async ClickHouse mutations read pre-apply). The resolution was to throw `LinqToDBException` — *before* executing any `UPDATE` — whenever the provider supports neither `OUTPUT`/`RETURNING` nor a reliable affected-rows count, deleting the whole best-effort path. Maintainer: *"such databases too broken to use concurrency api — we shouldn't try to do best-effort when it is not guaranteed."*
+
 ### `IsDependsOnSources` ignore-set doesn't cover field/column refs
 
 `QueryHelper.IsDependsOnSources(expr, onSources, sourcesToIgnore:)` applies `sourcesToIgnore` only on the **direct `ISqlTableSource`-element** match path. The `SqlField` / `SqlColumn` paths — how predicates actually reference tables — check `OnSources.Contains(field.Table)` / `Contains(column.Parent)` **without** consulting `sourcesToIgnore`. So `sourcesToIgnore` does *not* subtract a table a predicate reaches through a field, and `IsDependsOnSources(pred, [t], sourcesToIgnore: [t])` still returns true.
@@ -92,6 +116,28 @@ public class SqlServer2022MemberTranslator : SqlServer2017MemberTranslator
 ```
 
 Each subclass inherits everything from its lower-version parent and only overrides the methods whose translation actually changed in that version. When two providers gained the same capability in equivalent versions (e.g. MySQL 8 + MariaDB 10 both got `REGEXP_REPLACE`), the data provider's switch can route both versions to the same subclass — no need to create a dedicated subclass that just inherits with no body. A `MariaDB10MemberTranslator : MySql80MemberTranslator {}` empty-body class is non-idiomatic; collapse it into `MySql80 or MariaDB10 => new MySql80MemberTranslator()` in the dispatch instead.
+
+### Never branch provider logic on `ContextName`
+
+`IDataContext.ContextName` defaults to `DataProvider.Name` but is **user-settable**, so it is not a provider identifier. Never branch provider or capability logic on it — no `ContextName.StartsWith("SqlServer")`-style matching, no capability lists keyed by context name. A renamed or custom-named context silently takes the wrong branch, with no error to show for it.
+
+For a per-provider capability use a `SqlProviderFlags` bool (`dc.SqlProviderFlags.X`, and see the next section); for provider identity use the name on `IDataProvider`. (Applied on #5643: a `ConcurrencyOutputSupport` list keyed off `ContextName` was replaced by `SqlProviderFlags.IsUpdateOutputSupported`.)
+
+### A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test
+
+When a feature needs to know whether a provider supports something, expose it as a `SqlProviderFlags` bool set per-provider **and** add a test that probes the provider's actual runtime behaviour and asserts the flag equals the probe result. An unenforced flag is rejected — maintainer: *"adding flag when it is not enforced on implementation is not a good idea"* — because a bool nothing verifies drifts as providers change, silently. The probing test makes divergence fail loudly.
+
+Adding a flag means updating, in `SqlProviderFlags.cs`: the property (`[DataMember(Order = N)]`, next free order), the `GetHashCode` chain, and the `Equals` chain — plus a `PublicAPI.Unshipped.txt` get/set entry. Then set it `= true` in each supporting provider's `*DataProvider` constructor. `IsUpdateOutputSupported` is the worked example.
+
+### Don't pioneer a provider feature with no cross-provider precedent
+
+Before building a provider-specific translation, grep the other providers' translators for the same member or feature. Precedent → mirror it. No precedent → surface that and default to **not** building it.
+
+Firebird 6 server-side `DateTime.ToString(format)` (`CAST … FORMAT`) was dropped on exactly this ground — no provider translates arbitrary date format strings server-side, every one falls back to client-side, so doing it for one provider would be a no-precedent, format-token-mapping lift with no cross-provider value. Maintainer: *"if it is not implemented by other providers - don't do it."* This is the provider-feature form of preferring the least-invasive resolution.
+
+### A cross-provider capability found mid-PR becomes its own feature request
+
+When work on a provider-scoped PR surfaces a capability that really spans providers, keep the PR provider-scoped and file the capability separately — describing the new API, which providers support it server-side, and the fallback. Firebird 6's `GEN_UUID(7)` suggested UUIDv7 support during #5483/#5485, but `Guid.CreateVersion7()` + a `Sql.NewGuid7` API is cross-provider; it was split out as #5646. This mirrors the *distinct shared-engine fix gets its own branch/PR* rule in [`AGENTS.md`](../AGENTS.md), applied to features rather than fixes.
 
 ### Use `MemberHelper.MethodOf` for expression-tree `MethodInfo` capture
 
