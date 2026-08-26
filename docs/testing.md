@@ -27,6 +27,22 @@ dotnet test --project Tests/Tests.Playground/Tests.Playground.csproj --filter "F
 
 Reach for the full `Tests/Linq/Tests.csproj` only when the test target spans many files that would require a wide playground link, or when running a broad filter (e.g. an entire test class).
 
+**To capture a probe's output, write it to a file and `Read` it.** The MTP runner buffers `TestContext.Out` and console output, so stdout capture from a playground probe comes back **empty** — `File.WriteAllText` the result to `.build/.agents/<name>.txt` instead. This is what makes raw-SQL probing practical (`db.Query` / `db.Execute` straight into a file).
+
+**A playground probe can bypass linq2db entirely and hit a provider's driver.** Every provider's ADO package is available there via `linq2db.TestProjects.props` → `linq2db.Providers.props` (net8+: `DuckDB.NET.Data.Full`, Oracle, `Octonica.ClickHouse`, `Ydb.Sdk`, …), so a scratch repro can construct the driver connection directly — `new DuckDB.NET.Data.DuckDBConnection(...)` — with no `TestBase` and no `DataProviders.json`. Use it to pin a pure SQL/driver-level bug apart from the ORM (#5710's DuckDB sequence collision was confirmed this way).
+
+**Match the provider to the issue's stated domain, not to whatever is already enabled.** Verifying a PostgreSQL JSONB concern against DuckDB because DuckDB happened to be enabled is a category error — the verification only carries weight on the provider the bug lives on, and enabling the right one via `/test-providers` is faster than running an irrelevant test and then defending it. Provider-*agnostic* concerns (a translator heuristic affecting everything) can still take the simplest provider, normally SQLite.
+
+**Benchmarks go in `Tests/Tests.Benchmarks/`, never a hand-rolled `Stopwatch` loop.** The repo has a BenchmarkDotNet harness (`Benchmarks/Queries/CacheActivityBenchmark.cs` is the shape) that gives warmup, statistics and multi-TFM runs; an ad-hoc `[Test]` with a `Stopwatch` in `Tests/Linq` or the playground is noisy and pollutes the test project. Add a `[MemoryDiagnoser]` / `[Benchmark]` class instead — and still gate the timing run on user confirmation.
+
+```bash
+dotnet run -c Release --project Tests/Tests.Benchmarks/linq2db.Benchmarks.csproj -f net10.0 -- --filter '*Name*'
+```
+
+Force `InProcessEmit` in the benchmark's `[Config]` (`Job.Default.WithToolchain(InProcessEmitToolchain.Instance)`) — the child-process multi-runtime jobs (net462/8/9) fail in the AV-restricted local environment and report `NA`; they run on CI. Don't re-add `MarkdownExporter.GitHub`, which the global `Config.Instance` already registers (BDN warns on the duplicate).
+
+**YDB keyless-table failures take a plain `[PrimaryKey]`, applied to every provider.** When a fixture's local table fails on YDB with *"Primary key is required for ydb tables"*, add `[PrimaryKey]` to a suitable unique column — do **not** scope it as `[PrimaryKey(Configuration = ProviderName.Ydb)]`. A PK on a unique column doesn't change query results anywhere, so the provider-scoped attribute is unnecessary complexity. Pick a genuinely unique column: `Id` often carries intentional duplicates in `DistinctBy` / `CountBy`-style tests, so reach for `Date` or a composite. Write `[PrimaryKey]` alone, never `[Column, PrimaryKey]` (it already implies the column mapping), and add no comment when the key lands on an obvious `Id` — only when the choice is non-obvious.
+
 **Targeted repro in a worktree — run the MTP exe directly.** `dotnet test --project <path>` can fall back to the legacy VSTest MSBuild target (error: `MSB1001: Unknown switch … --project … --target:VSTest`) when the new-`dotnet test` opt-in isn't resolved for that invocation — e.g. a relative `--project` pointing into a `git worktree` from another checkout's cwd. For a focused run, skip `dotnet test` and invoke the built test executable directly with MTP options:
 
 ```bash
