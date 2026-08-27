@@ -37,6 +37,14 @@ Input (named parameters):
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
                            Default: <cwd>/.build/.agents/worktree-test-<project>[-<tfm>].log
+  -SerialBuild             optional; build first as its own step, with -m:1
+                           -p:UseSharedCompilation=false, to <LogPath>-build.log.
+                           Reach for it when a run is killed mid-flight leaving an
+                           empty log: on a loaded box the implicit parallel build
+                           dies repeatedly where the serial one does not, and
+                           splitting the steps makes the next kill diagnosable -
+                           which log is empty says which step died. Slower, so
+                           it is opt-in.
 
 Output (stdout, single JSON object):
   {
@@ -66,7 +74,8 @@ param(
     [string]$Filter,
     [string[]]$Provider,
     [string]$Configuration = 'Debug',
-    [string]$LogPath
+    [string]$LogPath,
+    [switch]$SerialBuild
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -94,6 +103,39 @@ if (-not $LogPath) {
 
 if (-not [System.IO.Path]::IsPathRooted($LogPath)) {
     Exit-WithError -Message "LogPath must be absolute (the run's cwd is the worktree): $LogPath" -NextAction 'pass -LogPath <absolute path>'
+}
+
+$buildLogPath = $null
+
+if ($SerialBuild) {
+    $buildLogPath = $LogPath -replace '\.log$', '-build.log'
+    $buildArgs    = @('build', $projectFull, '-c', $Configuration, '-m:1', '-p:UseSharedCompilation=false')
+    if ($Tfm) { $buildArgs += @('-f', $Tfm) }
+
+    Push-Location -LiteralPath $repoFull
+    try {
+        & dotnet @buildArgs *> $buildLogPath
+        $buildExit = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($buildExit -ne 0) {
+        [ordered]@{
+            ok           = $false
+            exitCode     = $buildExit
+            buildFailed  = $true
+            repoRoot     = $repoFull
+            project      = $Project
+            logPath      = $buildLogPath
+            buildLogPath = $buildLogPath
+            summary      = $null
+            failedTests  = @()
+        } | ConvertTo-Json -Depth 5
+
+        exit 1
+    }
 }
 
 $dotnetArgs = @('test', '--project', $projectFull, '-c', $Configuration)
@@ -151,11 +193,12 @@ if (Test-Path -LiteralPath $LogPath) {
     ok          = ($exitCode -eq 0)
     exitCode    = $exitCode
     buildFailed = $buildFailed
-    repoRoot    = $repoFull
-    project     = $Project
-    logPath     = $LogPath
-    summary     = $summary
-    failedTests = @($failedTests | Select-Object -Unique)
+    repoRoot     = $repoFull
+    project      = $Project
+    logPath      = $LogPath
+    buildLogPath = $buildLogPath
+    summary      = $summary
+    failedTests  = @($failedTests | Select-Object -Unique)
 } | ConvertTo-Json -Depth 5
 
 if ($exitCode -ne 0) { exit 1 }
