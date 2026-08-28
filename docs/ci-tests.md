@@ -178,6 +178,22 @@ Reading the result:
 - **`test-all` runs only on `/azp run test-all`**, so the series is sparse and interleaved across different PRs' merge commits — check `branch` / `sha` before treating two builds as comparable.
 - Dropping `-WithTestCounts` and widening `-JobFilter` to `Tests:` answers "which legs are actually slow?" — worth doing before accepting any claim about a provider's relative cost. (On #5754 that ranked the DB2 leg 35th of 54 jobs, against a PR body calling it "by far the slowest provider".)
 
+#### When the claim is about *ordering*, not duration — `-Offsets`
+
+A CI-shape PR mostly claims things a duration column cannot express: *"the long legs were starting last and finishing alone"*, *"job A finishes before job B, so its dependents are not delayed"*, *"leg X started N minutes in and became the tail on its own"*. Those are **start offsets within one build**. Pass `-BuildId <n>[,<n>]` with `-Offsets` and a broad `-JobFilter`:
+
+```
+pwsh -NoProfile -File .claude/scripts/azp-job-durations.ps1 -BuildId 23050 -Offsets
+pwsh -NoProfile -File .claude/scripts/azp-job-durations.ps1 -BuildId 23024,23068 -JobFilter x86 -Offsets
+```
+
+Each record gains `startOffset` / `endOffset` in minutes, and `builds[]` reports the build's `origin`, `span` and `partialRerun`. Two traps the mode exists to encode, both of which otherwise yield confident nonsense:
+
+- **The origin is `min(job startTime)`, never the build's own `startTime`.** A build that was partially re-run carries a `startTime` *later* than its surviving job records, so build-relative offsets come out **negative**. Build 23063 measured a 305.9-minute span and a `Build` job finishing 218 minutes "before" the build began, against a real 148.4-minute end to end — `partialRerun: true` is the tell, and a flagged build's span is not comparable with an unflagged one's.
+- **A job's `displayName` can be renamed mid-branch**, and an exact-name filter then reports the job as *absent* from the earlier builds rather than renamed. Filter on the stable fragment (`x86`, not `Build (win-x86)`). On #5819 the job was `Build (win-x86 test artifacts)` until a later commit shortened it, and an exact filter made two builds look like they predated the job entirely — which would have turned a correct comment in the PR into a bogus finding.
+
+`azp-build-failures.ps1` cannot substitute here: it is failures-only and has nothing to say about a green build, which is the normal state of a build whose *timing* you are checking.
+
 ## Is a CI failure PR-introduced or pre-existing?
 
 **Check the PR's own earlier `test-all` runs first.** When the PR has been CI'd before, a previous green run on the same branch is the strongest and cheapest baseline available — same base, same matrix, so any new failure belongs to the commits added since, with none of the like-for-like reasoning the cross-PR comparison below needs. The `check-runs` recipe further down resolves only the *latest* build, so list the definition's history and filter by branch instead:

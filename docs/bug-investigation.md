@@ -136,14 +136,32 @@ dir at `.git/worktrees/<id>/modules/<name>` on git 2.55, leaving the shared `cor
 — refuting a long-standing corpus warning; and `submodule update --init` leaves a detached HEAD whose
 commits are orphaned on the next attach.
 
-Two traps that cost runs, both worth pre-empting:
+**The same fixture is the red regression test for a CI / shell / git change, which usually has no other one.**
+Read the heading as covering this too: the trigger is not only "what does git do in the abstract" but "what
+does *this* command sequence do to the repository". A pipeline step's logic — clone, add, commit, push,
+rebase-on-rejection — cannot be unit-tested, and its interesting cases are races CI will not reproduce on
+demand, so a scratch origin is the only way to make a suspicion red before proposing a fix. Assert on the
+resulting refs and file **contents**, not just exit codes: the failure worth catching is the one where every
+command succeeds and the tree is wrong. Build the *disjoint* case deliberately — if the file the probe writes
+is also the file the other actor wrote, a loss is invisible. (On #5819 three replays covered a change that the
+PR's green `test-all` could not exercise at all: the `--sparse` clone + `git add --sparse -A` pairing,
+including the new-file and new-directory cases the PR's own verification run had no way to reach; a
+shallow-clone rebase race that silently reverted a baseline an earlier leg had pushed, found only once the
+probe used files the two legs did not share; and the one-token fix, confirmed over two rejection rounds.)
+
+Three traps that cost runs, all worth pre-empting:
 
 - **A local-path submodule needs `protocol.file.allow`, propagated to *child* git processes.** `git submodule
   update` spawns `git clone` in a separate process, and **repo config is not inherited** — only `-c` /
   `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_0` + `GIT_CONFIG_VALUE_0` reach the child. Writing
   `protocol.file.allow` into the superproject's `.git/config` looks right and fails with
   `fatal: transport 'file' not allowed`.
-- **Distinguish a fixture artifact from the defect under test.** The trap above surfaced *through* the hook
+- **`--depth` is silently ignored for a local-path clone.** `git clone --depth 1 /path/to/fixture` prints
+  `warning: --depth is ignored in local clones; use file:// instead` and clones the full history — so a probe
+  aimed at *shallow* behaviour tests nothing while appearing to pass, and a shallow-specific defect reads as
+  refuted. Use a `file:///…` URL. Same class as the trap above: a local-path fixture quietly behaving unlike
+  a real remote.
+- **Distinguish a fixture artifact from the defect under test.** The first trap surfaced *through* the hook
   under test, whose swallowed stderr reported only "offline or clone failed" — so a fixture problem
   presented as a hook defect and sent the investigation the wrong way. When the thing you're testing
   swallows errors, unwrap them in the fixture (run the inner command directly) before believing a failure.
