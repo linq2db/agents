@@ -75,6 +75,21 @@ Surfaced 2026-05-06 during PR #5467 review posting against `POST /repos/{o}/{r}/
 
 To read a file's content at a specific ref / PR, request the raw bytes: `gh api "repos/linq2db/linq2db/contents/<path>?ref=<ref>" -H "Accept: application/vnd.github.raw"` returns the file verbatim, no base64. Reaching for `--jq '.content'` and decoding is the trap — the `contents` API base64-wraps `content` every 60 chars, and piping that into `ForEach-Object` / a decode splits it per line so each fragment decodes to garbage (same pipe-splitting mechanism as the `.body` trap above). If you must decode `.content`, capture it to a variable and strip whitespace before a single decode (`[Convert]::FromBase64String($c -replace '\s','')`); never pipe it line-by-line. (For a ref containing `/` — e.g. `refs/pull/<n>/merge` — the `?ref=` query form works where `git show <ref>:<path>` fails on the slash; see [`agent-rules.md`](agent-rules.md) → *Windows Git Bash gotchas*.)
 
+### `compare` caps `files` at 300 and does not paginate — count from a local clone
+
+`gh api repos/<o>/<r>/compare/<base>...<head>` truncates its `files` array at **300 entries** and gives no signal that it did. The `ahead_by` / `total_commits` fields stay accurate, so nothing in the payload contradicts the file list, and `per_page` / `page` do **not** page through it — `?per_page=100&page=2` comes back with `files: null`, which reads as "that was all of them" rather than "this endpoint does not support what you asked".
+
+The failure is quiet and plausible: a truncated answer of exactly `300 added, 0 modified, 0 deleted` looks like a real census, and a round number is not suspicious on a repo whose diffs are per-provider fan-outs. Any conclusion drawn from it — *"the change moved no SQL"* — is unsupported, because a `modified` entry could sit anywhere past the cut.
+
+When the count itself is the claim, diff a local clone instead:
+
+```
+git -C <clone> fetch origin <base> <head>
+git -C <clone> diff --name-status origin/<base>...origin/<head> | cut -c1 | sort | uniq -c
+```
+
+Hit on #5818 counting `linq2db.baselines` — the endpoint said 300, the clone said **467, all added**. Baselines comparisons cross the cap routinely (one test × ~68 providers), so treat the API count as an upper-bound probe there and the clone as the answer; `baselines-reviewer` reads the clone for the same reason.
+
 ### Wording discipline
 
 Issue bodies, PR bodies, review comments, and replies are terse and fact-dense — a record of what changed and why, not a place for framing, apologies, or summaries of what the diff already shows.
