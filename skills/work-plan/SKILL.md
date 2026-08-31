@@ -17,7 +17,8 @@ Block semantics, tiers, and the location rule are canonical in [`work-plan.md`](
 - **Fillable template**: `.claude/docs/work-plan-template.md`
 - **Gate ids** (`G-01`…`G-08`): `.claude/docs/definition-of-done.md` — the plan records results, it does not define gates
 - **Critic agent contract**: `.claude/agents/plan-critic.md`
-- **Script**: `.claude/scripts/work-plan.ps1` — `-Action init | validate | gates | reconcile`
+- **Gap-attributor contract** (the review-side feedback loop): `.claude/agents/review-gap-attributor.md`
+- **Script**: `.claude/scripts/work-plan.ps1` — `-Action init | validate | gates | reconcile | gap-report`
 - **Cross-cutting core trigger for Tier L**: `.claude/rules/cross-cutting-core.md`
 - **Branch rules + slug format**: `.claude/docs/agent-rules.md` → *Creating a new branch*
 - **Corpus commit rules**: `.claude/docs/agent-rules.md` → *The corpus is a submodule*
@@ -28,6 +29,7 @@ Block semantics, tiers, and the location rule are canonical in [`work-plan.md`](
 - `/work-plan <key-or-branch>` — target an explicit key.
 - `/work-plan amend` — record a `P11` amendment on an existing plan.
 - `/work-plan check` — run `-Validate`, `-Gates` and `-Reconcile` and report.
+- `/work-plan postmortem` — render the gap ledger a review produced and route its durable fixes.
 
 Invoked directly, or by `/fix-issue` after the branch exists and existing test coverage has been mapped.
 
@@ -79,6 +81,8 @@ This is the step that stops a design that violates an already-enforced rule.
 - Is this flag defaulted in more than one `SqlProviderFlags` initializer?
 - Does a `LinqService` remote contract or a serialized enum carry this shape?
 - Is there an `Insert`/`Update` or read/write pair where only one side is in scope?
+
+**When the change adds a member to a type-keyed or enum-keyed set, sweep the *helpers*, not just the `switch` statements.** A `case <Enum>.` / `<x> switch` sweep finds the dispatch sites and reads as complete — but the sites that go missing are type-keyed **helper methods**: a `GetXxx` mapping a node kind to a value, a lookup table, a dictionary or `HashSet` keyed by the enum, an `if (x is A or B or C)` chain. They compile fine with the new member absent and answer wrong at runtime. Require the scout to name which *kind* of site each search covered, so "no missed dispatch site" cannot stand in for "no missed consumer". (Measured on the #5750 backtest: the plan and the critic both swept `case QueryElementType.` and `<x> switch`, both reported the dispatch map complete, and both missed `GetDbDataTypeImpl` — where four new AST nodes' declared `DbDataType` was silently replaced by the mapping-schema default. It was filed as a real review finding.)
 
 Frame each so **"I couldn't find it" is a valid answer** (agent-rules → *Frame subagent prompts to allow failure*), and require a `file:line` per finding plus the exact pattern searched. A scout that reports "localized" without naming its search has not answered.
 
@@ -145,6 +149,16 @@ Report: key + path, tier, critic verdict, `P6` edit-point count, applicable gate
 2. Add an `A-n` entry to `P11` carrying the rationale, and say plainly that the affected approval is void and must be re-earned.
 3. **At Tier L, re-dispatch the critic on the delta** when the amendment widens `P6` or adds an area, and append the verdict to `P12`. A whole-plan re-critique for a one-row amendment is waste; skipping it entirely is how prose added after the single critic pass ships unattacked.
 4. Re-run `-Action validate`.
+
+## Mode: postmortem
+
+After a review has produced a gap ledger (`/review-pr` step 7c writes `.claude/plans/<key>/gaps.md`), `/work-plan postmortem` renders it and routes its recommendations.
+
+1. `work-plan.ps1 -Action gap-report -Key <key>` — counts per class, the dominant actionable class, and the unpreventable ratio.
+2. Read the ledger's `## Recommended durable fixes` and walk them **one per turn**, per the interactive-review rule in [`agent-rules.md`](../../docs/agent-rules.md) → *Batching and user interaction*. Each goes to one of: the scout brief (step 5 above), an attack vector in [`plan-critic.md`](../../agents/plan-critic.md), a block's semantics in [`work-plan.md`](../../docs/work-plan.md), a [`definition-of-done.md`](../../docs/definition-of-done.md) gate, or a `code-reviewer` rubric rule.
+3. Anything the user accepts is a **corpus** edit — route it through `/session-reflect`'s `plan-rule` bucket rather than editing in place from here, so it lands with the rest of the session's captures.
+
+**A `GAP-10`-dominant ledger means cut the ceremony, and that outcome must be reported as-is.** The script flags it. Do not respond by adding another search discipline to a design pass that the evidence says is not paying for itself on this shape of work — say so, and propose lowering the tier or dropping the plan requirement for that class of change.
 
 ## Mode: check
 

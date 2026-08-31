@@ -5,6 +5,7 @@
 #   -Action validate   schema completeness; ok=false with per-block errors
 #   -Action gates      derive the applicable definition-of-done gate subset from P6
 #   -Action reconcile  report changed files that no P6 edit-point authorizes
+#   -Action gap-report render .claude/plans/<key>/gaps.md as counts + dominant class
 #
 # Schema and block semantics: .claude/docs/work-plan.md
 #
@@ -15,7 +16,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('init', 'validate', 'gates', 'reconcile')]
+    [ValidateSet('init', 'validate', 'gates', 'reconcile', 'gap-report')]
     [string] $Action,
 
     [string] $Key,
@@ -475,6 +476,90 @@ function Invoke-Reconcile {
     if (-not $ok) { exit 1 }
 }
 
+# ---------------------------------------------------------------- gap-report
+
+function Invoke-GapReport {
+    param([string] $PlanKey)
+
+    $gapsPath = Join-Path (Join-Path $PlansRoot $PlanKey) 'gaps.md'
+    if (-not (Test-Path -LiteralPath $gapsPath)) {
+        Exit-WithError -Message "no gap ledger at $gapsPath" `
+                       -NextAction 'run review-gap-attributor after a review and write its output there'
+    }
+
+    $lines = @([System.IO.File]::ReadAllLines($gapsPath))
+    $rows  = @()
+    foreach ($l in $lines) {
+        $t = $l.Trim()
+        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*\s*[-—]+\s*(.+)$') { continue }
+        $id   = $Matches[1]
+        $rest = $Matches[2]
+
+        $cls         = $null
+        $gate        = $null
+        $preventable = $null
+        if ($rest -match '^not-a-gap:\s*([a-z0-9-]+)') {
+            $cls = 'not-a-gap: ' + $Matches[1]
+        }
+        elseif ($rest -match '(GAP-\d+)') {
+            $cls = $Matches[1]
+            if ($rest -match '(G-\d+)')                              { $gate        = $Matches[1] }
+            if ($rest -match 'preventable:\s*(yes|partly|no)')       { $preventable = $Matches[1] }
+        }
+        else { continue }
+
+        $rows += [ordered]@{ id = $id; class = $cls; gate = $gate; preventable = $preventable }
+    }
+
+    if ($rows.Count -eq 0) {
+        Exit-WithError -Message "no parseable attribution rows in $gapsPath" `
+                       -NextAction 'each row must read: - **<ID>** - <GAP-nn> - <detail> - <G-nn | -> - preventable: yes|partly|no'
+    }
+
+    $byClass = @{}
+    foreach ($r in $rows) {
+        if (-not $byClass.ContainsKey($r.class)) { $byClass[$r.class] = 0 }
+        $byClass[$r.class] = $byClass[$r.class] + 1
+    }
+    $counts = @($byClass.GetEnumerator() | Sort-Object -Property Value -Descending |
+        ForEach-Object { [ordered]@{ class = $_.Key; count = $_.Value } })
+
+    # The dominant class ignores the not-a-gap outcomes: those are findings about
+    # the adjudication, not about the design pass. GAP-10 is excluded from the
+    # ranking unless it *strictly* outnumbers every actionable class - it is the
+    # floor, so on a tie the class someone can actually act on wins. Ties among
+    # actionable classes break by id so the output is deterministic.
+    $unpreventable = @($rows | Where-Object { $_.class -eq 'GAP-10' }).Count
+    $actionable    = @($counts | Where-Object { $_.class -like 'GAP-*' -and $_.class -ne 'GAP-10' } |
+        Sort-Object -Property @{ Expression = 'count'; Descending = $true }, @{ Expression = 'class'; Descending = $false })
+
+    $dominant = $null
+    if ($actionable.Count -gt 0) { $dominant = $actionable[0].class }
+    if ($unpreventable -gt 0 -and ($actionable.Count -eq 0 -or $unpreventable -gt $actionable[0].count)) {
+        $dominant = 'GAP-10'
+    }
+
+    $ratio = if ($rows.Count -gt 0) { [math]::Round($unpreventable / $rows.Count, 2) } else { 0 }
+
+    $signal = $null
+    if ($ratio -ge 0.6) {
+        $signal = 'GAP-10 dominates - the design pass is not earning its cost on this shape of work. Cut the ceremony rather than defending it.'
+    }
+
+    Write-JsonOutput ([ordered]@{
+        ok                 = $true
+        action             = 'gap-report'
+        key                = $PlanKey
+        path               = $gapsPath
+        findings           = $rows.Count
+        dominantClass      = $dominant
+        unpreventableRatio = $ratio
+        calibrationSignal  = $signal
+        counts             = @($counts)
+        rows               = @($rows)
+    })
+}
+
 # ---------------------------------------------------------------- dispatch
 
 $repoRoot = Get-RepoRoot
@@ -484,5 +569,6 @@ switch ($Action) {
     'init'      { Invoke-Init      -PlanKey $planKey -RepoRoot $repoRoot }
     'validate'  { Invoke-Validate  -PlanKey $planKey }
     'gates'     { Invoke-Gates     -PlanKey $planKey }
-    'reconcile' { Invoke-Reconcile -PlanKey $planKey -RepoRoot $repoRoot }
+    'reconcile'  { Invoke-Reconcile  -PlanKey $planKey -RepoRoot $repoRoot }
+    'gap-report' { Invoke-GapReport  -PlanKey $planKey }
 }

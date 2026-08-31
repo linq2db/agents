@@ -275,6 +275,21 @@ When `code-reviewer` returned a non-empty `out_of_scope_observations[]`, decide 
 
 This explicit gate **replaces** the old "file separately when investigation is warranted" auto-heuristic — the choice to promote, track, or leave is always the user's, per observation. When the array is empty, skip this step. Apply the dispositions, then proceed to step 8 with the reshaped `findings[]` and `out_of_scope_observations[]`. **In `interactive` mode this gate is *deferred* into the mode-choice walk** — the OOS observations are walked one-by-one alongside the findings (per `review-orchestration.md` → **interactive mode**), each offered the fuller testable-first action set (prove-with-test+fix / fix) in addition to the promote / track-issue / leave-as-FYI choices above; do not pre-disposition them here in that mode. In `submit-all` / non-interactive mode, disposition them up-front here as described.
 
+### 7c. Attribute the findings back to the design (gap ledger)
+
+Default **on** whenever the pass produced ≥1 finding. Run it *here* — after 7b, so promotions are settled and the finding set is final, but **before** the body is assembled, because the aggregate changes how the user reads the report: *"8 of 11 are impact-map misses"* is a different message from eleven separate defects.
+
+Dispatch **one** [`review-gap-attributor`](../../agents/review-gap-attributor.md) with the final findings, the branch's work plan in full (including `P10` and `P11`), the `P9` gate results, and the diff. Write its output verbatim to `.claude/plans/<key>/gaps.md`, then render the aggregate with `work-plan.ps1 -Action gap-report -Key <key>`.
+
+**Run it even when the branch has no plan.** That is the most informative case, not a reason to skip: the attributor names, per finding, the block that *would* have carried it, which is the only direct measurement of what the mechanism is worth on real work. Say so in one line and pass the "no plan" flag.
+
+Two failure modes to watch for in its output, both of which make the ledger worse than useless:
+
+- **It must not re-review.** An attribution that argues a finding is wrong, or proposes a different fix, has reopened an adjudicated report. Drop those rows.
+- **`GAP-10` must name what was unknowable.** A `GAP-10` that just says the planner couldn't have known is a `GAP-02` nobody identified. But a *genuinely* `GAP-10`-dominant ledger is the signal to **cut the ceremony** for this shape of work — the script flags it — and that is a real result to report, not one to argue with.
+
+The recommended durable fixes route to `/session-reflect`'s `plan-rule` bucket. Do not apply them from inside the review — surface them and let the user decide.
+
 ### 8. Assemble the review body
 
 Use the body structure defined in `.claude/docs/review-conventions.md` → **Output body structure**. No legend table — reviewers who need abbreviation meanings consult the conventions doc.

@@ -160,10 +160,37 @@ draft ──authored──> critiqued ──> approved ──> implementing ─�
 |---|---|---|
 | `/work-plan` | all | all |
 | `plan-critic` | `P1`–`P9` | nothing (read-only; the skill records `P12`) |
-| `/review-pr`, `/verify-review` | `P1`–`P3` (intent), `P7` (coverage), `P10` (do-not-flag), `P11`, `P12` | dispositions fold back into `P10` / `P11` |
-| `work-plan.ps1` | `P4`, `P6`, `P7`, `P8`, `P12` | scaffold only |
+| `/review-pr`, `/verify-review` | `P1`–`P3` (intent), `P7` (coverage), `P10` (do-not-flag), `P11`, `P12` | dispositions fold back into `P10` / `P11`; `gaps.md` |
+| `review-gap-attributor` | the whole plan + `P9` results + the final findings | nothing (read-only; the skill writes `gaps.md`) |
+| `work-plan.ps1` | `P4`, `P6`, `P7`, `P8`, `P12`, `gaps.md` | scaffold only |
 
 **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements — deciding that is the review's job. Without this posture the plan launders the author's framing into the review's voice, which [`review-conventions.md`](review-conventions.md) names as the one thing a reviewer is there not to do, and it contradicts `code-reviewer`'s standing rule that *a PR's own root-cause account is a claim*.
+
+## Gap classes — closing the loop back to the plan
+
+A review finding is also evidence about the *plan*. After a review's findings are final, [`review-gap-attributor`](../agents/review-gap-attributor.md) attributes each one to the upstream artifact that would have prevented it and writes `.claude/plans/<key>/gaps.md`. This is what makes review rounds converge **across** PRs rather than only within one — the rest of the mechanism sharpens a single branch, this is the only part that feeds back.
+
+| id | Class | What was missing | Durable home for the fix |
+|---|---|---|---|
+| `GAP-01` | unstated requirement | `P1`/`P2` never named the behaviour the finding requires | the readiness gate; sometimes a new rule |
+| `GAP-02` | unverified assumption | `P4` didn't ask; the plan asserted it | the scout brief / probe discipline |
+| `GAP-03` | impact-map miss | a caller, mirrored provider site, type-keyed helper or wire shape `P7` never searched | the scout brief; a new `G-nn` when the shape recurs |
+| `GAP-04` | wrong altitude | correct code at the wrong layer — a flag, mapping-schema registration or `Sql.Extension` already expressed it | `P5` — the altitude question wasn't asked |
+| `GAP-05` | missing test obligation | no `TO-n` covered the path, or the one that did couldn't go red | `P8`; [`testing.md`](testing.md) when the shape recurs |
+| `GAP-06` | convention not applied | the rule was embedded in the plan's baseline and violated anyway | the rule needs a do/don't example |
+| `GAP-07` | convention not embedded | the rule exists but step 4 didn't put it in front of the author | the skill's embed step |
+| `GAP-08` | gate not run | a `G-nn` would have caught it and was skipped, or recorded `fail` and ignored | `P9` derivation, or [`definition-of-done.md`](definition-of-done.md) |
+| `GAP-09` | amendment not logged | code went outside `P6` with no `P11` entry | `-Reconcile` should have failed — find why it didn't |
+| `GAP-10` | unpreventable | information that did not exist at plan time | nothing — this is the honest floor |
+
+Two outcomes that are **not** gaps, reported as themselves rather than forced into a class:
+
+- **`not-a-gap: reviewer-disagrees-with-P10`** — the finding contests an adjudicated entry. That is a legitimate finding *about the adjudication*, not a planning failure.
+- **`not-a-gap: out-of-plan-scope`** — the finding concerns code `P7` deliberately marked `deferred:` or `out-of-scope`, **with a reason**. A deferral with no reason *is* a gap (`GAP-03`).
+
+**Attribute to the earliest artifact in the chain, not the last.** A gate that would have caught something but was driven off a plan block that lacked the entry is `GAP-03`, not `GAP-08` — the gate could not catch what the map never listed, so the durable fix belongs in the scout brief rather than the gate.
+
+**`GAP-10` is the calibration signal, not a dumping ground.** Use it only when you can name the information that did not exist at plan time. A dominant `GAP-10` means the design pass is not earning its cost, and the right response is to say so and **cut the ceremony** — not to defend the machinery.
 
 ## No plan on the branch
 
