@@ -192,6 +192,25 @@ Two outcomes that are **not** gaps, reported as themselves rather than forced in
 
 **`GAP-10` is the calibration signal, not a dumping ground.** Use it only when you can name the information that did not exist at plan time. A dominant `GAP-10` means the design pass is not earning its cost, and the right response is to say so and **cut the ceremony** — not to defend the machinery.
 
+## Backtesting the mechanism
+
+The honest way to ask "does this pay for itself?" is to run it against a PR whose review history is already known: author a plan blind, critique it, and count how many of the real findings it would have carried. `gaps.md` measures the same thing prospectively; a backtest measures it on evidence you already have.
+
+**A merged PR's body is a retrospective, not a brief — never use it as blind input.** This is the trap that invalidates the experiment, and it is invisible unless you look for it: a PR description is *edited during review*, so by merge time it routinely contains a "response to review" section, a release-notes block a finding asked for, and a defect list written **after** the review found them. Feeding that to a blind planner hands it the answers, and the resulting plan reproduces them almost verbatim while looking like a discovery.
+
+Checking the body for leaked *implementation* details — internal type names, new APIs — does **not** catch this. Those can be absent while every defect the review found is stated in prose.
+
+Use instead, in order of preference:
+
+1. **The branch's first commit message**, plus the linked issue body. Both predate review, and the commit message carries the author's intended approach — including whatever about it later turned out to be wrong, which is exactly what you want the plan to have a chance at catching.
+2. **The linked issue alone**, when no pre-review commit survives. A harder test, and the resulting plan may design something different from what shipped, which makes finding-by-finding scoring approximate.
+
+**A squash-merged PR preserves no pre-review commit**, so option 1 is unavailable for one — check `git log <base>..<merge>` before planning the run rather than discovering it mid-experiment.
+
+Verify the brief before dispatching: grep it for the review's finding ids, for "response to review" / "review round" headings, and for the specific defects you intend to score against. Zero hits, or the run is void.
+
+(Established 2026-08-31: a two-case backtest of this mechanism was reported as catching the Blocker and most Majors on both PRs, then found invalid — one body named findings by id with their refutations, the other stated the whole defect list and carried the release-note line a finding had requested. The one result that survived was a *negative* one, which contamination could only have helped: both the plan and the critic swept `switch`/`case` sites, declared the map complete, and missed a type-keyed helper anyway.)
+
 ## No plan on the branch
 
 External-contributor PRs, and any branch predating this mechanism, have no plan. **"No plan" is a first-class valid state.** Every consumer degrades to its previous behaviour: `/review-pr` falls back to the hand-typed scope sentence, and nothing reports an error.

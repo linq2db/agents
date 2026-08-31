@@ -16,6 +16,7 @@ Small, fast, deterministic-where-possible checks — runnable as a smoke suite (
 4. **Structured-output validation.** Where a subagent must emit a fenced JSON block (`code-reviewer`, `baselines-reviewer`), validate the emitted JSON against its schema on a fixture PR.
 5. **Model-swap probe.** Re-run a small case set under a cheaper model tier and compare — answers the "is the expensive model actually load-bearing here, or would `sonnet`/`haiku` do?" question that the per-subagent `model:` pins currently answer only by assumption.
 6. **Long-run state consistency** (optional, expensive). For a multi-step skill (`/release`, `kb-build`), assert state files stay consistent across a simulated resume — catches the "state drift after N steps" failure.
+7. **Work-plan backtest** (expensive, and the only one that measures *outcome* rather than shape). Author a plan blind against a PR's pre-review state, critique it, and count how many of that PR's real review findings it would have carried. The failure mode here is **input contamination, not model error** — a merged PR's body is a retrospective that names the findings — so the brief construction is the whole experiment. Rules and the incident that established them: [`work-plan.md`](work-plan.md) → *Backtesting the mechanism*.
 
 ## Open questions before building
 
