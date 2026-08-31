@@ -49,6 +49,7 @@ Every finding gets routed to exactly one bucket plus a destination (project `.cl
 | **permission** | instruction edit (`agent-rules.md`) OR script creation / extension (`.claude/scripts/`) OR allowlist (defer to `/fewer-permission-prompts`). Pick per **Diagnosing permission prompts** below. | Bash patterns that triggered permission prompts this session. Analyze root cause per prompt — don't just aggregate. | strong / medium / weak |
 | **dead-end** | auto-memory (`project` type); or `.claude/knowledge-base/areas/<AREA>/tech-debt.md` if KB-tracked | An approach tried and abandoned this session — a disproven hypothesis, a reverted refactor, an API / tool / dialect path that doesn't fit the case. Body uses **Tried:** / **Failed because:** / **Don't re-attempt:**. Consumed via `agent-rules.md` → *Investigating & fixing bugs* → **Check recorded dead-ends before re-attempting**. | strong / medium / weak |
 | **review-rule** | `.claude/agents/code-reviewer.md` (rubric) — or `.claude/docs/review-conventions.md` for a convention | A defect this session surfaced **late or by accident** — from a baseline diff, a CI failure, a human reviewer, or post-merge breakage — that the code-review rubric has no rule for; or a finding *type* that recurred across PRs. Propose a new rubric rule / extension so review catches the next one proactively. (Mirror of `/audit-agents`, which lints *existing* rubric rules; this proposes *new* ones.) | strong / medium / weak |
+| **plan-rule** | `.claude/agents/plan-critic.md` (attack vectors) · `.claude/docs/work-plan.md` (a block's semantics) · `.claude/skills/work-plan/SKILL.md` (the scout brief) | A defect that a **work plan** should have caught before implementation — an impact-map shape the scouts never searched, an unstated assumption no `P4` row named, a decision whose failure mode went unexamined, a test obligation that couldn't actually go red. Distinct from **review-rule**: that one sharpens the reviewer's eye on a *diff*, this one sharpens the design pass so the defect never reaches a diff. Route here when the honest answer to "when was this preventable?" is *at design time*. | strong / medium / weak |
 
 ### Strong vs medium vs weak
 
@@ -128,7 +129,7 @@ Emit a finding record:
 ```json
 {
   "id": "<bucket>-<short-slug>",
-  "bucket": "feedback|doc|script|skill|agent|permission|dead-end|review-rule",
+  "bucket": "feedback|doc|script|skill|agent|permission|dead-end|review-rule|plan-rule",
   "destination": "<file path relative to repo root, or `memory:<file>`>",
   "severity": "strong|medium|weak",
   "signal": "<the transcript evidence — quote the user or cite the turn>",

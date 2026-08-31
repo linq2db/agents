@@ -87,6 +87,8 @@ Dedup by ID — if the same ID appears in multiple places, keep the most recent 
 
 Execute the **Change summary** and **Baselines clone setup** sections of `.claude/docs/pr-context-prep.md` against the current PR HEAD. Per the project decision, baselines grouping is rerun from scratch in verify mode — do not try to diff incrementally against a prior baselines review.
 
+**Also re-read the branch's work plan** at `.claude/plans/<key>/plan.md` (`<key>` = `headRefName` with `/` → `-`), per [`review-pr/SKILL.md`](../review-pr/SKILL.md) step 3e. Re-read it rather than reusing the initial review's copy: `P10` and `P11` are exactly what the author updates between rounds, and a trade-off adjudicated after round 1 is the most common reason a prior finding should now come back `fixed` rather than `still_actual`. A prior finding whose subject now appears in `P10` **with a reason** is adjudicated, not outstanding — record it as such and say which `P10` entry settled it. An absent plan is normal and changes nothing.
+
 ### 5. Spawn subagents in `verify` mode (parallel)
 
 Per `review-orchestration.md` → **Spawning the subagents in parallel**. This skill adds only `verify`-mode specifics on top of the common briefing:

@@ -4,6 +4,8 @@ A consolidated completion checklist for a code change on linq2db. The completion
 
 Referenced from [`agent-rules.md`](agent-rules.md) → *Definition of done*.
 
+**This is the *exit* checklist; its entry counterpart is the work plan.** A change's design — problem, success criteria, authorized edit-points, impact map, test obligations — is recorded before the first edit in `.claude/plans/<key>/plan.md` ([`work-plan.md`](work-plan.md)). The two interlock: a plan's `P9` block records **results against the items below**, under the gate ids `G-01`…`G-08` that [`work-plan.md`](work-plan.md) → *P9 Verification gates* maps to them. The gates themselves are defined here and nowhere else; the plan only records what they returned, and `work-plan.ps1 -Action gates` derives which of them a given change's edit-points make applicable.
+
 ## The checklist
 
 - [ ] **Tests run and pass via `/test`.** Don't `dotnet build` / `dotnet test` by hand around the skill — it injects the `CreateDatabase` filter and runs the baselines diff. New behavior has a red→green test; a fix that clearly needs a test has one. ([`agent-rules.md`](agent-rules.md) → *Running tests*; [`testing.md`](testing.md).)

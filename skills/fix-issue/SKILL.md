@@ -86,6 +86,17 @@ Per `.claude/docs/agent-rules.md` → **Before coding a fix or feature**: before
 
 This step is cheap and catches "the bug is already covered by `X.Y`" surprises before anyone writes code.
 
+### 3c. Write the work plan (hand off to `/work-plan`)
+
+With the branch up and existing coverage mapped, hand off to [`/work-plan`](../work-plan/SKILL.md) before any code or test is written. It produces `.claude/plans/<key>/plan.md` — the design record `/review-pr` later reads as its statement of intent instead of re-deriving one per round.
+
+Two things this step feeds directly back into `/fix-issue`:
+
+- **`P8` test obligations are the brief for step 4.** Each `TO-n` names what it asserts and its proof mode, so `test-writer` gets "assert X, must go red against unfixed code for reason Y" rather than a restated issue title.
+- **`P7`'s impact map is what decides the provider matrix** — a mirrored `*SqlBuilder` the scouts turn up is a provider the regression test should cover, and step 2's answer may need widening because of it. Raise the discrepancy rather than quietly reusing the step-2 set.
+
+**Tier S skips most of this.** A one-file provider fix is four blocks and ten lines; don't inflate it. Skip the step entirely when the user says so — record `waived-by-user` rather than leaving a half-filled plan.
+
 ### 4. Write the regression test (delegate to test-writer)
 
 Invoke the `test-writer` agent with:

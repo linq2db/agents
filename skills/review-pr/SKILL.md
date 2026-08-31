@@ -116,6 +116,24 @@ Review the documentation page the rule points at — the `DiagnosticDescriptor.h
 
 Surface any mismatch as a finding (a wrong/missing doc page for a user-facing rule is user-facing). A wiki fix is a commit in the wiki repo, not on the PR branch — see [`windows-dev-gotchas.md`](../../docs/windows-dev-gotchas.md) → *Cloning the `linq2db.wiki` repo* for the sparse-checkout + [`wiki-commit.ps1`](../../scripts/wiki-commit.ps1) route. Skip this step for non-analyzer PRs.
 
+### 3e. Read the branch's work plan — it is the primary intent source
+
+Derive the key from the PR's `headRefName` (`/` → `-`) and `Read` `.claude/plans/<key>/plan.md`. The plan lives in the corpus, not on the PR branch, so it is readable without checking the PR out — but the corpus must be current: `git -C .claude pull` when the plan is missing and the branch is one of ours.
+
+**Read it before the intent summary, not after.** Re-deriving intent from the issue and the diff produces a *different yardstick every round*, which is why successive reviews of one branch used to surface different findings instead of converging. See [`work-plan.md`](../../docs/work-plan.md).
+
+Carry forward into step 6's briefing: `P1`–`P3` (intent and anti-goals), `P7` (claimed impact coverage), `P10` (adjudicated — the do-not-flag set), `P11` (amendments), `P12` (critic verdict).
+
+Three rules govern how the plan is used, and all three go into the briefing:
+
+- **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements — deciding that is the review's job. This preserves `code-reviewer`'s standing posture that *a PR's own root-cause account is a claim*; without it the plan launders the author's framing into the review's voice.
+- **A `P10` entry with no reason suppresses nothing.**
+- **A reviewer that disagrees with a `P10` entry raises a finding *against the entry*,** quoting both sides. The user decides which stands.
+
+**A `weak` or `refuted` `P12` is a signal to look harder, not a finding in itself** — the objections name where the author was least sure.
+
+**No plan is a first-class valid state.** External-contributor PRs and branches predating the mechanism have none: say so in one line and proceed exactly as before. Do not report it as a defect and do not ask the author for one.
+
 ### 4. Pre-review confirmation
 
 After the target-branch check passes and the change summary is in hand, ask the user two bundled questions in a single prompt so both answers land in one reply (per `agent-rules.md` → **Batching and user interaction**):
@@ -123,6 +141,8 @@ After the target-branch check passes and the change summary is in hand, ask the 
 > Before I run the reviewers:
 > 1. My read of the scope: `<one–two-sentence summary>`. Confirm? [y / correction / skip]
 > 2. Include baselines review (test/SQL baseline diff analysis)? [y / n, default y]
+
+**When step 3e found a plan, question 1's summary is the plan's `P1`/`P2`, not a fresh re-derivation** — quote it and render the header line `Work plan: <key> — Tier <T>, critic <verdict>, <n> edit-points, <n> adjudicated, <n> amendments`. The user is then confirming the *recorded* scope, which is the whole point of having one. A correction at this gate means the plan is out of date: offer `/work-plan amend` rather than silently reviewing against a scope the plan doesn't carry.
 
 **Question 1 — scope.** Answers:
 - `y` — proceed with the stated scope as the confirmed scope.
@@ -209,7 +229,9 @@ When **count ≤ 5**, spawn a single `code-reviewer` with `focus: "all"` and the
 
 **Reframe Pass B when the PR has no SQL surface.** Pass B's `sql-and-provider` charter is empty for a PR touching none of `Source/LinqToDB/DataProvider/*`, `SqlProvider/*`, or `SqlQuery/*` (pure infra: cache, GC, threading, options plumbing). Rather than waste the pass, brief it against the PR's actual cross-cutting axis — platform / cross-TFM behavior (feature-flag macros, per-TFM BCL API availability, finalizer / `#if NETFRAMEWORK` guards), threading / concurrency, or GC — keeping the same ID window `[floor+100, floor+199]`. (Surfaced on PR #5681, a QueryCache memory-pressure feature with zero SQL.) For an analyzer / Roslyn-package PR (no `Source/LinqToDB` SQL surface), reframe Pass B to the analyzer axis — semantic-model usage (`IOperation` / `IArgumentOperation.Parameter` mapping, `GetConstantValue`, speculative binding), syntax + trivia rewriting, the Fix-All provider, `.editorconfig` option handling, and Roslyn-version compat (the package's Roslyn pin vs the APIs it calls). (Surfaced on PR #5703, the `linq2db.Analyzers` package.)
 
-All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass).
+All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); and the **work plan** from step 3e when one exists.
+
+**Slice the diff, never the plan.** In multi-pass, `P1`–`P3`, `P7`, `P10` and `P12` go to **every** pass whole, while only the hunks under review are per-focus. `P7` rows are keyed by *file* and a row's job is frequently to answer a **cross-area** question — a mirrored `*SqlBuilder` covered by an edit-point in another pass's slice — so slicing `P7` by focus deletes precisely the rows that answer them. Embed `P10` under a literal `## Do not flag on this branch (adjudicated)` heading, carrying both guards from step 3e.
 
 **`baselines-reviewer`:** `mode: initial`. **Skip this spawn entirely** when the user answered `n` to step 4's question 2. When fired, it runs in parallel with the code-reviewer passes — 1, 2, or 4 agents total in one assistant turn.
 

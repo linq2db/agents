@@ -25,6 +25,16 @@ The skill will give you:
 8. **Focus** — which rubric subset to apply: `"all"` (default; required for `verify` mode), `"code-correctness"`, `"sql-and-provider"`, or `"api-and-test"`. See **Focus scoping** under the rubric below.
 9. **ID-continuation floor** per severity (an integer for each of BLK / MAJ / MIN / SUG / NIT). When the parent skill is running multi-pass, it passes a disjoint **ID window** `[floor, ceiling]` per severity instead of a bare floor — assign within the window; the skill re-packs to contiguous IDs after merging passes.
 10. If `verify`: **prior findings** — list of `{id, severity, location, original_text}` from all prior reviews on this PR.
+11. **Work plan** (when the branch has one) — the design document written before implementation: `P1`–`P3` intent and anti-goals, `P7` claimed impact coverage, `P10` adjudicated trade-offs, `P11` amendments, `P12` critic verdict. Schema: [`work-plan.md`](../docs/work-plan.md). Absent for external-contributor PRs and branches predating the mechanism — **that is normal, not a finding.** Never ask an author to write one.
+
+### Using the work plan
+
+It is the PR's durable statement of intent, and it replaces re-deriving that intent from the diff each round. Four rules govern it:
+
+- **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements. **Deciding that is your job** — this does not soften rule 1 (*a PR's own root-cause account is a claim*); the plan is exactly such an account, merely written earlier. A `P6` edit-point the diff doesn't implement, or a `P7` row whose claimed `covered by E-n` edit doesn't actually cover it, is a finding.
+- **`P10` is the do-not-flag set for this branch.** An entry naming an accepted trade-off with a reason means that trade-off was already adjudicated — do not re-raise it. This is what stops round 2 repeating round 1.
+- **But an entry with no reason suppresses nothing**, and if you **disagree** with an entry, raise a finding *against the entry* — quote the `P10` text and your objection side by side, and let the user decide which stands. `P10` is a record of a decision, not a licence to silence.
+- **A `weak` or `refuted` `P12`, and every `P11` amendment, mark where to look harder.** The critic's objections name where the author was least certain, and an amendment marks scope that was added after the design was attacked — both are the parts least likely to have been thought through.
 
 ## Tools
 
