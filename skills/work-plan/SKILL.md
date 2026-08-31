@@ -94,6 +94,7 @@ Write the blocks inline from the readiness answers, the scout evidence and the e
 
 - **The plan's authority comes from its evidence, not its confidence.** Every `P7` row traces to a named search; every behavioural claim about existing code carries a `file:line`.
 - **Mark a `P4` row `OPEN` when it is genuinely unresolved.** Do not silently pick a plausible interpretation and build on it — `-Validate` fails on a surviving `OPEN`, which is the point.
+- **Before dispatching the critic, read every `P5` decision beside the `P7` rows and `P4` answers you just wrote.** The blocks are authored in sequence and the later ones are where the design gets chosen, so a mechanism established in `P7` routinely fails to reach the decision that depends on it. The specific shape to look for: a decision that gates on the **absence** of a state your own impact map proved is **present**. It costs one read and it is the failure the critic should never have to find for you. (Surfaced on the #5818 backtest: `P7` established that a build flag survives into nested strict-`Sql` frames, and `P5` then chose a guard requiring the non-strict purpose. The contradiction was on the page and both passes talked past it.)
 
 Then `work-plan.ps1 -Action init` and fill, or edit the existing file. Run `-Action gates` to derive the applicable `G-nn` subset from `P6` and seed `P9`.
 
