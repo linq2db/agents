@@ -52,6 +52,7 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 - SC-5 An initializer whose members are **all** base-declared emits byte-identical SQL to today. *Unmet if:* any existing baseline moves. → TO-5
 - SC-6 A member that genuinely belongs to no mapped type in the hierarchy still fails loudly. *Unmet if:* it is silently dropped from the `INSERT` instead of erroring. → TO-6
 - SC-7 A derived type whose members are set through **constructor parameters** (a positional/record subtype) inserts through the base table. *Unmet if:* it throws where the member-initializer form succeeds. → TO-7
+- SC-8 A **row-returning output clause** over an inheritance-mapped table gets past expression building, even when the setter mentions only base members — the projection carries the subtypes' merged columns regardless. *Unmet if:* it throws `ArgumentException` from `Expression.MakeMemberAccess`. Materializing the returned row is **out of scope** and tracked as [#5838](https://github.com/linq2db/linq2db/issues/5838). → TO-8
 
 ## P3 Constraints & anti-goals (M/L)
 
@@ -78,10 +79,12 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 - **why this:** `ParseSetter` is the one point where "the setter named this member" becomes "build an access against the target", and every one of the 21 callers funnels through it.
 - **failure mode of the choice:** `ParseSetter` is not the only door into the user-visible defect. The `Insert(item, spec)` / `Upsert` / Merge-null-setter family fails earlier and elsewhere (`P1` scope boundary), so a fix here will read as "inheritance setters are fixed" while those stay broken until the split-out issue lands.
 
-### D-2 — Retype with `ContextRefExpression.WithType`
+### D-2 — One file-private helper over `SequenceHelper.EnsureType`, used at all three sites
 
-- **chosen:** `targetRef.WithType(memberInfo.DeclaringType)` when `DeclaringType` is not assignable from `targetRef.Type`, then `MakeMemberAccess` — i.e. `SequenceHelper.cs:492-499` verbatim.
-- **rejected:** `SequenceHelper.EnsureType` (`:258-274`). This was the original choice and its justification lapsed when the `ParseSet` edit-point was dropped: the `Expression.Convert` fallback earns its keep only where the target may not be a context ref. `ParseSetter`'s `targetRef` parameter is *declared* `ContextRefExpression` (`UpdateBuilder.cs:631`) — verified independently by the critic — so the fallback is unreachable and `EnsureType` is indirection with no case behind it.
+- **chosen:** a `static Expression EnsureDeclaringType(Expression target, MemberInfo memberInfo)` on `UpdateBuilder` that retypes through `SequenceHelper.EnsureType` (`:258-274`) when `memberInfo.DeclaringType` is not assignable from `target.Type`, and is called at E-1, E-2 and E-3.
+- **rejected:** raw `targetRef.WithType(...)` as at `SequenceHelper.cs:492-499`. **This was the choice for one revision and it was wrong — measurement, not argument, settled it.** It generalises only while `ParseSetter` is the sole edit-point: its `targetRef` parameter is declared `ContextRefExpression` (`UpdateBuilder.cs:631`), but E-3's target is whatever `ParseSet` recursed with, which is a `MemberExpression`. `EnsureType` covers both — `WithType` for a context ref, `Expression.Convert` otherwise — so one helper serves all three sites and neither shape gets a wrapper it doesn't need.
+- **rejected:** raw `Expression.Convert` everywhere. `TableBuilder.TableContext.cs:480` calls `UnwrapConvert` before `SequenceHelper.IsSameContext`, so a `Convert`-wrapped ref does resolve at the column-lookup site — not a correctness objection. It is rejected because it would wrap the context-ref sites too, where the in-repo idiom retypes, leaving a node shape every other setter-path consumer must unwrap.
+- **rejected:** three inlined copies of the guard. The tree already carries four incompatible inline idioms (D-3); adding three more of a fifth is what D-3 exists to avoid. One file-private helper is the smallest thing that doesn't grow the divergence.
 - **rejected:** raw `Expression.Convert`, on a weaker basis, and the plan says so rather than overstating it. `TableBuilder.TableContext.cs:480` calls `UnwrapConvert` before `SequenceHelper.IsSameContext`, so a `Convert`-wrapped ref **does** resolve at the column-lookup site; that is not a correctness objection. It is rejected because it wraps where the in-repo idiom retypes, leaving a node shape every *other* setter-path consumer must also unwrap, and those were not audited.
 - **why this:** it is the exact idiom at the four `SequenceHelper` sites, and the critic supplied a live precedent the plan had missed — `ExpressionBuildVisitor.cs:1682` already builds `MakeMemberAccess(contextRef.WithType(tableContext.ObjectType), newMember)`, so retyping a **table** ref before a member access is established visitor practice.
 - **failure mode of the choice:** `WithType` drops `Alias`. U-4 shows that is cosmetic here — but it is a property the type carries and a future consumer could start reading.
@@ -97,11 +100,12 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 
 - E-1 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:649` — `ParseSetter`, assignments loop: retype the target to `assignment.MemberInfo.DeclaringType` before `MakeMemberAccess` when it is not assignable from the target's type.
 - E-2 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:658` — `ParseSetter`, parameters loop: same for `parameter.MemberInfo`.
-- E-3 `Tests/Linq/Linq/InheritanceTests.cs` — regression tests for SC-1…SC-7, in the `#region Discriminator Filtering` neighbourhood at `:1180`, reusing the existing `BaseClass`/`Child1` model at `:1188-1238` for the member-initializer cases, plus a constructor-parameter (positional/record) derived model for TO-7.
+- E-3 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:609` — `ParseSet`'s nested-generic recursion: same helper. **Dropped for one revision and restored after measurement** — see the note below.
+- E-4 `Tests/Linq/Linq/InheritanceTests.cs` — regression tests for SC-1…SC-8, in the `#region Discriminator Filtering` neighbourhood at `:1180`, reusing the existing `BaseClass`/`Child1` model at `:1188-1238` for the member-initializer cases, plus a constructor-parameter (positional/record) derived model for TO-7.
 
-**Dropped from earlier revisions, both after critic passes:**
-- `UpdateBuilder.cs:609` (`ParseSet`'s nested-generic recursion) — a widening with no failable obligation; `:609` runs only for a nested `SqlGenericConstructorExpression`, and a flat `.Set(x => x.Name, v)` takes the `:613` else-branch.
-- `ColumnDescriptorExtensions.cs:67-72` — mechanism 2, split to its own issue after its proposed fix was refuted (`P1`, `P12`).
+**E-3 was dropped on a correct-but-narrow objection, and restoring it is the plan's sharpest lesson.** Critic pass 1 observed that `:609` runs only for a nested `SqlGenericConstructorExpression` and that a flat `.Set(x => x.Name, v)` takes the `:613` else-branch — true, and it correctly killed the *symmetry guard* that claimed to cover it. Dropping the edit-point on that basis was an over-application: `:609` is reachable, just not from `.Set(…)`. It is reached from `ParseSetter`'s own recursion, which is what an **output projection over an inheritance root** produces, because the projection carries the subtypes' merged columns. Measured: with E-1/E-2 alone, `UpdateWithOutput` still threw `ArgumentException` from `Expression.Property` via `ParseSet:609` ← `ParseSetter:662`. A correct objection to a *test* is not automatically an objection to the *edit-point*.
+
+**Still dropped:** `ColumnDescriptorExtensions.cs:67-72` — mechanism 2, split to [#5837](https://github.com/linq2db/linq2db/issues/5837) after its proposed fix was refuted (`P1`, `P12`).
 
 ## P7 Impact map (M/L)
 
@@ -118,7 +122,8 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 | 7 | `UpdateBuilder.cs:295`, `InsertBuilder.cs:236`, `DeleteBuilder.cs:95` | output-table object type | yes, derived relative to the **output** table | covered by E-1 |
 | 8 | `MergeBuilder.{InsertWhenNotMatched:52, UpdateWhenMatched:42, UpdateWhenMatchedThenDelete:45, UpdateWhenNotMatchedBySource:35}` | `…ContextRef.WithType(setterExpression.Type)` | **no — immune, measured.** U-1 shows `setterExpression.Type` is the derived type, and both explicit-setter Merge cells build successfully | out-of-scope — nothing to fix |
 | 9 | `MultiInsertBuilder.cs:112` | `new ContextRefExpression(setterExpression.Type, into)` (`:108`) | no — immune by the same mechanism as row 8 | out-of-scope — nothing to fix |
-| 10 | `UpdateBuilder.cs:856`, `InsertBuilder.cs:319`, `DeleteBuilder.cs:194`, `MergeBuilder.MergeContext.cs:86` | synthetic `SelectContext` over an already-built projection | undetermined — see U-2 | deferred: U-2 |
+| 10 | `UpdateBuilder.cs:856`, `InsertBuilder.cs:319` | synthetic `SelectContext` over an already-built projection | **yes — measured.** The projection over an inheritance root carries the subtypes' merged columns, so it reaches `ParseSet:609` even for a base-only setter | covered by E-3 |
+| 10b | `DeleteBuilder.cs:194`, `MergeBuilder.MergeContext.cs:86` | same shape | not exercised — `DeleteWithOutput` matched no rows in the probe | deferred: untested, same shape as row 10 so presumed covered by E-3 |
 | 11 | `InsertBuilder.cs:108` | `genericArguments[1] ?? sourceRef.Type`; setter is machine-built (`:106`) | no user `MemberInit` handed in | deferred: no user-expressible shape found |
 
 **Search 2** — `Grep "Expression\.MakeMemberAccess\("` + `Expression\.(Property|Field|PropertyOrField)\(` + the wrapper helpers (`GetMemberGetter|GetMemberAccessExpression|GetGetterExpression`) + `MemberExpression.Update(` + `Expression.Bind(` over `Source/LinqToDB`. Covers the BCL factories, the wrapper helpers, and the `Update`/`Bind` routes. ~20 unguarded sites beyond E-1/E-2, all deferred under D-3:
@@ -167,7 +172,9 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 - TO-6 (SC-6) a member belonging to no mapped type still errors rather than being dropped. — proof: **control** — accepted under the current lenient path, rejected under the guard.
 - TO-7 (SC-7) a **constructor-parameter** derived entity — a positional/record TPH subtype — inserted through the base table. This is the obligation that makes **E-2 failable**: `ParseSetter`'s parameters loop (`UpdateBuilder.cs:658`) fires only for `SqlGenericConstructorExpression.Parameters`, and every other obligation uses the member-initializer shape from `InheritanceTests.cs:1188-1238`, whose model is property-based — so without TO-7 the whole suite stays green if E-2 is wrong or omitted. Needs a new constructor-based model. — proof: **red→green**
 
-**Symmetry note (E-1 vs E-2).** The two edit-points are the assignments and parameters arms of the same switch. TO-1…TO-6 exercise only the assignments arm; TO-7 is the guard on the other.
+- TO-8 (SC-8) `GetTable<Base>().Where(…).UpdateWithOutput(t => new Base { … })` — a **base-only** setter on an inheritance-mapped table — gets past expression building. This is the obligation that makes **E-3 failable**, and the one whose absence let E-3 be dropped: with E-1/E-2 alone it throws `ArgumentException` at `ParseSet:609`. Assert on the exception *not* being `ArgumentException`; the call still fails downstream on [#5838](https://github.com/linq2db/linq2db/issues/5838), so this cannot be a plain "it works" assertion until that lands. — proof: **red→green**
+
+**Symmetry note (E-1 vs E-2 vs E-3).** E-1/E-2 are the assignments and parameters arms of `ParseSetter`'s switch; E-3 is `ParseSet`'s recursion beneath them. TO-1…TO-6 exercise only E-1; TO-7 guards E-2; TO-8 guards E-3. Each edit-point now has exactly one obligation that fails without it.
 
 **No Merge obligation.** Earlier revisions carried one. Measurement removed it: the explicit-setter clauses are immune (they build), and the parameterless clause belongs to the split-out mechanism. Writing a Merge test here would have been a characterization test mislabeled as red→green.
 
@@ -207,5 +214,15 @@ The refutation targeted the folded-in mechanism-2 half, and **it was upheld** �
 7. **Doc contract.** `GetMemberAccessExpression`'s XML remarks and `<exception>` would have been falsified. **Moot** — the method is no longer touched; noted for the new issue.
 
 **What it verified rather than attacked:** `ParseSetter`'s `targetRef` is declared `ContextRefExpression` (D-2's premise), `SequenceHelper.cs:492-497` is verbatim precedent, and U-4's two-reader `Alias` claim survived an independent sweep exactly as written. It called the 12-cell probe grid "real diagnostic work" that "correctly killed the old E-3".
+
+### Correction to this plan's handling of pass 1, objection 2
+
+Recorded here because a reader will otherwise see a conceded objection and assume it was applied correctly.
+
+Pass 1 objected that E-3's *symmetry guard* could not reach `UpdateBuilder.cs:609` — a flat `.Set(…)` takes the `:613` else-branch. **That was correct, and the guard deserved to die.** The plan then dropped the **edit-point** as well, which did not follow: `:609` is reachable, just not from `.Set(…)`. It is reached from `ParseSetter`'s own recursion whenever the setter contains a nested generic constructor, which is exactly what a row-returning output projection over an inheritance root produces.
+
+Caught by execution, not by review: with E-1/E-2 alone, `UpdateWithOutput` still threw `ArgumentException` from `Expression.Property` at `ParseSet:609` ← `ParseSetter:662`. E-3 is restored, `D-2` re-decided to the shared `EnsureType` helper the restored site needs, and `TO-8` added so the edit-point now has an obligation that actually fails without it.
+
+**The transferable lesson: an objection to a test is not an objection to the edit-point it was attached to.** Both critic passes were right about the tests they attacked; this plan twice drew a wider conclusion than the objection supported, and only a run distinguished the two.
 
 **First pass (`weak`), for the record:** E-2 had no failable obligation → TO-7 added; the `ParseSet` edit-point's symmetry guard could not reach its own line → dropped, which cascaded into re-deciding D-2 from `EnsureType` to `WithType`; U-4's probe was vacuous → redesigned, then resolved by search; `P10` under-stated the deferred surface → rewritten; Search 2's census dropped its own wrapper-helper hits → restored; "9 files" was 11.
