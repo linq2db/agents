@@ -215,3 +215,23 @@ gh api repos/linq2db/linq2db/commits/<headSha>/check-runs --jq '.check_runs[] | 
 ```
 
 The `details_url` ends in `buildId=<n>`.
+
+**These `gh api … --jq` recipes are the build-metadata interface — don't hand-roll `Invoke-RestMethod` against the Azure builds API.** The `azp-*.ps1` scripts each answer a narrower question (`azp-build-failures` = per-test failures, `azp-job-durations` = timing/ordering, `azp-step-log` = one step's log, `azp-run` = trigger), so "which commit did build N build?", "what has this branch run lately?" and "is this definition red across other PRs too?" have no script — but they *are* covered here, by the two recipes above plus `/_apis/build/builds/<id>`'s `sourceVersion` + `triggerInfo`. (Surfaced on #5828: three hand-rolled `Invoke-RestMethod` calls re-derived exactly these, because the recipes live under a heading about failure *attribution* and don't read as the general build-query entry point.)
+
+## A build failure with no code cause — check restore before the diff
+
+A red `build` leg is not always about the code. The repo sets `TreatWarningsAsErrors`, and NuGet restore warnings are warnings, so an infrastructure hiccup during restore becomes a hard build break that names your project files and looks like a compile failure.
+
+The recurring shape is **`NU1900`**, reported once per project:
+
+```
+Source\LinqToDB\LinqToDB.csproj(0,0): Error NU1900: Warning As Error: Error occurred while getting
+package vulnerability data: Unable to load the service index for source <feed url>.
+```
+
+Two things make this hard to read correctly:
+
+- **A source that nothing restores from is still consulted.** NuGet's vulnerability audit enumerates **every** source in `nuget.config`, independent of `packageSourceMapping`. So a feed with no mapped package pattern — one that cannot supply anything — still fails the build when it is unreachable. Grep the mapping before assuming a listed source is load-bearing.
+- **It is repo-wide, not yours.** Every project fails identically and every open PR fails together. Before touching the branch, check whether sibling PRs' `build` legs went red in the same window (`…/builds?definitions=5&$top=25`, per the recipes above) and whether the same PR passed earlier that day with no code change in between.
+
+The feed being reachable from your machine does not clear it — the agents are on different egress. (Surfaced 2026-08-31: `pomelo-nightly` had its `packageSourceMapping` entry commented out while the source stayed configured; when it stopped answering the agents, #5737, #5828 and #5834 all went red within the hour while the feed answered 200 locally. Fixed by commenting the source out alongside its mapping — [#5835](https://github.com/linq2db/linq2db/pull/5835).)

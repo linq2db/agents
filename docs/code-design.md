@@ -205,6 +205,10 @@ linq2db is a library a developer debugs at 2 a.m. through a stack trace, so a th
 
 The house form is `throw new LinqToDBException($"…{symbol}…")` — used across `DataExtensions`, `DataContext`, `Sql.TableFunctionAttribute` and elsewhere. Do **not** reach for `FormattableString.Invariant($"…")`: it appears nowhere in `Source/LinqToDB`, so introducing it makes the site look like it has a culture concern the neighbours don't. Message interpolation here is type names, member names and SQL fragments, none of which format culture-sensitively, and the Release-only analyzer set does not require an `IFormatProvider` for them.
 
+### Prefer `??` over `Nullable<T>.GetValueOrDefault(fallback)`
+
+When an option falls back to a provider default, write the null-coalesce: `helper.Options.BulkCopyOptions.MaxParametersForBatch ?? maxParameters`. The `GetValueOrDefault(fallback)` overload expresses the same thing with more ceremony, and reads as though something more than a null check is happening. Maintainer, 2026-08-31, on #5828: *"GetValueOrDefault use - replace with ??, no need to introduce overcomplicated syntax."* Applies to the fallback overload specifically — parameterless `GetValueOrDefault()` on a nullable is a different operation and is fine where the `default(T)` result is what you want.
+
 ### Prefer types that make invalid states unrepresentable
 
 The library is `<Nullable>enable</Nullable>` and type-safe by design; lean into it. When a new API or internal structure has a "this combination is illegal" rule, prefer encoding it in the type — a non-nullable field, a discriminated shape, a required ctor parameter, an enum over loose bools — rather than a runtime guard plus a comment. Fewer reachable invalid states means fewer defensive guards, fewer "can this be null here?" review questions, and less of the defensive bloat that accretes when correctness is enforced by convention instead of by the compiler. This is the constructive flip side of **Internal AST APIs trust NRT** above: bare AST ctors can skip guards precisely because the surrounding types already make the bad states hard to construct.
