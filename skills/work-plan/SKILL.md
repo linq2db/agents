@@ -102,7 +102,7 @@ Then `work-plan.ps1 -Action init` and fill, or edit the existing file. Run `-Act
 
 One `Agent` call to `plan-critic`, **passing the model explicitly on the dispatch** — the model is load-bearing here, so do not rely on frontmatter being picked up.
 
-**First run in this corpus: ask two settings once, then persist them.** Read `.claude/plans/config.json`. For each key it does not carry, ask the user and write the answer back:
+**First run in this clone: ask two settings once, then persist them.** Read `.claude/plans/config.json` — **gitignored and per-user**, so a fresh clone legitimately has none and the prompt is expected, not a fault. For each key it does not carry, ask the user and write the answer back:
 
 ```json
 {

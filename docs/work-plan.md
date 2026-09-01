@@ -166,9 +166,11 @@ draft ──authored──> critiqued ──> approved ──> implementing ─�
 
 **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements — deciding that is the review's job. Without this posture the plan launders the author's framing into the review's voice, which [`review-conventions.md`](review-conventions.md) names as the one thing a reviewer is there not to do, and it contradicts `code-reviewer`'s standing rule that *a PR's own root-cause account is a claim*.
 
-## Settings — `.claude/plans/config.json`
+## Settings — `.claude/plans/config.json` (gitignored, per user)
 
 Two settings, asked once on the first planning session that needs them and persisted thereafter. [`../skills/work-plan/SKILL.md`](../skills/work-plan/SKILL.md) → step 7 owns the prompting.
+
+**This file is gitignored and never committed.** It records one person's choices, not a project fact — the same reasoning that keeps `settings.local.json` and `CLAUDE.local.md` out of the repo. Every clone starts without it and gets the first-run prompt. The **plans** themselves (`plans/<key>/plan.md`) are the shared artifact and stay tracked; only the settings are personal.
 
 ```json
 {

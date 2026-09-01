@@ -4,3 +4,9 @@
 # so this file is what keeps a mounted checkout clean.
 settings.local.json
 CLAUDE.local.md
+
+# Work-plan settings: which model critiques a plan and when it runs. These are
+# per-user choices, not project facts - the plans themselves (plans/<key>/plan.md)
+# are the shared artifact and stay tracked. Recreated by /work-plan's first-run
+# prompt in any clone that lacks it.
+plans/config.json
