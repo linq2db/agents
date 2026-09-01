@@ -1,6 +1,6 @@
 # Work plan: issue-5729-fix-inheritance-derived-insert — setter-lambda writes with a derived-type initializer through a base-mapped table
 
-**Tier:** M  ·  **Status:** draft  ·  **Approved-at:** —  ·  **Branch:** issue/5729-fix-inheritance-derived-insert
+**Tier:** M  ·  **Status:** reviewed  ·  **Approved-at:** — (implemented on user instruction; PR [#5840](https://github.com/linq2db/linq2db/pull/5840))  ·  **Branch:** issue/5729-fix-inheritance-derived-insert
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
 **Tier rationale.** **M.** One area (`EXPR-TRANS`, `Internal/Linq/Builder`), no `cross-cutting-core.md` path, no `IDataProvider` or SQL-builder base, no public API. It was briefly escalated to **L** while a second mechanism in `Internal/Mapping` was in scope; that half has been **split out to its own issue** (see `P1`), so the change is back inside one area. The critic runs anyway — advisory at M — because the blast radius within the area is wide (21 `ParseSetter` call sites).
@@ -180,13 +180,13 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 
 ## P9 Verification gates
 
-- G-01: — (pending) tests pass via `/test` with each obligation's declared proof mode observed
-- G-02: — (pending) baselines reviewed, not just regenerated
+- G-01: **pass, partially** — `dotnet test Tests/Linq/Tests.csproj -f net10.0 -c Testing --filter "…CreateDatabase|…Issue5729_" --provider SQLite.MS` returned `total: 13  succeeded: 13  skipped: 0`, `Test run summary: Passed!`. Each obligation's red state was observed on unfixed code earlier in the session via the `.build/.agents/repro5729` grid. **Unverified on SQL Server**: `sql2016` is a named instance rather than a container, and the worktree sits outside the primary clone so it cannot resolve `UserDataProviders.json` by walk-up. That leg rests on CI (`/azp run test-all` on [#5840](https://github.com/linq2db/linq2db/pull/5840)) — so SQL-Server-specific behaviour is **unverified locally**, not verified-and-clean.
+- G-02: **n/a** — `BaselinesPath` is unset in this environment, so no baselines were written to diff. The change alters expression building, not SQL emission, and the local run moved no baselines because none were captured. CI is the check.
 - G-03: n/a — no new public surface (`P3` forbids it)
 - G-04: n/a — no public API change, so no `CompatibilitySuppressions` refresh
-- G-05: — (pending) portable-TFM build; the edit uses no new BCL API, so this is expected clean but unverified until run
-- G-06: — (pending) no unrelated reformatting
-- G-07: — (pending) no playground scratch staged
+- G-05: **skipped** — no portable-TFM build was run, so `net462` / `netstandard2.0` are **unverified**. The edit uses only `MemberInfo.DeclaringType`, `Type.IsAssignableFrom` and an existing internal helper, none newer than netstandard2.0, so the risk is low — but low is not verified, and CI's build leg is what will actually confirm it.
+- G-06: **pass** — `-Action reconcile` against the worktree: 1 file considered, covered by an `E-n`, 0 unplanned. The diff touches only `UpdateBuilder.cs` and `InheritanceTests.cs`.
+- G-07: **pass** — no `Tests.Playground` changes; `playgroundLink` was deliberately not set, so no `<Compile Include>` scratch exists to stage. `git status` on the worktree showed exactly the two intended files.
 - G-08: n/a — not cross-cutting core; `P6` touches no `SqlQuery/**` or `Translation/**` path
 
 ## P10 Adjudicated (M/L)
