@@ -150,6 +150,7 @@ GitHub Free gives **20 parallel jobs on 4 vCPU / 16 GB**, free for public reposi
 - E-32 (phase 5) `README.md:6` — replace or remove the two AzDO build badges
 - E-33 (phase 5) `CONTRIBUTING.md:89,310-325` — CI section, `AZURE` symbol attribution, trigger semantics
 - E-34 (phase 5) `Build/Azure/pipelines/templates/test-jobs.yml:linux_max_parallel` — retire it or re-point its comment, since the AzDO Linux job becomes empty
+- E-35 (phase 2, added by A-1) `global.json:sdk` — `rollForward: latestFeature` from a 10.0.100 floor, so the newest installed 10.0.x SDK is selected rather than the highest patch of the 10.0.2xx band
 
 ## P7 Impact map
 
@@ -215,7 +216,7 @@ Out-of-repo prerequisites, each blocking the obligation beside it: `BASELINES_GH
 
 ## P11 Amendments
 
-_None._
+- A-1 (2026-09-01) Adds **E-35**, `global.json`, which no phase authorized. The phase-2 workflow failed every job with CS9057: CodeGenerators is built against Roslyn 5.6, so it needs a 10.0.4xx SDK, but `rollForward: minor` from a 10.0.200 floor prefers the highest patch of the 10.0.2xx band over rolling forward, and the runner image carries both. The first fix isolated the SDK install in the workflow (`DOTNET_INSTALL_DIR`), reproducing what Azure's `UseDotNet@2` does implicitly — a workaround in CI for a resolution bug in the repo. On the user's direction the root fix replaced it and the workaround was removed. Worth recording that this was never CI-specific: any contributor whose highest SDK is a 10.0.2xx hits the same CS9057 today, and Azure masked it only because `UseDotNet@2` installs into an isolated tool directory where the resolver never sees an older band. **This voids approval for the phase-2 surface**, which now touches a product file rather than only CI definitions.
 
 ## P12 Critic verdict
 
