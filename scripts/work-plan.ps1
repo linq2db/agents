@@ -25,6 +25,13 @@ param(
     [string] $Title,
     [string] $Branch,
     [string] $Base = 'origin/master',
+
+    # Where the *code* lives. Defaults to the clone that owns this corpus, but branch work
+    # happens in a worktree (agent-rules -> Creating a new branch), and the plan lives in the
+    # corpus either way -- so without this, -Reconcile diffs a tree that has none of the changes
+    # and reports a clean zero.
+    [string] $RepoRoot,
+
     [switch] $Force
 )
 
@@ -574,7 +581,7 @@ function Invoke-GapReport {
 
 # ---------------------------------------------------------------- dispatch
 
-$repoRoot = Get-RepoRoot
+$repoRoot = if ([string]::IsNullOrWhiteSpace($RepoRoot)) { Get-RepoRoot } else { (Resolve-Path $RepoRoot).Path }
 $planKey  = Resolve-Key -Explicit $Key -RepoRoot $repoRoot
 
 switch ($Action) {
