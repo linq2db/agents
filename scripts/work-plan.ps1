@@ -276,11 +276,19 @@ function Invoke-Validate {
     # P6 rows: E-n <path> — what changes.
     $p6         = Get-Block -Blocks $blocks -Id 'P6'
     $editPoints = @()
+    # Only bullet rows are edit-points. A block may also carry explanatory prose
+    # -- a note on why something was dropped, a scoping caveat -- and demanding
+    # an E-n id from a paragraph produces a diagnostic that reads as a malformed
+    # edit-point. Same shape as the P8 rule below.
+    # An edit-point row *leads* with its E-n id. A bullet that doesn't is prose --
+    # a dropped-scope note, a caveat -- and demanding an id from it produces a
+    # diagnostic that reads as a malformed edit-point. Same rule as P8's TO-n.
     foreach ($row in (Get-BlockRows -Block $p6)) {
-        if ($row -notmatch 'E-\d+') { $errors += "P6 : row carries no E-n id -- $row"; continue }
+        if ($row -notmatch '^-\s*[*_]{0,2}E-\d+') { continue }
         if ($row -match '`([^`]+)`') { $editPoints += $Matches[1] }
         else { $warnings += "P6 : row names no backticked path -- $row" }
     }
+    if ($editPoints.Count -eq 0) { $errors += 'P6 : no edit-point row found (a row must lead with `- E-<n>`)' }
 
     # P7 rows each carry exactly one verdict.
     $p7 = Get-Block -Blocks $blocks -Id 'P7'
@@ -300,10 +308,14 @@ function Invoke-Validate {
 
     # P8 rows declare a proof mode.
     $p8 = Get-Block -Blocks $blocks -Id 'P8'
+    # Only rows that *lead* with a TO-n id are obligations. A prose bullet that
+    # merely references one (a symmetry note, a gating caveat) is not, and must
+    # not be asked for a proof mode. Emphasis markers are tolerated on both the
+    # id and the mode -- `- **TO-1** ... proof: **red-green**` is valid, and
+    # rejecting it produces a diagnostic that reads as a missing declaration.
     foreach ($row in (Get-BlockRows -Block $p8)) {
-        if ($row -notmatch '^-\s') { continue }
-        if ($row -notmatch 'TO-\d+') { $errors += "P8 : row carries no TO-n id -- $row"; continue }
-        if ($row -notmatch 'proof:\s*(red.{0,3}green|control|characterization)') {
+        if ($row -notmatch '^-\s*[*_]{0,2}TO-\d+') { continue }
+        if ($row -notmatch 'proof:\s*[*_]{0,2}\s*(red.{0,3}green|control|characterization)') {
             $errors += "P8 : row declares no proof mode (red-green | control | characterization) -- $row"
         }
     }
