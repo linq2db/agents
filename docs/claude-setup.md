@@ -23,6 +23,8 @@ The project deliberately does **not** commit a `.claude/settings.json`. Hooks, s
 
 Settings precedence: project-local `.claude/settings.local.json` > user-level `~/.claude/settings.json` > Claude Code defaults.
 
+**Any new per-user setting the corpus grows must be gitignored, and this is the precedent to copy.** The corpus is a public repo shared by every clone, so a settings file committed into it ships one person's choices to everyone. Before adding a settings file of your own — a skill's preferences, a per-tool model pin, a workflow toggle — decide whether its content is a *project fact* (belongs in a tracked doc) or *one person's choice* (gitignored, recreated by a first-run prompt). Ask the same question the existing entries already answer: would another maintainer be surprised to inherit this? Add the path to `.claude/.gitignore` **when you create the file**, not after someone notices. (Surfaced 2026-09-01: `/work-plan`'s `plans/config.json` — which critic model, and when the critic runs — was created and committed, so the maintainer's preferences travelled to every clone. The fix was one `.gitignore` line and a `git rm --cached`; the first attempt at it invented a committed-default-plus-local-override split that nobody had asked for. *"if it is user config - it should be gitignored"*.)
+
 ## The corpus is a git submodule
 
 `.claude/` is a submodule pointing at [linq2db/agents](https://github.com/linq2db/agents) — the corpus has its own repo and its own history, so corpus churn never touches linq2db's. linq2db tracks only `.gitmodules`, the `.claude` gitlink, `.githooks/`, and two root trampolines.

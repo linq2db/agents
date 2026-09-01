@@ -2,6 +2,15 @@
 
 Detail-heavy mechanics for creating PRs and pushing follow-ups. The summary in [`agent-rules.md`](agent-rules.md) → *Push to remote rules* / *Pull request rules* keeps the principles and one-line triggers; this doc is what you load when one of those triggers fires.
 
+### Before the first push of a branch: check for commits you didn't make, then sync
+
+Two checks, both cheap, both before `git push`:
+
+1. **`git log --oneline origin/master..HEAD`** — is anything on this branch that you didn't put there? The user may have committed to it between sessions, or in a parallel session, or from their editor. Pushing without looking risks force-shaped surprises later and, worse, a PR whose description you wrote describing only *your* half of the work. If commits you didn't author appear, stop and say so before pushing.
+2. **`git fetch origin master`, then sync** — a branch cut hours or days ago is behind. Fast-forward when the branch has no commits; otherwise follow the merge-vs-rebase rule in [`agent-rules.md`](agent-rules.md) → *Creating a new branch*. Syncing before the first push means CI's first run is against current master, so a red leg is about your change rather than about drift you hadn't merged.
+
+Do the same before opening the PR when the branch was pushed earlier in the session — master moves. (Surfaced 2026-09-01 on #5840, at the user's prompting: *"first check if there were no other user commits to branch and sync with master"* — the branch turned out clean and three commits behind, and the sync was a fast-forward.)
+
 ### After every successful push: PR body check
 
 Check for a PR on the branch (`gh pr list --head <branch> --json number,title,body,url`):
@@ -65,6 +74,8 @@ Run **`pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr <n>`*
 The same applies when a follow-up commit changes a test's projection shape / SQL output without renaming it — the old PR's files no longer match the new expected output. Out of scope: pure test *additions* that don't rename anything (the existing baselines PR is incremental — new files just get added on the next CI run), and bug-fix commits that update SQL but leave both names and structure untouched (the existing baselines PR's diff updates in-place).
 
 **Also covers the case where the baselines PR became `CONFLICTING` because *other* source PRs landed on master first.** The baselines PR is keyed against a specific source-PR commit; once master moves, the baselines diff often no longer applies cleanly even if the source PR's tests didn't change. Same close+delete-branch action — the next CI run on the now-merged source PR (or its squashed master commit) regenerates fresh baselines under master's current state. Don't try to merge-resolve a baselines PR; the cost of regenerating is much lower than the cost of getting the resolution wrong.
+
+**Do a review-requested rename immediately, not at the end of the walk.** Every CI run between the request and the rename regenerates baselines under the doomed names, so batching the rename with the rest of the review fixes multiplies the stale set for no benefit — and a rename is usually a one-line mechanical change that needs no discussion. Push it on its own, then continue the walk. (Surfaced 2026-09-01 on #5840: a reviewer asked for an `Issue<N>_` prefix to be dropped from six tests, and the user's follow-up was *"I don't want polluted baselines"* — the rename went out as its own commit within the same turn.) This is about not *creating* stale baselines; it does not conflict with [`agent-rules.md`](agent-rules.md) → orphaned baselines, which says existing orphans from a superseded run need no cleanup and are never a review finding.
 
 Both `/review-pr` (in interactive-mode `fix`-path post-walk) and `/verify-review` (when a partial-fix follow-up renames a test) trigger this cleanup. Make it part of the publish bundle that pushes the follow-up commits — push, body update, Copilot re-request, baselines close+delete-branch, `/azp run test-all`.
 

@@ -169,7 +169,11 @@ The plan never lands on a linq2db branch and never bumps the `.claude` gitlink.
 
 ### 10. Hand off
 
-Report: key + path, tier, critic verdict, `P6` edit-point count, applicable gates, and any `P4` row the user still owes an answer on. Then stop — implementation is the user's or `/fix-issue`'s.
+Report: key + path, tier, critic verdict, `P6` edit-point count, applicable gates, and any `P4` row the user still owes an answer on.
+
+**Then offer to implement it — don't just stop.** The skill does not write product code *on its own initiative*, but an approved plan is not the deliverable the user came for, and parking it behind a "next actions" list reads as the job being done when nothing has been fixed. Close with a concrete offer: implement the `P6` edit-points now, hand to `/fix-issue` for the red tests first, or stop here. One line, and let the user pick.
+
+The distinction that matters: **"does not write the fix unprompted" is not "refuses to write the fix"**. When the user asked for the mechanism to be used on real work, the fix is part of that work. (Surfaced 2026-09-01 on [#5729](https://github.com/linq2db/linq2db/issues/5729): a plan was authored, critiqued twice, validated and committed, and the session moved on — the user's next message was *"where is 5729 fix? I don't see any pr"*.)
 
 ## Mode: amend
 
