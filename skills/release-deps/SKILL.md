@@ -1,13 +1,13 @@
 ---
 name: release-deps
-description: NuGet dependency update for the release-prep workflow. Discovers every <PackageVersion> in Directory.Packages.props plus all <PackageReference VersionOverride="..."> sites across the repo, queries nuget.org for available versions, applies the project's version policy, walks per-package decisions, runs all predictive audits (analyzer rule catalogs, polyfill API diffs, fuget API surface diffs, drift checks), batch-applies all consequent edits. **Runs no verification build, no commit, no push, no CI trigger** — those are all owned by `/release-verify` (orchestrator task 6), which sees the cumulative state from every release-prep task and produces the single consolidated commit + push + CI trigger. Per-package custom rules + release-notes URLs accrue in `.claude/docs/release/nuget-package-notes.md`. Invoked by `/release` step 1 or directly when running release prep.
+description: Dependency update for the release-prep workflow — NuGet packages and SHA-pinned GitHub Actions. Discovers every <PackageVersion> in Directory.Packages.props plus all <PackageReference VersionOverride="..."> sites across the repo, queries nuget.org for available versions, applies the project's version policy, walks per-package decisions, resolves every action pin in .github/workflows against its latest release (there is no Dependabot here — this is the only thing that updates a pinned SHA), runs all predictive audits (analyzer rule catalogs, polyfill API diffs, fuget API surface diffs, drift checks), batch-applies all consequent edits. **Runs no verification build, no commit, no push, no CI trigger** — those are all owned by `/release-verify` (orchestrator task 6), which sees the cumulative state from every release-prep task and produces the single consolidated commit + push + CI trigger. Per-package custom rules + release-notes URLs accrue in `.claude/docs/release/nuget-package-notes.md`. Invoked by `/release` step 1 or directly when running release prep.
 ---
 
 # /release-deps
 
 ## What this skill is (and isn't)
 
-**Is:** the dependency-update phase of release prep. One discovery pass produces a table of every package with `current`, `latest-release`, `latest-prerelease`, `proposed`, and any `policy:` block reason. User picks updates per-package. Every audit that can be predicted from the package decisions runs **before** the apply (analyzer rule-catalog catch-up, polyfill API diff, fuget API surface diff, drift checks). All edits land in one batch. **No verification build inside this skill** — the verification build is owned by `/release` orchestrator and runs as a final gate **after all release-prep tasks** (deps + PublicAPI + milestone-check + test-matrix + release-notes + ad-hoc) so the build sees the cumulative state.
+**Is:** the dependency-update phase of release prep — NuGet packages and the SHA-pinned GitHub Actions in `.github/workflows/**`, which have no other update mechanism because the repo runs no Dependabot. One discovery pass produces a table of every package with `current`, `latest-release`, `latest-prerelease`, `proposed`, and any `policy:` block reason. User picks updates per-package. Every audit that can be predicted from the package decisions runs **before** the apply (analyzer rule-catalog catch-up, polyfill API diff, fuget API surface diff, drift checks). All edits land in one batch. **No verification build inside this skill** — the verification build is owned by `/release` orchestrator and runs as a final gate **after all release-prep tasks** (deps + PublicAPI + milestone-check + test-matrix + release-notes + ad-hoc) so the build sees the cumulative state.
 
 **Isn't:**
 
@@ -53,6 +53,22 @@ The script:
 - Emits a plan JSON at `.build/.agents/release-<ver>-deps-plan.json`.
 
 Conditional `<PackageVersion>` entries (TFM-bracketed via `Condition="..."`) are surfaced as separate rows with the condition shown.
+
+### 1b. Discover pinned GitHub Actions
+
+```
+pwsh -NoProfile -File .claude/scripts/gh-action-pins.ps1
+```
+
+GitHub Actions are pinned by commit SHA with the tag in a trailing comment — `uses: actions/checkout@3d3c42e… # v7.0.1`. A pinned SHA never moves, which is the point, and also means **nothing updates it**: this step is the entire update mechanism. There is deliberately no Dependabot on this repo, for actions or for nugets — dependency updates are curated and batched here instead.
+
+The script scans `.github/workflows/**` (and `.github/actions/**` when composite actions exist), resolves each action's latest release, dereferences an annotated tag to its commit, and reports the pins that are behind along with the exact replacement line. Exit 1 means at least one is outdated, so the check can gate; exit 2 is an error.
+
+Two things this does *not* need, unlike the NuGet walk above: no policy engine (there is no runtime-pin or prerelease rule for actions), and none of step 4's predictive audits — an action bump has no API surface, no analyzer rules, no polyfill diff and no baseline implications. Treat a behind pin as a straight bump unless its release notes say otherwise.
+
+**Read the release notes for a major-version bump before proposing it.** The SHA hides the version change, so a v6→v7 that drops an input the workflows pass looks identical to a patch bump in the diff.
+
+Rows join the step-2 table and the step-3 walk as their own small block; the edits land in step 5's batch.
 
 ### 2. Render the table
 
@@ -160,6 +176,7 @@ Apply all queued edits in one batched pass, grouped by file:
 - `Tests/Tests.T4.Nugets/Directory.Packages.props`: separate edit if any of its packages are in scope.
 - Each `VersionOverride` csproj: one edit per file.
 - `.editorconfig`: one edit covering every new rule severity line from step 4a (numerically ordered inserts).
+- Each workflow file with an outdated action pin from step 1b: one edit per file, replacing every site of that action — the script reports them all, and a partial replacement leaves two SHAs for one action in the same workflow.
 - Any code edits queued from step 4b (polyfill dedups) or other audits.
 
 Show the full diff as a single proposal. Gate on user confirmation before any edits land.
