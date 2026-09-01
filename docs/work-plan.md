@@ -166,6 +166,26 @@ draft ──authored──> critiqued ──> approved ──> implementing ─�
 
 **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements — deciding that is the review's job. Without this posture the plan launders the author's framing into the review's voice, which [`review-conventions.md`](review-conventions.md) names as the one thing a reviewer is there not to do, and it contradicts `code-reviewer`'s standing rule that *a PR's own root-cause account is a claim*.
 
+## Settings — `.claude/plans/config.json`
+
+Two settings, asked once on the first planning session that needs them and persisted thereafter. [`../skills/work-plan/SKILL.md`](../skills/work-plan/SKILL.md) → step 7 owns the prompting.
+
+```json
+{
+  "criticModel":  { "claude-code": "fable" },
+  "criticTiming": "before"
+}
+```
+
+| Key | Values | Meaning |
+|---|---|---|
+| `criticModel` | keyed by **host tool** | Which model critiques. Must be a different family from the author's — that difference *is* the mechanism. Keyed per tool because the available models differ. |
+| `criticTiming` | `before` \| `after` \| `ask` | When the critic runs relative to presenting the plan. Not keyed by tool: a workflow preference, not a capability. |
+
+**`before`** (recommended) runs the critic first, so the user only ever sees a plan with the verdict folded in and approves knowing the strongest case against the design. **`after`** presents first so the user can kill an approach before a critic pass is spent — at the cost that the first approval is provisional and must be re-earned once the verdict lands. **`ask`** decides per run.
+
+Neither setting applies at Tier S, where no critic runs.
+
 ## Gap classes — closing the loop back to the plan
 
 A review finding is also evidence about the *plan*. After a review's findings are final, [`review-gap-attributor`](../agents/review-gap-attributor.md) attributes each one to the upstream artifact that would have prevented it and writes `.claude/plans/<key>/gaps.md`. This is what makes review rounds converge **across** PRs rather than only within one — the rest of the mechanism sharpens a single branch, this is the only part that feeds back.

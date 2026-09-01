@@ -102,13 +102,33 @@ Then `work-plan.ps1 -Action init` and fill, or edit the existing file. Run `-Act
 
 One `Agent` call to `plan-critic`, **passing the model explicitly on the dispatch** — the model is load-bearing here, so do not rely on frontmatter being picked up.
 
-**First run in this corpus: ask which model to critique with.** Read `.claude/plans/config.json`; if it carries no entry for the current host tool, ask the user once, then write it:
+**First run in this corpus: ask two settings once, then persist them.** Read `.claude/plans/config.json`. For each key it does not carry, ask the user and write the answer back:
 
 ```json
-{ "criticModel": { "claude-code": "fable" } }
+{
+  "criticModel":  { "claude-code": "fable" },
+  "criticTiming": "before"
+}
 ```
 
-The requirement is a model **from a different family than the author's**, because that is the entire mechanism — a same-model critic re-derives the same blind spots. For Claude Code the suggestion is `fable`. Under another host (Codex, or anything else reading this corpus) the choice is the user's; record it under that tool's key.
+- **`criticModel`** — keyed by host tool, because the right answer differs per tool. The requirement is a model **from a different family than the author's**; a same-model critic re-derives the same blind spots. For Claude Code the suggestion is `fable`. Under another host the choice is the user's.
+- **`criticTiming`** — `before` | `after` | `ask`. Not keyed by tool: it is a workflow preference, not a capability. See below.
+
+Ask both in the **same** prompt when both are missing — don't make the user answer two turns for one setup.
+
+#### `criticTiming` — when the critic runs relative to step 8
+
+| Value | Flow | Trade-off |
+|---|---|---|
+| **`before`** | 7 → 8. The user first sees the plan with the verdict already folded in. | The user never reviews a design that is about to change, and approves knowing the strongest case against it. Costs a critic pass even on a plan the user would have rejected outright. |
+| **`after`** | 8 → 7 → 8 again. Present the plan, take the user's reaction, *then* critique, then re-present the verdict and re-confirm. | The user can kill or redirect an approach before a critic pass is spent. Costs a second presentation round, and the first approval is provisional by construction. |
+| **`ask`** | Ask per run, defaulting to whatever suits the plan's size. | No standing commitment; one extra question each time. |
+
+**Under `after`, the first approval is provisional and must be said to be.** Approval is a final word on the *then-current* edit set (step 8), so a critic that subsequently returns `weak` or `refuted` voids it — exactly as a `P11` amendment would. Tell the user that when presenting, and re-confirm after the verdict. Never let a pre-critique approval stand as the approval of record.
+
+**`before` remains the recommendation, and the reason is empirical:** on the first real run of this skill ([#5729](https://github.com/linq2db/linq2db/issues/5729)) the critic changed the design on both passes — pass 1 removed an edit-point and forced a helper re-decision, pass 2 refuted an entire folded-in half. Presenting first would have spent the user's attention twice on designs that did not survive.
+
+**Tier S never asks.** No critic runs at Tier S, so neither setting applies; don't prompt for them on a Tier S plan.
 
 **Dispatch hygiene — this is the difference between a critic that earns its cost and one that rubber-stamps:**
 
@@ -129,6 +149,13 @@ Reconcile by verdict:
 Show the user the plan — tier, `P2` criteria, `P6` edit-points, the critic verdict with its objections, and any `P4` row still open. **Ask for approval in the main loop, never from inside a subagent** — subagents run non-interactively and a prompt there is auto-denied.
 
 Approval is a final word on the **then-current** edit set. Record it on the header line.
+
+**Under `criticTiming: after` this step runs twice**, and the two runs are not the same thing:
+
+1. **Pre-critique** — present the design *without* a `P12` verdict, and say plainly that it has not been attacked yet and that approval here is provisional. The user's job at this point is to kill or redirect the approach, not to bless the details. Then go to step 7.
+2. **Post-critique** — present the verdict and whatever changed in response, and take the approval of record. If the critic returned `holds` and nothing moved, say so in a line rather than re-pasting the whole plan.
+
+Never record a pre-critique approval on the header line. If the user approves at (1) and the critic then returns `weak` or `refuted`, the approval is void the same way a `P11` amendment voids one — re-earn it at (2).
 
 ### 9. Validate, then commit the plan on its own
 
