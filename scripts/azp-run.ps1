@@ -42,6 +42,16 @@ cause is the push/trigger race, not the pipeline. Observed on #5614, where a
 `test-all` trigger posted seconds after the push produced a comment URL and no
 run at all, while the same command a few minutes later worked.
 
+The observed lag can be far longer than the default pause. On #5725 two triggers were
+refused — 4 and 10 minutes after the push, both with `-SettleSeconds` at 5 and 20 — each
+drawing the bot's `the pull request was updated after the run command was issued. Review
+the pull request again and issue a new run command`, with `test-all` staying
+ACTION_REQUIRED and no build registering. A third attempt with `-SettleSeconds 180`
+started immediately. Elapsed wall time since the push is evidently not what clears it, so
+prefer `-SettleSeconds 180` when triggering after a push you just made, rather than
+retrying at the default and re-posting dead comments on the PR. The mechanism is not
+established — treat this as an observed value, not an explanation.
+
 Hence two behaviours below, both defeatable:
   -SettleSeconds        pause before posting (default 5) so the push lands first
   -VerifyTimeoutSeconds poll the PR's checks afterwards until the pipeline shows

@@ -135,6 +135,14 @@ When a feature needs to know whether a provider supports something, expose it as
 
 Adding a flag means updating, in `SqlProviderFlags.cs`: the property (`[DataMember(Order = N)]`, next free order), the `GetHashCode` chain, and the `Equals` chain — plus a `PublicAPI.Unshipped.txt` get/set entry. Then set it `= true` in each supporting provider's `*DataProvider` constructor. `IsUpdateOutputSupported` is the worked example.
 
+### Moving a correctness transform to a shared stage needs a provider opt-out
+
+A fold / cast / wrapper that exists because *most* providers reject the bare form is usually applied where a provider can still escape it — a convert visitor a provider overrides, a builder hook it replaces. Moving it earlier (to translation, or to a shared base) makes it **unconditional**, and providers that accepted the bare form start receiving output they don't need. Add a capability property alongside the transform and let those providers opt out, defaulting it to the conservative value so only providers with *evidence* opt out. Maintainer: *"I prefer to not have this case garbage generated if it is not needed."*
+
+The evidence bar for opting a provider in is a green, value-asserting test on `master` showing the bare form worked there — not an inference that its type system looks permissive. Opting in on a guess trades redundant SQL for wrong SQL.
+
+`IsMinMaxOverBooleanSupported` on `AggregateFunctionsMemberTranslatorBase` is the worked example (#5725): the `MIN`/`MAX`-over-boolean 1/0 fold moved out of `SqlExpressionConvertVisitor.ConvertSqlExtendedFunction` — which ClickHouse overrode and returned from without calling `base`, so the fold had never run there — into the translation stage, where nothing could escape it. ClickHouse's `Bool` is `UInt8`, so `max` applies to a comparison directly, and the relocation bought it a `CASE` for no gain. The flag defaults `false` (keep folding) and ClickHouse alone opts in. Related: [*A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test*](#a-per-provider-capability-is-a-sqlproviderflags-bool-plus-a-probing-guard-test) — prefer a `protected virtual` on the translator base when the capability is consulted only at translation and needs no wire representation.
+
 ### Don't pioneer a provider feature with no cross-provider precedent
 
 Before building a provider-specific translation, grep the other providers' translators for the same member or feature. Precedent → mirror it. No precedent → surface that and default to **not** building it.
