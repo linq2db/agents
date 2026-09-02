@@ -64,13 +64,33 @@ GitHub Free gives **20 parallel jobs on 4 vCPU / 16 GB**, free for public reposi
 - **why this:** AzDO's 10 slots stop being the constraint either way; the static split keeps both CIs useful with zero runtime logic, and the probe makes rebalancing a flag edit rather than a port.
 - **failure mode of the choice:** SQL Server may be the wrong 8 legs to park on the slower agents — they pull ~4 min of image before running a test, overhead better paid on a 4-vCPU runner. Unmeasured, and the split will look settled once written down (U-2).
 
-### D-3 — One matrix source of truth, generated into the AzDO template
+### D-3 — One matrix file, with selection expressed as data (revised by A-2)
 
-- **chosen:** `Build/CI/test-matrix.json` is canonical; `Build/CI/generate-azdo-matrix.ps1` regenerates `test-matrix.yml` with per-entry `ci_gh` / `ci_azdo` booleans **and the `all_in_azure` parameter declaration plus its passthrough to `test-jobs.yml`** (D-6); a `git diff --exit-code` drift check runs in the GitHub build workflow. GitHub reads the JSON directly.
-- **rejected:** two hand-maintained matrices — guaranteed drift across ~25 entries.
-- **rejected:** GitHub parsing the AzDO YAML — that file's `enabled` values are `${{ if … }}` compile-time expressions a plain YAML parser cannot evaluate.
-- **why this:** AzDO cannot build a matrix at runtime and says so at `test-matrix.yml:32-34`; generate-and-commit is the only shape that keeps one source.
-- **failure mode of the choice:** the generator now owns a *parameter declaration* as well as data, so a generator that emits only the matrix silently drops the `all_in_azure` hop and breaks D-6. The drift check catches a stale file, not a generator missing a feature.
+- **chosen:** `test-matrix.yml` stays the single matrix and becomes plain data: each entry carries a
+  concatenated `filters: '[all][sqlserver.all]'` string, and `test-jobs.yml` selects with
+  `contains(test_config.filters, parameters.db_filter)`. Azure reads it natively; the GitHub side reads
+  the same file with a stock YAML parser. No JSON, no generator, no drift check, nothing to synchronise
+  — and 75 fewer lines, since 25 paired `${{ if }}` / `${{ if not }}` blocks collapse to one line each.
+- **rejected:** a canonical JSON plus a generator emitting the AzDO YAML, guarded by a drift check —
+  the original D-3. Certain to work, but it is ~200 lines of generator that must also reproduce ~137
+  lines of load-bearing prose comments, plus a permanent second representation to keep in step.
+- **rejected, empirically:** `filters` as a YAML **list** selected by `containsValue`. It compiles —
+  build 23192 initialised with zero `validationResults` — and matches nothing, so the matrix expanded
+  to no configurations, each test job ran once with no matrix variables, every `and(variables.title, …)`
+  guard was false, and **the build reported `succeeded` having run no tests**. The step names rendered
+  the literal `$(title)`.
+- **rejected:** two hand-maintained matrices — guaranteed drift across 25 entries.
+- **why this:** `contains()` over a string is what the removed blocks already used against the same
+  parameter, so it is proven in this exact position rather than inferred from documentation, which is
+  where `containsValue` failed. AzDO still cannot build a matrix at runtime (`test-matrix.yml:32-34`),
+  but it does not need to — the data is compile-time either way.
+- **failure mode of the choice:** the selection is a substring test, so the `[]` brackets are
+  load-bearing — drop them and `[sqlserver.2019]` matches inside another tag. Both directions of
+  mis-selection are silent, and each was hit once: too few legs is a green run with zero tests (23192,
+  `containsValue` matching nothing), and too many is a green run of the entire matrix (23199,
+  `parameters.db_filter` undefined in `test-jobs.yml` so `contains(x, '')` was always true). Neither
+  produces an error. **Verification is the leg list — names and count — read from the timeline, never
+  the build's verdict**: `db_filter: '[sqlite.all]'` must give exactly `Win s_SQLite` and `Lin s_SQLite`.
 
 ### D-4 — Build with `--configuration Azure` on GitHub too
 
@@ -129,8 +149,10 @@ GitHub Free gives **20 parallel jobs on 4 vCPU / 16 GB**, free for public reposi
 - E-11 (phase 2) `Build/Azure/pipelines/build.yml` — `pr: none`, sequenced after E-10 is live and green on `pull_request` and after branch protection's required-check list is swapped, since flipping it first stalls every PR if that check is required
 - E-12 (phase 2) `.github/CODEOWNERS` — add `/.github/workflows/` and `/Build/` entries
 - E-13 (phase 2) `.gitattributes` — add an explicit `*.yml text eol=lf` rule
-- E-14 (phase 3) `Build/CI/test-matrix.json` — new, canonical matrix carrying the per-leg `ci` flag
-- E-15 (phase 3) `Build/CI/generate-azdo-matrix.ps1` — new generator emitting the matrix, the `ci_gh`/`ci_azdo` booleans and the `all_in_azure` declaration plus passthrough, with a drift check
+- E-14 (phase 3) `Build/CI/test-matrix.json` — **withdrawn by A-2**; there is no separate JSON matrix
+- E-15 (phase 3) `Build/CI/generate-azdo-matrix.ps1` — **withdrawn by A-2**; there is no generator
+- E-36 (phase 3, added by A-2) `Build/Azure/pipelines/templates/test-matrix.yml` and `test-jobs.yml` — replace each entry's paired `${{ if }}` / `${{ if not }}` `enabled` blocks with a `filters` string, selected by `contains(test_config.filters, parameters.db_filter)`, so one file serves both CIs
+- E-37 (phase 3, added by A-2) `Build/Azure/pipelines/templates/test-jobs.yml:parameters` — typed list form declaring `db_filter` with no default, so a caller that fails to forward it is a compile error rather than a silently unfiltered run; `test-matrix.yml` forwards it
 - E-16 (phase 3) `Build/CI/free-disk-space.sh` — extracted from `test-workflow-linux.yml`'s inline block
 - E-17 (phase 3) `Build/CI/push-baselines.ps1` — extracted from the two inline `Commit test baselines` blocks, including their `##vso[task.logissue]` calls
 - E-18 (phase 3) `Build/CI/report-trx.ps1` — new, replaces `PublishTestResults@2`
@@ -216,6 +238,8 @@ Out-of-repo prerequisites, each blocking the obligation beside it: `BASELINES_GH
 
 ## P11 Amendments
 
+- A-3 (2026-09-02) Adds **E-37**. Moving the filter test into `test-jobs.yml` left it reading a `parameters.db_filter` that file neither declared nor received, and an undefined parameter in a template expression is empty rather than an error — so `contains(x, '')` was always true and build 23199 ran all 29 legs for a `test-sqlite` request. This is precisely the shape the critic raised against D-6 in round 2, accepted and written into the plan, then reproduced two commits later with a new parameter. The fix forwards it and converts the block to the typed list form with `db_filter` required, because a default of `'[all]'` would have concealed it identically: the hazard is a *plausible* value, not a missing one.
+- A-2 (2026-09-02) Revises **D-3** and withdraws **E-14** and **E-15** in favour of **E-36**. The generator was traded for expressing selection as data in the one existing matrix file, which removes the JSON, the generator and the drift check, and takes 75 lines out. The user chose this over the approved D-3 knowing it rested on an unverified Azure expression. It then took two attempts: `containsValue` over a YAML list compiled and matched nothing, producing an empty matrix and a build that reported `succeeded` with zero tests executed (23192) — caught because the step names rendered the literal `$(title)`. The shipped form is a concatenated string with `contains()`, the function the removed blocks already used against the same parameter. **This voids approval for the phase-3 matrix surface**, and the D-3 failure-mode line now carries the verification rule the episode earned: check leg names in the timeline, never the build verdict.
 - A-1 (2026-09-01) Adds **E-35**, `global.json`, which no phase authorized. The phase-2 workflow failed every job with CS9057: CodeGenerators is built against Roslyn 5.6, so it needs a 10.0.4xx SDK, but `rollForward: minor` from a 10.0.200 floor prefers the highest patch of the 10.0.2xx band over rolling forward, and the runner image carries both. The first fix isolated the SDK install in the workflow (`DOTNET_INSTALL_DIR`), reproducing what Azure's `UseDotNet@2` does implicitly — a workaround in CI for a resolution bug in the repo. On the user's direction the root fix replaced it and the workaround was removed. Worth recording that this was never CI-specific: any contributor whose highest SDK is a 10.0.2xx hits the same CS9057 today, and Azure masked it only because `UseDotNet@2` installs into an isolated tool directory where the resolver never sees an older band. **This voids approval for the phase-2 surface**, which now touches a product file rather than only CI definitions.
 
 ## P12 Critic verdict
