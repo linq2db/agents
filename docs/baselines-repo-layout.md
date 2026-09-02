@@ -63,6 +63,31 @@ $ git -C ../linq2db.baselines diff --name-status origin/master...origin/baseline
 
 The failure is worse than a stale read because the wrong answer is *self-consistent*: file lists, per-file diffs and `show` all agree with each other. The tell is a path that should exist and doesn't — cross-check the changed test names against the PR's own `nameStatus` before trusting any count. (Surfaced on PR #5727: mid-review `FETCH_HEAD` moved from the baselines branch to baselines `master`, and the same `--name-only` command that had correctly reported the PR's 136 `EagerLoadingTests` files then reported 183 `ConcurrencyRefreshTests` files — unrelated baselines that master had gained. Caught only because a sample path 404'd; on the counts alone it would have produced a confidently wrong Baselines section.) The `worktree.md` → *Never base a worktree on `FETCH_HEAD`* rule is the same hazard on the checkout side.
 
+### A baseline file's path carries the provider and nothing else — no TFM, no OS
+
+`<Provider>/Tests/…/<FQN>(<Provider>).sql` is the whole key. One CI job runs the same tests across several
+target frameworks (and, historically, several operating systems), and **every one of those legs writes the
+same file**, so the committed content is whichever leg finished last. Nothing in the artifact records which
+leg won.
+
+Two consequences, and the second is the expensive one:
+
+- Legs can disagree and only one answer survives. A shape produced by a single TFM is indistinguishable in
+  the branch from one every TFM produces.
+- **When the matrix changes, a baseline can describe SQL no current leg emits.** Trimming a TFM or an OS out
+  of a job doesn't rewrite the files that leg wrote; they persist until some surviving leg overwrites them.
+  So a delta can show a change that the code no longer produces anywhere — and no amount of local
+  reproduction will find it, because the leg that produced it is gone.
+
+The tell is a baselines delta whose shape resists reproduction across every axis you *can* vary. Before
+concluding a defect, check whether the matrix moved between the run that wrote the file and now
+(`git log --oneline <baseline-commit-date>..origin/master -- Build/`), and re-check the delta after a fresh
+run. (Surfaced on #5737: 47 provider baselines showed a duplicated literal column in every `UNION ALL`
+branch. It reproduced under no local provider set, concurrency level, configuration, settings node, suite
+scope or TFM, and an instrumented CI probe on the PR's own head showed the trace identical to local. The
+content came from legs a macOS-drop / TFM-trim commit had removed from the matrix; the next `test-all`
+regenerated the delta from 47 net-positive files to zero.)
+
 ### Merging a baselines PR
 
 `linq2db.baselines` **disallows merge commits** — `gh pr merge --merge` fails with *"Merge commits are not allowed on this repository. (mergePullRequest)"*. Use `gh pr merge <n> --squash` (mark the CI-created draft ready first with `gh pr ready <n>`; `--admin` bypasses any pending check). This comes up when cleaning up a lingering baselines PR whose source linq2db PR has already merged (the baselines PR doesn't auto-close).

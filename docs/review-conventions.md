@@ -70,6 +70,25 @@ When a review feels long, the levers are *better severity classification* (corre
 
 When the user says a review is too long, ask: are the findings *wrong / duplicate*, or just *numerous*? Only the former is the reviewer's problem to fix.
 
+### A finding you measured and found inert gets dropped, not demoted
+
+*Completeness* above forbids omitting **legitimate** findings. This rule is about what happens one step
+later, when a finding has been probed and the probe came back empty: the structural claim holds, but the
+consequence you predicted does not occur on any input the corpus or a constructed probe can produce. The
+tempting move is to post it at a reduced severity — "real invariant break, no demonstrated effect, MIN" —
+which reads as rigour and is not. It spends the author's attention on a change nobody can justify, and it
+teaches the reader that this reviewer's severities are negotiable rather than evidential.
+
+Drop it. Say what you measured, in the walk, and move on. If the tightening is genuinely desirable it will
+resurface attached to a defect that reproduces.
+
+This does **not** license dropping a finding you merely failed to *investigate* — an unprobed claim is not
+an inert one, and the `agent-rules.md` → *A suggestion you are about to accept is a claim too* rule already
+requires the run. The gate is evidence of absence, not absence of evidence. (Surfaced on #5737: a
+descriptor/alias-suppression scope break was verified real, its fix measured behaviour-neutral across all
+125 captured baselines with 208 tests green, and was proposed for posting at MIN. The maintainer's call was
+*"no reason to fix/keep it if it is not proved"*.)
+
 ### Output body structure
 
 Review body sections, in order. Omit any section that has no items.

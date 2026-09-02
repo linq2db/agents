@@ -183,6 +183,7 @@ Consequences:
 
 - A `CommonConnectionStrings` edit in `DataProviders.json` flows to **both** local dev *and* CI (both inherit it). To change a provider **only** in CI, add a `Connections` override to the Build/Azure job file — don't rely on editing `DataProviders.json` alone (and don't duplicate a string into both when the base already supplies it).
 - `BaselinesPath` is set only in `AzureConnectionStrings`, so baseline capture/compare is **CI-only**; local runs don't diff baselines unless you set it yourself.
+- **The section is selected by TFM *and* configuration, so reproducing CI locally means seeding `NET<n>.Azure`, not `NET<n>`.** CI builds and runs tests under the repo's custom `Azure` configuration (`test_configuration: 'Azure'` in `Build/Azure/pipelines/templates/build-vars.yml`; `<Configurations>Testing;Debug;Release;Azure</Configurations>`), and the reader resolves `NET100.Azure` for a `-c Azure` run. A local `dotnet test … -c Azure` against a file that only defines `NET100` therefore reads **neither** its `Providers` nor its `BaselinesPath` — the run goes green and writes **zero** baselines, with nothing saying why. Define both sections when switching a local run to `Azure` to match CI. (Cost a full run on #5737 before the empty output directory was traced to this.)
 - **A test-config mode that breaks filtered/local runs (`dotnet test --filter …`, which skips the `a_CreateData` seed) must not become the tracked default.** Scope the risky mode to a CI-only Build/Azure override and keep the dev default safe — or fix the underlying limitation. (#5698: DuckDB shared in-memory can't be preloaded from its committed file — `COPY FROM DATABASE` fails on FK ordering — so it's CI-only, full-suite-seeded; SQLite preloads via the backup API, so its in-memory default is filtered-run-safe.)
 
 ### Container-backed providers
@@ -562,6 +563,8 @@ Baselines regenerate in place during the test run. To see "before vs after" you 
 
 1. **Regenerate locally**: check out `master` (or the PR base), run the relevant tests to populate baselines at `BaselinesPath`, then switch back and re-run — diff is between the two generations.
 2. **Use the remote baselines repo**: clone `https://github.com/linq2db/linq2db.baselines.git` to `../linq2db.baselines` (or fetch into the existing sibling) and compare `BaselinesPath/<Provider>/…` against `../linq2db.baselines/<Provider>/…` directly. No pre-change test run needed; this is the authoritative "before" for branches based on `master`.
+
+For option 2 against a PR's baselines branch, use [`baselines-capture-compare.ps1`](../scripts/baselines-capture-compare.ps1) (`-Pr <n> -CapturePath <BaselinesPath> [-Fetch]`) rather than hand-rolling the comparison. It answers "did my local run reproduce CI?" per file — `matches-branch` yes, `matches-master` no — and encodes the three things the hand-rolled version gets wrong: byte equality instead of a pattern match (a regex for the suspect shape matches the clean shape too, and reports every provider as affected), `-LiteralPath` for names containing `[`/`]`, and intersecting with the branch's own delta first so it doesn't spawn a `git show` per captured file.
 
 ### Unexpected "changed" baselines on a broad run — confirm with a deterministic re-run
 
