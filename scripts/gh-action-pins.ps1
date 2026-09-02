@@ -53,6 +53,40 @@ function Fail([string] $message) {
     exit 2
 }
 
+# Highest *version*, not newest release. `repos/<x>/releases` is ordered by creation date, so a
+# maintainer who backports to an old line publishes a release that sorts first: on 2026-03-17
+# actions/download-artifact re-published v3.1.0 and v3.1.0-node20, six days after v8.0.1, neither
+# flagged prerelease. Taking `.[0]` reported v3.1.0-node20 as latest and would have had the release
+# walk *downgrade* a correct v8 pin by five majors. `releases/latest` happened to answer v8.0.1
+# here, but it is date-based too, so it is the same bug waiting for a different publish order.
+#
+# Tags carrying a pre-release suffix (`-node20`, `-beta.1`) are skipped unless nothing else is
+# available - they are alternate builds of a line, not the line's head.
+function Get-LatestVersionTag([string] $repo) {
+    $json = gh api "repos/$repo/releases?per_page=100" 2>$null
+    if (-not $json) { return $null }
+    $releases = $json | ConvertFrom-Json
+    if (-not $releases) { return $null }
+
+    $ranked = foreach ($r in $releases) {
+        if ($r.draft -or $r.prerelease) { continue }
+        $m = [regex]::Match($r.tag_name, '^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?<suffix>[-+].*)?$')
+        if (-not $m.Success) { continue }
+        [pscustomobject]@{
+            tag     = $r.tag_name
+            clean   = -not $m.Groups['suffix'].Success
+            version = [version]::new(
+                [int] $m.Groups[1].Value,
+                [int] ($m.Groups[2].Success ? $m.Groups[2].Value : 0),
+                [int] ($m.Groups[3].Success ? $m.Groups[3].Value : 0))
+        }
+    }
+    if (-not $ranked) { return $null }
+    ($ranked | Sort-Object -Property @{ E = 'clean'; Descending = $true },
+                                     @{ E = 'version'; Descending = $true } |
+        Select-Object -First 1).tag
+}
+
 # Resolve a tag to the commit it points at, dereferencing an annotated tag.
 function Resolve-TagCommit([string] $repo, [string] $tag) {
     $ref = gh api "repos/$repo/git/ref/tags/$tag" 2>$null | ConvertFrom-Json
@@ -107,7 +141,7 @@ $results = @()
 foreach ($entry in $found.Values) {
     $repo = $entry.action
 
-    $latestTag = gh api "repos/$repo/releases" --jq '.[0].tag_name' 2>$null
+    $latestTag = Get-LatestVersionTag $repo
     if (-not $latestTag) { Fail "could not read releases for '$repo' - check the action still exists" }
 
     $latestSha = Resolve-TagCommit $repo $latestTag
