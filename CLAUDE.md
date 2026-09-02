@@ -17,10 +17,16 @@ one of them, split it into labelled sections in this order, and omit the ones th
 
 1. **Prose** — what I found, what I did, what it means. Statements only: no questions, no proposals.
 2. **Questions** — what I need from you before continuing. One per bullet, each answerable on its own.
-3. **Next actions** — what I propose to do, numbered so you can reply "1, 3" instead of restating it.
+3. **Next actions** — numbered so you can reply "1, 3" instead of restating it.
 
 Rules:
 
 - Keep each section to its own job. A question buried in a paragraph of findings does not count as asked.
 - Don't repeat prose inside the questions or the actions; reference it.
 - If there is nothing to ask and nothing to propose, prose alone is the whole reply.
+- **Sections 2 and 3 are for real forks only, not for the obvious next step.** A *fork* is one of:
+  mutually exclusive options where the choice changes the work; an irreversible or outward-facing
+  action (per *Git commit rules*); or a goal-level ambiguity you cannot resolve from the task. When
+  the next step follows from what just happened — widen a narrow run, re-run after a fix, take the
+  next item of a plan already agreed — **do it and report the result**. Do not close a turn with a
+  numbered menu whose every answer is "yes"; that is asking permission, not proposing a choice.
