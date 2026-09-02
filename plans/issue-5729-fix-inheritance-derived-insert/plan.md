@@ -100,7 +100,7 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 
 - E-1 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:649` — `ParseSetter`, assignments loop: retype the target to `assignment.MemberInfo.DeclaringType` before `MakeMemberAccess` when it is not assignable from the target's type.
 - E-2 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:658` — `ParseSetter`, parameters loop: same for `parameter.MemberInfo`.
-- E-3 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:609` — `ParseSet`'s nested-generic recursion: same helper. **Dropped for one revision and restored after measurement** — see the note below.
+- E-3 `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs:609` — `ParseSet`'s nested-generic recursion: same helper. **Dropped for one revision and restored after measurement** — see the note below. **Superseded post-review: the site was deleted instead of guarded — see `P11` A-1.**
 - E-4 `Tests/Linq/Linq/InheritanceTests.cs` — regression tests for SC-1…SC-8, in the `#region Discriminator Filtering` neighbourhood at `:1180`, reusing the existing `BaseClass`/`Child1` model at `:1188-1238` for the member-initializer cases, plus a constructor-parameter (positional/record) derived model for TO-7.
 
 **E-3 was dropped on a correct-but-narrow objection, and restoring it is the plan's sharpest lesson.** Critic pass 1 observed that `:609` runs only for a nested `SqlGenericConstructorExpression` and that a flat `.Set(x => x.Name, v)` takes the `:613` else-branch — true, and it correctly killed the *symmetry guard* that claimed to cover it. Dropping the edit-point on that basis was an over-application: `:609` is reachable, just not from `.Set(…)`. It is reached from `ParseSetter`'s own recursion, which is what an **output projection over an inheritance root** produces, because the projection carries the subtypes' merged columns. Measured: with E-1/E-2 alone, `UpdateWithOutput` still threw `ArgumentException` from `Expression.Property` via `ParseSet:609` ← `ParseSetter:662`. A correct objection to a *test* is not automatically an objection to the *edit-point*.
@@ -197,7 +197,13 @@ Measured on five shapes (`P7` Search 7). It never reaches `ParseSetter`: `Entity
 
 ## P11 Amendments (M/L)
 
-_None._ (Approval has not been granted, so revisions to date are re-authoring, not amendments.)
+- **A-1 (2026-09-02, post-review) — `E-3` superseded: the site was *deleted* rather than guarded.** Review of [#5840](https://github.com/linq2db/linq2db/pull/5840) established that `ParseSet`'s `targetPath` parameter is **write-only**. It occurred at exactly two places — its declaration (`UpdateBuilder.cs:581`) and the `MakeMemberAccess` at `:609` — and that access fed only `currentPath`, which fed only the next recursion's `targetPath`, while the terminal branch (`:615`) envelopes `correctedField`. `E-3`'s guard was therefore protecting a value no consumer ever reads. The parameter is removed in `5a34f1c22`, which deletes the edit-point *and* one of the three guard calls with it. `E-1` and `E-2` stand unchanged: there the member access is also the field expression, so it does reach the envelope.
+
+  **`TO-8` keeps its value but changes its meaning.** It no longer demonstrates that a guard fires; it demonstrates that the recursion no longer throws. It still fails without the change, so the obligation remains failable.
+
+  **Verification.** With the parameter deleted, a temporary probe at the recursion recorded 48 entries across 16 distinct members — all eight members of the `BaseClass` hierarchy (both child branches and all four grandchildren) plus three unrelated nested-generic groups (`InsertWithOutputTests.ExternalId`, `Model.FullName`, and the entity Insert/Update nested names) — while the Insert, Update, InsertOrUpdate, Merge, MultiInsert, output-clause and Inheritance suites ran **755/755** green on SQLite.MS, and **756/756** with the probe removed. The branch is genuinely exercised, so the green run is evidence rather than an untouched code path.
+
+  **Consequence for `P12`.** Critic pass 1's instinct about the old `E-3` was closer to right than this plan concluded. The recorded lesson — *"an objection to a test is not an objection to the edit-point"* — still holds as stated, and the restoration was correct on the evidence available: with `E-1`/`E-2` alone the shape did throw at `:609`. But the edit-point turned out to be unnecessary for a **third** reason neither side argued: the state it guarded was dead. The transferable form is narrower than the original lesson: *before adding a guard to make an expression legal, check whether anything consumes that expression.*
 
 ## P12 Critic verdict (M/L)
 
