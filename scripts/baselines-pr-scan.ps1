@@ -49,6 +49,9 @@ Output (stdout, single JSON object)
                 "netZeroFiles": 1335, "netPositiveFiles": 0, "netNegativeFiles": 0 },
     "netPositive": [ { "file": "...", "add": 9, "del": 3 }, ... ],
     "netNegative": [ ... ],
+    "permutation": { "pureFiles": 158, "impureFiles": 9,
+                     "impure": [ { "file": "...", "onlyAdded": [ "..." ],
+                                   "onlyRemoved": [ "..." ] } ] },
     "signal": { "pattern": "^\\s*DECLARE\\s", "added": 2267, "removed": 2267,
                 "filesWithDelta": [ { "file": "...", "added": 4, "removed": 2 } ] },
     "casts":  { "prefix":  { "added": 547, "removed": 494 },
@@ -67,6 +70,13 @@ Output (stdout, single JSON object)
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
 delta is NOT name-only, and `mismatchSamples` shows the first few.
 
+`permutation` answers the question a reorder-dominated delta actually turns on:
+`pureFiles` is the count whose two sides are the same multiset of lines (a pure
+reorder — no column added, dropped, retyped or rewritten), and `impure[]` lists
+the rest with the lines unique to each side. Note a pure reorder scores as
+thousands of `renames.mismatches`, so the two fields answer different questions
+and a high mismatch count is not evidence of a content change on its own.
+
 Note: comparisons are Ordinal throughout. A case-only rename (`@Usage` ->
 `@usage`) is a real rename and PowerShell's default case-insensitive `-ne`
 would silently drop it — see `.claude/docs/script-authoring.md` → Gotchas.
@@ -80,7 +90,8 @@ param(
     [string]   $Signal             = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
     [switch]   $NoFetch,
-    [int]      $MaxRenameTests     = 40
+    [int]      $MaxRenameTests     = 40,
+    [int]      $MaxImpureFiles     = 25
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -149,6 +160,15 @@ $stats           = [System.Collections.Generic.List[object]]::new()
 $renameMap       = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
 $mismatchCount   = 0
 $mismatchSamples = [System.Collections.Generic.List[object]]::new()
+$impure          = [System.Collections.Generic.List[object]]::new()
+$pureCount       = 0
+
+# A column reorder and a column rewrite are indistinguishable in every count above: both give a
+# net-zero line delta and a symmetric change-block, and `renames.mismatches` reports a reorder as
+# thousands of mismatches because the normalised line pairs genuinely differ. Comparing the two
+# sides as *multisets* is the only check that answers "did any line's content actually change",
+# which is the question a reorder-dominated delta turns on.
+$trailingCommaRe = [regex]::new(',\s*$')
 
 $curFile = $null
 $add = [System.Collections.Generic.List[string]]::new()
@@ -166,10 +186,28 @@ function Flush-File {
     foreach ($l in $Added)   { $preAdd += $castPrefixRe.Matches($l).Count; $postAdd += $castPostfixRe.Matches($l).Count }
     foreach ($l in $Removed) { $preDel += $castPrefixRe.Matches($l).Count; $postDel += $castPostfixRe.Matches($l).Count }
 
+    # Trailing commas are stripped before comparing: a column moving to or from the last position
+    # in a SELECT list gains or loses one without its content changing.
+    $normA  = @($Added   | ForEach-Object { $script:trailingCommaRe.Replace($_.Trim(), '') } | Sort-Object)
+    $normD  = @($Removed | ForEach-Object { $script:trailingCommaRe.Replace($_.Trim(), '') } | Sort-Object)
+    $isPerm = [string]::Equals(($normA -join "`n"), ($normD -join "`n"), [System.StringComparison]::Ordinal)
+
+    if ($isPerm) {
+        $script:pureCount++
+    }
+    elseif ($script:impure.Count -lt $script:MaxImpureFiles) {
+        $script:impure.Add([pscustomobject]@{
+            file        = $File
+            onlyAdded   = @($normA | Where-Object { $normD -notcontains $_ })
+            onlyRemoved = @($normD | Where-Object { $normA -notcontains $_ })
+        })
+    }
+
     $script:stats.Add([pscustomobject]@{
         file = $File; add = $Added.Count; del = $Removed.Count
         sigAdd = $sigAdd; sigDel = $sigDel
         castPreAdd = $preAdd; castPreDel = $preDel; castPostAdd = $postAdd; castPostDel = $postDel
+        isPermutation = $isPerm
     })
 
     # Rename extraction only makes sense on a symmetric change-block.
@@ -283,6 +321,11 @@ $result = [ordered]@{
     }
     netPositive = $netPositive
     netNegative = $netNegative
+    permutation = [ordered]@{
+        pureFiles   = $pureCount
+        impureFiles = ($stats.Count - $pureCount)
+        impure      = $impure
+    }
     signal      = [ordered]@{
         pattern        = $Signal
         added          = ($stats | Measure-Object -Property sigAdd -Sum).Sum
