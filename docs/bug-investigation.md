@@ -166,6 +166,38 @@ Three traps that cost runs, all worth pre-empting:
   presented as a hook defect and sent the investigation the wrong way. When the thing you're testing
   swallows errors, unwrap them in the fixture (run the inner command directly) before believing a failure.
 
+## A credential that is *present* is not a credential that is *used* — probe with a deliberately invalid one
+
+When a command carries a token and the server still refuses it as anonymous, the instinct is to conclude the
+token is missing or wrong, and the reflex fix is to add a token that is already there. The claim to test first
+is whether the credential is **sent at all**, and there is a one-command probe for it: run the same command
+with a *deliberately invalid* credential. If it **succeeds**, the credential was never transmitted; if it
+fails with an authentication error, it was. Two runs, no build, and the answer discriminates the two
+explanations that reading the command cannot.
+
+The recurring instance is git over HTTPS against a **public** repository. Git sends HTTP credentials only
+after a `401` challenge (libcurl's `CURLAUTH_ANY` discovers the scheme first), and GitHub never challenges an
+anonymous read of a public repo — so a `https://<token>@github.com/...` clone is inert, authenticates nothing,
+and counts against the anonymous quota until GitHub's unauthenticated-download throttle kills it:
+
+```
+fatal: remote error: GitHub is temporarily limiting some unauthenticated downloads to protect the
+stability of the platform. Please retry later or authenticate.
+```
+
+Two things are needed together, and either alone is silently useless: `-c http.proactiveAuth=basic` (git
+2.46+) so the credential goes out unprompted, and a **complete** credential — `x-access-token:<token>@`, since
+with only a username git falls into the password-prompt path and dies with `could not read Password`. `git
+clone -c <key>=<value>` writes the setting into the new repo's config, so a later `fetch` in the same clone
+inherits it. Pushes are unaffected either way: `git-receive-pack` does issue a `401`.
+
+The property that makes this worth preferring over a retry-loop: with `proactiveAuth` a read **cannot** fall
+back to anonymous, so a later success is itself evidence the credential is being accepted, and a wrong
+credential form fails loudly rather than quietly going anonymous. (Surfaced on [#5841](https://github.com/linq2db/linq2db/pull/5841)/[#5859](https://github.com/linq2db/linq2db/pull/5859),
+where three test legs died on the throttle while `BASELINES_GH_PAT` sat in every baselines clone URL. The
+bogus-token probe settled it in two calls, against a mental model — "we need to add the token" — that the
+code had already satisfied.)
+
 ## A test's pass/fail is observed, never inferred — including the red baseline
 
 Never state that a test passes **or fails** without having run it. Claiming a repro is "red" by reasoning
