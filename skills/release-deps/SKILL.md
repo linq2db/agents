@@ -181,6 +181,38 @@ Apply all queued edits in one batched pass, grouped by file:
 
 Show the full diff as a single proposal. Gate on user confirmation before any edits land.
 
+### 5b. Third-party notices refresh
+
+`linq2db.cli`, the 14 T4 packages and the LINQPad 5 `.lpx` physically redistribute third-party binaries under a package license expression that covers only linq2db's own code. `Build/licenses/components.json` is the inventory of what they carry, and it goes stale on exactly the change this skill just made. Refresh it here, where nugets are updated — not in `/release-verify`, which only gates it.
+
+**This step runs *after* step 5's apply, and that ordering is the whole point.** The `4a`-`4f` audits run from package metadata before any file is edited, so a harvest there would see the new version of a *direct* reference and none of the transitive graph — which for `linq2db.cli` is roughly 75 of its 90 bundled packages. Only a restore of the post-apply tree resolves them.
+
+1. Restore the three projects that own a bundled set:
+
+   ```
+   dotnet restore Source/LinqToDB.CLI/LinqToDB.CLI.csproj
+   dotnet restore NuGet/NuGet.csproj
+   dotnet restore Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj
+   ```
+
+2. Harvest and read the proposal. It proposes; it never writes the manifest:
+
+   ```
+   pwsh -NoProfile -File Build/Azure/scripts/third-party-notices.ps1 -Action harvest
+   ```
+
+   Output is `[new]` (a package entered the bundled set), `[version]` (a resolved version moved) and `[gone]` (a manifest entry no longer in the graph). Nothing printed means the manifest already agrees — the common case, and not a reason to skip the step.
+
+3. Apply the delta to `Build/licenses/components.json` by hand, then regenerate:
+
+   ```
+   pwsh -NoProfile -File Build/Azure/scripts/third-party-notices.ps1 -Action generate
+   ```
+
+   A `[new]` entry needs a license decision, not just a version: read its license from the harvest line, add the body under `Build/licenses/texts/` if it is a license we do not already carry, and set `redistribution` to `permitted` or `unresolved`. `Build/licenses/README.md` documents the schema and the field traps (`versions` is a per-TFM map, `files` matches exact-then-glob, an absent license text is not automatically a defect).
+
+4. Leave the result uncommitted like every other change this skill makes; `/release-verify` stages it with the rest and its step 4a re-runs `check` + `verify` against the packed output.
+
 ### 6. Mark deps task done — do **not** commit, do **not** push
 
 After step 5's apply lands all queued edits, this skill's interactive work is complete. Update state:

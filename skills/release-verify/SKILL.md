@@ -105,12 +105,22 @@ The user reviews the regenerated baselines per `/api-baselines` policy. Any appr
 
 `Build/Azure/scripts/verify-nuget-sizes.ps1` and `verify-analyzer-delivery.ps1` are the fail-fast gates that stand between a packaging defect and a broken release. They are invoked **only** from `nuget-job.yml`, whose job runs on the `default` pipeline for `master` pushes and `release`-targeting PRs — never on a prep PR. So a packaging break lands on `master`, survives the whole prep cycle unseen, and first surfaces on the release PR, where it blocks the publish.
 
-Step 4 has just packed every project, so the artifacts are already on disk. Run both against them:
+Step 4 has just packed every project, so the artifacts are already on disk. Run all three against them:
 
 ```
 pwsh -NoProfile -File Build/Azure/scripts/verify-nuget-sizes.ps1      -PackagesDir <repoRoot>/.build/package/release -WarnMB 180 -FailMB 200
 pwsh -NoProfile -File Build/Azure/scripts/verify-analyzer-delivery.ps1 -PackagesDir <repoRoot>/.build/package/release
+pwsh -NoProfile -File Build/Azure/scripts/third-party-notices.ps1     -Action check
+pwsh -NoProfile -File Build/Azure/scripts/third-party-notices.ps1     -Action verify -PackagesDir <repoRoot>/.build/package/release -LpxDir <repoRoot>/.build/lpx
 ```
+
+`third-party-notices.ps1` is the gate on what `linq2db.cli`, the 14 T4 packages and the LINQPad 5 `.lpx`
+redistribute: `check` fails on a hand-edited or un-regenerated notices file, `verify` fails on a bundled
+binary that no notices file accounts for. Unlike its two siblings it also runs on every PR (both
+`build-job.yml` and `.github/workflows/build.yml` carry it), so a failure here after a green PR means the
+release-prep changes themselves moved the bundled set — normally a dependency bump whose manifest refresh
+was skipped. The refresh belongs to `/release-deps` step 5b; if it was missed, run it now rather than
+hand-editing the manifest. `Build/licenses/README.md` documents the manifest.
 
 (`<repoRoot>` is the prep worktree. `.build/package/release` is where `dotnet pack` writes — the lowercased configuration pivot of the .NET artifacts layout. `nuget-job.yml` points at `.build/nugets` instead because it works from the *downloaded* pipeline artifact, so don't copy that path.)
 
