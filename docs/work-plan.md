@@ -99,6 +99,10 @@ One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
 
 Where an `E-n` touches a helper reachable from more than one path, one obligation must be a **symmetry guard on the unchanged path**.
 
+**Where the assertion sits on a conditional path, the obligation must name what proves it fired.** "Proven by running it" is satisfied the moment the test executes and passes — which an assertion inside a `catch`, behind an `if`, or under a provider branch achieves without ever running. Say which observation distinguishes *asserted and held* from *never reached*: a value only the taken path can produce, a failure injected to force the branch, or a count the untaken path cannot yield.
+
+**An obligation whose expected failure comes from a third-party still-open issue takes a `P4` row, not an assertion.** Writing *"the call still fails on #NNNN, so assert only that the failure changed shape"* encodes someone else's bug as this plan's premise, and that bug was filed against a different shape, a different model, or a different API. It may simply not reach yours — in which case the obligation's assertion is unreachable from the first day and the plan never notices, because the test is green. Probe the post-fix state and record the answer; do not specify around an unverified failure. (Surfaced on [#5840](https://github.com/linq2db/linq2db/pull/5840): `TO-8` asserted that an `UpdateWithOutput` over an inheritance root still throws on #5838 after the fix, and put its only assertion inside the `catch`. Measured later across six provider configurations, the call raises nothing at all — so the obligation had shipped a test that could not assert anything, and two review passes plus a green CI leg had accepted it.)
+
 ### P9 Verification gates
 
 Gate ids are **not defined here** — they are the items of [`definition-of-done.md`](definition-of-done.md), which is the canonical exit checklist. `P9` records which of them applied and what they returned:
@@ -115,6 +119,8 @@ Gate ids are **not defined here** — they are the items of [`definition-of-done
 | `G-08` | Cross-cutting core change surfaced, and resting on a red→green test or CI rather than static reasoning |
 
 Record each as `G-nn: pass | fail | n/a | skipped | blocked — <the command run and what it returned>`. **`skipped` must name what is therefore unverified; `blocked` must name the deferred dependency. Never dress either up as a pass.**
+
+**`G-01` records one row per `TO-n`, naming the test method — a run total is not evidence about an obligation.** The gate says "with the declared proof mode observed", and a green run looks like exactly that from the outside: `total: 13 succeeded: 13` counts *tests*, so an obligation with no test at all, one whose test exercises a different branch, and one whose assertion never executes are all indistinguishable from a satisfied proof mode. Name the method that satisfies each `TO-n` and the observation proving its proof mode ran. **An obligation with no named test is `fail`, never `pass, partially`** — and "the shape's red state was seen in the probe grid" discharges nothing when the grid has no cell for it. (Surfaced on [#5840](https://github.com/linq2db/linq2db/pull/5840): `G-01` was recorded `pass, partially` against 13/13, qualified only on an unreachable SQL Server leg. Review then found `TO-4` and `TO-6` had no test at all, `TO-3` covered one of the three positions it claimed, and `TO-8`'s assertion never fired — four of the round's seven findings, none visible to the gate as written.)
 
 Analyzers are Release-only and `Testing` builds `net10.0` only, so `G-05` is not satisfied by a green `Testing` build ([`agent-rules.md`](agent-rules.md) → *Build & push gotchas*).
 
