@@ -45,6 +45,16 @@ Input (named parameters):
                            splitting the steps makes the next kill diagnosable -
                            which log is empty says which step died. Slower, so
                            it is opt-in.
+  -OutputDetailed          optional; adds `--output Detailed`. MTP routes a test's
+                           stdout to the run output only when the test FAILS or is
+                           skipped, so a passing probe's `TestContext.Out.WriteLine`
+                           / `Console.WriteLine` is generated and then discarded.
+                           Pass this whenever the point of the run is to READ
+                           something the test printed (generated SQL, a row dump, a
+                           caught exception). Without it the usual outcome is a green
+                           run with an empty log and a second build to recover the
+                           output. See `.claude/docs/testing.md` -> "Capturing a
+                           passing test's exception / stack".
 
 Output (stdout, single JSON object):
   {
@@ -75,7 +85,8 @@ param(
     [string[]]$Provider,
     [string]$Configuration = 'Debug',
     [string]$LogPath,
-    [switch]$SerialBuild
+    [switch]$SerialBuild,
+    [switch]$OutputDetailed
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -142,6 +153,7 @@ $dotnetArgs = @('test', '--project', $projectFull, '-c', $Configuration)
 if ($Tfm)      { $dotnetArgs += @('-f', $Tfm) }
 if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
+if ($OutputDetailed) { $dotnetArgs += @('--output', 'Detailed') }
 
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
 $runSettings = Join-Path $repoFull '.runsettings'
