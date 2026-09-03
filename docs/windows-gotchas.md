@@ -44,8 +44,27 @@ Patterns that triggered prompts in real sessions and the equivalents that don't.
 | `Remove-Item -Recurse -Force <a>, <b>, <c>` (comma-separated list) via the PowerShell tool | One path per `Remove-Item` call (several calls in the same script block is fine) | The tool's destructive-path guard evaluates the whole argument list as one path and rejects it with *"Remove-Item on system path '/' is blocked"* — naming a path you never passed. Hit 2026-07-30 clearing three scratch dirs. |
 | A `Remove-Item` **anywhere in the same PowerShell call** as a here-string containing markup (`Set-Content … @'<Project …/>'@`) | Split into two calls: write the file in one, delete in another. Use `-LiteralPath` and an explicit `foreach` over a `$items` array when deleting several paths. | The same destructive-path guard scans the **whole command string**, not just `Remove-Item`'s own arguments, so a `/>` inside unrelated here-string content is picked up as the target: *"Remove-Item on system path '/>' is blocked"* — even when the actual argument is a plain `$root` variable. `$ErrorActionPreference='Stop'` then aborts the block *after* the earlier `Set-Content` already ran, leaving a half-applied state. Hit twice on 2026-08-16 scaffolding a throwaway `.csproj` probe. |
 | Running an ad-hoc **SqlCe** ADO.NET probe via the `pwsh` PowerShell tool | `powershell.exe -NoProfile -File <script>` (Windows PowerShell / netfx host) | SqlCe's native engine (`System.Data.SqlServerCe`) fails to load under `pwsh 7` ("Native components … are not loaded"); the netfx host loads it. Access OLE DB (ACE 12/15) works fine in `pwsh`. Ad-hoc probes only — the test process loads SqlCe on any TFM. |
+| A **quoted regex literal** in a PowerShell-tool call — `-replace`, `[regex]::Replace`, `-match` | Write the script to a file with `Write` and invoke it with `pwsh -File`; or assemble the backslash at runtime (`$bs = [string][char]92 + [string][char]92`) and concatenate it into the pattern | Both guard hooks scan the **raw command string** and cannot tell a pattern from a path. `'\\tab\b'` is read as the UNC share `\\tab` and rejected by `block-non-c-drive.js`; a `-replace '\s+',' '` sitting anywhere in the same call as a `Remove-Item` is read as that call's target (*"Remove-Item on system path '\s+' is blocked"*). Neither is a real disk access — but the block **is** the answer, so re-asking through a different API is not the fix; move the pattern out of the command string. Three blocked calls in one session on 2026-09-03. (Same family as the two `Remove-Item` rows above: whole-string scanning, not argument parsing.) |
 
 When data is already on disk (e.g. `diff-reader.ps1`'s `writeDir` cache at `.build/.agents/pr<n>/`), `Read` or `Grep` it directly rather than re-fetching via `git show … | tail | cat -A` — the `Read` tool preserves tabs and trailing whitespace literally for whitespace-byte inspection.
+
+### .NET file APIs ignore `Set-Location` — they follow the *process* working directory
+
+`Set-Location` moves PowerShell's location, which is what cmdlets and native executables honour. It does **not** move the process's current directory, which is what every `System.IO` API resolves relative paths against. In a worktree session that process directory is the **primary clone**, so:
+
+```powershell
+Set-Location C:\Worktrees\linq2db\<slug>
+[System.IO.File]::ReadAllText('Build\licenses\components.json')   # reads the PRIMARY CLONE's copy
+```
+
+The failure is silent when the file exists in both trees and noisy in the worst possible way when it doesn't: a `try { $orig = [System.IO.File]::ReadAllBytes($f) } … finally { [System.IO.File]::WriteAllBytes($f, $orig) }` backup-and-restore throws on the *read*, so the `finally` writes `$null` and **the restore never happens** — leaving the file in its mutated state while the transcript shows a tidy try/finally. That is exactly how a deliberate mutation control (see [`agent-rules.md`](agent-rules.md) → *To prove an existing test cannot fail*) corrupts the thing it was probing.
+
+Two fixes, both cheap:
+
+- `[System.IO.Directory]::SetCurrentDirectory($root)` immediately after `Set-Location`, when the call must stay inline.
+- Absolute paths everywhere in `System.IO` calls — `Join-Path $RepoRoot '…'` — which is the right default for a script that takes a `-RepoRoot` parameter anyway.
+
+Same root cause as [`worktree.md`](worktree.md) → *Run artifacts follow the invoking process's working directory*, seen from the writing side rather than the reading side. (Hit twice on 2026-09-03; the second time it left a generated notices file hand-edited after the control was supposed to have reverted it.)
 
 ### `bash` from the PowerShell tool is **WSL** bash, not Git Bash
 
