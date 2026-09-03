@@ -91,6 +91,25 @@ descriptor/alias-suppression scope break was verified real, its fix measured beh
 125 captured baselines with 208 tests green, and was proposed for posting at MIN. The maintainer's call was
 *"no reason to fix/keep it if it is not proved"*.)
 
+### A finding's subject must be in-tree
+
+An inaccuracy in a **commit message** or a **review-thread reply** is not a finding, even when it is
+demonstrably false and even when the identical claim *is* a finding one file over. Commit messages age out
+of view, resolved threads are read once, and neither is something a future maintainer navigates to; a
+source comment carrying the same false statement persists for whoever next opens the method. So raise the
+in-tree instance and let the out-of-tree one go.
+
+The tell that you are on the wrong side of this line is a "Fix:" that reads *amend the message* or *post a
+correcting reply* rather than *change these lines*. On a PR authored by someone else the cost is worse than
+noise — amending a commit message means force-pushing their branch, which needs its own go-ahead for a
+change nobody will read.
+
+This is scoped to the artifact, not the claim: it does not license ignoring a false statement in a
+**PR body** that the release notes will be drawn from, nor in a doc, readme or XML doc comment — those are
+in-tree or consumer-facing and stay reviewable. (Surfaced on #5850: the same false account of which call
+sites swallow a failed `TryBuildSequence` appeared in a source comment and in the commit message that
+introduced it. The comment fix was accepted and pushed; the commit-message finding was rejected.)
+
 ### Output body structure
 
 Review body sections, in order. Omit any section that has no items.
