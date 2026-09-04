@@ -124,4 +124,20 @@ When filing an issue on an **external** project's tracker (e.g. a provider engin
 
 This is stricter than an internal linq2db issue, where referencing test names / existing tables is fine.
 
+**Search the upstream tracker before drafting — including closed issues, and including our own.**
+`/find-issues` covers linq2db's own repo; for a third-party tracker there is no skill, and
+`gh search issues --state all` is rejected outright (`--state` takes only `open` or `closed`). For a
+small repo just enumerate and grep:
+
+```
+gh api "repos/<owner>/<repo>/issues?state=all&per_page=100&page=1" --jq '.[] | "\(.number)\t\(.state)\t\(.updated_at[0:10])\t\(.title)"'
+```
+
+Page until short, persist to a file, then `Grep` it. Read what you find rather than only counting it:
+a **closed** issue tells you whether the maintainer ships fixes for this class (and how fast), and an
+**open** one may turn out to be *ours* from years back — on the Octonica report,
+[#58](https://github.com/Octonica/ClickHouseClient/issues/58) was the maintainer's own filing from
+2022, still open, covering half of what the new draft was about to re-argue. That changed the draft:
+the known half became a reference rather than a second demand.
+
 The first-party provider-behavior verification rule (XML docs / source comments / agent-prose claims about how a provider translates a member) lives in [`agent-rules.md`](agent-rules.md) → *Agent Guardrails*. It applies to code-authoring content too, not just GitHub posts.
