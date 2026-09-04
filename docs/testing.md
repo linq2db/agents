@@ -593,3 +593,14 @@ When a test runs in both direct (`DataConnection`) and remote (`LinqService` →
 - So: a pre-existing `.sql.other` on a `retry: true` provider that doesn't reproduce locally is flake. Confirm by **blob-comparing** `<test>.sql` vs `<test>.sql.other` (`git ls-tree -r <ref>`): identical blob = stale never-pruned leftover; differing = a real divergence that was captured.
 
 Investigation tip — when the CI logs for an old committed `.sql.other` have expired, look for the same or similar artifacts in the unmerged `linq2db.baselines/baselines/pr_*` branches; those carry fresh CI logs (and the per-job commit message — e.g. `[Linux / Oracle 21c] baselines` — names the exact job that produced it).
+
+### The *shape* of the `.sql` vs `.sql.other` diff names the cause
+
+Once you have both files, the diff discriminates between the two mechanisms that produce this failure, which otherwise look identical from the message alone:
+
+- **A pure reordering** — same statements, same values, only the sequence differs (classically the operands of a merge source's `UNION ALL`) — is **nondeterministic input order**, not a tracing fault. Something materialized a collection without an `ORDER BY` / `.OrderBy`, and the two runs got different orders from the database.
+- **Missing or extra statements** on one side is **capture misrouting** — a query's trace resolved to the wrong test's context. That is the failure `Tests/Base/CustomTestContext.cs`'s `Get()` documents (the server executes on pooled transport threads whose `CurrentTestId` can resolve to a concurrently-running direct test).
+
+Reach for the diff before theorising: the two have unrelated fixes, and the message is the same either way.
+
+To reproduce an ordering case deterministically instead of waiting for the orders to differ by luck, perturb one side on purpose — materialize the collection and reverse it only when `context.IsRemote()`. Then the red case is on demand, and re-running with the ordering fix applied **while the perturbation is still active** is what proves the fix rather than proves the coincidence went away. (Used on #5864 for `MergeTests.DeleteReservedAndCaseNamesFromList("Firebird.4.LinqService")`: the `.other` differed from the direct baseline in exactly the `UNION ALL` operand order across otherwise identical 248-line files.)

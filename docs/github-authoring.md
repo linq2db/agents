@@ -90,6 +90,18 @@ git -C <clone> diff --name-status origin/<base>...origin/<head> | cut -c1 | sort
 
 Hit on #5818 counting `linq2db.baselines` — the endpoint said 300, the clone said **467, all added**. Baselines comparisons cross the cap routinely (one test × ~68 providers), so treat the API count as an upper-bound probe there and the clone as the answer; `baselines-reviewer` reads the clone for the same reason.
 
+### `gh pr view --json files` caps at 100 — but `pulls/<n>/files` *does* paginate
+
+Same silent-truncation family as `compare` above, different number and — importantly — a different remedy, so don't generalise the "go clone it" conclusion to every file list.
+
+`gh pr view <n> --json files` returns at most **100** entries with no truncation signal. The tell is the same round number: a count of *exactly* 100 on a baselines PR is the cap, not a census. Unlike `compare`, this one has a working API alternative:
+
+```
+gh api "repos/<o>/<r>/pulls/<n>/files?per_page=100" --paginate
+```
+
+Hit on #5864: `--json files` reported 100 changed baselines, and a whole attribution breakdown ("60 mine, 40 inherited drift") was built on it and relayed to the user. The paginated count was **415**. The error surfaced only by accident — a single-file lookup returned 6 provider rows where the grouped count had said 1, which is the useful cross-check: if a per-item probe disagrees with your aggregate, suspect the aggregate was truncated.
+
 ### Wording discipline
 
 Issue bodies, PR bodies, review comments, and replies are terse and fact-dense — a record of what changed and why, not a place for framing, apologies, or summaries of what the diff already shows.

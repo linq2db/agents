@@ -24,6 +24,22 @@ summary line) and `truncated` (true when the captured failures[] were capped at
 failures[] list is a prefix — re-run with a higher -MaxFailuresPerTask, or Grep
 the persisted log, before reporting a failure count as complete.
 
+Re-run jobs keep their original failure in a SEPARATE timeline
+---------------------------------------------------------------
+Hitting "re-run failed jobs" does not overwrite the failed attempt: Azure keeps
+it in its own timeline, reachable only through
+`records[].previousAttempts[].timelineId`, while `/timeline` returns the *retry*.
+So "the leg failed, I re-ran it, now tell me why it failed" reads as a build with
+nothing wrong unless the earlier attempts are walked too — the failure the caller
+is asking about is invisible in the default timeline.
+
+Earlier attempts are therefore walked when `-IncludePreviousAttempts` is passed,
+and also automatically when the current timeline yields no failures at all (that
+is exactly the re-run case, where answering "no failures" is useless). Each entry
+in `tasks` / `buildFailures` carries an `attempt` label — `current`, or `prior<n>`
+oldest-first — and a prior attempt's log lands under a suffixed filename so it
+cannot overwrite the retry's log for the same step name.
+
 When the build failed for a non-test reason (e.g. a compile error in a
 "Build …" step, or a "Command line" step wrapping dotnet build/publish), there
 are no `Tests *` task failures to parse; the result then carries a
@@ -40,7 +56,8 @@ param(
     [string]$WriteDir,
     [string]$Org = 'linq2db',
     [string]$Project = '0dcc414b-ea54-451e-a54f-d63f05367c4b',
-    [int]$MaxFailuresPerTask = 20
+    [int]$MaxFailuresPerTask = 20,
+    [switch]$IncludePreviousAttempts
 )
 
 $global:ScriptBaseName = 'azp-build-failures'
@@ -60,16 +77,79 @@ function ConvertTo-Slug {
     return $s.Trim('-')
 }
 
-# 1. Timeline -> failed Task records that look like test jobs.
-try {
-    $timeline = Invoke-RestMethod -Uri "$baseUrl/timeline?api-version=7.0"
-}
-catch {
-    Exit-WithError "failed to fetch timeline for build ${BuildId}: $_"
+# 1. Timeline(s) -> failed Task records that look like test jobs.
+function Get-BuildTimeline([string]$timelineId) {
+    $uri = if ($timelineId) { "$baseUrl/timeline/${timelineId}?api-version=7.1" } else { "$baseUrl/timeline?api-version=7.1" }
+    try {
+        return Invoke-RestMethod -Uri $uri
+    }
+    catch {
+        Exit-WithError "failed to fetch timeline '${timelineId}' for build ${BuildId}: $_"
+    }
 }
 
-$failedTasks = @($timeline.records |
-    Where-Object { $_.type -eq 'Task' -and $_.result -eq 'failed' -and ($_.name -like 'Tests *' -or $_.name -like 'EF.Core Tests *') -and $_.log })
+function Select-FailedTestTasks($records) {
+    return @(@($records) | Where-Object {
+        $null -ne $_ -and
+        $_.type -eq 'Task' -and $_.result -eq 'failed' -and
+        ($_.name -like 'Tests *' -or $_.name -like 'EF.Core Tests *') -and $_.log })
+}
+
+# Tags each record with the attempt it came from, so the caller can tell a retry's failure from the
+# original one and the log filenames below stay distinct.
+#
+# foreach over @($records) rather than a pipeline: an empty result passed positionally arrives as
+# $null, and `$null | ForEach-Object` runs one iteration with $_ = $null, which Add-Member rejects
+# with "Cannot bind argument to parameter 'InputObject' because it is null".
+function Add-AttemptLabel($records, [string]$label) {
+    $labelled = @()
+
+    foreach ($rec in @($records)) {
+        if ($null -eq $rec) { continue }
+        $labelled += ($rec | Add-Member -NotePropertyName attempt -NotePropertyValue $label -PassThru -Force)
+    }
+
+    return $labelled
+}
+
+$current   = Get-BuildTimeline $null
+$timelines = @([pscustomobject]@{ attempt = 'current'; records = $current.records })
+
+# Oldest first, so the earliest attempt's failures are reported before the retry's.
+$priorTimelineIds = @($current.records |
+    Where-Object { $_.previousAttempts } |
+    ForEach-Object  { $_.previousAttempts } |
+    ForEach-Object  { $_.timelineId } |
+    Where-Object    { $_ } |
+    Select-Object -Unique)
+
+$failedTasks = @(Add-AttemptLabel (Select-FailedTestTasks $current.records) 'current')
+
+# Walk earlier attempts on request, and unconditionally when the current timeline is clean: a build
+# whose failed jobs were re-run has its failure only there, so "no failures" would be a wrong answer.
+if ($priorTimelineIds.Count -gt 0 -and ($IncludePreviousAttempts -or $failedTasks.Count -eq 0)) {
+    $priorIndex = 0
+    foreach ($timelineId in $priorTimelineIds) {
+        $priorIndex++
+        $label = "prior$priorIndex"
+        $prior = Get-BuildTimeline $timelineId
+
+        $timelines  += [pscustomobject]@{ attempt = $label; records = $prior.records }
+        $failedTasks = @($failedTasks) + @(Add-AttemptLabel (Select-FailedTestTasks $prior.records) $label)
+    }
+
+    $failedTasks = @($failedTasks)
+}
+
+# A prior attempt's step shares its name with the retry's, so the slug must carry the attempt or the
+# second download silently overwrites the first.
+function Get-LogFileName($record) {
+    $slug = ConvertTo-Slug -Name $record.name
+    if ($record.attempt -and $record.attempt -ne 'current') {
+        $slug = "$slug-$($record.attempt)"
+    }
+    return "$slug.log"
+}
 
 if ($failedTasks.Count -eq 0) {
     # No failed *test* tasks. A build can still be red for a non-test reason (a
@@ -79,7 +159,8 @@ if ($failedTasks.Count -eq 0) {
     # code '1'") — the real CSxxxx / MAxxxx / MSBxxxx error is in the task's own
     # log, not the timeline. So download + parse each failed non-test task's log
     # too, not just its timeline issues, and return logPath + parsed errors[].
-    $buildFailures = @($timeline.records |
+    $buildFailures = @($timelines |
+        ForEach-Object { Add-AttemptLabel $_.records $_.attempt } |
         Where-Object { $_.type -eq 'Task' -and $_.result -eq 'failed' -and ($_.issues -or $_.log) } |
         ForEach-Object {
             $rec    = $_
@@ -88,8 +169,7 @@ if ($failedTasks.Count -eq 0) {
             $logPath = $null
             $errors  = @()
             if ($rec.log -and $rec.log.url) {
-                $slug    = ConvertTo-Slug -Name $rec.name
-                $logPath = Join-Path $WriteDir "$slug.log"
+                $logPath = Join-Path $WriteDir (Get-LogFileName $rec)
                 try {
                     Invoke-WebRequest -Uri $rec.log.url -OutFile $logPath -UseBasicParsing | Out-Null
                     $errors = @(Get-Content -LiteralPath $logPath |
@@ -105,6 +185,7 @@ if ($failedTasks.Count -eq 0) {
 
             [pscustomobject]@{
                 name    = $rec.name
+                attempt = $rec.attempt
                 issues  = $issues
                 logPath = $logPath
                 errors  = $errors
@@ -114,6 +195,7 @@ if ($failedTasks.Count -eq 0) {
     @{
         buildId         = $BuildId
         logsDir         = $WriteDir
+        attemptsScanned = @($timelines.attempt)
         failedTaskCount = 0
         buildFailures   = $buildFailures
         tasks           = @()
@@ -124,16 +206,16 @@ if ($failedTasks.Count -eq 0) {
 # 2. Download each failing task's raw log to disk + parse for failures.
 $tasks = foreach ($t in $failedTasks) {
     $logUrl  = $t.log.url
-    $slug    = ConvertTo-Slug -Name $t.name
-    $logPath = Join-Path $WriteDir "$slug.log"
+    $logPath = Join-Path $WriteDir (Get-LogFileName $t)
 
     try {
         Invoke-WebRequest -Uri $logUrl -OutFile $logPath -UseBasicParsing | Out-Null
     }
     catch {
-        [Console]::Error.WriteLine("azp-build-failures: log fetch failed for '$($t.name)': $_")
+        [Console]::Error.WriteLine("azp-build-failures: log fetch failed for '$($t.name)' ($($t.attempt)): $_")
         [pscustomobject]@{
             name     = $t.name
+            attempt  = $t.attempt
             logUrl   = $logUrl
             logPath  = $null
             failures = @()
@@ -190,6 +272,7 @@ $tasks = foreach ($t in $failedTasks) {
 
     [pscustomobject]@{
         name                = $t.name
+        attempt             = $t.attempt
         logUrl              = $logUrl
         logPath             = $logPath
         reportedFailedTotal = $reportedFailed
@@ -202,6 +285,7 @@ $tasks = foreach ($t in $failedTasks) {
 $result = [ordered]@{
     buildId         = $BuildId
     logsDir         = $WriteDir
+    attemptsScanned = @($timelines.attempt)
     failedTaskCount = $failedTasks.Count
     tasks           = @($tasks)
 }

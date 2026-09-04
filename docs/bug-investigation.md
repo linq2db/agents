@@ -76,6 +76,12 @@ Settle ordering / re-entry questions by instrumenting the code path directly ins
 
 (Surfaced on PR #5726: `[Repeat(3)]` and `[Repeat(5)]` both showed `completed == 2` in the heartbeat file, which read as disproving per-iteration re-entry. The action really did fire once per iteration — but after the done-latch tripped, passing bookings were no longer forced writes and `MarkDone` returned before its `Publish`, so the file froze while counting continued. A stack-trace probe settled it in one run.)
 
+## Probing plumbing — pick an input that fails *before* the expensive step
+
+When what's under test is the wiring rather than the payload — does this `.cmd` hand its quoted spec through to `pwsh -File` intact, does the wrapper forward `$(var)` — choose an input that proves the wiring and then dies cheaply. Running the real invocation to check the *first* line of behaviour also runs everything after it.
+
+On #5864, confirming that `sqlserver.2022_2025.cmd` passed two comma-separated `name|port|image` specs through `cmd` → `pwsh -File` was done by invoking the real script. The proof arrived in the first line of output — `=== Attempt 1 of 3: starting mssql2022, mssql2025 ===` — and the next line began pulling a multi-GB Windows container image, which had to be aborted and left an orphaned `docker` client holding the pull open. A deliberately bogus image name in the spec would have printed the identical proof and then failed in a second.
+
 ## Timing-sensitive (flaky) bug — don't perturb hot paths with per-call I/O
 
 When a bug is order- / timing- / cache-state-sensitive (flips pass↔fail across otherwise-identical runs), instrumentation that does **per-call I/O in a hot path masks it** — the I/O latency changes timing enough to hide the failure. On the #5657 aliasing race, adding `File.AppendAllText` to the `SelectQuery` constructor (hit on every query node) turned the failing test green; the bug only reproduced once the I/O was removed. Instead: stash diagnostic state cheaply on the object (e.g. capture `Environment.StackTrace` into an `internal` field at construction) and write it out **once, at the failure site** (the throw / assertion). That pins the culprit — e.g. the exact `CloneQuery` call-site that created the orphaned node — without altering the timing that produces the bug. Capturing a stack into a field is CPU-only and far less perturbing than file I/O; if even that masks it, narrow the capture to the suspect id range.
