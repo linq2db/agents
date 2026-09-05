@@ -135,6 +135,10 @@ Output: JSON `{ buildId, stepName, logsDir, steps: [{ name, state, result, logPa
 
 **Per-job test counts: parse the step log, not the test-runs API.** `_apis/test/runs?buildUri=vstfs:///Build/Build/<id>` returns a single aggregate record with no usable per-job breakdown — don't re-attempt it. The runner's own summary block at the end of each test step's log carries `total:` / `skipped:` / `duration:`, and those lines are ANSI-colorized, so strip escape sequences before matching. `azp-job-durations.ps1 -WithTestCounts` does this.
 
+Anonymously that endpoint does not fail either — it answers with an **HTML sign-in page**, which parses as a plausible empty result (`count: 1`, from the string's length; `value` empty). So the reading is "this build has no test runs" rather than "you are not authenticated", and the next instinct is to doubt the build instead of the call.
+
+**"Did test X run?" is answered by the same step log, by absence.** Only skipped and failed tests are printed by name; a passing test appears nowhere, so grepping for its name proves nothing on its own. The proof is the summary block showing a full suite — `total: 26975, failed: 0` for build 23338's ClickHouse leg — plus X missing from the `skipped` / `failed` lines, plus the leg's main step filtering on nothing but `TestCategory != SkipCI` (`test-matrix.yml` gives a leg providers, never fixtures). **A baselines commit is not evidence here in either direction**: a leg commits only what differs from its clone's base, so a test that ran and reproduced the base content leaves no trace — see [`baselines-repo-layout.md`](baselines-repo-layout.md). (Surfaced on #5725, where four ClickHouse baselines looked stale-or-never-run and only the step log separated the two.)
+
 ### A job that "hung" with no test failures — read the abandonment marker first
 
 A failed task whose `reportedFailedTotal` is `0`, on a job that ran far past its usual duration, is usually
