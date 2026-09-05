@@ -228,6 +228,20 @@ $enc    = New-Object System.Text.UTF8Encoding($hasBom)
 
 **Repairing a strip: take each file's BOM state from the diff, not from the repo-wide convention.** The convention is per file *type*, not global — `.cs` sources carry a BOM, but `Source/LinqToDB/PublicAPI/PublicAPI.*.txt` does not — so a blanket "restore the BOMs I just stripped" over-corrects and *adds* one where none belonged, producing the same phantom line-1 hunk in the opposite direction. The diff is authoritative and directly readable: a stripped BOM shows as `-﻿using System;` → `+using System;` on line 1, an added one as the reverse. Iterate per file until `git diff --cached --stat` shows only the lines your change actually touches. Don't settle it from a census or from memory — [`agent-guardrails.md`](agent-guardrails.md) records a "PublicAPI files are BOM-less" claim that was wrong on 71 of 72 files. (Surfaced on #5643: an identifier rename across 10 files stripped 10 BOMs, and the blanket restore then added one to `PublicAPI.Unshipped.txt`, needing a second correction before the commit.)
 
+### `git grep` cannot match a BOM — read the first three bytes instead
+
+`git grep -l -P "^\xEF\xBB\xBF" <ref> -- '<glob>'` returns **0 matches** over files that do carry a BOM: git normalises the byte-order mark out of what the pattern sees, so the anchored form can never hit. The failure is silent and inverts the answer — an empty result reads as "no file here has a BOM", which is the opposite of the truth in a repo where most sources do. `Grep` has the same limitation, since it is ripgrep over the same content.
+
+Read the bytes:
+
+```powershell
+$fs = [System.IO.File]::OpenRead($path); $b = New-Object byte[] 3
+[void]$fs.Read($b, 0, 3); $fs.Close()
+$hasBom = $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF
+```
+
+For a *census* across a directory, loop that over `Get-ChildItem` — one process, no git calls. Do **not** loop `git ls-tree` + `git cat-file` per file to do the same job from a ref: on `Tests/Linq/Linq` (211 files) that shape blew the 120 s tool timeout and had to be abandoned, while the byte read answered in one call. (Surfaced on #5740 checking a reviewer's claim that a new test file's BOM was "not used elsewhere in the repo" — the byte census returned 157 of 211 siblings carrying one, refuting it; the `git grep` attempt had returned 0 and would have appeared to confirm it.)
+
 ### A file that stays dirty after `git restore` — mixed line endings in the committed blob
 
 A tracked file can show a permanent one-line `1 +-` diff that `git restore` does not clear and that looks like a no-op change (identical text on both sides). Under `core.autocrlf=true` that means the *committed blob* has an inconsistent line ending on that line — normally a lone CRLF among LFs, left by some earlier editor — so checkout smudges it to CRCRLF and the commit-time normalization can never reproduce the stored bytes. Confirm rather than chase it:
