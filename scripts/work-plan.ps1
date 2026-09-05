@@ -274,7 +274,10 @@ function Invoke-Validate {
     # P4: no OPEN row survives approval.
     $p4 = Get-Block -Blocks $blocks -Id 'P4'
     foreach ($row in (Get-BlockRows -Block $p4)) {
-        if ($row -match '\bOPEN\b') { $errors += "P4 : an OPEN unknown may not survive approval -- $row" }
+        # -cmatch, not -match: PowerShell compares case-insensitively by default, so the plain English
+        # word "open" in a row's prose ("the open #5788 branch reserves ...") reads as the OPEN marker
+        # and fails an otherwise-resolved unknown. The marker is uppercase by schema.
+        if ($row -cmatch '\bOPEN\b') { $errors += "P4 : an OPEN unknown may not survive approval -- $row" }
         elseif ($row -match '^-\s' -and $row -notmatch 'resolved-by') {
             $errors += "P4 : row ends in neither `resolved-by ...` nor OPEN -- $row"
         }
@@ -403,14 +406,34 @@ function Invoke-Gates {
         if ($row -match '`([^`]+)`') { $paths += $Matches[1] }
     }
 
-    $touchesSource = @($paths | Where-Object { $_ -match '^Source/' }).Count -gt 0
-    $touchesTests  = @($paths | Where-Object { $_ -match '^Tests/' }).Count -gt 0
-    $touchesCore   = @($paths | Where-Object { $_ -match 'SqlQuery/|Translation/|IDataProvider|SqlBuilder|SqlOptimizer' }).Count -gt 0
-    $touchesPublic = @($paths | Where-Object { $_ -match '^Source/' -and $_ -notmatch 'Internal' }).Count -gt 0
+    # Markdown is excluded from the SQL / public-API / TFM heuristics below: a readme.md or an
+    # AnalyzerReleases.*.md ships inside a package but cannot move emitted SQL, add public surface or
+    # change a build. Only .md is excluded - PublicAPI.*.txt and csproj/props still count, which is why
+    # this is not a "code files only" filter. (A readme-only touch of Source/LinqToDB/ was applying
+    # G-02/G-03/G-04 on #5779, an analyzer-assembly change that can do none of the three.)
+    $buildPaths    = @($paths | Where-Object { $_ -notmatch '\.md$' })
+
+    # Roslyn components - the shipped analyzers, their code fixes, and the internal generator - live under
+    # Source/ and outside Internal/, which is exactly the shape $touchesPublic keys on, but they are not the
+    # shipped library: they carry no PublicAPI.*.txt and no CompatibilitySuppressions.xml
+    # (RunApiAnalyzersDuringBuild is false in Source/Analyzers.Common.props), an analyzer's public members are
+    # not API surface at all (agents/code-reviewer.md), and they run at compile time so they cannot emit SQL.
+    # Tests/Tests.Analyzers is their test project and belongs to the same set: DB-free, single-TFM, run by a
+    # plain `dotnet test` outside the provider matrix, and it emits no baselines.
+    $roslynComponent = '^(Source/(LinqToDB\.Analyzers(\.CodeFixes)?|CodeGenerators)|Tests/Tests\.Analyzers)/'
+    $productPaths    = @($buildPaths | Where-Object { $_ -notmatch $roslynComponent })
+
+    # $touchesSource deliberately still counts a Roslyn component: those projects target netstandard2.0, so
+    # G-05's portable-TFM build applies to them as much as to the library.
+    $touchesSource = @($buildPaths   | Where-Object { $_ -match '^Source/' }).Count -gt 0
+    $touchesTests  = @($buildPaths   | Where-Object { $_ -match '^Tests/' }).Count -gt 0
+    $touchesCore   = @($productPaths | Where-Object { $_ -match 'SqlQuery/|Translation/|IDataProvider|SqlBuilder|SqlOptimizer' }).Count -gt 0
+    $touchesPublic = @($productPaths | Where-Object { $_ -match '^Source/' -and $_ -notmatch 'Internal' }).Count -gt 0
+    $movesSql      = @($productPaths | Where-Object { $_ -match '^(Source|Tests)/' }).Count -gt 0
 
     $gates = @()
     $gates += [ordered]@{ id = 'G-01'; name = 'Tests pass via /test, declared proof mode observed'; applies = $true;           why = 'always' }
-    $gates += [ordered]@{ id = 'G-02'; name = 'Baselines reviewed, not just regenerated';           applies = ($touchesSource -or $touchesTests); why = 'the change can move emitted SQL' }
+    $gates += [ordered]@{ id = 'G-02'; name = 'Baselines reviewed, not just regenerated';           applies = $movesSql;        why = 'the change can move emitted SQL' }
     $gates += [ordered]@{ id = 'G-03'; name = 'New public surface accounted for';                   applies = $touchesPublic;   why = 'a non-Internal path is in P6' }
     $gates += [ordered]@{ id = 'G-04'; name = 'API baselines refreshed via /api-baselines';         applies = $touchesPublic;   why = 'a non-Internal path is in P6' }
     $gates += [ordered]@{ id = 'G-05'; name = 'Builds on the portable TFMs';                        applies = $touchesSource;   why = 'Testing config is net10.0-only' }

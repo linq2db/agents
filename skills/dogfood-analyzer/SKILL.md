@@ -28,6 +28,16 @@ Everything runs in a **throwaway worktree** and is **never committed** — the c
 
 ### 2. Pack + attach the analyzer
 
+**A rule with no code fix takes a shorter path — skip the packing entirely.** Steps 2 and 4 exist to validate *package delivery* and the fixer; a new rule inside an already-shipped assembly changes neither, and `verify-analyzer-delivery.ps1` covers delivery on its own. When `has-code-fix` is false, the pack → cache-purge → local-feed → `VersionOverride` chain buys nothing and costs a pack plus a restore. Instead: build the analyzer project (`dotnet build Source/LinqToDB.Analyzers/LinqToDB.Analyzers.csproj -c Release`) and reference the DLL directly from the scratch consumer csproj —
+
+```xml
+<ItemGroup>
+	<Analyzer Include="<path>\.build\bin\LinqToDB.Analyzers\Release\LinqToDB.Analyzers.dll" />
+</ItemGroup>
+```
+
+— then go straight to step 3. **Base the scratch worktree on `origin/master` rather than the rule's branch** in this case: the corpus you are measuring should be the pristine one the prediction was made against, and the analyzer arrives as a DLL rather than from the tree. That also sidesteps the step-1 assumption that the branch is pushed, which is false while the rule is still uncommitted. (Used for `L2DB1002`/#5779: predicted seven sites, reported exactly seven.)
+
 - **Pack:** `dotnet pack <worktree>/Source/LinqToDB.Analyzers.CodeFixes/LinqToDB.Analyzers.CodeFixes.csproj -c Release -p:VersionSuffix=-dogfood<n>`. The leading `-` is required — `PackageVersion` is `$(Version)$(VersionSuffix)` concatenated (a bare `dogfood1` yields the invalid `6.4.0dogfood1`). Output lands in `<worktree>/.build/package/release/`.
 - **Purge the extraction cache** so a re-pack of the same version isn't served stale: remove `~/.nuget/packages/linq2db.analyzers` (PowerShell tool).
 - **Local feed** — add to the worktree `nuget.config`: `<add key="linq2db-testing" value=".build\package\release\" />` and a `packageSourceMapping` `<package pattern="linq2db.Analyzers" />` → that feed.
