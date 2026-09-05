@@ -88,6 +88,22 @@ scope or TFM, and an instrumented CI probe on the PR's own head showed the trace
 content came from legs a macOS-drop / TFM-trim commit had removed from the matrix; the next `test-all`
 regenerated the delta from 47 net-positive files to zero.)
 
+### A "modified" cluster your PR can't explain — diff against the *pre-collision* baselines-master state
+
+A branch's baselines are recreated on top of whatever baselines master holds at run time, so any *other* PR whose baselines merged in the interim shifts the comparison point. Your branch then shows that PR's files as "modified" — not because it changed them, but because it faithfully reproduced the values master used to have. The cluster looks alarming and unattributable: large, spread across tests the PR never touches, and untouched by any file in the diff.
+
+Settle it by comparing against the **previous** baselines-master state rather than the current one. Find the interim merge (`git -C ../linq2db.baselines log --format="%h %aI %s" -n 12 origin/master -- '<one file from the cluster>'` names the PR in its subject), take the commit *before* it, and diff your branch against that:
+
+```
+git -C ../linq2db.baselines diff --name-status <pre-collision-sha>...origin/baselines/pr_<n> --diff-filter=MD
+```
+
+Files that vanish from that list are byte-identical to the pre-collision state — i.e. your branch reproduced the historical values and the delta belongs to the other PR. A cluster that *survives* is genuinely yours. Cross-check by confirming the interim PR is among the commits your branch lacks (`git log --oneline origin/pr/<n>..origin/master`), and read its subject: a CI-fixes PR often names the clusters outright.
+
+Two consequences worth reporting. The finding is "not attributable to this PR" with a measurement behind it rather than a plausible story — and the baselines PR itself then carries N files that are *reverts* of the other PR's values, which matters to whoever merges it. Do **not** phrase either as an instruction to sync with master (see [`review-conventions.md`](review-conventions.md) → *Notes vs findings*).
+
+(Surfaced on #5844: 387 modified files across `CharTest2/11/12`, `LeftJoin5`, `CheckField6`, three `MergeTests` and more. All but one were byte-identical to `ae40ecc3b84`, the state before #5864's baselines merged 17 minutes after the branch's own master merge — and #5864's subject named two of the clusters: *"merge-source order, CharTest isolation"*. `LeftJoin5` and `CheckField6` returned literally empty diffs.)
+
 ### Merging a baselines PR
 
 `linq2db.baselines` **disallows merge commits** — `gh pr merge --merge` fails with *"Merge commits are not allowed on this repository. (mergePullRequest)"*. Use `gh pr merge <n> --squash` (mark the CI-created draft ready first with `gh pr ready <n>`; `--admin` bypasses any pending check). This comes up when cleaning up a lingering baselines PR whose source linq2db PR has already merged (the baselines PR doesn't auto-close).
