@@ -506,6 +506,22 @@ await act.ShouldThrowAsync<LinqToDBException>();
 
 Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe.)
 
+### Finding the tests that depend on a thrown exception
+
+When a change alters *which exception* a member throws — or removes a throw entirely — the question is which tests assert on it. A regex sweep gets this wrong by default, because this repo expresses exception expectations in **five** unrelated shapes, and the obvious one (`Assert.Throws<T>(…)`) is only the first:
+
+| Shape | Example | Where it sits |
+|---|---|---|
+| NUnit generic | `Assert.Throws<T>(…)` / `Assert.ThrowsAsync<T>(…)` | at the call |
+| NUnit constraint | `Assert.That(() => …, Throws.InstanceOf<T>())`, `Throws.TypeOf<T>()`, `Assert.Catch<T>()` | at the call |
+| Shouldly delegate | `Action act = () => …;` then `act.ShouldThrow<T>()` / `await act.ShouldThrowAsync<T>()` | **two lines apart** |
+| Shouldly static | `Should.Throw<T>(…)` — only outside the `Tests` namespace (see above) | at the call |
+| Attribute-borne | `[ThrowsForProvider(typeof(T))]`, `Tests/Linq/ExpectedExceptionAttribute.cs` | on the **test method**, arbitrarily far from anything |
+
+Two consequences. **A proximity window around the member is not a sweep** — the Shouldly delegate form splits the assertion across lines, and the attribute forms are not near the code at all. And **`Assert.Throws<`-only greps read as complete**, because they return plausible-looking hits. Sweep by *member name across the whole test tree*, then cross with all five shapes, plus `catch (T)` for tests that swallow rather than assert.
+
+(#5788: a ±5-line `Throws<…>` window over 137 changed members returned three hits and happened to be right; an idiom-complete census was needed to know that. `ExpressionTests.cs:386` is a `Throws.InstanceOf<LinqToDBException>()` six lines from a changed member and appeared in none of the three.)
+
 ### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
 
 NUnit's multiple-assert scope only accumulates failures reported through NUnit's own assertion machinery. **Shouldly throws a plain `ShouldAssertException`**, which propagates straight out of the block — so a fixture wrapping a dozen `ShouldBe` assertions in `using (Assert.EnterMultipleScope())` still stops at the first mismatch and reports exactly one failure.

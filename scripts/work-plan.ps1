@@ -359,15 +359,27 @@ function Invoke-Validate {
     }
 
     # P12 verdict — an error at Tier L, a warning at Tier M.
+    #
+    # Rounds are recorded chronologically, so the FIRST verdict word in the block is the OLDEST one. A plan
+    # that was refuted in round 1 and holds in round 5 would otherwise report 'refuted' forever, which reads
+    # as the standing state and is wrong. An explicit `**Current verdict: <word>**` line wins when present;
+    # otherwise fall back to the last verdict word in the block, not the first. (#5788 ran five rounds.)
     $p12     = Get-Block -Blocks $blocks -Id 'P12'
     $verdict = $null
     if ($null -ne $p12) {
         foreach ($l in $p12.lines) {
-            # Skip the block's own fill comment — it names all three verdict
-            # words in its instructions and would otherwise read as a verdict.
             if ($l.Trim().StartsWith('<!--')) { continue }
-            if ($l -match 'waived-by-user')            { $verdict = 'waived';    break }
-            if ($l -match '\b(holds|weak|refuted)\b')  { $verdict = $Matches[1]; break }
+            if ($l -match 'Current verdict:\s*\**\s*(holds|weak|refuted|waived)') { $verdict = $Matches[1]; break }
+        }
+
+        if ($null -eq $verdict) {
+            foreach ($l in $p12.lines) {
+                # Skip the block's own fill comment — it names all three verdict
+                # words in its instructions and would otherwise read as a verdict.
+                if ($l.Trim().StartsWith('<!--')) { continue }
+                if ($l -match 'waived-by-user')           { $verdict = 'waived' }
+                elseif ($l -match '\b(holds|weak|refuted)\b') { $verdict = $Matches[1] }
+            }
         }
     }
     if ($null -eq $verdict -and $planTier -ne 'S') {
