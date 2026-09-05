@@ -125,6 +125,18 @@ gh api repos/<o>/<r>/pulls/<n>/files --paginate --jq 'select(.patch != null) | s
 
 Files with very large patches have `.patch` omitted by the API (hence the `!= null` guard); for those, read the file at the PR head via `git ls-tree` + `git cat-file` instead. Same rule for bounding output generally: prefer a command's own `--limit` / `--jq` over piping to `| head`, which is a novel command string that misses the allowlist.
 
+### `gh pr view --json files` stops at 100 files, and the truncation looks like a measurement
+
+`gh pr view <n> --json files` returns at most **100** entries with no error, no flag to raise it and nothing in the payload saying it was cut. That makes it dangerous for exactly the thing it is convenient for — bucketing a PR's changed paths to decide what a PR touches — because the answer arrives as a tidy count. On a 282-file PR the first 100 paths were all outside `Source/`, so a triage table read `source=0` and the PR was classified as infra-only; it does touch `Source/`. Same failure shape as the `git ls-tree` pathspec trap: a wrong answer that is indistinguishable from a right one.
+
+**A count of exactly 100 means truncated — re-run paginated**, and prefer the paginated form outright whenever the count feeds a decision:
+
+```
+gh api repos/<o>/<r>/pulls/<n>/files --paginate --jq '.[].filename'
+```
+
+(Surfaced 2026-09-05 triaging 6.5.0's milestone PRs for release notes; #5614's one `Source/` change turned out to be a whitespace-only edit, so the classification survived — by luck, not by method.)
+
 ## Transient `fatal error — add_item` on parallel fork bursts
 
 When several parallel Bash calls launch Git Bash at once, one may die with `fatal error — add_item (… errno 1)`. Retry the specific failed command individually; it almost always succeeds on the next attempt. This is a MSYS cygheap race, not a command error.
