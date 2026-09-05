@@ -39,6 +39,13 @@ If the args are ambiguous (e.g. a phrase like "bulk copy identity test" that cou
 
 > **Exception — a PR's *own* newly-added tests.** When the tests under verification are **added by the PR** (absent from the primary clone — e.g. during `/review-pr` fix-verification in a worktree off `origin/pr/<n>`), do **not** delegate to `test-runner`: it reports the fixture missing when pointed at the primary clone, blocks on runner resolution when pointed at the worktree, and can leak detached `dotnet` jobs. Run them yourself per [`.claude/docs/worktree.md`](../../docs/worktree.md) → *Running tests from a worktree* (PowerShell tool, `Set-Location <worktree>`, `dotnet test --project … -f net10.0 --filter … --settings .runsettings --provider … --test-progress`). The same applies to a **scratch** test that exists only in the worktree (a review probe written into its `TestTemplate.cs`): the fixture name resolves in the primary clone but your method does not, so `test-runner` finds nothing.
 
+> **Exception — a worktree with no prior build.** The exception above is about *which tests exist*; this one is about *how long the build takes*, and it fires on ordinary pre-existing tests too. When the target worktree has no `Tests/Linq/obj` (or was last built in a different configuration), a cold `Tests/Linq` build takes **>10 minutes** and cannot finish inside the Bash tool's 600 s ceiling — and `run_in_background` on the `Agent` call backgrounds the *agent's turn*, not the `dotnet test` call inside it, so the cap is unchanged. `test-runner` correctly returns `status: "blocked"` rather than burning the timeout, but the round-trip is wasted. Check for the build output first; when it's absent, skip the delegation and run it yourself:
+>
+> 1. `dotnet build <worktree>/Tests/Linq/Tests.csproj -c Debug -f net10.0 -m:2` via the PowerShell tool with `run_in_background: true`, redirecting with `*> <log>`.
+> 2. Then invoke the built MTP exe directly — `.build/bin/Tests/Debug/net10.0/linq2db.Tests.exe --provider <name> --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<Fixture>.<Test>"` — per [`.claude/docs/testing.md`](../../docs/testing.md) → *Targeted repro in a worktree*. Splitting build from run also makes the next host-OOM kill diagnosable: the build log's size says which step died.
+>
+> (Hit twice: #5614, and again on #5833 where the delegation was made despite the rule already being recorded in auto-memory — which is why it lives here now, where the skill will surface it.)
+
 ### 1. Resolve intent
 
 Parse args per the table above. On ambiguity or empty args, ask the user (single prompt, numbered options so they can reply with a number).
