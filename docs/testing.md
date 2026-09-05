@@ -455,6 +455,20 @@ Always read the **full** test run log — not just the tail. NUnit and `dotnet t
 
 For a full-suite run (tens of minutes — e.g. all of one provider across the direct + `LinqService` configs), build the test project first, then run `dotnet test … --no-build` as a **main-agent `run_in_background` Bash task**, and read that task's own output file for the result. Don't delegate the long run to a `test-runner` subagent: the subagent tends to background the `dotnet test` itself and return *before* it finishes, leaving no result to retrieve — and a follow-up agent reading a shared log (e.g. a redirected `ydb-test-full.log`) can pick up a **stale** prior run and report a false pass/fail (this produced a phantom `CalledWithCorrectNames` failure that had actually passed). The `--no-build` flag also avoids the `MSB4166` mid-suite truncation under disk pressure (see [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *Iterative-build gotchas*). For a small filtered run the `/test` skill / `test-runner` is still the right tool; this is specifically about the long, unattended full-suite case.
 
+**`run_in_background` is not enough on its own when the build is cold — the tool's own 600 s cap is the wall.** The recipe above assumes you can build first and then `--no-build`, but a *cold* `Tests/Linq` build already exceeds 600 s on this machine, so the build step alone times out and there is nothing to run `--no-build` against. `test-runner` will tell you this rather than fake it (it returns `status: "blocked"` naming the timeout, which is the correct answer, not a failure). Launch the whole thing **detached** instead, so the tool call returns immediately and the run outlives it:
+
+```powershell
+$wt = '<repo-or-worktree-root>'
+$p = Start-Process -FilePath 'dotnet' -WorkingDirectory $wt -PassThru -WindowStyle Hidden `
+  -ArgumentList @('test','--project',"$wt\Tests\Linq\Tests.csproj",'-c','Debug','-f','net10.0',
+                  '--settings',"$wt\.runsettings",'--provider','SQLite.Classic,SQLite.MS','--test-progress') `
+  -RedirectStandardOutput "$wt\.build\.agents\full-suite.log" `
+  -RedirectStandardError  "$wt\.build\.agents\full-suite.err.log"
+$p.PriorityClass = 'BelowNormal'
+```
+
+Then poll `test-status.ps1` at natural intervals and read the **run's own summary** from the log at the end. Two things to get right: set `PriorityClass` on the returned object (a detached process does not inherit the shell's), and treat the heartbeat as a progress indicator only — its last sample is written before the final skips are tallied, so a completed run can show e.g. `20782/21317 (97.5%)` and look truncated while the log's `Test run summary` reconciles exactly (`succeeded + skipped == total`). Check that identity before reporting a count. (Measured on #5814: 21317 tests over both SQLite providers in 36m27s, of which >10 min was the cold build.)
+
 ## Diagnosing hung test runs
 
 A `dotnet test` that has been running **>30 s with zero test-output lines** AND a live MTP **test-app process** (named after the test assembly — `linq2db.Tests*` — or `dotnet` when it hosts the test dll) at **>1 GB resident memory** is almost certainly in an infinite-recursion loop — typically a visitor that hands its own output back to itself (`Visit(Optimize(converted))` re-entering its own `VisitXxx` with a structurally-equivalent element). Confirm via `Get-Process linq2db.Tests*,dotnet` (under VSTest this was `testhost.exe`); a normal test run keeps it well under 500 MB.
