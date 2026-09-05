@@ -173,6 +173,39 @@ is the assembly's PE machine type, not the process architecture, and it has now 
 bitness-based analysis on #5614 twice. The step's own invocation (`net462\main\x64\linq2db.Tests.exe …`) is
 authoritative.
 
+### A red leg reporting `failed: 0` — read the exit code, not the summary
+
+The section above covers a task with no failures because the agent died. The sibling case is a task that
+ran to completion, printed a **green** summary, and still failed the step:
+
+```
+Test run summary: Passed! - …/linq2db.Tests.dll (net10.0|x64)
+  total: 27260
+  failed: 0
+  succeeded: 26788
+Test application process didn't exit gracefully, exit code is '139'
+##[error]Process completed with exit code 7.
+```
+
+Exit **139** is `128 + SIGSEGV` — a native crash during process teardown, *after* every test reported. The
+tests genuinely passed; a driver's unmanaged shutdown path took the process with it. The corroborating tell
+is in the TRX reporter, which sees a file truncated by the crash:
+`report-trx: net10.0-main-x64.trx lists 25626 results but its counters say 27260`.
+
+Do not attribute this to the PR's own changes without a control, and do not go looking for a failing test —
+there isn't one. Read it as a provider/runtime teardown defect and check whether other PRs' runs of the same
+leg show it. (Surfaced on #5877, where the DB2 + Informix + DuckDB leg failed this way on a PR whose entire
+diff was clause deletions and a Roslyn analyzer.)
+
+**Attribute a red leg by comparing runs across *unrelated* PRs, not by reading its log first.** When a test
+workflow is new or recently changed, the cheapest question is whether the same legs are red everywhere:
+`gh run list --repo linq2db/linq2db --workflow <file>.yml --limit 12 --json databaseId,conclusion,createdAt,displayTitle`
+then `gh run view <id> --json jobs --jq '.jobs[] | select(.conclusion=="failure") | .name'` on two or three
+of them. Legs failing identically on PRs that share no code are infrastructure, and that verdict costs two
+calls where log-reading costs many. (On #5877 four of five red legs matched an unrelated analyzer PR's run
+exactly; the fifth was the exit-139 case above, so none was PR-caused. A review subagent spent five calls
+on `--log-failed` for one leg and recovered no test names, having skipped this check.)
+
 ### Did a change make CI faster or slower?
 
 To evaluate a performance claim — a PR asserting a speedup, or a suspicion that something regressed — compare the same job/task across recent builds with [`.claude/scripts/azp-job-durations.ps1`](../scripts/azp-job-durations.ps1) rather than hand-rolling `/definitions` → `/builds` → `/timeline` → `/logs`. Add `-WithTestCounts` whenever the claim is about *speed*, because duration alone can't be read without the count beside it:
