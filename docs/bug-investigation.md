@@ -82,9 +82,64 @@ When what's under test is the wiring rather than the payload — does this `.cmd
 
 On #5864, confirming that `sqlserver.2022_2025.cmd` passed two comma-separated `name|port|image` specs through `cmd` → `pwsh -File` was done by invoking the real script. The proof arrived in the first line of output — `=== Attempt 1 of 3: starting mssql2022, mssql2025 ===` — and the next line began pulling a multi-GB Windows container image, which had to be aborted and left an orphaned `docker` client holding the pull open. A deliberately bogus image name in the spec would have printed the identical proof and then failed in a second.
 
+## A provider-specific *rendering* bug needs no provider — build the SQL offline
+
+When the defect is in what gets **rendered** rather than in what the server does with it, a container, a connection and a schema are all unnecessary cost. Build the provider, construct the statement, and render it:
+
+```csharp
+var provider = OracleTools.GetDataProvider(OracleVersion.v12, OracleProvider.Managed);
+
+using var db = new DataConnection(new DataOptions()
+    .UseConnectionString("dummy")          // never opened
+    .UseDataProvider(provider));
+
+var optimizer = provider.GetSqlOptimizer(db.Options);
+var factory   = optimizer.CreateSqlExpressionFactory(db.MappingSchema, db.Options);
+var sb        = new StringBuilder();
+
+provider.CreateSqlBuilder(db.MappingSchema, db.Options).BuildSql(
+    statement, sb,
+    new OptimizationContext(
+        evaluationContext           : new EvaluationContext(),
+        dataOptions                 : db.Options,
+        sqlProviderFlags            : provider.SqlProviderFlags,
+        mappingSchema               : db.MappingSchema,
+        optimizerVisitor            : optimizer.CreateOptimizerVisitor(false),
+        convertVisitor              : optimizer.CreateConvertVisitor(false),
+        factory                     : factory,
+        isParameterOrderDepended    : false,
+        parametersNormalizerFactory : provider.GetQueryParameterNormalizer),
+    aliases            : new AliasesContext(),
+    nullabilityContext : null);
+```
+
+The in-repo precedent is `QueryInheritanceTests.QueryTable<T>`. `SqlTable.Create<T>(db)` builds the table from mapping, so a `[Table("…")]` attribute is enough to control the name.
+
+Two things this buys beyond speed. It reaches statements ordinary LINQ cannot express — `SqlTruncateTableStatement`, `SqlCreateTableStatement`, and the `SqlFragmentStatement`s that `IDmlService.BuildCommandScenario` produces, which is where provider-specific DDL and identity/reset SQL live. And it makes the **control** almost free: render a second statement that exercises the neighbouring path in the same run, so a difference is attributable to the change rather than to the input.
+
+(Surfaced on #5673: an Oracle truncate-with-identity-reset block was found to have lost SQL-string-literal escaping. With no Oracle container running, one offline render for a table mapped `[Table("O'Brien")]` produced `EXECUTE IMMEDIATE 'SELECT "SIDENTITY_O'Brien".NEXTVAL FROM dual'` — the literal closing early — alongside the DROP path's correctly escaped `'DROP TABLE "O''Brien"'` from the same file. Two minutes, no container, and the pair is the whole finding.)
+
+## Instrument the population, not just the flagged subset — otherwise there is no denominator
+
+When instrumenting to answer *"does shape X ever occur?"*, log **every** occurrence with a flag, not only the ones that match X. A log containing just the matches cannot distinguish "1 in 1000" from "1 in 1" — and that distinction is usually the entire finding, since it decides whether a hazard is rare-but-live or an artifact.
+
+This is a different failure from *"a control that passes in every arm measured nothing"* (see [`agent-rules.md`](agent-rules.md) → *Before coding a fix or feature*): there the probe cannot discriminate; here it discriminates perfectly and you cannot calibrate the result. The fix costs one field — emit `flagged=true|false` on every call and `Group-Object` at read time.
+
+(Surfaced on #5673 investigating whether a combined-eager plan can order its harvesters unsafely. The first probe logged only *mixed* plans; one line came back, which was uninterpretable, and the re-run cost a second ten-minute suite pass. Logging every plan gave the answer in one line: **86 plans built, 1 mixed, 0 inverted** — enough to down-scope the finding from a latent bug to a robustness gap.)
+
 ## Timing-sensitive (flaky) bug — don't perturb hot paths with per-call I/O
 
 When a bug is order- / timing- / cache-state-sensitive (flips pass↔fail across otherwise-identical runs), instrumentation that does **per-call I/O in a hot path masks it** — the I/O latency changes timing enough to hide the failure. On the #5657 aliasing race, adding `File.AppendAllText` to the `SelectQuery` constructor (hit on every query node) turned the failing test green; the bug only reproduced once the I/O was removed. Instead: stash diagnostic state cheaply on the object (e.g. capture `Environment.StackTrace` into an `internal` field at construction) and write it out **once, at the failure site** (the throw / assertion). That pins the culprit — e.g. the exact `CloneQuery` call-site that created the orphaned node — without altering the timing that produces the bug. Capturing a stack into a field is CPU-only and far less perturbing than file I/O; if even that masks it, narrow the capture to the suspect id range.
+
+## Proving a race — signal-gate the hand-off, don't stagger by wall clock
+
+To demonstrate a race you have to make the interleaving happen, and the instinct is to widen the window with a `Thread.Sleep` and start the second thread after a delay. That fails whenever the vulnerable window sits **after** an expensive operation, because the wall-clock stagger you pick lands inside that operation rather than after it — both threads then pass the contended read before either publishes, and the run comes back green. Green here is not evidence: it looks exactly like a refuted finding while the mechanism is untouched.
+
+Make the hand-off explicit instead. Inside the instrumentation, tag each entry with an `Interlocked.Increment` counter, have the *second* caller block on a `ManualResetEventSlim` until the first has reached the window, and have the first set that event at the window's start. The second thread's contended read is then guaranteed to land inside it, and the result is a clean yes/no rather than a timing lottery. Give the wait a timeout so a refutation can't hang the run.
+
+Two things to carry into the write-up. Log the **facts** rather than inferring them — thread id, the state each caller read, and whether its lookup hit or missed — because a green run otherwise cannot distinguish "the window is unreachable" from "my probe never entered it", and those have opposite consequences for the finding. And state plainly that a signal-gated hand-off shows the interleaving is *possible*, not that it occurs naturally under load; that is the standard way to demonstrate a race, but it is weaker evidence than a natural repro and the finding should say so.
+
+(Surfaced on #5844's `CompiledTable<T>` learn window. Two natural-timing attempts came back green — the fact log showed both threads' `TryGetValue` preceding either publication, because the window opens only after the query *build*. The signal-gated version landed on the first try: `seq=2 … hit=True covered=False`, and the second caller executed the first one's query — a query-filter bypass returning 7 rows where 1 was correct.)
 
 ## Perf work — a work count is not a time measurement, and a corpus aggregate is not the case you're fixing
 
