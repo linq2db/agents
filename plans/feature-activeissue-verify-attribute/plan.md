@@ -186,7 +186,7 @@ separate branch (see `P10`).
   - TO-5 `InconclusiveIsBookedInItsOwnBucket` + `InconclusiveIsUnbookedOnRepeat` — proof observed: MUTANT-B (Inconclusive case removed from `Unbook`) reddened the second and only the second, which is what shows D-4's rejected Book-only variant wrong by measurement rather than by argument.
   - TO-6 **pass** — 24/24 live EF gates triaged; `git grep -c "\[ActiveIssue[(\]]" -- Tests/EntityFrameworkCore` returns 0. Post-annotation run: EF10 62 cases 0 failed / 51 inconclusive, EF8 102/0/82, EF9 102/0/82, EF3 95/13/67 where all 13 failures are `SQLite.MS`, the documented net462 `e_sqlite3` gap (memory `reference_ef3_net462_sqlite_native`), not a mismatch. Non-zero case counts observed per leg, so no leg reported a vacuous green.
   - TO-7 `Sentinel_RoundTripsAwkwardCharacters`, `…AbsentProviderAndTypeRoundTripAsNull`, `…LongMessageIsCapped`, `…RejectsForeignLines`, `…ExtractsExceptionTypeButNotAssertionProse`.
-- G-02: **n/a for this branch** — EF tests do not write `linq2db.baselines` SQL files (`BaselinesManager` is driven from `Tests/Base` for the main suite; the EF projects produced no baseline output during any sweep). Re-assess on the `Tests/Linq` branch, where newly-passing gates will write baselines they never wrote before.
+- G-02: **corrected — it was never `n/a`.** The gate originally read *"EF tests do not write `linq2db.baselines` SQL files … the EF projects produced no baseline output during any sweep"*. False: CI produced [linq2db.baselines#2108](https://github.com/linq2db/linq2db.baselines/pull/2108), 959 files under EF configuration directories (`SQLite.MS.EF8/`, `SqlServer.2019.MS.EF10/`, `PostgreSQL.13.EF10/`, …). **206 added**, all attributable to tests that now run: `Issue4662Test` (59), `Issue4669QueryFilterTest` (53, new), `Issue4333Test` (38) and `TempTableSurvivesAcrossCommands` (38) from the re-scope, `TestGlobalQueryFilters` (12), `Issue4643Test` (6). **753 modified**, all `enableFilter`-parameterised Northwind tests (`TestContinuousQueries`, `TestEager`, `TestInclude`, `TestIncludeString`, `TestLoadFilter`, `TestNestingFunctions`, `TestGlobalQueryFilters`, `NavigationProperties`) — the A-4 fix. Sampled `TestGlobalQueryFilters(PostgreSQL.13,True)`: +2/−2, the never-assigned local's redundant third filter parameter `@ef_filter__p7` collapsing into the existing `@ef_filter__p5`. Every change reconciles to an intended one.
 - G-03: n/a — no new public surface; `Tests/**` ships in no package
 - G-04: n/a — no `Source/` change, so no ApiCompat baseline movement
 - G-05: **pass** — `Tests.Base` built clean on `net462` and `net10.0` explicitly, and via the EF projects on `net8.0` (EF8) and `net9.0` (EF9) — all four TFMs it targets.
@@ -246,6 +246,14 @@ separate branch (see `P10`).
   (see A-1). Minimal trigger, established empirically: a **shadow** property (`e.Property<bool>("IsDeleted")`)
   reached through `EF.Property` in a `HasQueryFilter`. An earlier attempt using `EF.Property` against a real
   CLR property did **not** reproduce. No joins, no soft-delete machinery and no Northwind model needed.
+
+- A-6 **"No baseline output observed" is not evidence that a suite writes no baselines — check that capture
+  was on.** `BaselinesManager` writes nothing when `BaselinesPath` is unset or its directory is absent, and it
+  fails silently, so a local sweep reports exactly what a genuinely non-emitting suite reports. G-02's original
+  `n/a` came from sweeps run before that directory existed on this machine; CI, where capture is always on,
+  produced 959 files. Load-bearing for the `Tests/Linq` phase: 315 gates, and every one that starts passing
+  emits baselines it has never emitted, so that branch must confirm capture is live **before** reading a
+  no-output result as a verdict.
 
 ## P12 Critic verdict (M/L)
 
