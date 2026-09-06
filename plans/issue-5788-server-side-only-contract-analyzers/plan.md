@@ -264,6 +264,30 @@ The failure this produces is #5782: `Sql.Window`'s 104 methods were unmarked, th
 
   The general rule this instances: **a corpus that tests an engine contains deliberate encodings of the very violations a contract analyzer detects**, so a bulk auto-fix over a test corpus needs a *caller-scoped, idiom-complete* census — the changed member names swept across the whole test tree and crossed with every assertion idiom the repo actually uses, including attribute-borne ones — rather than a proximity window around the stub, and the carve-outs it produces must be expressed in something the fixer can read.
 
+- A-10 **`E-17` used, for `Sql.Like` ×2** (`Sql/Sql.cs:463`, `:473`). Review found the last two unmarked
+  throw-only stubs in `Source/LinqToDB/Sql/`: no attribute of any form, yet both are registered to
+  `TranslateLike` (`Internal/DataProvider/Translation/StringMemberTranslatorBase.cs:25-26`), so
+  `IsServerSideOnly` returns false for a member that is server-side-only in fact — the #5782 shape this
+  branch exists to prevent. `D-12`'s trimmed arm-B list is why neither rule reports them, which is the
+  accepted cost recorded in `P10`, not a defect in the rules.
+
+  Both bodies are `#if !NETFRAMEWORK`-conditional: a throw on the portable TFMs, a real body delegating to
+  `System.Data.Linq.SqlClient.SqlMethods.Like` on `net462`, so the two rules see a different shape per TFM.
+  **The marker is `#if`-scoped to match the body**, on the maintainer's call. An unconditional marker is
+  analyzer-clean too — `D-9` makes marker-plus-real-body valid — but it would silently change netfx
+  semantics, stopping a query client-folding a `Sql.Like` call that works there today, and no local gate can
+  see that: `Linq/StringFunctionTests.cs` skips netfx for this member outright. Scoping it leaves `net462`
+  untouched and confines the change to the TFMs where the body already throws.
+
+  Changed: `[ServerSideOnly]` on both overloads under `#if !NETFRAMEWORK`, and the non-netfx `InvalidOperationException` becomes
+  `ServerSideOnlyException(nameof(Like))` so the members satisfy `LINQ2DB0003` once marked. `A-9`'s census
+  discipline applied to the exception change: sweeping `Sql.Like` across `Tests/` returns one client-side
+  assertion, `Linq/StringFunctionTests.cs:62-63`, updated with it; every other use is inside a query, and
+  `UserTests/Issue1925Tests.cs`'s `Assert.Throws<OleDbException>`/`<OdbcException>` are provider errors from
+  executing a query, not from the stub. `Source/LinqToDB.EntityFrameworkCore/LinqToDBForEFTools.Mapping.cs:9`
+  maps EF's `DbFunctions.Like` onto `Sql.Like` as a translation rewrite and is unaffected by a
+  client-evaluation marker.
+
 ## P12 Critic verdict (M/L)
 
 **Current verdict: weak** — round 5, on the `A-8`/`A-9` delta. Rounds follow in chronological order; the three earlier `refuted` verdicts are settled history, not the standing state. (`work-plan.ps1 -Action validate` reports whichever verdict word appears first in this block, so this line is also what keeps that field honest.)
