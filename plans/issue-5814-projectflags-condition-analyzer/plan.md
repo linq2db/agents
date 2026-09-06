@@ -260,7 +260,19 @@ The critic established (and the tree confirms) that these clauses encode **inten
 - G-06: **pass** — `git diff -U1` over the eight engine files shows only the removed clause or disjunct at each site, no reformatting and no touched neighbours; the column-aligned code around them is byte-identical. Whole-branch stat: 13 modified files, +50/-36, plus two additions (the analyzer and the test project).
 - G-07: **n/a** — `git status` shows nothing under `Tests/Tests.Playground/`; the new tests live in their own project.
 - G-08: **n/a** — no `cross-cutting-core.md` path is touched (`Internal/Linq/Builder/**` is not in that rule's `paths:` list, which covers `SqlQuery/**` and `Translation/**`). The edits nonetheless rest on TO-6's red→green census and TO-7's run rather than on static reasoning.
-- Extra, not a `G-nn`: `/profile-analyzers` — **not run; recorded `fail` rather than left blank.** D-7's failure mode makes CFG-construction cost a real risk on an every-keystroke path (`RunAnalyzersDuringLiveAnalysis` is unconditional for this project), so this is a gate rather than a formality and it is outstanding. **What is therefore unverified:** that `ProjectFlagsAnalyzer` does not regress build or IDE responsiveness. Discharge with `/profile-analyzers rules`, which measures the internal `LINQ2DB0xxx` rules against `Source/LinqToDB` and compares to the committed baseline. The static reading is reassuring but is not a measurement — the CFG is built only for method bodies that reached a recognised atom, the per-invocation gate is two symbol comparisons plus one ordinal string compare, and allocation is one `bool[1]` plus two closures per operation block and `blocks × 52` bools per tracked symbol per gated method.
+- Extra, not a `G-nn`: `/profile-analyzers rules` — **pass**, run 2026-09-06 against `a1516f71b`. D-7's failure mode does not materialize.
+
+  | Analyzer | Rules | Time | % of project | Rank | vs baseline | Verdict |
+  |---|---|--:|--:|--:|--:|---|
+  | `ProjectFlagsAnalyzer` | `LINQ2DB0004/0005/0006` | 4.469s | 0.28% | 50/566 | new | ok |
+  | `SqlBuilderAliasAnalyzer` | `LINQ2DB0001` | 0.589s | 0.04% | 179/566 | +0.196s (+50%) | ok |
+  | **TOTAL (ours)** | | **5.058s** | **0.32%** | | | |
+
+  `dotnet build Source/LinqToDB/LinqToDB.csproj -t:Rebuild -c Release -p:RunAnalyzersDuringBuild=true -p:ReportAnalyzer=true -p:UseSharedCompilation=false -v:detailed -f net10.0`, 11m41s. Whole-project analyzer CPU 1572.3s across 566 analyzers; the largest single third-party rule is `UseAnOverloadThatHasCancellationTokenAnalyzer` at 194.1s, 43x the new analyzer. So the CFG cost is real — 7.6x `LINQ2DB0001`, which shares the host and builds no graph — and bounded by the gate that keeps a graph off any body without a recognised atom.
+
+  **Read the share and the rank, not the seconds.** The `LINQ2DB0001` control moved +50% with no code change, putting the noise floor near ±0.2s on a sub-second rule, and the whole-project total came in at 1572.3s against the baseline run's 574.7s — same box, same day — so absolute times here are machine-condition-dependent. The two normalized figures agree, which is what carries the verdict.
+
+  The baseline at `.claude/docs/analyzer-own-perf-baseline.json` was **not** overwritten: it was captured hours earlier on `9ae5818c8` (master, before this analyzer existed), which is what made it the exact one-variable control, and replacing it with a noisier feature-branch run would cost that. Re-capture after merge.
 
 **Discriminating probes.** Each is one incremental build, reverted with `git checkout HEAD -- <path>` and proven reverted with `git diff HEAD` (a staged `git apply` revert is the documented trap — `git diff` alone compares against the index and prints nothing).
 
