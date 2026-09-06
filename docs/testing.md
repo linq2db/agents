@@ -540,7 +540,19 @@ Func<Task> act = () => db.SomeApiAsync(record);
 await act.ShouldThrowAsync<LinqToDBException>();
 ```
 
-Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe.)
+Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion.)
+
+### `ShouldBe` on a LINQ query operator's result needs a materializing call first
+
+`ShouldBe(IEnumerable<T>)` is resolved by extension-method overload lookup, and it does **not** bind against `IOrderedEnumerable<T>` — the compiler picks the `IEnumerable<string>` overload and reports `error CS1929: 'IOrderedEnumerable<int>' does not contain a definition for 'ShouldBe' and the best extension method overload … requires a receiver of type 'System.Collections.Generic.IEnumerable<string>'`. The misleading part is the message, which names `string` for a sequence of `int` and reads as a type-inference bug rather than a receiver-shape problem.
+
+So a chain ending in `OrderBy` / `ThenBy` — which is the natural way to write an order-insensitive sequence assertion — has to be materialized:
+
+```csharp
+rows.Select(x => x.Id).Distinct().OrderBy(x => x).ToArray().ShouldBe(new[] { 1, 2, 3 });
+```
+
+`.ToList()` works equally well. (Cost a build cycle on #5833, across four assertions written the same way.)
 
 ### Finding the tests that depend on a thrown exception
 
