@@ -128,6 +128,22 @@ Two consequences when reading a baselines PR. **A stale entry looks exactly like
 
 **Diff the branch against both its merge-base and baselines `master`.** `git merge-base origin/master <branch>` then diff the branch against each. Baselines `master` advances as other PRs' baselines merge, so a change that landed there after the branch forked would otherwise be misread as this PR's. Identical output from both diffs proves no such drift is in play; divergent output tells you which files to exclude before attributing anything.
 
+**The decisive form is a blob-identity count, not an eyeball of two diffs.** "Identical output" is a judgement made by reading, which is exactly what fails under pressure on a 166-file cluster — and it produces no number to put in the review. Compare each modified path's blob on both sides instead: every path where `origin/master:<path>` and `<branch>:<path>` hash the same is a file **master already agrees with**, i.e. pure merge-base artifact, and `N of N identical` settles the whole cluster in one command.
+
+```powershell
+$mb = git -C ../linq2db.baselines merge-base origin/master origin/baselines/pr_<n>
+$paths = git -C ../linq2db.baselines diff --name-only $mb origin/baselines/pr_<n> --diff-filter=M
+$same = 0; $diff = @()
+foreach ($p in $paths) {
+  $a = git -C ../linq2db.baselines rev-parse "origin/master:$p" 2>$null
+  $b = git -C ../linq2db.baselines rev-parse "origin/baselines/pr_<n>:$p" 2>$null
+  if ($a -and $a -eq $b) { $same++ } else { $diff += $p }
+}
+"identical: $same   differing: $($diff.Count)"
+```
+
+Anything in `$diff` is the real delta and is what the Baselines section should describe. (Surfaced on #5704: the baselines pass headlined 166 modified files as *"deterministic across every provider… argues against ordinary hash-seed noise and toward a genuine, reproducible change… I am not waving this through"*, and offered branch-lag only as an alternative it could not distinguish. All 166 hashed identical to master — the branch was cut before another PR's baselines PR merged — and the count refuted the headline in one command where the prose rule above had already failed to.)
+
 **Baselines `master` can also be *behind* master's own test code — the drift runs both ways.** The rule above guards against master having moved *forward* past the branch. The inverse happens too, and it reads identically in the diff while pointing at the opposite culprit: a baselines PR merged from a source branch that predates a **test** change rewrites master's baselines back to the older SQL. Master's code and master's baselines then disagree, and the next PR whose branch *does* contain the test change produces the correct current output — which diffs against the regressed master as a large "modified" set that looks like its own churn.
 
 The tell is a modified cluster in test groups the PR has no connection to, where the *PR side* looks more correct than the master side. Confirm by dating the master-side baseline rather than the branch: `git -C ../linq2db.baselines log -1 --format="%h %cI %s" origin/master -- "<path>"` names the baselines PR that last wrote it, and `git merge-base --is-ancestor <test-change-sha> <that PR's source branch>` settles whether that PR could have contained the test change. Report it as master-side drift, and note that merging this PR's baselines PR *corrects* it — do not write it up as a finding on the PR under review. (Surfaced on #5831: 53 of 65 changed files were `TestDataTypes` losing `ORDER BY ID` plus the DB2 `BulkCopy*` cleanup shape, because the baselines PRs for #5764 and #5766 were merged from branches predating #5784. #5831 contains #5784, so its run was right and master's baselines were wrong.)
