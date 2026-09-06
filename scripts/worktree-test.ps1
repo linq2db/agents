@@ -45,6 +45,21 @@ Input (named parameters):
                            splitting the steps makes the next kill diagnosable -
                            which log is empty says which step died. Slower, so
                            it is opt-in.
+  -SharedCompilation       optional; with -SerialBuild, builds with
+                           -p:UseSharedCompilation=true instead of the default
+                           false. Reach for it when the build is killed for LOW
+                           MEMORY (as opposed to CS8032 / MSB4166 / a stale
+                           server): forcing false spawns a fresh csc.exe that
+                           must page in its own multi-GB working set, while the
+                           resident VBCSCompiler already has one, so on a starved
+                           box false is what gets killed. See
+                           `.claude/docs/windows-dev-gotchas.md` -> "A build
+                           killed for memory inverts the UseSharedCompilation
+                           advice".
+  -NoRestore               optional; adds `--no-restore` to the -SerialBuild
+                           step. Safe once the worktree has restored at least
+                           once, and skips a startup spike that is itself enough
+                           to be killed on a starved box.
   -OutputDetailed          optional; adds `--output Detailed`. MTP routes a test's
                            stdout to the run output only when the test FAILS or is
                            skipped, so a passing probe's `TestContext.Out.WriteLine`
@@ -86,7 +101,9 @@ param(
     [string]$Configuration = 'Debug',
     [string]$LogPath,
     [switch]$SerialBuild,
-    [switch]$OutputDetailed
+    [switch]$OutputDetailed,
+    [switch]$SharedCompilation,
+    [switch]$NoRestore
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -120,7 +137,12 @@ $buildLogPath = $null
 
 if ($SerialBuild) {
     $buildLogPath = $LogPath -replace '\.log$', '-build.log'
-    $buildArgs    = @('build', $projectFull, '-c', $Configuration, '-m:1', '-p:UseSharedCompilation=false')
+    # UseSharedCompilation=false is the default because a stale VBCSCompiler is the usual cause of a
+    # killed build. Under MEMORY pressure it is backwards - a fresh csc.exe needs its own multi-GB
+    # working set while the resident server already has one - hence -SharedCompilation.
+    $sharedFlag   = if ($SharedCompilation) { '-p:UseSharedCompilation=true' } else { '-p:UseSharedCompilation=false' }
+    $buildArgs    = @('build', $projectFull, '-c', $Configuration, '-m:1', $sharedFlag)
+    if ($NoRestore) { $buildArgs += '--no-restore' }
     if ($Tfm) { $buildArgs += @('-f', $Tfm) }
 
     Push-Location -LiteralPath $repoFull
