@@ -189,6 +189,15 @@ gh api repos/<o>/<r>/pulls/<n>/comments --paginate \
 
 Same shape works against `/reviews` to catch both the wrapper and any future bot-account variants.
 
+### Verifying a re-requested Copilot review
+
+Two ways to conclude the re-request failed when it didn't:
+
+- **`gh api repos/<o>/<r>/issues/<n>/timeline` needs `--paginate`.** Without it you get page 1 — the **oldest** events — so `--jq '… | .[-3:]'` returns the oldest tail while reading as the newest. On #5740 that showed three 2026-08-04 `review_requested` events and nothing since, and a re-request issued minutes earlier was reported to the user as a silent no-op; with `--paginate` the event was there at `13:35:10Z`, followed by Copilot's review at `13:40:27Z`.
+- **Absence from `requested_reviewers` is not failure either.** Copilot dequeues itself once it accepts, so both the REST and GraphQL reviewer lists go quiet exactly when the request worked.
+
+Check for a `review_requested` event newer than the push, or wait for the review itself ([`wait-for-review.ps1`](../scripts/wait-for-review.ps1)).
+
 ### Thread-ID ← comment-databaseId mapping
 
 `/review-pr` and `/verify-review` should read this map from `reviewThreads[]` returned by `.claude/scripts/pr-context.ps1` — that script already runs the GraphQL query below in parallel with its other jobs. Issue the raw query only if you need it outside the PR-context flow.
