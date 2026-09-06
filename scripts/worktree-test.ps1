@@ -70,6 +70,25 @@ Input (named parameters):
                            run with an empty log and a second build to recover the
                            output. See `.claude/docs/testing.md` -> "Capturing a
                            passing test's exception / stack".
+  -NoTestProgress          optional; suppress the `--test-progress` flag this script
+                           passes by default.
+
+`--test-progress` is passed by default, per `.claude/docs/agent-rules.md` ->
+"Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`".
+Without it there is no heartbeat at `.build/.agents/test-progress.<tfm>.<pid>.json`,
+a long run is unobservable, and - worse - the ABSENCE of a heartbeat is the corpus's
+own evidence that a run never started, so a flagless run is indistinguishable from a
+dead one.
+
+The exception is the DB-free analyzer-fixture projects (`Tests/Tests.Analyzers`,
+`Tests/Tests.Analyzers.Internal`, and any future sibling): they host a bare NUnit MTP
+runner that does not register the extension, so the option reaches the test
+application, which prints its help and exits 5 - surfaced as `Zero tests ran`, which
+is byte-identical to the symptom of a bad `--filter`. This script skips the flag
+automatically when `-Project` matches `Tests.Analyzers`; `-NoTestProgress` forces it
+off for anything else. The `testProgress` field in the JSON output reports what was
+actually decided, so a `Zero tests ran` result can be checked against it rather than
+guessed at.
 
 Output (stdout, single JSON object):
   {
@@ -79,6 +98,7 @@ Output (stdout, single JSON object):
     "repoRoot":  "C:/Worktrees/...",
     "project":   "Tests/.../X.csproj",
     "logPath":   "C:/.../worktree-test-X-net10.0.log",
+    "testProgress": true,            // whether --test-progress was actually passed
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ]
   }
@@ -103,7 +123,8 @@ param(
     [switch]$SerialBuild,
     [switch]$OutputDetailed,
     [switch]$SharedCompilation,
-    [switch]$NoRestore
+    [switch]$NoRestore,
+    [switch]$NoTestProgress
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -135,6 +156,10 @@ if (-not [System.IO.Path]::IsPathRooted($LogPath)) {
 
 $buildLogPath = $null
 
+# On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
+# runner does not register the extension and answers the flag with its help text + exit 5.
+$useTestProgress = (-not $NoTestProgress) -and ($Project -notmatch 'Tests\.Analyzers')
+
 if ($SerialBuild) {
     $buildLogPath = $LogPath -replace '\.log$', '-build.log'
     # UseSharedCompilation=false is the default because a stale VBCSCompiler is the usual cause of a
@@ -163,6 +188,7 @@ if ($SerialBuild) {
             project      = $Project
             logPath      = $buildLogPath
             buildLogPath = $buildLogPath
+            testProgress = $useTestProgress
             summary      = $null
             failedTests  = @()
         } | ConvertTo-Json -Depth 5
@@ -176,6 +202,7 @@ if ($Tfm)      { $dotnetArgs += @('-f', $Tfm) }
 if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
 if ($OutputDetailed) { $dotnetArgs += @('--output', 'Detailed') }
+if ($useTestProgress) { $dotnetArgs += '--test-progress' }
 
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
 $runSettings = Join-Path $repoFull '.runsettings'
@@ -231,6 +258,7 @@ if (Test-Path -LiteralPath $LogPath) {
     project      = $Project
     logPath      = $LogPath
     buildLogPath = $buildLogPath
+    testProgress = $useTestProgress
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
 } | ConvertTo-Json -Depth 5

@@ -69,6 +69,14 @@ EF Core provider packages (Pomelo.EntityFrameworkCore.MySql, Npgsql.EntityFramew
 
 For each provider's TFM-conditional row, find the latest stable in the matching X.M.x line and bump only within that line. Cross-major bumps break EF Core API compatibility on the affected TFM.
 
+### Prefer the version whose dependencies the repo's pins already satisfy
+
+Within the allowed line, "newest published" is **not** the default — the default is the newest version whose own dependency ranges are already met by what `Directory.Packages.props` pins today. A newer one that requires more silently drags a *transitive* package ahead of every sibling: `CentralPackageTransitivePinningEnabled` is `false` here, so nothing errors, nothing warns, and the mismatch only shows up in `project.assets.json`.
+
+Read the candidate's dependency groups off the published nuspec (`.claude/scripts/inspect-nupkg.ps1 -Id <id> -Version <v>`) and compare each against the corresponding pin before choosing. When a newer version needs more than the repo pins, the honest options are *hold at the matching version* or *bump the pins too as a deliberate, separate decision* — *not* "take the newest and note the drift in passing".
+
+Worked example (2026-09-06, [#5885](https://github.com/linq2db/linq2db/pull/5885)): `Microting.EntityFrameworkCore.MySql` 10.0.11 needs Relational `[10.0.11, …]` + MySqlConnector `2.6.2`, against `$(Net10Latest)` = 10.0.10 and MySqlConnector `2.6.1`; 10.0.10 needs exactly those two pins. 10.0.11 was offered as a live option with the mismatch noted as a trade-off, and the maintainer's call was *"as dependency not satisfied yet, use 10.0.10"*. Picking 10.0.10 moved no package in the restore graph at all.
+
 ### Lowest-supported-TFM detection
 
 Some package bumps **raise the lowest .NET TFM** the package supports (e.g. `Net.IBM.Data.Db2` 9.x supported `net8.0` but 10.x dropped down to `net10.0` only). Bumping such a package without action **breaks the build** for projects targeting the dropped TFMs.
