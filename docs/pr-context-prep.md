@@ -81,7 +81,9 @@ Layout and branch-naming conventions for the baselines repo are in `.claude/docs
 
 ### `writeDir` directory layout
 
-When the parent skill passes `writeDir: .build/.agents/pr<n>` on the first `diff-reader.ps1` call (the recommended setup), the script populates the directory with a fixed, predictable shape. The parent skill can `Read` / `Grep` at these paths directly — **do not `ls` to discover structure**, and do not re-fetch via `git show` pipes:
+When the parent skill passes `writeDir: .build/.agents/pr<n>` on the first `diff-reader.ps1` call (the recommended setup), the script populates the directory with a fixed, predictable shape. The parent skill can `Read` / `Grep` at these paths directly — **do not `ls` to discover structure**, and do not re-fetch via `git show` pipes.
+
+**"Don't `ls`" covers every spelling of it, including the PowerShell one.** `Get-ChildItem -Recurse` (and `dir /s`, and `Glob` used as an enumerator rather than to locate a known path) are the same call wearing different syntax, and the rule reads as shell-specific enough that a recursive `Get-ChildItem` over the cache does not feel like a violation. It is, and it is a slow one — the cache holds every changed file's HEAD body, base body and diff, so a recursive walk of a 90-file PR can exceed a 120-second tool timeout and return nothing usable. Construct the path from the `nameStatus` entry instead. (Surfaced on #5870, where a review pass spent its largest single call on exactly this and self-reported it.)
 
 ```
 .build/.agents/pr<n>/

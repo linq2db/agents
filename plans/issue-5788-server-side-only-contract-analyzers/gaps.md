@@ -95,13 +95,14 @@ relationship across every sibling consumer path it could also reach — this wou
 
 ### Recommended durable fixes
 
-- `<GAP-05 × 2, GAP-08 × 1>` → the same `P8`-block semantics line in `work-plan.md` + per-`TO-n` `G-01` rule
-  in `definition-of-done.md` recommended in round 1 — **this is the second occurrence of the identical
-  shape one round later**, having been "surfaced, not applied" the first time. Expand an obligation naming a
-  set or list of shapes into one named fixture per element, and record `G-01` as one row per element with
-  the observation proving it ran. Worked example this round: `TO-5`'s Fix-All bullet named only "a
-  ≥3-adjacent-occurrences case" when `SC-5` itself says "every flagged site" — the narrowing from success
-  criterion to test obligation is exactly where the missing shape fell out.
+- `<GAP-05 × 2, GAP-08 × 1>` → **already codified, and it did not help this branch.** Round 1's
+  recommendation landed in `work-plan.md` as the `P8` enumerated-set rule, citing this PR. The shape still
+  recurred, because the rule governs plan *authoring* and this plan predates it. So the durable fix is not
+  the rule again — it is a **re-walk of an existing plan's `P8` and `P4` against rules added since**,
+  recorded as a `P11` amendment, which `work-plan.md` → *Gap classes* now states. Worked example this round:
+  `TO-5`'s Fix-All bullet named only "a ≥3-adjacent-occurrences case" when `SC-5` itself says "every flagged
+  site" — the narrowing from success criterion to test obligation is exactly where the missing shape fell
+  out, and a re-walk would have caught it.
 - `<GAP-02 × 2>` → the scout brief in `work-plan/SKILL.md` step 5, generalizing round 1's recommendation:
   not just "probe every admitted *symbol kind* through every consumer" but **probe every admitted
   *relationship or capability* through every *consumer path* a single design decision can produce** —
@@ -117,12 +118,21 @@ relationship across every sibling consumer path it could also reach — this wou
 
 ### Continuity
 
-**MIN003 recurs round 1's enumerated-set shape exactly, and the recommendation was not applied.** Same
-`TO-n` pair (`TO-1`'s negative control, `TO-2`'s "all four marker forms"), same missing-element type (a
-marker form), same `G-01` run-total masking. Round 1 labeled its fix "surfaced, not applied — the user's
-call"; it was not applied, and the identical failure reproduced one round later in the same test file. MIN002
-and MIN004 are the same shape again (`TO-5`'s shape list under-enumerating a scenario), pushing this cluster
-from 3-of-9 in round 1 to 3-of-5 in round 2 — proportionally worse, not better.
+**MIN003 recurs round 1's enumerated-set shape exactly — and the recommendation *was* applied, which is the
+more useful finding.** Same `TO-n` pair (`TO-1`'s negative control, `TO-2`'s "all four marker forms"), same
+missing-element type (a marker form), same `G-01` run-total masking. MIN002 and MIN004 are the same shape
+again (`TO-5`'s shape list under-enumerating a scenario), pushing this cluster from 3-of-9 in round 1 to
+3-of-5 in round 2.
+
+*Corrected after this ledger was first written:* it originally asserted the recommendation had not been
+applied. It had. `work-plan.md` carries it — *"An obligation that names a set is not one obligation — expand
+it to one named fixture per element"* — and cites this PR's round 1 as its source. The defect recurred
+anyway, because these rules bind at **authoring** time and this branch's `P8` was written before the rule
+landed, with nothing re-walking an existing plan against rules added since. That is a different failure from
+"the recommendation was ignored" and it prescribes a different fix: re-walk a long-lived plan's `P8` and `P4`
+against the current rule set and record it as a `P11` amendment. The lesson for the ledger itself is to
+`Grep` the destination file for the recommendation's wording before concluding anything about recurrence —
+now recorded in `work-plan.md` → *Gap classes*.
 
 **MAJ001 recurs round 1's unprobed-consumer shape, in generalized form, and the recommendation was likewise
 not applied as a mechanism.** Round 1's MAJ (fixer mishandling an admitted *symbol kind* — explicit interface
