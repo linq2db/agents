@@ -431,3 +431,36 @@ When a write/round-trip fails at the driver ("Malformed string", "string truncat
 ## Raw parameter types (byte[]/string) can dodge provider type-mapping bugs — try, but verify
 
 When a typed/native parameter binding trips a provider bug, binding the raw underlying type (`byte[]`, `string`, the canonical text form) sometimes sidesteps the driver's type mapping and is worth trying. But it is **not** guaranteed and can trade one failure for another: on Firebird 6 neither raw `byte[]`, native `FbDbType.Guid`, an OCTETS parameter charset, nor explicit-OCTETS DDL/CAST got a binary-Guid parameter past the client — all failed identically, proving the issue was below linq2db (FbClient/server), not a binding-shape choice. Try the raw type early, but once several distinct binding shapes fail identically at the same driver frame, stop and conclude it's below the ORM rather than continuing to permute bindings (record it as a dead-end — [[project_5483_fb6_guid_binary_write]]).
+
+## An error message is often the *second* failure — read the adjacent log lines
+
+When a test fails with error X, read the lines immediately around it before theorising about X. A
+swallowed earlier failure routinely causes the visible one, and the visible one is the misleading
+half — it names a *state*, not a cause, so it invites a story about how that state arose.
+
+The shape that cost most: `AK107Tests.CreateUser` does `try { DROP USER … } catch { }` then
+`CREATE USER`. On the GitHub runners the DROP failed with `ORA-01000: maximum open cursors exceeded`,
+the bare catch swallowed it, and the CREATE then failed with `ORA-01920: user name '…' conflicts with
+another user or role name`. Only ORA-01920 reached the report, so it read as a test-isolation problem
+and produced a confident, wrong explanation about two lanes racing — while ORA-01000 sat twenty lines
+below in the same log, and was independently the headline failure on a sibling leg. One root cause,
+reported as two unrelated ones.
+
+Two habits follow. Survey the error *codes* in a failing log before reading any single failure
+(`Select-String -Pattern 'ORA-\d{5}' -AllMatches | Group-Object`) — a code that appears in the log but
+not in the report is a candidate cause. And when a swallowing `catch` is in the path, narrow it to the
+one expected condition and rethrow the rest as part of the investigation; that alone turned the next
+run's failures into self-naming ones.
+
+## Separating CI-environment failures from change-caused ones: the empty-diff PR
+
+When a PR's CI fails and it's unclear whether the change or the environment is at fault, open a PR
+whose diff is **empty** — `git commit --allow-empty` on a branch off master — and run the same
+pipeline on it. Both CIs then execute identical code, so any failure is the environment by
+construction. A run on a real PR cannot establish that, and a run on master proves nothing about the
+PR-merge path.
+
+It also makes the branch a controlled experiment: because it starts empty, whatever you add next *is*
+the only variable, so run 1 versus run 2 isolates one change. Used on #5880 to prove three
+GitHub-only Oracle leg failures reproduced on unmodified master — after two rounds of arguing about
+whether a code PR had caused them.
