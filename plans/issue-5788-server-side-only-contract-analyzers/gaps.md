@@ -61,3 +61,79 @@ Surfaced, not applied — these route to `/session-reflect`'s `plan-rule` bucket
 ### Continuity
 
 First ledger for this branch — no prior round to carry forward.
+
+## Round 2 — reviewed HEAD 22fba315bab1c75f2259a313f2ee834fa53e4196 (2026-09-06)
+
+Review: orchestrator-verified findings (structural + consequence, per finding). CI green since round 1 on the
+reviewed content (Azure `test-all` build 23419, GH Actions `build` 33998999731/33998985921 on `c5398c2f6`).
+5 findings. Every `P9` gate the plan declared came back pass — the 19→0 Release transition, both portable
+TFMs, the dual-Roslyn build, the dogfood pass with its pre-registered prediction met, `Tests/Tests.Analyzers`
+at 78/78, the full provider suite, the EF legs — so all 5 were produced by review, not by any declared gate.
+One exception carried over from round 1: `G-01` is recorded as a run total rather than one row per `TO-n`
+element, so a missing fixture for a *named* element is indistinguishable from a satisfied proof mode.
+
+| Finding | Gap | Upstream artifact that would have prevented it | Gate that would have caught it | Preventable |
+|---|---|---|---|---|
+| MAJ001 — add-attribute remedy writes the marker onto the reported implementation, with no interface branch | GAP-02 | `P5` (`D-8`/`D-12`) admits the implemented-interface walk into arm A's scope, and round 1's `SUG001` fix (`ApplyToDeclaringDocumentAsync`, `CodeFixProvider.cs:71-118`) taught the fixer to resolve it — but only for the `set-named-argument` remedy. Nobody asked whether `RemedyAddAttribute` (`ServerSideOnlyContractAnalyzer.cs:112-114`, chosen when `hasAttribute` is false) needs the same interface-target resolution. `TO-5`'s "a no-attribute member where the fix adds `[ServerSideOnly]`" shape is satisfied by `AddsServerSideOnlyAttributeWhenNoAttributeIsPresent`, a fixture with no interface at all, so the cross-case was never enumerated. `P10`'s interface-walk row adjudicates only the opposite (suppression) direction and does not cover this. | — | yes |
+| MIN001 — `TableFunctionAttribute` disjunct in arm A's helper is unreachable, and wrong if it were reached | GAP-02 | `D-12` (`P5`) itself: arm A is defined as "the member carries a marker-capable attribute — `Sql.ExpressionAttribute`-derived or `TableFunctionAttribute`-derived — whose `ServerSideOnly` is explicitly false or unset." A `TableFunctionAttribute`-derived type has no `ServerSideOnly` property (`D-8` form 3 is unconditional), so that clause cannot coherently apply to it. The reachability check against `D-8`'s own form definitions was never made, and `TryFindMarkerCapableAttributeOn` (`ServerSideOnlyContract.cs:304-318`) faithfully implements the contradictory text. | — | yes |
+| MIN002 — Fix-All silently skips the cross-document remedy branch | GAP-05 | `SC-5` (`P2`) requires the fix apply to "every flagged site under Fix-All", unqualified — but `TO-5` (`P8`) operationalizes it as only "a ≥3-adjacent-occurrences Fix-All case", a same-document repetition shape matching `E-7`'s `Overlaps` rationale. No obligation names a cross-document Fix-All case, so no fixture could have gone red for `ContractFixAllProvider`'s `Document?`-only signature (`FixAllAsync` `continue`s past the cross-file remedy, `CodeFixProvider.cs:398-406`) even in principle. | — | yes |
+| MIN003 — no fixture for the explicit `ServerSideOnly = true` marker form | GAP-08 | `TO-1` ("the same with `= true` does **not** [report]") and `TO-2` ("all four D-8 marker forms") both explicitly name the missing element — the plan block is right, exactly as round 1's MIN003. `G-01` records the analyzer half as a run total (78/78) rather than one row per named element, so a fixture set covering 3 of the 4 named forms passes indistinguishably from one covering all 4. | G-01 | yes |
+| MIN004 — no fixture exercises the cross-document solution-level fix path | GAP-05 | `TO-5` (`P8`) lists five code-fix "shapes" needing a red-green proof (trivia, same-document Fix-All, named-argument-set, no-attribute-add, constructor-decline), and none of them is "cross-document / interface in another file" — the shape round 1's `SUG001` fix (`ApplyToDeclaringDocumentAsync`) exists specifically to handle. `CodeFixVerifier.VerifyAsync` (`CodeFixVerifier.cs:25-33`) also has no `TestState.Sources` overload, so even a motivated author could not have written the fixture without first extending the harness. | — | yes |
+
+### Aggregate
+
+Not flat this round: the same two clusters round 1 found reappear at the same relative weight. **GAP-05 × 2 +
+GAP-08 × 1 (3 of 5)** is round 1's dominant shape recurring verbatim — an obligation naming an enumerated set
+or shape list, satisfied by a fixture subset, with `G-01`'s run-total recording (or the obligation's own
+narrowing) unable to tell a covered element from an absent one. **GAP-02 × 2 (2 of 5)** is round 1's second
+cluster recurring in generalized form — an admitted design element (the implemented-interface walk) reasoned
+about and fixed for one consumer path, never swept to its sibling. Single change preventing the most findings:
+decompose `TO-5`'s and `TO-2`'s shape/form lists into one named fixture per element and record `G-01` per
+element — this alone would have caught MIN002, MIN003 and MIN004. Single change with the highest severity
+yield: when a fix lands in response to a review finding (as `SUG001`'s did), sweep the same admitted
+relationship across every sibling consumer path it could also reach — this would have caught MAJ001.
+
+### Recommended durable fixes
+
+- `<GAP-05 × 2, GAP-08 × 1>` → the same `P8`-block semantics line in `work-plan.md` + per-`TO-n` `G-01` rule
+  in `definition-of-done.md` recommended in round 1 — **this is the second occurrence of the identical
+  shape one round later**, having been "surfaced, not applied" the first time. Expand an obligation naming a
+  set or list of shapes into one named fixture per element, and record `G-01` as one row per element with
+  the observation proving it ran. Worked example this round: `TO-5`'s Fix-All bullet named only "a
+  ≥3-adjacent-occurrences case" when `SC-5` itself says "every flagged site" — the narrowing from success
+  criterion to test obligation is exactly where the missing shape fell out.
+- `<GAP-02 × 2>` → the scout brief in `work-plan/SKILL.md` step 5, generalizing round 1's recommendation:
+  not just "probe every admitted *symbol kind* through every consumer" but **probe every admitted
+  *relationship or capability* through every *consumer path* a single design decision can produce** —
+  including sibling remedy branches of the same fixer, not only sibling symbol kinds. Worked example: the
+  implemented-interface walk was fixed for `RemedySetNamedArgument` (round 1's `SUG001`) and never asked
+  of `RemedyAddAttribute`, its structural sibling in the same `switch`.
+- `<process gap underlying both clusters>` → `work-plan.md`'s `P11` semantics: a code fix made in direct
+  response to a review finding (round 1's `SUG001`, whose fix is `ApplyToDeclaringDocumentAsync`) landed
+  with no `P11` amendment and no new `P4`/`P8` row recording it. Require that any such fix on a Tier M/L
+  branch get a `P11` line stating what changed and which sibling paths were checked — its absence here is
+  why nobody could ask "does this reasoning also apply to `RemedyAddAttribute`?": there was no artifact
+  recording that the reasoning existed at all.
+
+### Continuity
+
+**MIN003 recurs round 1's enumerated-set shape exactly, and the recommendation was not applied.** Same
+`TO-n` pair (`TO-1`'s negative control, `TO-2`'s "all four marker forms"), same missing-element type (a
+marker form), same `G-01` run-total masking. Round 1 labeled its fix "surfaced, not applied — the user's
+call"; it was not applied, and the identical failure reproduced one round later in the same test file. MIN002
+and MIN004 are the same shape again (`TO-5`'s shape list under-enumerating a scenario), pushing this cluster
+from 3-of-9 in round 1 to 3-of-5 in round 2 — proportionally worse, not better.
+
+**MAJ001 recurs round 1's unprobed-consumer shape, in generalized form, and the recommendation was likewise
+not applied as a mechanism.** Round 1's MAJ (fixer mishandling an admitted *symbol kind* — explicit interface
+implementation — via `nameof()`) was fixed in code (`GetNameOfArgument`/`Qualify`, confirmed present at
+HEAD), but only as a point fix; no `P4` row or process rule was adopted requiring the same admitted element
+to be swept across every consumer going forward. Round 1's `SUG001` (a *different* finding, GAP-04: analyzer
+and fixer disagreeing on where a marker-capable attribute may live) got the same treatment — fixed for one
+remedy branch (`RemedySetNamedArgument`, via `ApplyToDeclaringDocumentAsync`), with no sweep of the sibling
+branch. Round 2's MAJ001 is that unswept sibling: the fixer mishandling the *same* admitted relationship
+(the implemented-interface walk) through the remedy branch (`RemedyAddAttribute`) nobody probed. Per the
+task's own framing, this is the **stronger** of the two possible readings — a recommendation that went
+unapplied and produced a same-shape defect again, not one that was applied and still let a defect through.
+Both clusters point at the same underlying failure: round 1's recommendations were written down but never
+became a plan mechanism, so nothing forced the next reactive fix to ask "does this generalize?"

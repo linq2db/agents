@@ -288,6 +288,34 @@ The failure this produces is #5782: `Sql.Window`'s 104 methods were unmarked, th
   maps EF's `DbFunctions.Like` onto `Sql.Like` as a translation rewrite and is unaffected by a
   client-evaluation marker.
 
+- A-11 **`E-2`/`E-7`: the add-attribute remedy targets the implemented interface member, not the reported one.**
+  Round 2 of review found the fixer marking the implementation whenever nothing was marked anywhere, which
+  silences `L2DB1003` while a call bound to the interface still client-evaluates — the `#5782` shape, reached
+  *through* the fix, on the very shape `E-9` hand-fixed. Round 1's `SUG001` had already established that the
+  fix must follow the interface chain and implemented it for `RemedySetNamedArgument` only; nothing recorded
+  the reasoning, so its structural sibling in the same `switch` was never asked the question. `Diagnostic.AdditionalLocations[0]`
+  now carries the marker-capable attribute for `set-named-argument` **or** the interface member's declaration
+  for `add-attribute`, with the remedy in `Diagnostic.Properties` disambiguating; `E-1` gains
+  `FindInterfaceMarkerTarget`, scoped to implemented interface members because a call bound to a derived type
+  already reads an `override`'s own attributes. An interface member declared in metadata yields no location
+  and the fix declines rather than writing a marker the runtime will not read. Proved red→green with
+  `AddsTheMarkerToTheInterfaceMemberWhenNothingIsMarked`; the two fixtures asserting an explicit
+  `DiagnosticResult` for this shape had to declare the second location, which is the documented cost of
+  `AdditionalLocations`.
+
+- A-12 **`D-12`'s arm-A text was self-contradictory, and `E-1` implemented it faithfully.** The decision reads
+  "the member carries a marker-capable attribute — `Sql.ExpressionAttribute`-derived or
+  `TableFunctionAttribute`-derived — whose `ServerSideOnly` is explicitly false or unset", but form 3 is
+  unconditional, so a `TableFunctionAttribute`-derived attribute is *always* a marker and its bearer is never
+  undeclared; and it has no `ServerSideOnly` property to set, so the remedy arm A selects could not apply to
+  it. Arm A is now `Sql.ExpressionAttribute`-derived only, matching what `E-7`'s own
+  `FindMarkerCapableAttribute` already did. Proved dead rather than argued: with the disjunct made to throw on
+  match, the Release build of `Source/LinqToDB` (internal host, real corpus, including the two
+  `[Sql.TableExpression]` `SqlFn.OpenJson` sites) and all 92 fixtures came back green, while the arm-A
+  fixtures — which reach the same method through the `Sql.ExpressionAttribute` branch — kept passing, so the
+  probe was live rather than merely silent. `ReportsWrongExceptionRatherThanMissingMarkerForTableExpression`
+  pins the routing invariant that makes it dead.
+
 ## P12 Critic verdict (M/L)
 
 **Current verdict: weak** — round 5, on the `A-8`/`A-9` delta. Rounds follow in chronological order; the three earlier `refuted` verdicts are settled history, not the standing state. (`work-plan.ps1 -Action validate` reports whichever verdict word appears first in this block, so this line is also what keeps that field honest.)
