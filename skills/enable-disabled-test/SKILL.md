@@ -62,9 +62,15 @@ Per the agent-rules guardrail, don't trust the close-comment attribution. Bisect
    - Record pass/fail. Reset `git checkout -- <test-file>` before the next switch.
 5. **Halve** the range each step. Typically 4–7 iterations covers ≤ 100 commits.
 6. **Identify the transition.** The PR whose merge commit flips fail → pass is the citation. Confirm via `gh pr view <n> --repo linq2db/linq2db --json number,title,milestone,mergedAt,files`.
-7. **Clean up the worktree.** `git worktree remove --force <path>` may fail with a permission error if dotnet is still holding files — follow [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*: `dotnet build-server shutdown` → `Remove-Item -Recurse -Force <path>` → `git worktree prune`.
+7. **Clean up the worktree.** `git worktree remove --force <path>` may fail with a permission error if dotnet is still holding files — follow [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*. **Do not run `dotnet build-server shutdown`**: the MSBuild node pool and `VBCSCompiler` are machine-global and shared with the user's own builds and parallel sessions, and a PreToolUse hook blocks the command outright. Wait for the run to exit, then `Remove-Item -Recurse -Force <path>` → `git worktree prune`; if files are still locked, say what is blocked rather than reclaiming the build server.
 
 If the bisect cost looks large up front (> 200 commits in the range), surface it to the user and ask whether to bisect at all or trust source-diff reasoning. Default: bisect; the user paid for the verification.
+
+**No fail→pass commit means the *test* is the defect, not the product — and that is a result, not a failed bisect.** The bisect is not only attribution; it is the check on whether the pass is real. When the endpoints do not bracket a transition — the test already passed at the commit that introduced it, or it passes at every sampled commit — stop and report that the gate never demonstrated its issue. Such a test is unstable, asserts nothing, or was mis-attributed, and it needs a test fix or an investigation rather than an issue-close. (User's rule, 2026-09-06: *"if such commit cannot be found - it is indication that test is unstable/have some issues that require test fix/investigation"*. Measured the same day: `ToolsTests.TestGlobalQueryFilters` passes in a full fixture run and fails when run alone, so no commit could ever have "fixed" it.)
+
+**Also confirm the pass is not an artefact of execution order.** Re-run the test **in isolation** before treating it as fixed. In-process state left by an earlier test can mask a failure, and a filtered sweep or full-suite run then reports a pass that a solo run contradicts — see [`testing.md`](../../docs/testing.md) → *A pass in a suite run is not evidence until the test is run alone*.
+
+**Long ranges cross infrastructure migrations.** Anything reaching back more than a few months hits the VSTest→MTP switch, EF test-project renames, F# nullness errors, `.claude/`-untracked collisions on checkout and `CS1705` from stale artifacts across a version bump — each of which makes a step measure the wrong tree while looking like a clean verdict. Read [`historical-bisect.md`](../../docs/historical-bisect.md) before scripting a loop over such a range.
 
 ### 4. Branch + remove `[ActiveIssue]`
 
@@ -118,6 +124,10 @@ If issue #<n> has no milestone set, propose assigning it to the milestone of the
 - If **closed** (common — bug shipped fixed in a past release): use REST API with the numeric id per [`github-authoring.md`](../../docs/github-authoring.md) → *`gh issue edit --milestone` rejects closed milestones*: `gh api -X PATCH repos/<o>/<r>/issues/<n> -F milestone=<id>`.
 
 Milestone changes on issues authored by others are exempt from the *Never edit content authored by others* rule (metadata, not content).
+
+**Before closing an issue as fixed, check the same issue does not still gate other failing tests.** One test passing does not mean the issue is fixed — it may be fixed *partially*. Search both test projects for the issue number and for the `Issue<n>` naming pattern, and confirm every reference either passes or is unrelated: `git grep -n -E "<n>" -- "Tests/"` catches `[ActiveIssue]` annotations, `[Test(Description = ".../issues/<n>")]` descriptions, entity/table names and sibling test methods. A single remaining gated-and-failing reference means the issue stays open. (User's rule, 2026-09-06: *"for those two issues ... check if same issue not used for other non-fixed tests in ef and main test projects to not mark it fixed if fixed partially"*. It caught a real case the same day: #4669's `TestGlobalQueryFilters` looked fixed on a 12/12 pass while four sibling gates and a second test still covered the unfixed behaviour.)
+
+The `Description` attribute is also the cheapest way to **confirm a derived issue number**: a gate written as a bare `[ActiveIssue]` on `Issue<n>Test` gives you `<n>` only by convention, but `[Test(Description = "https://github.com/linq2db/linq2db/issues/<n>")]` on the same method is an explicit statement. Check it before citing the number anywhere.
 
 ### 8. Report
 

@@ -84,6 +84,30 @@ This is the reporting counterpart to `agent-rules.md` → *Verify test status by
 
 **A *skipped* test is "not tested" — and it hides inside a green summary.** `none_matched` covers a filter that resolved nothing, which is visible. The commoner miss is a filter that resolved plenty while the one test you actually changed was excluded at runtime by a provider gate — `Assert.Ignore`, a capability check, `[ActiveIssue]`, a `SkipIf…` helper. The run then reports `0 failed` with a healthy pass count and nothing names the omission, so a change verified this way was never exercised at all. After any run you are citing as verification, cross-check the `skipped` list against the tests you touched: MTP prints skipped tests per-test with their reason (`Grep` the log for `^skipped `), and `worktree-test.ps1` returns the count in `summary.skipped`. When your test is in there, pick a provider on the branch it exercises and re-run. (Surfaced on #5643: a rewritten assertion in `UpdateThroughUnsupportedSourceShapeThrows` was "verified" by a SQLite.MS run reporting 44 total / 0 failed / 28 passed — the test is gated to the `SELECT`-fallback read-back path and SQLite takes the `RETURNING` branch, so it sat in the 16 skips. MySQL ran it.)
 
+**A pass in a suite run is not evidence until the test is run alone.** The section above covers a test that
+never ran; this is the harder case — it ran, it passed, and the pass was manufactured by whatever ran
+*before* it. Tests share process state (linq2db and EF caches keyed on a model, static mapping schemas,
+provider-level singletons), so an earlier test can leave the pipeline in a shape that hides a later test's
+failure entirely. Nothing in the output distinguishes that from a real pass, and it survives every
+reporting discipline above: the counts are honest, the test genuinely executed, and it genuinely passed.
+
+So before treating a pass as evidence *about that test* — enabling a gate, closing an issue, calling a
+regression fixed — re-run it **in isolation** (`--filter` naming just that test) and confirm it still
+passes. When solo and suite disagree, that difference is the finding: the test is order-dependent and
+cannot serve as a regression test until it is made deterministic, usually by giving it its own context or
+model so it shares no cached state.
+
+To find *what* masks it, bisect the fixture rather than guessing: run the target alongside halves of the
+sibling set until a minimal masking set remains. (Measured on #4669: `ToolsTests.TestGlobalQueryFilters`
+passes in its 64-test fixture and fails alone with `System.Diagnostics.UnreachableException`.
+`NavigationProperties` is the **only** one of 46 siblings that masks it — `TestToList`,
+`TestAssociations` and `TestInclude` do not — and it sorts earlier alphabetically, so a full run always
+masks it. A 12/12 pass across three MySQL servers was consequently read as "the issue is fixed"; it was
+not. The replacement lives on a dedicated `DbContext` and fails identically alone and after the masker.)
+
+The same caution applies to a **filtered sweep**: a subset run has its own ordering, so a `PASSED` cell
+harvested from one is not interchangeable with either a solo run or a full-suite run.
+
 ## Running the analyzer tests (`Tests/Tests.Analyzers`)
 
 The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:

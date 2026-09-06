@@ -79,8 +79,13 @@ $rate      = [math]::Round([double]$p.testsPerSec, 1)
 $progress  = if ($null -ne $pct) { "$completed/$total ($pct%)" } else { "$completed/?" }
 $current   = if ($p.currentTest) { $p.currentTest } else { '-' }
 
+# `inconclusive` is the ActiveIssueNew bucket - a known issue that is still failing as declared. The platform
+# summary folds it into `skipped`, so this is the only place a run's known-issue count is visible. Older
+# heartbeats predate the field; omit the segment rather than printing a bare zero for them.
+$known = if ($null -ne $p.inconclusive) { " / known-issue $($p.inconclusive)" } else { '' }
+
 $line = "[$state $($p.tfm)] $progress " +
-		"| pass $($p.passed) / fail $($p.failed) / skip $($p.skipped) " +
+		"| pass $($p.passed) / fail $($p.failed) / skip $($p.skipped)$known " +
 		"| $rate t/s | elapsed $elapsed | eta $eta " +
 		"| now: $current"
 
