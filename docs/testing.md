@@ -92,7 +92,17 @@ The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, 
 dotnet test Tests/Tests.Analyzers/Tests.Analyzers.csproj -c Release
 ```
 
-Use **Release** — the Meziantou / Roslyn analyzer rules that gate the code-fix project (e.g. MA0154 "use `<see langword>`") run Release-only, so a Debug/Testing run compiles green while CI's Release leg fails. The `net8.0` runtime must be installed locally (the SDK 10 still *builds* the net8.0 target; it's the test *host* that needs the runtime); CI provisions it via the `with_analyzer_tests`-gated `UseDotNet` step in `Build/Azure/pipelines/templates/build-job.yml`. The suite is small and fast (~15s), so filtering is rarely needed — run the whole project.
+Use **Release** — the Meziantou / Roslyn analyzer rules that gate the code-fix project (e.g. MA0154 "use `<see langword>`") run Release-only, so a Debug/Testing run compiles green while CI's Release leg fails. The `net8.0` runtime must be installed locally (the SDK 10 still *builds* the net8.0 target; it's the test *host* that needs the runtime); CI provisions it via the `with_analyzer_tests`-gated `UseDotNet` step in `Build/Azure/pipelines/templates/build-job.yml`.
+
+**This project is the one exception to "always pass `--test-progress`"** (`agent-rules.md` → *Running tests*). Its host does not register that extension, so the option is forwarded to the test application, which prints its help and exits **5 — reported as `Zero tests ran`**. That is the same symptom as a bad filter and as the MSBuild-switch trap below, so it gets misdiagnosed twice before anyone reads the help output. Omit the flag here; the suite is ~100 s and needs no heartbeat.
+
+**Inside a fix loop, run the built executable directly rather than `dotnet test`** — it skips the build entirely and takes ~1 s for a filtered run against ~100 s for the whole project:
+
+```bash
+.build/bin/Tests.Analyzers/Release/linq2db.Tests.Analyzers.exe --filter "FullyQualifiedName~ReportsMicrosecondFactoryConstant"
+```
+
+`--filter` is an extension option this host *does* accept (the same `FullyQualifiedName~` syntax). Run the whole project — no filter — for the final confirmation, since a filtered green says nothing about what the change broke elsewhere. (A red→green→mutation cycle on one rule ran this ~15 times in a single session; the difference is minutes per iteration.)
 
 ## BUGCHECK-gated tests
 

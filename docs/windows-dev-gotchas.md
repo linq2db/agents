@@ -26,6 +26,14 @@ Git Bash on Windows treats `<ref>:<path>` as a Unix-style `PATH` list (`:`-separ
 
 **A plain `git clone` of the wiki works as of 2026-07-31.** The single page whose filename held a colon — `[Internal]-Azure-Pipelines:-Open-Tasks.md`, illegal on NTFS — was renamed to `[Internal]-Azure-Pipelines-Open-Tasks.md` (`linq2db.wiki` `f338e68`; the page was linked from no other page, so nothing broke, and the new path reuses the same blob). Nothing in the repo is unrepresentable on NTFS any more: clone / edit / `git add` / `git commit` / `git push` all behave normally, and the long-lived clone at `../linq2db.wiki` has had `sparse-checkout disable`d and a full working tree restored.
 
+**Pushing needs a credential helper override in an agent session, and the success case still prints `fatal:`.** The clone's `credential.helper` is `manager` (Git Credential Manager), which cannot prompt when the harness disables interactivity — a plain `git push` dies with `fatal: Cannot prompt because user interactivity has been disabled` / `could not read Username for 'https://github.com'`. Supply `gh`'s credential as a **per-invocation** override rather than changing the user's config:
+
+```
+git -C ../linq2db.wiki -c 'credential.helper=!gh auth git-credential' push origin master
+```
+
+Read the **exit code and the ref line**, not the presence of `fatal:` — git tries the configured helper first, so a successful push still prints GCM's `fatal: Cannot prompt …` immediately above `e781976..4dabd6b  master -> master`. Treating that line as failure and retrying is the trap. The same override works for any repo whose remote is HTTPS (fetching a public repo needs no auth, which is why only pushes hit this). (Surfaced on #5873, two wiki pushes.)
+
 Everything below is the **fallback**, kept because a GitHub wiki page title may still contain a colon, so a new page can reintroduce this at any time. If a clone or checkout fails with "invalid path … : …" again, prefer **renaming the offending page** (that's the fix applied above — cheap, and it removes the problem for every clone); reach for the recipes here only when a rename isn't wanted.
 
 The old symptom, for recognition: a plain `git clone` **fails at checkout** and leaves an empty / inconsistent working tree — do **not** `git add` / commit from that state (every other page shows as a staged deletion, and committing would delete them). Clone with no checkout, restrict to the page(s) you need via sparse-checkout, then check out with NTFS protection disabled (the bad file is `skip-worktree`, so it's never written to disk):
@@ -446,6 +454,15 @@ dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0
 CI's `build` check builds every TFM and otherwise fails with `CS1061 … are you missing a using directive` on the `net462`/`netstandard2.0` leg (`Build Examples (verify)`), costing a full red CI cycle.
 
 **Reading what a polyfill actually compiles to, without a build.** `Meziantou.Polyfill` is a source generator and the repo sets neither `EmitCompilerGeneratedFiles` nor `CompilerGeneratedFilesOutputPath`, so the emitted `.cs` is nowhere on disk. The templates are not manifest resources either — they are static `string` properties on a generated `…__PolyfillContents` type inside `~/.nuget/packages/meziantou.polyfill/<ver>/analyzers/dotnet/cs/Meziantou.Polyfill.dll`, so reflection over that assembly (`Assembly.LoadFrom` → find the type → read `Source_T_System_Threading_Lock` etc.) returns the verbatim source. Use this when a semantic question about a polyfilled type must be settled rather than assumed.
+
+**But never use `Assembly.LoadFrom` to ask *which version* has an API — it answers about whatever is already loaded.** Loader identity is by assembly name, so when the process has any version of that assembly loaded, `LoadFrom(<path to another version>)` silently returns the **loaded** one and reflection then describes the wrong version, confidently and with no error. This bites hardest on `Microsoft.CodeAnalysis.*`, where the whole question is usually "does the version we pin expose type X" and PowerShell has often loaded a newer Roslyn already. Load the bytes instead, which bypasses identity resolution:
+
+```powershell
+$asm = [System.Reflection.Assembly]::Load([System.IO.File]::ReadAllBytes($dll))
+$asm.GetType('Microsoft.CodeAnalysis.Operations.ICollectionExpressionOperation')
+```
+
+Note `Assembly.GetType(string)` returns non-public types too, so check `.IsPublic` when the question is whether *consumers* can use it. And the general form of the lesson: **when the compiler has already answered, believe it over a reflection probe.** (Surfaced on #5873: a `LoadFrom` probe reported `ICollectionExpressionOperation` present in Roslyn 4.8 — it arrives in 4.12 — and that wrong answer was used to contradict a reviewer's correct objection, one turn after a real build had already said `CS0246`. The byte-load reproduces the truth in one call: absent at 4.8.0, public at 4.12.0, and `OperationKind` maxes at 126 vs `CollectionExpression = 127`.)
 
 One settled answer worth not re-deriving: **the `T:System.Threading.Lock` polyfill is `Monitor`-backed and therefore re-entrant**, like the real .NET 9+ type — `private readonly object _lockObject = new();` with `Enter() => Monitor.Enter(_lockObject)`. So recursive acquisition on `net462`/`netstandard2.0` is safe. Caveat: `lock (x)` and `x.EnterScope()` take *different* monitors in the polyfill (the instance vs the inner field), so they are not mutually exclusive — don't mix the two forms on one `Lock` instance.
 
