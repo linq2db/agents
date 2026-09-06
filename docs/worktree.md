@@ -28,6 +28,13 @@ One property every recipe may rely on, whatever the root is: the worktree is **n
 
 **Never base a worktree on `FETCH_HEAD`.** `FETCH_HEAD` is rewritten by the next `git fetch` (any ref, any worktree sharing the clone), so `git worktree add <path> FETCH_HEAD` can land on a stale/base commit even right after the fetch that set it — and `git show FETCH_HEAD:<path>` and `git worktree add FETCH_HEAD` can disagree about which commit that is. Use the remote-tracking ref (`origin/<branch>`) or the explicit head SHA from `gh pr view <n> --json headRefOid`. After creating a **detached** worktree, verify `git -C <worktree> rev-parse HEAD` matches the intended head before editing — a wrong-base worktree shows the PR's changes as *absent* (the file still has pre-PR content, which reads as "the change isn't there" rather than an error). Recovery: `git -C <worktree> checkout <headSHA>` carries clean working-tree edits onto the right commit for any file the PR doesn't touch. (Surfaced on #5710: `worktree add FETCH_HEAD` landed on the PR base #5605; caught because `TestsInitialization.cs` lacked the PR's preload code.)
 
+**A worktree for an *existing* PR branch checks that branch out — don't `-b` a new one.** Every creation recipe in the corpus is `git worktree add -b <branch> <path> origin/master`, which is the *new work* shape; the other half of the job — a worktree for a branch that already exists on origin — has none, so the `-b` form gets copied onto it and the commits land on a branch the PR does not track. Since follow-up commits on an open PR must go on that PR's branch ([`agent-rules.md`](agent-rules.md) → *Push to remote rules*), `git fetch origin <branch>` first, then:
+
+- local branch absent → `git worktree add --track -b <branch> <worktrees-root>/<slug> origin/<branch>`
+- local branch present (a prior session's) → `git worktree add <worktrees-root>/<slug> <branch>`, then `git -C <worktree> merge --ff-only origin/<branch>` — it is routinely behind.
+
+Recovery from the `-b` mistake costs four calls (`switch -c` fails with *"a branch named … already exists"*, then `switch`, `merge --ff-only`, `branch -D`), and `--track -b` has already left the stray local branch behind by then. (Surfaced on #5704, where `worktree add --track -b review/5704-fixes origin/feature/fsharp-option-query-members` created exactly that.)
+
 ## Moving uncommitted work from the primary clone onto a worktree branch
 
 An investigation that starts read-only in the primary clone and *then* produces a shippable fix leaves the change in the wrong place: the primary clone is on `master`, often many commits behind `origin/master`, and the rules forbid switching it. Migrate the change rather than re-typing it:
