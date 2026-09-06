@@ -67,12 +67,24 @@ Then judge:
 
 When the surviving declines concentrate on **one** cause (e.g. all return-type-divergence), that's a signal to propose a **configurable, default-off** opt-in that overrides that specific bail (as #5703 added `linq2db.<ID>.apply_fix_on_return_type_mismatch`). **Quantify it** — "N of M declines are cause X" — in the report; don't silently accept the bailouts. If such an option exists, dogfood it too: enable it in the scratch `.editorconfig`, re-run step 4, and report how many more sites convert and **what compile errors (if any) it introduces** (on #5703, ~116 more converted, only 2 hard `CS1929` — the rest were inferred-context divergences that compile).
 
-### 6. Report + teardown
+### 6. Measure build-time cost
 
-One structured report: report-mode reconciliation (sites / false positives / missed / crash), code-fix outcome (converted / total, compiles?, trivia intact?), skipped-site classification, and any option candidate with counts. Frame "found nothing / blocked" as a valid outcome. Then remove the worktree (confirm per `worktree.md`); verify the primary clone `git status` shows nothing from the dogfood.
+The worktree already has the analyzer attached to the consumer, so the perf measurement costs one more build here and a fresh worktree later. Hand off to [`/profile-analyzers rules`](../profile-analyzers/SKILL.md) → *Mode: `rules`* with target `Tests/Linq/Tests.csproj` (`-Project Tests -Target Tests.Linq`); the rationale and thresholds are in [`authoring-analyzers.md`](../../docs/authoring-analyzers.md) → *Measuring a rule's build-time cost*.
+
+Two things this step does **not** share with steps 3-4, both of which look like free reuse:
+
+- **It needs its own build.** Step 3's `.editorconfig` bulk-`none` makes Roslyn prune every suppressed analyzer, so that build's `/reportanalyzer` output has neither the third-party yardstick nor our other rules — the one surviving row then reads as 100 % of analyzer time. Delete the scratch `.editorconfig` and rebuild.
+- **It wants `-c Release`, not step 3's `-c Testing`.** `EnforceCodeStyleInBuild` is Release-gated, and the IDE rules are a large part of the yardstick the share figure is measured against.
+
+Fold the resulting table into the step-7 report. If the rule is `investigate`, that is a finding of this dogfood, not a separate errand.
+
+### 7. Report + teardown
+
+One structured report: report-mode reconciliation (sites / false positives / missed / crash), code-fix outcome (converted / total, compiles?, trivia intact?), skipped-site classification, any option candidate with counts, and the step-6 perf table. Frame "found nothing / blocked" as a valid outcome. Then remove the worktree (confirm per `worktree.md`); verify the primary clone `git status` shows nothing from the dogfood.
 
 ## Don'ts
 
-- Never commit or push anything from the dogfood worktree (mutated test source + regenerated baselines are all scratch).
+- Never commit or push anything from the dogfood worktree (mutated test source + regenerated baselines are all scratch) — the one exception is the perf baseline `/profile-analyzers rules` writes, which is a **corpus** file under `.claude/` and goes to the agents repo, not to any linq2db branch.
 - Don't treat a partial code-fix apply as success — drive **every** convertible rewrite or root-cause why not.
 - Don't skip the report-mode reconciliation — a green code-fix pass doesn't prove the analyzer flags the right set.
+- Don't reuse the step-3 build's log for the perf table — see step 6.

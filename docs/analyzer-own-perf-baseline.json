@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "machineNote": "captured on the maintainer Windows dev box; cross-machine deltas are directional only",
+  "targets": {
+    "LinqToDB": {
+      "capturedOn": "2026-09-06",
+      "commit": "9ae5818c8",
+      "buildCommand": "dotnet build Source/LinqToDB/LinqToDB.csproj -t:Rebuild -c Release -f net10.0 -p:RunAnalyzersDuringBuild=true -p:ReportAnalyzer=true -p:UseSharedCompilation=false -v:detailed",
+      "project": "LinqToDB",
+      "projectTotalSeconds": 574.74,
+      "analyzers": [
+        {
+          "analyzer": "CodeGenerators.SqlBuilderAliasAnalyzer (LINQ2DB0001)",
+          "rules": "(LINQ2DB0001)",
+          "totalSeconds": 0.393
+        }
+      ]
+    },
+    "Tests.Linq": {
+      "capturedOn": "2026-09-06",
+      "commit": "9ae5818c8",
+      "buildCommand": "dotnet build Tests/Linq/Tests.csproj -t:Rebuild -c Release -f net10.0 -p:RunAnalyzersDuringBuild=true -p:ReportAnalyzer=true -p:UseSharedCompilation=false -v:detailed -p:TreatWarningsAsErrors=false --no-dependencies (deps pre-warmed with analyzers off)",
+      "project": "Tests",
+      "projectTotalSeconds": 535.135,
+      "analyzers": [
+        {
+          "analyzer": "LinqToDB.Analyzers.WindowFunctionApiAnalyzer (L2DB1001)",
+          "rules": "(L2DB1001)",
+          "totalSeconds": 0.347
+        }
+      ]
+    }
+  }
+}

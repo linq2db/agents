@@ -99,7 +99,34 @@ Deriving a rule's model from source rather than hardcoding it is worth the troub
 - `EnableConcurrentExecution()` + `ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None)`.
 - Resolve target symbols **once** in `RegisterCompilationStartAction` (cache the `INamedTypeSymbol`s); bail immediately if the linq2db assembly isn't referenced.
 - Register the narrowest callback (`RegisterOperationAction(…, OperationKind.Invocation)`); cheap string-name gate **before** any `SymbolEqualityComparer`/containing-type resolution; no full-tree walks, no LINQ/regex allocations on the hot path.
-- Validate with `/profile-analyzers` before shipping.
+- **Measure it** — the checklist above is a set of habits, not evidence. See the next section.
+
+## Measuring a rule's build-time cost
+
+Every bullet above is a *prediction*. The rule's actual cost is a number, it takes one build to get, and until you have it "the gate is cheap" is a claim about code you wrote yesterday. `/profile-analyzers rules` produces the table; run it as the last step of authoring a rule (new or changed) and put the table in the PR body. It reports **every** linq2db-authored analyzer, not just the new one, so an existing rule that regressed shows up in the same run.
+
+**The two families measure against different targets, and the asymmetry is deliberate.** An internal `LINQ2DB0xxx` rule runs on linq2db's own source — `Source/LinqToDB/LinqToDB.csproj:26` references `CodeGenerators` with `OutputItemType="Analyzer"` — so `Source/LinqToDB` *is* its production corpus. A shipped `L2DB1xxx` rule runs on consumer code and **never** on linq2db's source: the same csproj deliberately omits `OutputItemType="Analyzer"` on the `LinqToDB.Analyzers.CodeFixes` reference (`:45`, with the reason in the comment above it). Measuring it against `Source/LinqToDB` would therefore report nothing at all. Its richest in-repo consumer is `Tests/Linq`, with the analyzer attached the way `/dogfood-analyzer` step 2 attaches it (`<Analyzer Include="…\.build\bin\LinqToDB.Analyzers\Release\LinqToDB.Analyzers.dll" />`).
+
+| Family | Target | Build |
+|---|---|---|
+| `LINQ2DB0xxx` (`CodeGenerators`) | `Source/LinqToDB/LinqToDB.csproj` | `-c Release -f net10.0 -t:Rebuild` |
+| `L2DB1xxx` (`LinqToDB.Analyzers`) | `Tests/Linq/Tests.csproj` | `-c Release -f net10.0 -t:Rebuild -p:TreatWarningsAsErrors=false`, analyzer DLL attached |
+
+`-c Release` for both: `RunAnalyzersDuringBuild` and `EnforceCodeStyleInBuild` are Release-gated (`Directory.Build.props:120-128`), and the third-party rows are the yardstick — "5 % of the project's analyzer CPU" only means something when the whole analyzer set ran. Both in a **throwaway worktree**, for the `UseSharedCompilation=false` lock hazard below.
+
+Three traps, each of which looks like the cheap path:
+
+- **The dogfood report-mode build cannot double as the timing build.** Its `.editorconfig` sets `dotnet_analyzer_diagnostic.severity = none` to isolate one rule; Roslyn prunes analyzers whose diagnostics are all suppressed, so that build's report contains neither the yardstick nor your other rules. Drop that `.editorconfig` and build again.
+- **No `dotnet build-server shutdown`.** It is machine-global and prohibited (`agent-rules.md`; global CLAUDE.md § *Shared build server*), and `analyzer-profile-build.ps1` no longer runs it. It is unnecessary here anyway: `-t:Rebuild` forces `CoreCompile` and `-p:UseSharedCompilation=false` makes MSBuild spawn `csc.exe` directly rather than talk to VBCSCompiler, so a resident server cannot swallow the report. The residual cost is that `csc` may hold `CodeGenerators.dll` / `LinqToDB.Analyzers.dll` afterwards (the `CS2012` trap `/profile-analyzers` documents) — which is the reason the measurement runs in a worktree you then delete.
+- **The report is CPU time across analyzer executions, not wall clock**, and it is machine-dependent. A cross-machine delta is directional only; say so rather than reporting it as a regression.
+
+**Verdicts.** A row is `investigate` when it takes ≥ 5 % of the target's analyzer CPU, or ranks in the project's **10 most expensive analyzers** (suppressed below 20 reported analyzers, where a rank means nothing), or is ≥ +50 % *and* ≥ +0.5 s against the baseline. The rank arm is the only one that can fire on a rule's **first** measurement without a baseline, which is the case `/create-analyzer` is actually in. The numbers are judgement calls recorded in `analyzer-profile-report.ps1`'s header so a later run can argue with them instead of rediscovering them.
+
+**A multiple of the project's median is *not* one of the arms, and it is the obvious one to reach for.** The first real capture refuted it: `Source/LinqToDB` runs **565** analyzers for 574 s of CPU, and the median is **0.058 s** — because most analyzers do nothing at all on any given project. `LINQ2DB0001` came back at 6.8× that median while costing 0.07 % of the build, i.e. the arm fires on any rule that does any work whatsoever. A verdict column that cries wolf is worse than no verdict column. The median is still reported, as context for reading the share figure.
+
+`investigate` does not block: either optimize the rule or record why the cost is justified. Two things that reliably move a rule off the list — resolving symbols once in `RegisterCompilationStartAction` and bailing when the anchor type is absent, and putting a `string` name test in front of any `SymbolEqualityComparer` work — are the first two bullets of the checklist above, which is why measuring is what makes them real.
+
+**Baseline:** `.claude/docs/analyzer-own-perf-baseline.json`, one entry per target, rewritten by `-UpdateBaseline`. It is a corpus file, so the write is a `.claude/` submodule commit pushed to the agents repo — never onto a linq2db branch. Absent entry = initial capture; say so plainly rather than presenting absolutes as deltas.
 
 ## Code-fix correctness checklist
 

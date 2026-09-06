@@ -1,0 +1,46 @@
+Build started 9/6/2026 10:00:00 AM.
+     1>Project "C:\GitHub\linq2db\Source\LinqToDB\LinqToDB.csproj" (1:2) on node 1 (Rebuild target(s)).
+     1:2>CoreCompile:
+         C:\Program Files\dotnet\sdk\10.0.302\Roslyn\bincore\csc.exe /noconfig /nowarn:1701,1702 /out:C:\GitHub\linq2db\.build\bin\LinqToDB\Release\net10.0\LinqToDB.dll Foo.cs
+         Total analyzer execution time: 19.501 seconds.
+
+         NOTE: Elapsed time may be less than analyzer execution time because analyzers can run concurrently.
+
+         Time (s)    %   Analyzer
+            8.000   41   Meziantou.Analyzer, Version=3.0.138.0, Culture=neutral, PublicKeyToken=null
+            8.000   41      Meziantou.Analyzer.Rules.OptimizeLinqUsageAnalyzer (MA0020)
+            6.500   33   Microsoft.CodeAnalysis.CSharp.RemoveUnnecessaryImportsDiagnosticAnalyzer (IDE0005)
+            5.000   25   CodeGenerators.SqlBuilderAliasAnalyzer (LINQ2DB0001)
+           <0.001    0   Cheap.Analyzer (XX0001)
+
+     2>Project "C:\GitHub\linq2db\Tests\Linq\Tests.csproj" (2:3) on node 2 (Rebuild target(s)).
+     2:3>CoreCompile:
+         C:\Program Files\dotnet\sdk\10.0.302\Roslyn\bincore\csc.exe /noconfig /nowarn:1701,1702 /out:C:\GitHub\linq2db\.build\bin\Tests\Release\net10.0\Tests.dll Bar.cs
+         Total analyzer execution time: 150.951 seconds.
+
+         NOTE: Elapsed time may be less than analyzer execution time because analyzers can run concurrently.
+
+         Time (s)    %   Analyzer
+           61.200   40   Microsoft.CodeAnalysis.CSharp.RemoveUnnecessaryImportsDiagnosticAnalyzer (IDE0005)
+           18.700   12   Meziantou.Analyzer.Rules.MethodShouldNotBeTooLongAnalyzer (MA0051)
+            9.400    6   NUnit.Analyzers.TestCaseUsage.TestCaseUsageAnalyzer (NUnit1032)
+            8.000    5   Third.Party.AlphaAnalyzer (TP0001)
+            7.500    4   Third.Party.BravoAnalyzer (TP0002)
+            7.000    4   LinqToDB.Analyzers.HeavyContractAnalyzer (L2DB1003)
+            6.500    4   Third.Party.CharlieAnalyzer (TP0003)
+            6.000    3   Third.Party.DeltaAnalyzer (TP0004)
+            5.500    3   Third.Party.EchoAnalyzer (TP0005)
+            5.000    3   Third.Party.FoxtrotAnalyzer (TP0006)
+            4.500    2   Third.Party.GolfAnalyzer (TP0007)
+            4.000    2   Third.Party.HotelAnalyzer (TP0008)
+            3.500    2   Third.Party.IndiaAnalyzer (TP0009)
+            2.000    1   LinqToDB.Analyzers.WindowFunctionApiAnalyzer (L2DB1001)
+            1.000    0   LinqToDB.Analyzers.DurationComparisonAnalyzer (L2DB1002)
+            0.400    0   Tiny.Analyzer (TN0001)
+            0.300    0   Tinier.Analyzer (TN0002)
+            0.200    0   Tinyish.Analyzer (TN0004)
+            0.150    0   Tinyer.Analyzer (TN0006)
+            0.100    0   Tiniest.Analyzer (TN0005)
+           <0.001    0   Nano.Analyzer (TN0003)
+
+Build succeeded.

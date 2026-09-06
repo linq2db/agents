@@ -77,7 +77,7 @@ Stop and surface to user. Do not improvise — disk-full / locked-file failures 
 
 **Precondition: step 2's build is clean.** A profiling run over a failing tree measures only the projects that compiled, so its rankings under-report and its deltas against the previous release are meaningless. Never run this before step 2 closes.
 
-Invoke `Skill('profile-analyzers')` (it gates on its own user confirmation for the 10-25 min rebuild). This is a *second*, instrumented rebuild on top of step 2's verification build — the one sanctioned exception to the one-build rule, because the two builds answer different questions ("does it compile" vs "what does the shipping rule set cost").
+Invoke `Skill('profile-analyzers')` in **`solution`** mode (it gates on its own user confirmation for the 10-25 min rebuild). Not `rules` mode — that one measures linq2db's own analyzers against a single project and keeps its own baseline; it answers an authoring question, not a release one. This is a *second*, instrumented rebuild on top of step 2's verification build — the one sanctioned exception to the one-build rule, because the two builds answer different questions ("does it compile" vs "what does the shipping rule set cost").
 
 The pass must answer three things, not just render rankings:
 

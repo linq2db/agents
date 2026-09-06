@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "machineNote": "fixture for analyzer-profile-report.ps1 -Own verification; not a real capture",
+  "targets": {
+    "Tests.Linq": {
+      "capturedOn": "2026-09-01",
+      "commit": "deadbee",
+      "buildCommand": "fixture",
+      "project": "Tests",
+      "projectTotalSeconds": 93.451,
+      "analyzers": [
+        {
+          "analyzer": "LinqToDB.Analyzers.WindowFunctionApiAnalyzer (L2DB1001)",
+          "rules": "(L2DB1001)",
+          "totalSeconds": 1.9
+        },
+        {
+          "analyzer": "LinqToDB.Analyzers.DurationComparisonAnalyzer (L2DB1002)",
+          "rules": "(L2DB1002)",
+          "totalSeconds": 0.9
+        },
+        {
+          "analyzer": "LinqToDB.Analyzers.RetiredAnalyzer (L2DB1099)",
+          "rules": "(L2DB1099)",
+          "totalSeconds": 4.0
+        }
+      ]
+    }
+  }
+}
