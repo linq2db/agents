@@ -51,6 +51,37 @@ The bundled `System.Collections.Immutable` predates `CollectionBuilder`, so `Imm
 
 **Custom `.editorconfig` option keys are looked up lower-cased.** When a rule/code-fix reads its own option via `AnalyzerConfigOptions.TryGetValue`, query the **lower-cased** key — Roslyn lower-cases `.editorconfig` keys on parse (they're case-insensitive), so a key built from a mixed-case rule id (`"linq2db." + DiagnosticId + ".…"` where `DiagnosticId` is `L2DB1001`) won't match unless you `.ToLowerInvariant()` it. The user-facing key stays readable (`linq2db.L2DB1001.apply_fix_on_return_type_mismatch`); only the lookup is lower-cased. See `WindowFunctionApiCodeFixProvider.ApplyOnReturnTypeMismatchOptionKey`. (#5703)
 
+## Explicit interface implementations, and the two places they break a rule
+
+A rule that admits `MethodKind.ExplicitInterfaceImplementation` into its symbol-kind set inherits two traps, and neither shows up in `Source/LinqToDB` — nothing there uses an explicit implementation — so the Release build and the dogfood pass both stay green while consumer code breaks.
+
+**`ISymbol.Name` is the *dotted* name.** For `int I.M()` it is `I.M` (Roslyn mirrors the CLR metadata name; the repo already relies on this at `Internal/Mapping/ColumnDescriptorExtensions.cs:56`). Any walk that prefilters on `string.Equals(candidate.Name, member.Name)` therefore matches nothing for an explicit implementation and silently skips it. Measured with a probe compilation: the same name-filtered `AllInterfaces` walk reaches **0** interface members for an explicit implementation and **3** for an implicit one. Read `IMethodSymbol.ExplicitInterfaceImplementations` / `IPropertySymbol.ExplicitInterfaceImplementations` off the symbol instead — exact, and cheaper than the scan.
+
+**`nameof(<bare identifier>)` does not bind inside one.** The member's name in the containing type's declaration space is dotted, so a code fix that emits `nameof(M)` from `MethodDeclarationSyntax.Identifier.ValueText` produces `CS0103: The name 'M' does not exist in the current context` — a code fix turning compiling code into a compile error, the cardinal sin above. Qualify from the declaration's own `ExplicitInterfaceSpecifier` (never re-parsed from a string): `nameof(I.M)` compiles and still evaluates to `"M"`, so any message built from it is unchanged. Verified for a plain interface, a closed generic (`IFoo<int>.M`) and an open one (`IFoo<T>.M`).
+
+## `Diagnostic.AdditionalLocations` is part of the diagnostic's observable shape
+
+It is the right channel for handing a code fix a node the analyzer already located — a marker-capable attribute that turned out to live on an implemented interface member, possibly in another file — and it keeps the fixer free of the analyzer's predicates, which is the boundary `EnforceExtendedAnalyzerRules` and the missing `InternalsVisibleTo` otherwise force you to re-implement.
+
+The cost is that the testing SDK **verifies** it: every fixture asserting an explicit `DiagnosticResult` must now declare the extra location with a second `.WithLocation(n)` and a matching `{|#n:…|}` span, or it fails with `Expected 0 additional locations but got 1`. Shorthand `{|ID:…|}` markup does not check them, so the breakage lands only on the fixtures that spell the result out — which reads as an unrelated regression until you match the spans. Budget for that when adding one to an existing rule.
+
+**A cross-document fix needs a `Solution`-returning `CodeAction`,** and `DocumentBasedFixAllProvider` cannot express it. Keep the same-file case on the ordinary single-tree rewrite so Fix-All keeps working, and register the solution-level action only when the target sits in a different `SyntaxTree`.
+
+## A `#if`-conditional body presents differently per TFM
+
+An analyzer compiles one target framework at a time, so a member whose body is `#if`-conditional — a throw-only stub on the portable TFMs, a real implementation on `net462` — is a *stub* to one compilation and a real body to another. Two consequences.
+
+The rule fires only on the TFM whose arm is a stub, which is correct. But **the code fix's edit is unconditional**: an attribute it inserts applies to every TFM, including the one whose body is real. Marking a real-bodied member is valid in itself (a marked member emits mapped SQL in a query and runs its body outside one), yet it still removes client evaluation *inside* a query on that TFM — a behaviour change no local gate sees when the test for that member skips the TFM in question.
+
+**Scope the attribute to the same `#if` as the body it describes.** Maintainer's call on #5870 for `Sql.Like`, whose netfx arm delegates to `SqlMethods.Like`:
+
+```csharp
+#if !NETFRAMEWORK
+	[ServerSideOnly]
+#endif
+	public static bool Like(string? matchExpression, string? pattern)
+```
+
 ## Reading beyond the current node — the semantic model is banned, and the CFG rewrites your condition
 
 Two constraints that only surface once a rule needs more than the operation it was handed. Both were established writing `ProjectFlagsAnalyzer` (`LINQ2DB0004`–`0006`, #5814), which derives its model from another file's source and analyzes conditions with flow analysis.

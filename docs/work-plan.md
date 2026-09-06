@@ -91,6 +91,8 @@ The **authorized change surface**, not a prediction. One row per planned edit: `
 
 Every row carries exactly one verdict: `covered by E-n` | `deferred: <reason>` | `out-of-scope`. If a search finds nothing, write `Localized — searched <symbol> across <scope>, no callers or emitted-SQL change.` **A bare "localized" with no named search is invalid.**
 
+**A registration-surface row lists paths, one per hit — never a role name.** "The package `readme.md`", "the release-notes file", "the analyzer registration" each collapse a set the sweep already enumerated, and the collapsed member is the one that gets missed. Write every path the search returned, even when they look interchangeable. The row must also name the surfaces a repo-wide grep **structurally cannot reach** — wiki pages, nuget.org-rendered metadata, external dashboards — since those are invisible to both the sweep and `-Action reconcile`. (Surfaced on #5870: "needs a row only in the two `AnalyzerReleases.Unshipped.md` files and the package `readme.md`" counted and pathed the first pair and collapsed the second, and linq2db has **two** packed readmes with an analyzer rule table. The unlisted one is the `linq2db` package's own — what nuget.org shows for the library — and it shipped stale.)
+
 ### P8 Test obligations (M/L)
 
 One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
@@ -100,6 +102,8 @@ One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
 - `characterization` — behaviour-preserving; say plainly that it proves no new behaviour.
 
 Where an `E-n` touches a helper reachable from more than one path, one obligation must be a **symmetry guard on the unchanged path**.
+
+**An obligation that names a *set* is not one obligation — expand it to one named fixture per element.** "All four marker forms", "both options additive", "a trivia battery", "each remedy branch" all read as satisfied by a fixture set covering *some* of the set, because a subset is green and a subset is indistinguishable from the whole. Enumerate the elements in `P8` and record `G-01` as one row per element with the observation proving it ran, rather than as a run total — `78/78` cannot tell a covered element from an absent one. (Surfaced on #5870, where this single shape produced three of nine review findings: a marker form with no fixture, one of two option lists with no additivity guard, and a trivia battery covering one of the two branches it existed for.)
 
 **Where the assertion sits on a conditional path, the obligation must name what proves it fired.** "Proven by running it" is satisfied the moment the test executes and passes — which an assertion inside a `catch`, behind an `if`, or under a provider branch achieves without ever running. Say which observation distinguishes *asserted and held* from *never reached*: a value only the taken path can produce, a failure injected to force the branch, or a count the untaken path cannot yield.
 
