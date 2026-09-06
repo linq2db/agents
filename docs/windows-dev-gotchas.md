@@ -118,6 +118,14 @@ git fetch origin refs/pull/<n>/head:refs/remotes/origin/pr/<n>
 
 Then diff/log against `origin/pr/<n>` — works for any PR (upstream branch, fork, closed, whatever), never collides with local branch names, and the `pr/<n>` namespace is self-documenting.
 
+**When you *do* need the branch itself, spell the source side `refs/heads/<branch>` — a bare slashed branch name deletes the destination.** The failure above is a fetch that creates nothing; this one is worse, because it *destroys* something. A branch named `issue/5814-projectflags-condition-analyzer` does not resolve as a source in `git fetch origin <src>:<dst>` — git reads the source as empty and takes the refspec as a **delete** of `<dst>`, printing `- [deleted] (none) -> origin/issue/5814-…` and exiting 0. If a remote-tracking ref was already there, it is now gone, and the next `git grep origin/issue/…` fails with `unable to resolve revision` in a way that looks like the branch never existed. The working form is:
+
+```
+git fetch origin refs/heads/<branch>:refs/remotes/origin/<branch>
+```
+
+Recovery is just re-running it correctly. Prefer `refs/pull/<n>/head` above whenever a read-only view is enough; reach for the branch form only when you need to `git worktree add` a checkout you will commit to. (Surfaced on #5877, where the malformed refspec deleted the tracking ref seconds after it was created; `git ls-remote --heads origin '*<id>*'` confirmed the branch was alive on the remote and settled it in one call.)
+
 **The short source form isn't just useless — it can be destructive.** Fetching a **named branch** as `git fetch origin <branch>:refs/remotes/origin/<branch>` (source side without the `refs/heads/` prefix) can resolve the source to nothing and report `- [deleted] (none) -> origin/<branch>`, *deleting* the destination tracking ref, while `git ls-remote origin "refs/heads/<branch>"` shows the branch alive at the expected SHA. Always fully qualify both sides: `git fetch origin refs/heads/<branch>:refs/remotes/origin/<branch>`. (Surfaced on #5720 fetching `feature/bundle-analyzers-into-core`, whose head SHA `gh pr view` had just reported.)
 
 ## Finding whether an open PR adds a token (`gh search code` indexes only `master`)
