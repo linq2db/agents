@@ -192,11 +192,16 @@ Internal rules need nothing — `CodeGenerators` is already wired as an analyzer
 
 ### 3. Build
 
-```
-pwsh -NoProfile -File .claude/scripts/analyzer-profile-build.ps1 -ProjectPath <target.csproj> -LogPath .build/.agents/analyzer-perf-<target>.log -ExtraArgs '-f','net10.0'
+From the PowerShell tool, with the **call operator and a real array** — not `pwsh -File`, which passes `-ExtraArgs` as one string and dies on an argument nobody typed ([`agent-rules.md`](../../docs/agent-rules.md) → *`-File` has the same problem for a different reason*, which names this example as the trigger):
+
+```powershell
+Set-Location <worktree>
+& .claude/scripts/analyzer-profile-build.ps1 -ProjectPath <target.csproj> -LogPath .build/.agents/analyzer-perf-<target>.log -ExtraArgs @('-f','net10.0')
 ```
 
-Run it with the worktree as the working directory. For `Tests/Linq` add `-ExtraArgs '-f','net10.0','-p:TreatWarningsAsErrors=false'` so a pre-existing Release analyzer warning can't stop the build before `CoreCompile` emits the report.
+Run it with the worktree as the working directory. For `Tests/Linq` add `-ExtraArgs @('-f','net10.0','-p:TreatWarningsAsErrors=false')` so a pre-existing Release analyzer warning can't stop the build before `CoreCompile` emits the report.
+
+**The failure this shape prevents is disguised, which is why the spelling matters.** Flattened, MSBuild rejects the whole invocation with `MSB1008: Only one project can be specified` in under a second — but the wrapper still writes its log and the *report* step then fails with `no analyzer report for project '<leaf>'` and a `next_action:` blaming the `-Project` name or a missing `-t:Rebuild`. Both are dead ends; the cause is on line 1 of the log. Read the log before the error message.
 
 **`Tests/Linq` from cold is the run that gets OOM-killed**, because `-t:Rebuild` walks every dependency first and each one gets its own `csc` (no compiler server) with the full Release analyzer set loaded. Two killed attempts on a box with ~4-6 GB free. Do it in two phases instead:
 
@@ -212,8 +217,8 @@ A partial log is *not* silently wrong either: a killed run still parses, and ste
 
 ### 4. Report
 
-```
-pwsh -NoProfile -File .claude/scripts/analyzer-profile-report.ps1 -LogPath <log> -Own -Project <leaf> -Target <key> -BaselinePath .claude/docs/analyzer-own-perf-baseline.json
+```powershell
+& .claude/scripts/analyzer-profile-report.ps1 -LogPath <log> -Own -Project <leaf> -Target <key> -BaselinePath .claude/docs/analyzer-own-perf-baseline.json
 ```
 
 The table is emitted as markdown so it can be pasted verbatim into the PR body. `-Top` still controls the three whole-log rankings printed underneath as context.
@@ -225,6 +230,10 @@ The script fails loudly rather than guessing: multiple project reports in the lo
 Present the table. For each `investigate` row, the author either optimizes (the first two *Performance checklist* bullets — resolve symbols once in `RegisterCompilationStartAction`, cheap string gate before symbol comparison — are what usually move a rule off the list) or records why the cost is justified, in the PR body next to the table.
 
 Then re-run step 4 with `-UpdateBaseline -BuildCommand '<the exact command from step 3>'`. Without the write-back the next rule's run has nothing to diff and the regression half of this mode silently degrades to "here is a number".
+
+**Run the write-back from the tree you measured.** It stamps the baseline with `git rev-parse HEAD` resolved against `$PWD`, so invoking it from the primary clone after building in a worktree records the clone's HEAD — a commit the numbers were never taken on. The script guards what it can (it passes `-WorkingDirectory $PWD.Path` explicitly, because `Push-Location` does not move what a child `git` inherits) and cannot guard against being called from the wrong directory. `Set-Location <worktree>` for step 4's write-back, not only for step 3's build. The tell is a `commit` matching your primary clone's `master` while the figures include a rule that exists only on the branch — which is precisely the state that reads as correct, since every other field is right. (Hit on #5873: both entries stamped `916083a80` while carrying `L2DB1002`. Corrected by hand, and misattributed to a script defect in the commit message that fixed it — the script was right.)
+
+**Measuring both targets in one sitting buys a load control for free, and it is worth the second build.** The share-and-rank rule above tells you not to trust the seconds; a second target tells you *how far* not to trust them on this particular box. On #5873 `LINQ2DB0001` came back at 0.393 s — identical to three decimals, project total −5 % — while on the busier target `L2DB1001` moved −49 % with its project total +18 %. The stable target is what makes the other one's drift legible as machine load rather than a regression; with only the moving target measured, a −49 % delta on a rule nobody touched is indistinguishable from a real improvement, and reporting it as one is the easy mistake.
 
 **Skip the write-back when the existing baseline is the pre-change control for the run you just did.** The default assumes the baseline is older than the work; it is exactly wrong when someone captured it on `master` *for* this measurement, because overwriting it replaces a clean one-variable control with a feature-branch run and there is no way back. The tell is a baseline whose `commit` is the branch's merge base and whose `capturedOn` is the same day. Report the delta, leave the file, and re-capture after merge. **Read the share and the rank, not the seconds, whenever the project total moves between runs** — the figure is CPU time summed across concurrent analyzer executions, so it tracks machine load: a same-box, same-day pair measured 574.7 s and 1572.3 s for the same target, while the normalised share and rank stayed stable and agreed. A sub-second rule drifting ±50 % with no code change is the noise floor, not a regression. (Surfaced on [#5877](https://github.com/linq2db/linq2db/pull/5877): `ProjectFlagsAnalyzer` measured 4.469 s / 0.28 % / rank 50 of 566 against a `LINQ2DB0001` control that itself moved +50 %.) The baseline is a corpus file — the write is a `.claude/` submodule commit pushed to the agents repo, never onto a linq2db branch.
 
