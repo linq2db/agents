@@ -127,6 +127,16 @@ This is a different failure from *"a control that passes in every arm measured n
 
 (Surfaced on #5673 investigating whether a combined-eager plan can order its harvesters unsafely. The first probe logged only *mixed* plans; one line came back, which was uninterpretable, and the re-run cost a second ten-minute suite pass. Logging every plan gave the answer in one line: **86 plans built, 1 mixed, 0 inverted** — enough to down-scope the finding from a latent bug to a robustness gap.)
 
+## Instrumenting the expression builder — format the probe's data at the call site
+
+Two traps in `Source/LinqToDB/Internal/Linq/Builder/` cost a full build each, and both look like they should compile.
+
+`ExprCacheKey` — the translation cache's key — is a **private nested `readonly struct` inside `ExpressionBuildVisitor`**, so a probe helper class cannot name it even from the same namespace (`CS0246`). The same applies to any of that file's nested key types. Don't try to give the helper a typed API and don't widen the type's accessibility: build the identity as a string *at the call site*, where the members are in scope (`$"{cacheKey.Flags}|{cacheKey.SelectQuery?.SourceID}|{cacheKey.Expression}"` is enough to correlate a write with a later read), and have the helper take `string`. That also sidesteps needing the cache's custom `IEqualityComparer` inside the probe.
+
+And don't reach for `?.` on a value the compiler has just proven non-null through a `[NotNullWhen(true)]` `out` parameter — `translated?.ToString()` right after `if (!TryGetValue(…, out translated)) return false;` widens the flow state back to maybe-null and breaks the *existing* code below it (`CS8604` at `SequenceHelper.HasError(translated)` and `DebugCacheHit(…)`), which reads as though the probe found a pre-existing nullability bug. Pass the value directly.
+
+(Both surfaced on #5884 instrumenting `RegisterTranslatedSql` / `GetAlreadyTranslated` to trace translation-cache priming; each was one wasted incremental build in a six-arm probe.)
+
 ## Timing-sensitive (flaky) bug — don't perturb hot paths with per-call I/O
 
 When a bug is order- / timing- / cache-state-sensitive (flips pass↔fail across otherwise-identical runs), instrumentation that does **per-call I/O in a hot path masks it** — the I/O latency changes timing enough to hide the failure. On the #5657 aliasing race, adding `File.AppendAllText` to the `SelectQuery` constructor (hit on every query node) turned the failing test green; the bug only reproduced once the I/O was removed. Instead: stash diagnostic state cheaply on the object (e.g. capture `Environment.StackTrace` into an `internal` field at construction) and write it out **once, at the failure site** (the throw / assertion). That pins the culprit — e.g. the exact `CloneQuery` call-site that created the orphaned node — without altering the timing that produces the bug. Capturing a stack into a field is CPU-only and far less perturbing than file I/O; if even that masks it, narrow the capture to the suspect id range.
