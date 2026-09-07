@@ -24,6 +24,7 @@ Rules:
 - Keep each section to its own job. A question buried in a paragraph of findings does not count as asked.
 - Don't repeat prose inside the questions or the actions; reference it.
 - If there is nothing to ask and nothing to propose, prose alone is the whole reply.
+- **The turn this is dropped on is the wrap-up.** A closing turn — "here is what landed", a post-push summary, a finalize-session report — is mostly statements, so it reads as pure prose and the format never seems to apply. Then the open items get appended as a trailing paragraph ("two things still outstanding…") instead of a numbered **Next actions** section, which is exactly the content the sections exist to separate: the user has to re-read a wall of results to find what they are being asked to decide. A summary turn that contains *anything* still undecided is a p/q/a turn. Same test as always — the fork is what makes a section, not the turn's length.
 - **Sections 2 and 3 are for real forks only, not for the obvious next step.** A *fork* is one of:
   mutually exclusive options where the choice changes the work; an irreversible or outward-facing
   action (per *Git commit rules*); or a goal-level ambiguity you cannot resolve from the task. When

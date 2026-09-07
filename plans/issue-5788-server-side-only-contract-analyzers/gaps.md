@@ -196,7 +196,8 @@ and shipped it untested.
 
 Surfaced, not applied — these route to `/session-reflect`'s `plan-rule` bucket and are the user's call.
 
-- `<GAP-08 × 3>` → a `P8` semantics line in `work-plan.md`, one level deeper than round 1's enumerated-set
+- `<GAP-08 × 3>` → **applied** to `work-plan.md` on 2026-09-07. A `P8` semantics line one level deeper
+  than round 1's enumerated-set
   rule (which is now codified and was satisfied here): a fixture for a named element must use an input on
   which the element's **decision boundary** actually turns, and the plan should record that input beside
   the decision. Worked example: `D-8` form 2 is "explicit argument, else `ExtensionAttribute` ctor
@@ -204,16 +205,27 @@ Surfaced, not applied — these route to `/session-reflect`'s `plan-rule` bucket
   `ServerSideOnly = false` — and the fixture named for that case used `Sql.Function`, which is not one.
   The cheap enforcement is the mutation check this round used on all three: break the product, watch only
   the intended fixture go red.
-- `<GAP-02 × 2>` → `work-plan.md`'s `P11` semantics, promoting round 2's recommendation from prose to a
-  requirement, because it was recorded and then not applied by the very next amendment: an amendment that
+- `<GAP-02 × 2>` → **applied** to `work-plan.md` on 2026-09-07, promoting round 2's recommendation from
+  prose to a requirement in `P11` semantics,
+  because it was recorded and then not applied by the very next amendment: an amendment that
   answers a review finding must list the **input classes the finding's text names** and carry a `TO-n` per
   class. `A-11` wrote "an interface member declared in metadata yields no location and the fix declines"
   and shipped no fixture for it; the sentence was the specification and nothing checked it.
-- `<GAP-03 × 1>` → the scout brief plus `authoring-analyzers.md`: a failure-mode line that makes a
-  **checkable claim about the language or a framework** is a `P4` row, not prose — `AttributeTargets` and
-  attribute-target defaults are one compile away. And a `P7` registration-surface row must list the wiki
-  pages by path, since a repo-wide grep structurally cannot reach them; this is round 1's GAP-01
-  recommendation, still unapplied, and it let a false claim ship to a user-facing page.
+- `<GAP-03 × 1>` → `work-plan.md`'s `P5` semantics: a failure-mode line that makes a **checkable claim
+  about the language or a framework** is a `P4` row, not prose — `AttributeTargets` and
+  attribute-target defaults are one compile away, and left in prose the claim propagates into `P10`,
+  into a comment at the site, and into user-facing docs where a reader who tests it finds it wrong.
+  **Applied** to `work-plan.md` on 2026-09-07.
+
+  *Corrected after this ledger was first written:* the entry originally paired the above with "and a
+  `P7` registration-surface row must list the wiki pages by path … round 1's GAP-01 recommendation,
+  still unapplied". That second half **was already applied** — `work-plan.md`'s *A registration-surface
+  row lists paths, one per hit* requires naming the surfaces a repo-wide grep structurally cannot
+  reach, wiki pages included, and cites this PR's round 1 as its source. So MIN004 is not a missing
+  `P7` rule: this plan's `P7` was written **before** that rule landed, which makes it round 2's
+  authoring-time recurrence in a third guise and prescribes the same fix — re-walk a long-lived plan
+  against rules added since. The ledger's own lesson, applied to itself: `Grep` the destination before
+  asserting a recommendation went unapplied.
 
 ### Continuity
 
