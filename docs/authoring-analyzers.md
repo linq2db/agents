@@ -174,6 +174,33 @@ So `TimeSpan.FromSeconds(0.9999999)` is exactly one second on netfx and 9 999 99
 
 Two habits follow. **Read the vendor's source, not your memory** — the three-reading design started life as a two-reading one written from recall, and the missing reading was the modern-runtime one, i.e. the one most consumers actually run. And **prefer `decimal` to `double`** for the exact arm: a tick count reaches nineteen digits and a `double` stops distinguishing at sixteen.
 
+## The consumer's *mapping configuration* is unknown too — read the attribute, never read its absence
+
+Third gate in the same family, and the one specific to an ORM. The first asks which **linq2db** is next door; the second which **runtime** the analyzed code targets; this one asks **how the consumer declared their mapping** — and unlike the other two, most of the answer is not available to an analyzer at any price.
+
+linq2db resolves a member's mapping attributes through `MappingSchema`, and the routes that populate it are (verified on `origin/master`, not recalled):
+
+| Route | Declared at | Analyzer sees it? |
+|---|---|---|
+| `[Duration(...)]` / any `MappingAttribute` on the member | member syntax | **yes** — `ISymbol.GetAttributes()` |
+| `PropertyMappingBuilder.HasDuration(unit)` and its typed siblings | `PropertyMappingBuilder.cs:293` | no |
+| `PropertyMappingBuilder.HasAttribute(MappingAttribute)` | `:50` | the **value** is in source; the target member is not |
+| `EntityMappingBuilder.HasAttribute(…)` ×4 | `:73`, `:85`, `:97`, `:109` | same |
+| `FluentMappingBuilder.HasAttribute(…)` ×5 | `:100`, `:112`, `:124`, `:136`, `:150` | same |
+| `MappingSchema` registration, custom `IMetadataReader.GetAttributes(Type, MemberInfo)` | runtime | no |
+
+**The distinction that matters is not compile-time versus runtime, and saying it that way is wrong.** `HasAttribute(new DurationAttribute(DurationUnit.Second))` constructs the attribute *in source*, with the unit as a constant any analyzer can read; what it does not hand you is which member the fluent chain targets, and a schema registration or an `IMetadataReader` hands you nothing at all. So the honest claim for a rule that keys on `ISymbol.GetAttributes()` is **"this rule reads attributes declared on the member"** — a statement about the rule's design. *"An analyzer cannot see runtime configuration"* is the tempting phrasing and it overstates: it tells a reader the limitation is inherent when part of it is a choice, which forecloses a future rule that walks the fluent builder.
+
+**Absence of the attribute must mean *no diagnostic*, never *no mapping*.** This is the whole safety property, and the unsound reading is the appealing one — "no `[Duration]` here, so a fractional comparison is fine" is exactly as wrong as reporting on a member whose unit was configured elsewhere, because a fluent-configured column has the same storage semantics and the rule simply cannot see them. Either direction is a claim about a model the rule has not read. Concretely: `L2DB1002`'s `GetDeclaredUnits` returns `null` when no `[Duration]` resolves and the callback returns without reporting, so a fluently-configured member is silent — correct, and worth a test rather than an assumption, since nothing else in the rule distinguishes "not a duration column" from "a duration column I cannot see".
+
+**The test for whether a rule is exposed at all: is the attribute it reads authored by the *consumer* or by linq2db?** A rule keying on `[Column]`, `[Table]`, `[Association]`, `[PrimaryKey]`, `[NotColumn]`, a value converter or `[Duration]` is exposed — every one of those has a fluent and a schema route. A rule keying on **API usage** (`L2DB1001`'s `Sql.Ext` chains) or on linq2db's **own** annotated surface (`[ServerSideOnly]` on `Sql.*`) is not: those attributes live in linq2db's assembly, are present whenever the anchor type resolves, and no consumer configuration can move them.
+
+**What an exposed rule owes its users** — and both artifacts must name the *visible route set*, not gesture at "runtime configuration":
+
+- the descriptor's `description`, since that is what an IDE shows when someone asks why a rule fired or didn't;
+- the wiki page, as a **recall** limitation ("this rule does not diagnose X") rather than an accuracy one — the rule is not wrong on a fluent mapping, it is silent, and a reader deciding whether to trust it needs that difference;
+- a fixture pinning the silence, so the safe direction is measured rather than assumed.
+
 ## Trivia preservation (the headline; the recurring failure of new analyzers)
 
 Build the new-shape scaffold with **placeholder** identifiers for every reused argument, `NormalizeWhitespace()` the scaffold, then `ReplaceNodes` the placeholders with the **original** argument subtrees (restoring their trivia verbatim). Preserve the whole expression's leading trivia (`GetFirstToken().LeadingTrivia`) and salvage any comments that lived on the old chain's scaffolding (between calls, excluding those inside reused args) onto the result's trailing trivia so **no comment is dropped**. Never round-trip through `ParseExpression(string)`. See `LegacyWindowChainRewriter`.
