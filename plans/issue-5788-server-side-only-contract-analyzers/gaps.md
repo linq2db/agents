@@ -147,3 +147,93 @@ task's own framing, this is the **stronger** of the two possible readings — a 
 unapplied and produced a same-shape defect again, not one that was applied and still let a defect through.
 Both clusters point at the same underlying failure: round 1's recommendations were written down but never
 became a plan mechanism, so nothing forced the next reactive fix to ask "does this generalize?"
+
+## Round 3 — reviewed HEAD `72b975ce380b0f4eec527ac5ca15e46cc969e2a2` (2026-09-07)
+
+Review: three parallel `code-reviewer` passes (code-correctness, a Roslyn/analyzer-infrastructure pass
+reframed in place of `sql-and-provider`, api-and-test), with the baselines pass replaced by an
+orchestrator measurement. 8 items — 6 findings and 2 out-of-scope observations. Weighted toward
+`4c6b66c8c` and `72b975ce3`, the two commits Copilot never reviewed (quota limit), and **both findings
+that turned out to be defects live in code those commits introduced**. Every `P9` gate came back pass,
+including the full `test-all` matrix at build 23461 on the reviewed HEAD — so all 8 were produced by
+review, not by any declared gate. `G-01`'s per-`TO-n` recording exception carries over from rounds 1
+and 2 for a third time.
+
+| Finding | Gap | Upstream artifact that would have prevented it | Gate that would have caught it | Preventable |
+|---|---|---|---|---|
+| MAJ001 — add-attribute remedy marks the implementation when the interface member is declared in metadata | GAP-02 | `A-11` itself, one round old. It admitted the implemented-interface walk into the fixer and enumerated the shapes it must handle, naming the metadata case explicitly and asserting the fix *declines* there — so the input class was identified, reasoned about, and then implemented as an ambiguous `null` that the sibling consumer reads with the opposite meaning. No `P4` row asked how `E-7` distinguishes "walk found nothing" from "walk found something unwritable", and `TO-5` has no metadata-reference shape, so no fixture could have gone red. | — | yes |
+| MIN006 — only the first of several implemented interface members is marked | GAP-02 | Same artifact, the other unasked question: `E-1`'s walk was specified as singular (`FindInterfaceMarkerTarget`) while `D-8`'s marker semantics are existential — *any* marker satisfies `DeclaresServerSideOnly` — so one target can never be sufficient. The contradiction is between two design blocks, visible without reading code, and `P10`'s interface-walk row adjudicates only the suppression direction. | — | yes |
+| MIN001 — no fixture reaches `TryRewriteAt`'s cross-file add-attribute arm | GAP-05 | Round 2's MIN002/MIN004 added `TO-5`'s cross-document shape and `A-11` implemented it, but the obligation was written in the singular — "a cross-document case" — and satisfied by the `set-named-argument` half. The *remedy* axis was never crossed with the *document* axis, which is round 2's own recommendation (sweep an admitted relationship across every sibling remedy branch) unapplied one round later. | G-01 | yes |
+| MIN002 — the fixture named for explicit `ServerSideOnly = false` cannot discriminate | GAP-08 | `TO-1` names the element and a fixture bearing its name exists, so the enumerated-set rule reads as satisfied. What no artifact states is *which input separates the two halves of the predicate* `D-8` form 2 defines: only an `ExtensionAttribute`-derived attribute can disagree with its own ctor default, and `Sql.Function` is not one. A `P4` row on form 2's decision boundary would have named it. | G-01 | yes |
+| MIN003 — `GeneratedCodeAnalysisFlags` untested on both hosts | GAP-08 | `D-4` is a full decision block with a stated failure mode — "the hosts diverge on one line and a future reader may harmonize them" — and no `TO-n` at all. `P12` round 5 then used that untested line to close the critic's `LinqToDB.Scaffold` observation, so a design claim was discharged by an assertion nothing gated. `E-13` also silently removed the internal host's only reportable generated stub, making `TO-3` blind to it. | — | yes |
+| MIN005 — `RunMultiFile`'s injected `.editorconfig` never reaches its sources | GAP-05 | `E-19` specified a verifier overload for `.editorconfig` fixtures and round 2 added the multi-source one; neither obligation says the injected config must be *demonstrated to apply*. `A-6` and the `P12` CI note both record that formatting assertions are invisible to a fixture whose only edit sits within a line — the exact blindness that hid this — so the hazard was documented and not converted into a requirement. | — | yes |
+| MIN004 — the operators/indexers exclusion's recorded justification is false | GAP-03 | `D-12`'s failure-mode line asserts `AttributeTargets.Property | Method` makes a fix on those kinds uncompilable. It is a checkable claim about C# that was never checked, and it propagated verbatim into `P10`, a core doc comment and the shipped `L2DB1003` wiki page. `P7` has no row for the wiki, which is also outside anything `-Action reconcile` can see — round 1's `SUG002`/GAP-01 recommendation, unapplied. | — | yes |
+| SUG002 — duplicate fixture; an enumerated `TO-4` cell has none | GAP-08 | `TO-2`'s negative control and `TO-4`'s four consumer shapes overlap without saying so, so one slot was spent restating a pinned negative while a named positive cell relied on the dogfood corpus. Same enumerated-set masking as rounds 1 and 2. | G-01 | yes |
+
+### Aggregate
+
+**GAP-02 × 2 for the second round running, and this time the artifact that failed is the *previous
+round's own fix*.** Round 2's MAJ001 was `A-11`; round 3's two real defects are both inside `A-11`'s
+implementation — the metadata case it named and claimed to handle, and the multiplicity question its
+singular walk never raised. Round 2 predicted exactly this: *"when a fix lands in response to a review
+finding, sweep the same admitted relationship across every sibling consumer path it could also reach."*
+`A-11` was that fix, it was written without such a sweep, and it produced two same-shape defects.
+
+**GAP-08 × 3 + GAP-05 × 2 (5 of 8)** is rounds 1 and 2's dominant cluster for the third time, but the
+sub-shape has shifted and is worth naming separately: in rounds 1 and 2 the element had **no** fixture;
+here three elements have a fixture that **cannot fail** for the thing it is named after. That is strictly
+worse, because it reads as covered in `G-01` *and* in the file. The distinguishing test is not "is there a
+fixture per element" but "does an input exist that separates the arms, and does the fixture use it" — and
+for `MIN002` that input is derivable from `D-8` form 2's own definition.
+
+Single change preventing the most findings: for each predicate a `P5` block defines, record the input that
+separates its arms and require the fixture to use it — this alone covers MIN002, MIN003 and SUG002. Single
+change with the highest severity yield: when a fix answers a review finding, enumerate the input classes
+the finding's own text names and require one fixture per class — `A-11` named the metadata case in prose
+and shipped it untested.
+
+### Recommended durable fixes
+
+Surfaced, not applied — these route to `/session-reflect`'s `plan-rule` bucket and are the user's call.
+
+- `<GAP-08 × 3>` → a `P8` semantics line in `work-plan.md`, one level deeper than round 1's enumerated-set
+  rule (which is now codified and was satisfied here): a fixture for a named element must use an input on
+  which the element's **decision boundary** actually turns, and the plan should record that input beside
+  the decision. Worked example: `D-8` form 2 is "explicit argument, else `ExtensionAttribute` ctor
+  default", so the only discriminating input is an `ExtensionAttribute`-derived attribute with an explicit
+  `ServerSideOnly = false` — and the fixture named for that case used `Sql.Function`, which is not one.
+  The cheap enforcement is the mutation check this round used on all three: break the product, watch only
+  the intended fixture go red.
+- `<GAP-02 × 2>` → `work-plan.md`'s `P11` semantics, promoting round 2's recommendation from prose to a
+  requirement, because it was recorded and then not applied by the very next amendment: an amendment that
+  answers a review finding must list the **input classes the finding's text names** and carry a `TO-n` per
+  class. `A-11` wrote "an interface member declared in metadata yields no location and the fix declines"
+  and shipped no fixture for it; the sentence was the specification and nothing checked it.
+- `<GAP-03 × 1>` → the scout brief plus `authoring-analyzers.md`: a failure-mode line that makes a
+  **checkable claim about the language or a framework** is a `P4` row, not prose — `AttributeTargets` and
+  attribute-target defaults are one compile away. And a `P7` registration-surface row must list the wiki
+  pages by path, since a repo-wide grep structurally cannot reach them; this is round 1's GAP-01
+  recommendation, still unapplied, and it let a false claim ship to a user-facing page.
+
+### Continuity
+
+**Round 2's MAJ recommendation went unapplied and produced two same-shape defects — the strongest possible
+form of the recurrence.** Round 1's `SUG001` was fixed for one remedy branch; round 2's MAJ001 was that
+unswept sibling; round 3's MAJ001 and MIN006 are both inside round 2's *fix* for it. Three consecutive
+rounds, one relationship (the implemented-interface walk), each round fixing the instance in front of it
+without sweeping the admitted element. Round 2 wrote the correct prescription verbatim; `A-11` was
+authored without it.
+
+**The enumerated-set cluster recurs a third time, mutated into a harder-to-see form.** Rounds 1 and 2:
+named element, no fixture. Round 3: named element, fixture present, fixture cannot fail. Round 2's
+`work-plan.md` rule ("expand an obligation that names a set to one named fixture per element") is
+*satisfied* by all three of this round's cases, which is why it did not help — the gap moved from
+existence to discriminating power. Per round 2's own lesson, the destination file was grepped before
+concluding this: the rule is there and it is not the missing one.
+
+**`G-01`'s run-total recording is now unremedied across three rounds** and has masked a coverage gap in
+every one. It remains the single cheapest change available to this plan.
+
+**One round-2 recommendation *was* applied and did work.** Re-walking an existing plan's `P8`/`P4` against
+rules added since is what surfaced `MIN003` — `D-4` had no `TO-n` at all, which the re-walk makes visible
+and a diff-driven review does not.
