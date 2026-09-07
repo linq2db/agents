@@ -43,6 +43,16 @@ dotnet_analyzer_diagnostic.category-LinqToDB.severity = warning
 
 Category severity is orthogonal to the all-or-nothing `EnableLinqToDBAnalyzers` MSBuild property (see *Registration* below): the property turns the package's analyzers off entirely, the category sets the severity of what remains.
 
+## A rule's user-facing text is one artifact — edit any field, re-derive the rest
+
+`title`, `messageFormat`, `description`, and every reason string the message interpolates are four statements of the same claim, written at different times and read in different places: the message in the build log, the description in the IDE tooltip and the rule's docs. Nothing links them, so a correction lands on the field whose wording prompted it and the others keep asserting the retired version — and the `description` is the worst place for that, because it is what a maintainer reads when the diagnostic has just broken their Release build.
+
+The correction is mechanical: after editing any of the four, re-derive the others against the **report-shape matrix** the design chose. For a rule that reports a constant sub-expression that matrix is operator × polarity — `&&` and `||` crossed with always-true and never-true — and a claim about the *surrounding* code is exactly what fails to hold across it: a clause that can never be true makes the enclosing statement dead under `&&` and merely redundant under `||`, where the body still runs through the other disjuncts. State the constant and leave the remedy to the reader, or qualify the claim by operator.
+
+Two tells that the sweep was skipped. A doc comment that *quotes* the message is stale the moment the message changes and no build catches it. And a descriptor whose `description` names only one of the reasons the rule's own explainer can produce is describing whichever reason the author happened to be looking at — check it against the census, which is the only thing that knows which reason actually fires.
+
+(Surfaced across four review rounds on [#5877](https://github.com/linq2db/linq2db/pull/5877), which is the same defect six times inside ~25 lines. Round 1 removed a "the code it guards is unreachable" clause from `messageFormat` and *deliberately* left it in `description`, reasoning that the description "is not tied to a syntactic position" — the premise rounds 3 and 4 both refuted. Round 3 rewrote both `messageFormat`s for the operator/polarity matrix and touched neither `description`. Round 4 found both descriptions plus a `ClimbNegations` doc comment still quoting the text verbatim, and separately found the always-true description naming only the whole-domain reason — which that PR's own census measured firing **zero** times against the path-shadowing reason's 22.)
+
 ## Roslyn 4.8 gotchas
 
 The bundled `System.Collections.Immutable` predates `CollectionBuilder`, so `ImmutableArray<T>` **collection expressions (`[x]`) don't compile** — use `ImmutableArray.Create(...)`. `System.Index`/`Range` aren't polyfilled (minimal list) — avoid `[^1]`, use an explicit index. Meziantou runs in Release (inherited via root props), so analyzer/code-fix code must be MA-clean (`string.Equals(…, Ordinal)` not `==`/`!=`, `.ToString(CultureInfo.InvariantCulture)` for int→string, no chained `.Where`).
