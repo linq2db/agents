@@ -271,6 +271,32 @@ The failure mode is concrete: a #5364 connection-leak repro was asserted red, an
 "red baseline" was about a test that was green. This is the red-side complement of the
 [`AGENTS.md`](../AGENTS.md) rule *never claim a fix works on reasoning alone*.
 
+## A mutation used to prove a red arm has to satisfy the analyzers too
+
+Injecting a defect to show a test can fail is only evidence if the mutated tree **builds**. In this repo
+`dotnet_analyzer_diagnostic.severity = error` applies to `Source/` and `Tests/` alike, so the natural
+mutations trip a rule rather than a test: collapsing a conditional to a constant hits
+[`MA0140`](https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/MA0140.md) (*both if and
+else branch have identical code*), deleting a call leaves its helper or its `const` unused, and dropping a
+parameter's only use can trip an unused-parameter rule. The result is a **non-zero exit with zero tests
+run**, which is indistinguishable at a glance from the red you were trying to produce — the same
+wrong-reason failure as a control that exits non-zero because it could not find its inputs.
+
+Prefer a mutation that changes a **value, not a shape**, so every symbol stays used and no branch becomes
+redundant:
+
+- point a metadata-name constant at a type that cannot resolve (`"System.Half"` → `"System.HalfMutated"`);
+- swap one ratio constant for a neighbour (`TicksPerDay` → `TicksPerHour`);
+- invert a bail (`if (offset < 0)` → `if (offset >= 0)`);
+- turn a guard's `return false` fall-through into `continue`, which removes the refusal while leaving every
+  admitted case intact;
+- narrow a pattern rather than deleting it (`is IPropertySymbol p` → `is IPropertySymbol { IsStatic: true } p`)
+  when the mutation must keep using the matched variable.
+
+Read **which** failure you got — the predicted test name, not merely a non-zero exit — before recording the
+arm. On #5873 an `MA0140` build error was one glance away from being logged as the red arm it was meant to
+produce.
+
 ## Confirm a conclusion against the primary artifact, not a tool's self-report
 
 When a conclusion rests on something a tool *reports about itself* — a progress line, a status field, a
