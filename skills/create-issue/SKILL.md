@@ -33,7 +33,7 @@ Only when the user explicitly asks to create / file / open an issue, task, bug, 
 
 Follow the search discipline in [`.claude/docs/issue-search.md`](../../docs/issue-search.md) in **topic mode** — extract distinctive terms, run parallel searches, rank, present.
 
-**Search with `gh issue list --repo linq2db/linq2db --search "<terms>" --state all`, never `gh search issues`.** The standalone `gh search issues` form returns `[]` against this repo even when matching issues exist, and rejects `--state all` outright — so an empty result is *no signal*, never an all-clear, and acting on one produces a confident false negative. When the free-text passes come back thin, enumerate by label instead: `gh issue list --repo linq2db/linq2db --state all --label "<area label>" --limit 30`. The full rationale is in the linked doc; the command shape is inlined here because reaching for `gh search issues` at this step has now happened three times (filing #5790, #5794, and again on #5788 / #5806) — the rule kept being missed while it lived one hop away. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
+**Search with `gh issue list --repo linq2db/linq2db --search "<terms>" --state all`, never `gh search issues`.** The standalone `gh search issues` form returns `[]` against this repo even when matching issues exist, and rejects `--state all` outright — so an empty result is *no signal*, never an all-clear, and acting on one produces a confident false negative. When the free-text passes come back thin, enumerate by label instead: `gh issue list --repo linq2db/linq2db --state all --label "<area label>" --limit 30`. **Take the label name from `gh label list` (step 5), not from this file** — an unknown label name makes that command exit 0 with no rows, which is the same false all-clear as `gh search issues`, and labels get renamed. The full rationale is in the linked doc; the command shape is inlined here because reaching for `gh search issues` at this step has now happened three times (filing #5790, #5794, and again on #5788 / #5806) — the rule kept being missed while it lived one hop away. Instead of the full interactive flow `/find-issues` offers, stop after presenting the ranked candidate list and ask the user one of:
 
 - **continue** — no duplicate, proceed to step 3
 - **reference #N** — existing issue is related, reference it in the new body's "Notes" section but still file
@@ -127,7 +127,7 @@ Note both `provider: mssql` and `provider: sqlserver` exist — prefer `mssql` u
 | `Source/LinqToDB.LINQPad` | `area: linqpad` |
 | `Source/LinqToDB.FSharp*` | `area: fsharp` |
 | `Source/LinqToDB.Remote*` | `area: remote-context` |
-| `Tests/` | `area:tests` *(note: no space after colon — existing label quirk)* |
+| `Tests/` | `area: tests` |
 
 **Category C — Code area within `Source/LinqToDB`**. Prefix `area:`:
 
