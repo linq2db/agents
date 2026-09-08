@@ -46,6 +46,23 @@ If the PR already has a release-notes draft comment (the marker `<!-- release-no
 
 Fold this into the push bundle alongside the PR-body check, Copilot re-request, and baselines cleanup.
 
+### A sync push dismisses the approval it needs — batch merges need `--admin`
+
+`master`'s protection sets `strict: true` (the branch must be up to date before merging) **and**
+`dismiss_stale_reviews: true`, and for any multi-PR merge those two cancel each other out: bringing a PR
+up to date pushes a merge commit, and that push dismisses the `APPROVED` review which was the other half
+of the gate. There is no ordering that satisfies both — sync first and the approval dies, merge first and
+`strict` refuses. So every PR in a batch goes through `gh pr merge <n> --squash --admin`
+(`enforce_admins: false`, so an admin can bypass), and that authorization should be requested **once, up
+front, for the whole batch** rather than per PR.
+
+Check the shape before planning the run: `gh api repos/linq2db/linq2db/branches/master/protection --jq
+'{strict: .required_status_checks.strict, checks: [.required_status_checks.checks[]?.context],
+enforce_admins: .enforce_admins.enabled, reviews: .required_pull_request_reviews}'`. That this is the
+house style rather than an exception is visible in history — #5880 merged with zero reviews, #5833 with
+only a `DISMISSED` one. (Surfaced merging all seven 6.5.0 PRs: three were `APPROVED` and would each have
+lost it on sync; the other four had no review at all.)
+
 ### Stale CHANGES_REQUESTED reviews after follow-up commits
 
 Despite branch protection's `dismiss_stale_reviews: true`, GitHub's auto-dismissal sometimes lags or doesn't fire on rebase-merges from a different actor. After pushing follow-up commits to address a `CHANGES_REQUESTED` review, check `gh pr view <n> --json reviewDecision`. If it still shows `CHANGES_REQUESTED`, the stale review must be dismissed manually before `gh pr merge --admin` will succeed (without it, the merge fails with `Repository rule violations found / 1 review requesting changes by reviewers with write access`).
@@ -151,8 +168,11 @@ Cheaper than reordering the work, and it keeps each commit's diff reviewable on 
 
 ### Merging master into a feature PR — recurring conflict recipes
 
-When syncing `origin/master` into a long-lived feature PR, three collisions recur:
+When syncing `origin/master` into a long-lived feature PR — or when merging a batch of sibling PRs one
+after another so each inherits the previous ones — these collisions recur:
 
+- **A file both sides touched can auto-merge cleanly and still not compile — compute that set and build before pushing.** The `SqlProviderFlags` ordinal case below is one instance of a general hazard: git merges by hunk, so two *disjoint* refactors of the same type splice together with no conflict and no marker. Enumerate the at-risk set before pushing — `git diff --name-only $(git merge-base HEAD origin/master) origin/master` intersected with the same against `HEAD` — and build the projects it names. When the intersection is only the files that already conflicted, there is nothing left to check; anything beyond them is a silent-splice candidate. (Surfaced merging the 6.5.0 milestone: on #5873 `Tests/Tests.Analyzers/AnalyzerVerifier.cs` took master's `editorConfig` injection *and* the branch's extracted `RunAsync(source, withLinqToDB, referenceAssemblies, expected)` — the parameter was used at the call site but never threaded through the signature, so `CS0103` reddened both `Build and pack` and `Analyzer tests` for a full CI round. On #5877 the same intersection returned only the one conflicted file, and that push was green first try.)
+- **Sibling analyzer PRs collide on every additive rule registry — resolve in rule-id order.** Two PRs each adding a diagnostic conflict on `Source/LinqToDB.Analyzers/AnalyzerReleases.Unshipped.md` (shipped `L2DB1xxx`) or `Source/CodeGenerators/AnalyzerReleases.Unshipped.md` (repo-internal `LINQ2DB0xxx`), *plus* the rule table in `Source/LinqToDB/readme.md` and both the table and the per-rule prose section in `Source/LinqToDB.Analyzers.CodeFixes/readme.md`. All four are pure both-sides appends: keep both sides, ordered by rule id, and confirm the ids themselves don't collide — they normally don't, because each PR reserves its own block. (Surfaced merging the 6.5.0 milestone: #5870's `L2DB1003`/`L2DB1004` + `LINQ2DB0002`/`0003` collided with #5873's `L2DB1002` across three files, then with #5877's `LINQ2DB0004`–`0006` across one.)
 - **`LinqOptions` (positional record) params: update all five sites.** A master-vs-PR collision on its parameter list (both sides add options before the trailing param) recurs on most option-adding PRs. Keeping *all* new params means updating, consistently: (1) the **primary constructor** param list, (2) the **copy constructor** assignments, (3) the **`ConfigurationID`** hash `.Add(...)` calls, (4) **`PublicAPI.Unshipped.txt`** (the full ctor signature *and* the `Deconstruct` signature, in source param order), and (5) the **binary-compat shim** — the `Deconstruct` shim's trailing `out _` discard count must equal the number of params added after the shim's last named one. A Release `net10.0` build of `Source/LinqToDB/LinqToDB.csproj` validates both the ctor/Deconstruct arity and the RS0016 PublicAPI match. (Surfaced on PR #5450: master added `PreferClientCalculation`, the PR added `DefaultEagerLoadingStrategy` + `ImplicitCollectionLoading`.)
 - **A merge that inserts a parameter *ahead* of an existing optional one breaks positional callers silently — convert them to named arguments.** When resolving a method-signature conflict by keeping params from both sides (e.g. the PR's pre-build `adjustArguments` hook *and* master's post-build `transform` hook on `TranslateWindowFunction`), an auto-merged caller that passed a *later* argument **positionally** now binds it to the wrong slot. A Release build catches it only when the types differ; a same-type mis-bind compiles and runs wrong. After such a merge, audit every caller of the widened method and switch later positional args to **named** (`transform: f => …`). (Surfaced syncing PR #5468: master's `TranslateRowNumber` passed its ROW_NUMBER-cast lambda positionally, which would have bound to `adjustArguments` after the merge added it ahead of `transform`.)
 - **Merging an end-appended serialized enum keeps the master side's members first.** Enums whose ordinals are serialized over the LinqService wire (`QueryElementType`, etc.) get new members appended at the end on both sides. When master and a feature branch both append, order the resolution as *master's members first, then the branch's* — never interleave — so master's already-shipped ordinals don't shift. (Surfaced syncing PR #5468: master's `SqlCteField`/`SqlCteTableField` placed before the PR's `SqlKeepClause`.)
