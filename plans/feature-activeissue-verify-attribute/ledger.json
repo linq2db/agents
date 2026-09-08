@@ -1,0 +1,1207 @@
+{
+  "_schema": {
+    "key": "<repo-relative file>::<test method>, which survives the line moves a file:line key would not",
+    "fields": {
+      "issue": "resolved reference, or null when none exists",
+      "attributionSource": "int | external-url | linq2db-url | details-url | test-description | name | search | none",
+      "providers": "provider set the gate names, as written",
+      "observed": "what the sweep actually saw, per case",
+      "verdict": "matches | test-defect | wrong-issue | no-issue | limitation | environment | flaky | bad-test-data | needs-investigation | remove",
+      "quote": "the sentence from the issue or the code that carries the verdict",
+      "sweptOn": "how the evidence was obtained"
+    }
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::Issue3766Test2": {
+    "issue": 3766,
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllSQLiteClassic",
+    "observed": "inline:false fails 'Assert.That(cnt, Is.EqualTo(1)) Expected: 1 But was: 0' on SQLite.Classic/.MPM/.MPU and their LinqService variants; inline:true PASSES on all six",
+    "verdict": "matches",
+    "quote": "#3766: 'Using a DateTimeoffset as a primary key behaves unpredictable when using SQLite.Classic. When using the MS implementation this is not a problem.' - V4 holds: the gate names AllSQLiteClassic while the test runs on AllSQLite.",
+    "note": "V1 matches on the defect, not the message: the issue reports UNIQUE-constraint failure from InsertOrReplace, this test does Insert+Update and asserts one row affected. Same root cause - the key value not round-tripping. Split under D-17 because only the non-inlined half fails.",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/Linq/Linq/FullTextTests.SQLite.cs::Fts3SegDirTableQuery": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSQLiteClassic",
+    "observed": "LinqToDB.Common.LinqToDBConvertException : Mapping of column 'end_block' value failed ... ----> System.InvalidCastException, uniformly on SQLite.Classic/.MPM/.MPU",
+    "verdict": "limitation",
+    "quote": "gate: 'Make hybrid fields work for classic provider too'; the column comment says end_block 'may contain either an integer or a text field consisting of two integers separated by a space character'",
+    "note": "Unimplemented capability, not a defect - queued for the per-case limitation batch (A-12). Migrated with the observed declaration and a no-issue: marker meanwhile, which is reversible if the batch routes it to Throws*/exclusion.",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/Linq/Linq/ConvertExpressionTests.cs::LetTest1": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllDuckDB",
+    "observed": "PASSES on DuckDB and DuckDB.LinqService",
+    "verdict": "remove",
+    "quote": "gate: 'Looks like bug a in DuckDB 1.5, works with 1.5.1 in DBeaver'",
+    "note": "A-2 corroboration is upstream rather than a linq2db commit: the gate was written in 3537e02c6 (#5451, the DuckDB provider PR) and Directory.Packages.props:172 now pins DuckDB.NET.Data.Full 1.5.5, bumped from 1.5.2 in f51f065ea (#5741). The gate's own prose names 1.5.1 as fixed, so shipping 1.5.5 is the fix. Gate removed.",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/Linq/Linq/StringFunctionTests.cs::ExplicitOrdinal_Contains": {
+    "issue": 3444,
+    "attributionSource": "int",
+    "providers": "ProviderName.SqlCe",
+    "observed": "Shouldly.ShouldAssertException : db.GetTable<CollatedTable>().Count(r => r.CaseSensitive.Contains(\"stst\", StringComparison.Ordinal)) should be 0 but was 1, on SqlCe and SqlCe.LinqService",
+    "verdict": "matches",
+    "quote": "#3444 'Case-sensitive search doesn't work for SQL CE' names the failing tests outright: 'Failing tests: Explicit_Contains and ExplicitOrdinal_Contains'",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/Linq/Linq/StringFunctionTests.cs::Explicit_Contains": {
+    "issue": 3444,
+    "attributionSource": "int",
+    "providers": "ProviderName.SqlCe",
+    "observed": "Shouldly.ShouldAssertException : db.Patient.Count(r => r.Diagnosis.Contains(\"paranoid\", StringComparison.Ordinal)) should be 0 but was 1, on SqlCe and SqlCe.LinqService",
+    "verdict": "matches",
+    "quote": "#3444 names this test by name; the SQL shows why - CHARINDEX over a VARBINARY cast, which is the case-sensitivity emulation the issue is about",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/Linq/OrmBattle/OrmBattleTests.cs::OrderByDistinctTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSQLiteNorthwind",
+    "observed": "Assert.That(expected.SequenceEqual(result), Is.True) Expected: True But was: False, on Northwind.SQLite and Northwind.SQLite.MS; emitted SQL is SELECT DISTINCT [c_1].[City] FROM [Customers] ORDER BY [c_1].[City]",
+    "verdict": "test-defect",
+    "quote": "gate: 'Bad database data' - refuted at OrmBattleTests.cs:57",
+    "note": "The gate's claim is false. `Customers ??= db.Customer.ToList()` (OrmBattleTests.cs:57) loads the in-memory reference from the very database the test compares against, so the two sides hold identical data by construction and no dataset difference is possible. What differs is ordering: `result` is ordered by SQLite's `ORDER BY City` under BINARY collation, `expected` by .NET's culture-aware string comparison, and the test asserts SequenceEqual across the two. Addressing it means fixing the comparison (ordinal comparer, or ordering both sides in the CLR), not the data - which is a change to an OrmBattle benchmark test's semantics and therefore the user's call.",
+    "sweptOn": "2026-09-08 local, net10.0"
+  },
+  "Tests/EntityFrameworkCore/Tests/CustomContextIssueTests.cs::Issue4669QueryFilterTest": {
+    "issue": "4669",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.Diagnostics.UnreachableException",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/FSharpTests.cs::Issue4646TestLinqToDB": {
+    "issue": "4646",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": null,
+    "sweptOn": null,
+    "family": null,
+    "quote": "issue 4646 'F# int option type with None value is stored as 0' (CLOSED)",
+    "note": "E-36. Dead behind #if EF8, which is defined only in Source/LinqToDB.EntityFrameworkCore.EF8.csproj and does not cross a ProjectReference, so the gate compiles into no assembly and has never been observed running. Carries E-35's 'no-declaration: unvalidated:' marker at the site rather than a harvested failure.",
+    "verdict": "needs-investigation"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4603Test": {
+    "issue": "4603",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "System.InvalidOperationException : Unexpected expression type",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue3174Test": {
+    "issue": "3174",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 42703: column p.IsDeleted does not exist",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4012Test": {
+    "issue": "4012",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "Assert.That(p.Children, Is.Not.Null)",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4333Test": {
+    "issue": "4333",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 23502: null value in column \\\"Id\\\" of relation \\\"Identities\\\" violates not-null constraint",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4627Test": {
+    "issue": "4627",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "LinqToDB.LinqToDBException : Association key 'Issue4627ContainerId' not found for type",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4628Test": {
+    "issue": "4628",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "LinqToDB.LinqToDBException : Inheritance Discriminator is not defined for the",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4640Test": {
+    "issue": "4640",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "Assert.That(record.Items[1].Name, Is.EqualTo(\\\"record 3\\\"))",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4641Test": {
+    "issue": "4641",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "Npgsql.PostgresException : 23505: duplicate key value violates unique constraint \\\"PK_Issue4641Table\\\"",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4644Test": {
+    "issue": "4644",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "LinqToDB.LinqToDBException : Inheritance Discriminator is not defined for the",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4649Test": {
+    "issue": "4649",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "Assert.That(readByLinqToDB[0].Name, Is.EqualTo(\\\"new name\\\"))",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4653Test": {
+    "issue": "4653",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.InvalidOperationException : The transaction associated with this command is not the connection's active transaction",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4663Test": {
+    "issue": "4663",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 42601: syntax error at or near \\\")\\\"",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4666Test": {
+    "issue": "4666",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "System.InvalidOperationException : Member 'System.String Type1EntityProp' not found in type",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4671Test1": {
+    "issue": "4671",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 23502: null value in column \\\"Id\\\" of relation \\\"Issue4671Entity1\\\" violates not-null constraint",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::Issue4671Test2": {
+    "issue": "4671",
+    "attributionSource": "int",
+    "providers": "(all)",
+    "observed": "System.InvalidOperationException : Sequence contains no matching",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/IssueTests.cs::TempTableSurvivesAcrossCommands": {
+    "issue": "4333",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 23502: null value in column \\\"Id\\\" of relation \\\"Identities\\\" violates not-null constraint",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestNamedQueryFilter_AppliesAll": {
+    "issue": "4669",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.Diagnostics.UnreachableException",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_ByKey": {
+    "issue": "4669",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.Diagnostics.UnreachableException",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_All_StillWorks": {
+    "issue": "4669",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.Diagnostics.UnreachableException",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_Empty_IsNoOp": {
+    "issue": "4669",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMySql",
+    "observed": "System.Diagnostics.UnreachableException",
+    "verdict": "see _families.ef-pilot-phase2",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ef-pilot-phase2"
+  },
+  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestDeleteFrom": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllMariaDB",
+    "observed": "You have an error in your SQL syntax",
+    "sweptOn": null,
+    "family": null,
+    "quote": "gate Details: 'no-issue: DELETE with limit not implemented'",
+    "note": "Four attributes on one method, one per provider family, because the same refusal surfaces as four different messages. The MySQL family deliberately declares no ErrorTypeName: the exception is MySqlConnector.MySqlException on net8.0+ and MySql.Data.MySqlClient.MySqlException on net462, so only the message is stable.",
+    "verdict": "no-issue"
+  },
+  "Tests/Linq/DataProvider/Types/ClickHouseTypeTests.cs::TestDateTime64Type": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(record.Column, Is.EqualTo(",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/DataProvider/Types/ClickHouseTypeTests.cs::TestJSONType": {
+    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseOctonica",
+    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
+    "verdict": "see _families.octonica-connection-closed",
+    "quote": null,
+    "sweptOn": null,
+    "family": "octonica-connection-closed"
+  },
+  "Tests/Linq/Linq/AllAnyTests.cs::TestIssue4261": {
+    "issue": "4261",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllAccess",
+    "observed": "Query input must contain at least one table or query.",
+    "sweptOn": "2026-09-08 local, net10.0",
+    "note": "Access renders the enumerable subquery as a SELECT with no FROM, which its engine rejects outright: 'Query input must contain at least one table or query.' Measured on Access.Ace.Odbc and Access.Ace.OleDb, direct and remote - identical message, different exception type, so the declaration is the message alone. Jet halves not runnable on this host (no Jet ODBC DSN; Jet OLEDB 4.0 is 32-bit only), reasoned from the same engine-level parse error.",
+    "verdict": "limitation",
+    "quote": "issue 4261 'ArrayProp.Any() throws error, [localArray].Any() does not' - fixed generally; Access is the residue"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::ConcatInAny": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllAccess",
+    "observed": "This operation is not allowed in subqueries.",
+    "sweptOn": "2026-09-08 local, net10.0",
+    "note": "Searched the tracker for an Access UNION/subquery entry - none exists, so the gate carries E-35's no-issue: marker. Measured on Access.Ace.Odbc and Access.Ace.OleDb, direct and remote: 'This operation is not allowed in subqueries.' in both, different exception type. Jet halves reasoned, not measured.",
+    "verdict": "no-issue",
+    "quote": "gate: 'UNION in subquery not supported by Access. We should transform it if we want to support such cases'"
+  },
+  "Tests/Linq/Linq/ConcurrencyTests.cs::TestGuidBinary": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(data[0].Stamp, Is.EqualTo(record.Stamp))",
+    "sweptOn": "2026-09-08 local, net10.0",
+    "note": "Same root as ch-mysql-datetime64 but asserted on a concurrency stamp rather than a value comparison, so it carries its own message fragment.",
+    "verdict": "limitation",
+    "quote": "gate: ClickHouse.MySql interface loses sub-second precision on the round trip"
+  },
+  "Tests/Linq/Linq/ContainsTests.cs::AllNullsLikeSql": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
+    "attributionSource": "none",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "verdict": "see _families.ch-null-in-list-38439",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-null-in-list-38439"
+  },
+  "Tests/Linq/Linq/ContainsTests.cs::AllNullsEnumLikeSql": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
+    "attributionSource": "none",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "verdict": "see _families.ch-null-in-list-38439",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-null-in-list-38439"
+  },
+  "Tests/Linq/Linq/ContainsTests.cs::AllNullsCEnumLikeSql": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
+    "attributionSource": "none",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "verdict": "see _families.ch-null-in-list-38439",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-null-in-list-38439"
+  },
+  "Tests/Linq/Linq/ConvertTests.cs::ToDefaultDecimal": {
+    "issue": "5592",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "System.OverflowException : Value does not fit into decimal",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/ConvertTests.cs::ToDecimal1": {
+    "issue": "5592",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "System.OverflowException : Value does not fit into decimal",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/CountTests.cs::SubQueryMax1": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression could not be converted to SQL.",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/CountTests.cs::SubQueryMax1Async": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression could not be converted to SQL.",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/CountTests.cs::SubQueryMax2": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression could not be converted to SQL.",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/CteTests.cs::WithLimitedOrderBy": {
+    "issue": "5596",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Assert.That(b, Is.True)",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue4012Test": {
+    "issue": "4012",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "DB::Exception: Unknown table expression identifier",
+    "sweptOn": "2026-09-08 local, net10.0",
+    "note": null,
+    "verdict": "matches",
+    "quote": "issue 4012 'Unknown table expression identifier' - the observed DB::Exception is that text verbatim"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByLocalDateTimeTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddDaysTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddHoursTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddMillisecondsTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddMinutesTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddMonthsTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddSecondsTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::GroupByDateTimeOffsetByAddYearsTest": {
+    "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/55310\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseMySql",
+    "observed": "Assert.That(actual, Is.EqualTo(expected))",
+    "verdict": "see _families.ch-mysql-datetime64",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-mysql-datetime64"
+  },
+  "Tests/Linq/Linq/EagerLoadingTests.cs::TestJoin": {
+    "issue": "3619",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "Expected Was",
+    "verdict": "see _families.ch-eager-load-3619",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-eager-load-3619"
+  },
+  "Tests/Linq/Linq/EagerLoadingTests.cs::TestGroupJoin": {
+    "issue": "3619",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllClickHouse",
+    "observed": "Expected Was",
+    "verdict": "see _families.ch-eager-load-3619",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ch-eager-load-3619"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ComparisonAgainstAValueUsesTheDeclaredUnit": {
+    "issue": "5748",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllAccessOdbc",
+    "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+    "verdict": "see _families.access-odbc-long-parameter",
+    "quote": null,
+    "sweptOn": null,
+    "family": "access-odbc-long-parameter"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ComparisonAgainstAnOptionalValueUsesTheDeclaredUnit": {
+    "issue": "5748",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllAccessOdbc",
+    "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+    "verdict": "see _families.access-odbc-long-parameter",
+    "quote": null,
+    "sweptOn": null,
+    "family": "access-odbc-long-parameter"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ComparingAnAbsentDurationMatchesClr": {
+    "issue": "5748",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllAccessOdbc",
+    "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+    "verdict": "see _families.access-odbc-long-parameter",
+    "quote": null,
+    "sweptOn": null,
+    "family": "access-odbc-long-parameter"
+  },
+  "Tests/Linq/Linq/JoinTests.cs::NullableCoalesceJoinTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/SqlRowTests.cs::MixedTypes": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression could not be converted to SQL.",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryOptionTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryOptionAsyncTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryFlagTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryMethodTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryMethodTest2": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::IsTemporaryMethodTest3": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::TableOptionsMethodTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TableOptionsTests.cs::FluentMappingTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Linq/TakeSkipTests.cs::TakeSkipJoin": {
+    "issue": "\"https://github.com/ydb-platform/ydb/issues/46197\"",
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : dq_opt_phy_finalizing.cpp",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Update/CreateTableTests.cs::CreateLocalTempTable1Async": {
+    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseOctonica",
+    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
+    "verdict": "see _families.octonica-connection-closed",
+    "quote": null,
+    "sweptOn": null,
+    "family": "octonica-connection-closed"
+  },
+  "Tests/Linq/Update/CreateTableTests.cs::CreateLocalTempTable2Async": {
+    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseOctonica",
+    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
+    "verdict": "see _families.octonica-connection-closed",
+    "quote": null,
+    "sweptOn": null,
+    "family": "octonica-connection-closed"
+  },
+  "Tests/Linq/Update/CreateTableTests.cs::CreateTableWithEnum": {
+    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
+    "attributionSource": "none",
+    "providers": "ProviderName.ClickHouseOctonica",
+    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
+    "verdict": "see _families.octonica-connection-closed",
+    "quote": null,
+    "sweptOn": null,
+    "family": "octonica-connection-closed"
+  },
+  "Tests/Linq/Update/CreateTableTests.cs::Issue4671Test": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTableAsyncCanceled2": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTable_NoDisposeError": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTable_NoDisposeErrorAsync": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTempTableWithPrimaryKey": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::InsertIntoTempTableWithPrimaryKey": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTableEnumerableWithNameAndDescriptionAsyncTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Creating temporary table is not supported.",
+    "verdict": "see _families.ydb-temp-tables",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-temp-tables"
+  },
+  "Tests/Linq/Update/DeleteTests.cs::DeleteMany2": {
+    "issue": "5597",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Conflict with existing key.",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Update/InsertTests.cs::Insert16": {
+    "issue": "5595",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Failed to convert type: Struct<'FirstName'",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Update/UpdateTests.cs::Update14": {
+    "issue": "5595",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Can't set NULL or optional value to not null column",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Update/UpdateTests.cs::UpdateWithTypeConversion": {
+    "issue": "5591",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Failed to convert type: Struct<'MoneyValue'",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "Tests/Linq/Update/UpdateWithOutputTests.cs::Issue3697Test": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : into_values_source: alternative is not implemented yet",
+    "sweptOn": "2026-09-08 local, net10.0",
+    "note": "YDB has not implemented the INSERT ... VALUES source the update-output shape needs. No linq2db issue; the refusal is the server's own.",
+    "verdict": "limitation",
+    "quote": "server: 'into_values_source: alternative is not implemented yet'"
+  },
+  "Tests/Linq/UserTests/Issue693Tests.cs::Issue693Test": {
+    "issue": "5594",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "System.InvalidOperationException : Writing value of 'null' is not supported without explicit mapping to the YdbDbType",
+    "verdict": "see _families.ydb-attributable",
+    "quote": null,
+    "sweptOn": null,
+    "family": "ydb-attributable"
+  },
+  "_families": {
+    "ydb-temp-tables": {
+      "issue": null,
+      "verdict": "limitation",
+      "observed": "Ydb.Sdk.Ado.YdbException : Status: GenericError, Issues: [1020] Error: Pre type annotation [0] (6:15) Error: Creating temporary table is not supported.",
+      "quote": "the server's own words match the gates' prose exactly: 'Creating temporary table is not supported.'",
+      "note": "No linq2db issue exists (searched 'YDB temporary table'); YDB itself does not implement it. Accepted as a declared limitation by the user 2026-09-08. CreateTableTests.cs::Issue4671Test is in this family despite its [Test(Description=.../4671)] - it fails on the temp-table refusal before reaching #4671's subject, so the description-derived attribution would have been wrong (U-22).",
+      "sweptOn": "2026-09-08 local, net10.0, force-fail cohort run"
+    },
+    "ydb-attributable": {
+      "verdict": "matches",
+      "quote": "each cited issue's title describes the observed failure: 5592 \"UnpackDecimal throws OverflowException\" vs observed OverflowException; 5594 \"a null parameter requires an explicit type\" vs \"Writing value of null is not supported\"; 5595 \"inferred nullable ... rejects into a non-null column\" vs \"Can't set NULL or optional value to not null column\"; 5590 \"generic could not be converted to SQL\" vs LinqToDBException of that text.",
+      "note": "Verified after annotation: 154 cases, 0 failed, every governed case Inconclusive.",
+      "sweptOn": "2026-09-08 local, net10.0, force-fail cohort run"
+    },
+    "access-odbc-long-parameter": {
+      "issue": "5748",
+      "verdict": "limitation",
+      "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+      "quote": "gate Details: 'The ODBC provider maps a 64-bit integer parameter to a 32-bit one and narrows it with a checked cast'",
+      "note": "System.Data.Odbc narrows an Int64 parameter to Int32 with a checked cast, so a bound reaching a ticks-unit column as a parameter throws while it is bound - int.MaxValue ticks is three and a half minutes. Driver-independent (it happens before the driver sees it), so the unmeasurable Jet.Odbc half is reasoned from the same mechanism; Access.Ace.Odbc measured direct and remote. Not an interval defect: a plain captured long against an int column throws identically. Two sibling gates in the same fixture were removed - they only bind seconds-unit values, see their own rows.",
+      "sweptOn": "2026-09-08 local, net10.0, Access.Ace.Odbc"
+    },
+    "ch-mysql-datetime64": {
+      "issue": "https://github.com/ClickHouse/ClickHouse/issues/55310",
+      "verdict": "limitation",
+      "observed": "Assert.That(actual, Is.EqualTo(expected)) - the value returns with sub-second precision lost",
+      "quote": "ClickHouse#55310: the MySQL wire protocol interface returns DateTime64 without its fractional part",
+      "note": "Upstream, in ClickHouse's MySQL-protocol interface rather than in any driver - so it is scoped to ProviderName.ClickHouseMySql only and the native and Octonica providers are unaffected.",
+      "sweptOn": "2026-09-08 local, net10.0, ClickHouse.MySql"
+    },
+    "octonica-connection-closed": {
+      "issue": "https://github.com/Octonica/ClickHouseClient/issues/58",
+      "verdict": "limitation",
+      "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
+      "quote": "Octonica/ClickHouseClient#58: 'The connection is closed.' exception on next command after failed command",
+      "note": "The driver does not recover its connection state after a command fails, so the *next* command reports a closed connection rather than the real error. The gated tests all issue a command that is expected to fail (a DROP of a table that is not there, a type the server rejects) and then continue on the same connection. Upstream and open; nothing on our side to fix. Local ClickHouse is a different build from CI's, and the user accepted that divergence: 'clickhouse could show different behavior on ci due to version diff, but this is fine'.",
+      "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica"
+    },
+    "ch-null-in-list-38439": {
+      "issue": "https://github.com/ClickHouse/ClickHouse/issues/38439",
+      "verdict": "limitation",
+      "observed": "Shouldly.ShouldAssertException : should be 0 but was 1 (matched with the {0}-placeholder form; Shouldly wraps it over four lines)",
+      "quote": "ClickHouse#38439: IN with a NULL in the list does not follow SQL three-valued logic",
+      "note": "Upstream and open. The three sites are per-value splits of one test each (D-17): the non-null values pass and only the all-null case fails, so the gate had to move onto its own thin proxy method rather than gate the whole matrix.",
+      "sweptOn": "2026-09-08 local, net10.0, ClickHouse (all three drivers)"
+    },
+    "ch-eager-load-3619": {
+      "issue": "3619",
+      "verdict": "matches",
+      "observed": "Expected Was (an AreEqual row-set mismatch)",
+      "quote": "issue 3619 tracks eager loading returning the wrong rows on ClickHouse",
+      "note": "The declaration is deliberately the two-word fragment: AreEqual's message is a multi-line table and only 'Expected' / 'Was' survive intact on every driver.",
+      "sweptOn": "2026-09-08 local, net10.0, ClickHouse (all three drivers)"
+    },
+    "ef-pilot-phase2": {
+      "verdict": "matches",
+      "observed": "per row - each declaration was harvested from a real EF run in phase 2",
+      "quote": "each cited issue's title describes the observed failure: 4627 \"Association key not found for type\" vs the exception's own words; 4641 \"Duplicate key violation since 5.3.0\" vs 23505 duplicate key; 4669 \"System.Diagnostics.UnreachableException\" vs that exact type; 3174 \"efcore shadow property with Temp table\" vs \"column p.IsDeleted does not exist\"; 4653 \"Using transaction with already assigned linq2db Queryable\" vs \"not the connection's active transaction\".",
+      "note": "The 24-gate phase-2 pilot, converted 1:1 from pre-existing [ActiveIssue] gates and green on the EF legs since. The D-16 V1 title check was run over the whole family on 2026-09-08 and every row's declared failure matches its issue's subject. One caveat worth carrying: #4603 is CLOSED while its gate still fails with 'Unexpected expression type', so either the closure was partial or the gate needs re-attributing - it is not a blocker for this branch and is left as recorded.",
+      "sweptOn": "2026-09-06 EF legs (declarations); 2026-09-08 issue-title check"
+    }
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::DeclaredDurationFollowsTheRequestForHowItTravels": {
+    "quote": "gate Details: \"the failure follows the value, not the shape of the query\"",
+    "verdict": "remove",
+    "issue": "5748",
+    "providers": "TestProvName.AllAccessOdbc",
+    "observed": "PASSES on Access.Ace.Odbc and Access.Ace.OleDb",
+    "attributionSource": "int",
+    "note": "Gate removed. Every bound this test sends as a parameter is compared against a seconds-unit column, so it is lowered to seconds and stays far below int.MaxValue; the one ticks-unit comparison uses Sql.Constant, which is written into the statement and never bound. Nothing here can overflow. The falsified sentence in the shared Details constant (\"every bound in these tests is far over the line\") was corrected in the same change.",
+    "sweptOn": "2026-09-08 local, net10.0, Access.Ace.Odbc + Access.Ace.OleDb"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::LocalCollectionDrivingAQueryPerValueKeepsEachValue": {
+    "quote": "gate Details: \"the failure follows the value, not the shape of the query\"",
+    "verdict": "remove",
+    "issue": "5748",
+    "providers": "TestProvName.AllAccessOdbc",
+    "observed": "PASSES on Access.Ace.Odbc and Access.Ace.OleDb, direct and remote",
+    "attributionSource": "int",
+    "note": "Gate removed. Only the seconds-unit column is compared, so each per-value parameter carries 900 or 2700 rather than a tick count.",
+    "sweptOn": "2026-09-08 local, net10.0, Access.Ace.Odbc + Access.Ace.OleDb"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue3360_NullsInAnchor": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSybase",
+    "observed": "AdoNetCore.AseClient.AseException : does not allow null",
+    "verdict": "limitation",
+    "note": "A Sybase BIT column cannot hold NULL, so a bool? column cannot be created, seeded or compared against null. Not issue 3360, whose subject is typing a constant in a union - the test is named after it but the Sybase gate is a separate mapping gap, so it carries a no-issue: marker rather than 3360. Both transports fail, with different messages; the declaration matches on the shared \"does not allow null\".",
+    "quote": "server: \"The column BoolN in table Issue3360Table1 does not allow null values.\" (direct) / \"Column of type (BIT) does not allow nulls.\" (remote)",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue3360_DoubleColumnSelection": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSybase",
+    "observed": "AdoNetCore.AseClient.AseException : does not allow null values.",
+    "verdict": "limitation",
+    "note": "As Issue3360_NullsInAnchor, but only the direct transport fails - over LinqService the seed insert goes through and the query answers, reproduced twice - so the gate carries SkipForLinqService.",
+    "quote": "server: \"The column BoolN in table Issue3360Table1 does not allow null values.\"",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue3360_LiteralsInFirstQuery": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSybase",
+    "observed": "AdoNetCore.AseClient.AseException : does not allow null values.",
+    "verdict": "limitation",
+    "note": "Was gated for Sybase and SQLite; SQLite now passes on all four of its cases (SQLite.MS and SQLite.Classic, direct and remote), so that half was dropped. The Sybase half behaves exactly like Issue3360_DoubleColumnSelection - direct only.",
+    "quote": "server: \"The column BoolN in table Issue3360Table1 does not allow null values.\"",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)"
+  },
+  "Tests/Linq/Linq/DataContextTests.cs::ProviderConnectionStringConstructorTest3": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "ProviderName.Sybase",
+    "observed": "db1.DataProvider.Name",
+    "verdict": "needs-investigation",
+    "note": "Gated on ProviderName.Sybase, the native provider, which is netfx-only - the case does not exist on net10.0, so the declared failure is read off the assertion rather than harvested. Carries the unvalidated: marker; CI's net462 leg is the first run that can confirm it.",
+    "quote": "gate: \"Provider detector picks managed provider as we don't have separate provider name for native Sybase provider\"",
+    "sweptOn": "not swept - no net10.0 case exists"
+  },
+  "Tests/Linq/Linq/JoinTests.cs::SqlLinqCrossJoinSubQuery": {
+    "providers": "TestProvName.AllSybase",
+    "observed": "Assert.That(resultList, Has.Count.EqualTo(expectedList.Count))",
+    "verdict": "limitation",
+    "quote": "gate said \"Cross-join doesn't work in Sybase\" - refuted by measurement",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "issue": "5895",
+    "attributionSource": "int",
+    "note": "The assert is correct: 7 parents x 10 children is 70 rows and Sybase returns 10. The cause is not the cross join. A playground probe on Sybase.Managed with SQLite.MS as control measured the same query with Take on both sides (10 vs 70), neither side (119 vs 119), left only (10 vs 119) and right only (10 vs 70): every arm carrying a Take caps at exactly 10, so ASE applies a derived table's TOP to the outer result. linq2db already sets IsSubQueryTakeSupported and IsCorrelatedSubQueryTakeSupported false for Sybase but leaves IsDerivedTableTakeSupported at the base default of true; flipping it was probed and is not a fix - the query then fails to translate at all, because Sybase has no window functions to emulate the paging with. Product defect, no tracker entry; worth its own issue. Filed as #5895 (2026-09-08)."
+  },
+  "Tests/Linq/Update/MergeTests.Operations.Insert.cs::CrossJoinedSourceWithSingleFieldSelection": {
+    "providers": "TestProvName.AllSybase",
+    "observed": "Assert.That(expected, Is.LessThanOrEqualTo(actual))",
+    "verdict": "needs-investigation",
+    "quote": "gate said \"Cross-join doesn't work in Sybase. Also see SqlLinqCrossJoinSubQuery test\" - refuted by measurement",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "issue": "5896",
+    "attributionSource": "int",
+    "note": "The assert is correct: 2 left x 2 right is 4 source rows and the Merge reports 2 affected. Not the cross join and not the same cause as SqlLinqCrossJoinSubQuery, despite the gate cross-referencing it: the same cross-joined single-field projection run as a plain query answers 119 correctly on Sybase, and this shape carries no Take. The loss is somewhere in Sybase's Merge emulation; where, is not identified, hence the unvalidated: marker. Filed as #5896 (2026-09-08); the sibling TOP defect is #5895."
+  },
+  "Tests/Linq/Linq/ParameterTests.cs::CharAsSqlParameter5": {
+    "quote": "gate: \"Sybase providers explicitly cut string value if it contains 0x00 character\", citing AdoNetCore.AseClient#51",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "Sybase returns ' ' for '\\0' (char, not string)",
+    "attributionSource": "external-url",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "See CharAsSqlParameter1. The char overload behaves the same as the string ones."
+  },
+  "Tests/Linq/Linq/ParameterTests.cs::CharAsSqlParameter2": {
+    "quote": "gate: \"Sybase providers explicitly cut string value if it contains 0x00 character\", citing AdoNetCore.AseClient#51",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "Sybase returns \" \" for \"\\0 \\0 ' \\0\"",
+    "attributionSource": "external-url",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "See CharAsSqlParameter1. Cut at index 0, so the whole value becomes the empty string, which Sybase returns as \" \"."
+  },
+  "Tests/Linq/Linq/WhereTests.cs::StringInterpolationCoalesce": {
+    "quote": "gate: \"Sybase converts empty string to space and we don't plan to do anything about it for now\"",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "as StringInterpolationTestsNullable",
+    "attributionSource": "none",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "See StringInterpolationTestsNullable - same change, same verification."
+  },
+  "Tests/Linq/Linq/ParameterTests.cs::CharAsSqlParameter3": {
+    "quote": "gate: \"Sybase providers explicitly cut string value if it contains 0x00 character\", citing AdoNetCore.AseClient#51",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "Sybase returns \" \" for \"\\0\"",
+    "attributionSource": "external-url",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "See CharAsSqlParameter1."
+  },
+  "Tests/Linq/Linq/WhereTests.cs::StringInterpolationTestsNullable": {
+    "quote": "gate: \"Sybase converts empty string to space and we don't plan to do anything about it for now\"",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "Sybase renders a null MiddleName's `?? \"\"` slot as \" \", so FullName reads \"( + )\" on the CLR and \"(  +  )\" from the database",
+    "attributionSource": "none",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "Gate removed in favour of a provider-specific expectation: the query is unchanged and, on Sybase, the expected rows are rebuilt over a Person sequence whose null MiddleName already reads as \" \". MiddleName is Person's only nullable member, so it is the only place a `?? \"\"` fires. A second ASE fact forced that shape: hoisting the fallback into a variable makes it a parameter, linq2db sizes a string parameter from its value, and ASE types COALESCE by the parameter's declared length - \"Ko\" came back as \"K\". Both fallbacks therefore stay literals. Verified green on Sybase.Managed plus SQLite.MS and SQLite.Classic as controls."
+  },
+  "Tests/Linq/Linq/ParameterTests.cs::CharAsSqlParameter1": {
+    "quote": "gate: \"Sybase providers explicitly cut string value if it contains 0x00 character\", citing AdoNetCore.AseClient#51",
+    "sweptOn": "2026-09-08 local, net10.0, Sybase.Managed (the native Sybase provider is netfx-only, so it has no case here)",
+    "observed": "Sybase returns \"0 \" for \"0 \\0 ' 0\"",
+    "attributionSource": "external-url",
+    "issue": null,
+    "providers": "TestProvName.AllSybase",
+    "verdict": "remove",
+    "note": "Gate removed in favour of a provider-specific expectation. Two things compose: the provider cuts the value at the first 0x00, and Sybase then returns the empty remainder as a single space - so 1 gives \"0 \" and 2, 3 and 5 give \" \" / ' '. Measured identically on the direct and remote transports."
+  },
+  "Tests/Linq/Linq/EagerLoadingStrategyKeyedQueryTests.cs::Select_KeyedQuery_ChildFilterUsesParentInMethodCallFallback": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Mismatch type argument #1, type diff: String!=Optional<Utf8>",
+    "note": "The gate's prose named the mechanism exactly and the server confirms it verbatim. No linq2db issue exists for the YDB LIKE nullable-pattern gap, hence the no-issue: marker. Both transports fail identically.",
+    "verdict": "limitation",
+    "sweptOn": "2026-09-08 local, net10.0, YDB",
+    "quote": "server: \"Callable is produced by Udf: Re2.PatternFromLike ... Mismatch type argument #1, type diff: String!=Optional<Utf8>\""
+  },
+  "Tests/Linq/Linq/SubQueryTests.cs::Issue1601": {
+    "issue": "5591",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : uncompatible coalesce types, first type: Optional<Decimal(35,2)>, second type: Decimal(22,9)",
+    "note": "Direct transport only ([DataSources(false)]). Part of the same YDB strict-decimal family as #5591.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-08 local, net10.0, YDB",
+    "quote": "server: \"uncompatible coalesce types, first type: Optional<Decimal(35,2)>, second type: Decimal(22,9)\" - the facets the gate names, verbatim"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_ProviderSupportsMultipleDataReadersOnNewCommand_NoDispose_NotSupported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_Supported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_Unsupported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_MultipleDataReadersOnSameCommand_NotSupported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_UnsupportedAsync": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Linq/AssociationTests.cs::GroupBy1": {
+    "providers": "TestProvName.AllYdb",
+    "note": "Provider-excluded on the user's call, same reasoning as the MARS family: a stalled GC/deadlock in the driver stack yields no outcome for the attribute to rewrite. #5597's explanation is carried forward as a comment at the site so the gap stays recorded. Verified: --provider YDB now resolves no case for it and the run returns instead of hanging.",
+    "issue": "5597",
+    "attributionSource": "int",
+    "observed": "hangs - 0.00s CPU across the process, no linq2db/NUnit/YDB frames in any managed stack, dumpasync shows only the host Main, one thread Cooperative-mode (GC) against 23 Preemptive",
+    "sweptOn": "2026-09-08 local, net10.0, YDB",
+    "quote": "gate: \"YDB-only [PrimaryKey] on Parent.ParentID ... is seen by the optimizer as a unique key\"",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_SupportedAsync": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/UserTests/Issue2832Tests.cs::TestIssue2832": {
+    "providers": "TestProvName.AllYdb",
+    "note": "The gate was wrong about its own symptom. The test only builds SQL and counts accessible sources; nothing runs, so no conversion error can arise and #5590 (the YDB \"could not be converted to SQL\" issue) does not apply. The named cause is sound - YDB sets IsSupportedSimpleCorrelatedSubqueries false, so the optimizer cannot collapse the subqueries the way the other providers do. Resolved as a provider-specific assert on the user's call: the bound is 5 on YDB and 2 elsewhere. Verified green on YDB direct and remote.",
+    "issue": null,
+    "attributionSource": "none",
+    "observed": "Assert.That(sourcesCount, Is.LessThanOrEqualTo(2)) - 5 on YDB",
+    "sweptOn": "2026-09-08 local, net10.0, YDB",
+    "quote": "gate claimed \"surfaces as a generic conversion error\", citing #5590 - refuted: the query is never executed",
+    "verdict": "test-defect"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_ProviderSupportsMultipleDataReadersOnNewCommand_Dispose_Supported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_ProviderSupportsMultipleDataReadersOnNewCommand_NoDispose_Supported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_MultipleDataReadersOnSameCommand_Supported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::MARS_ProviderSupportsMultipleDataReadersOnNewCommand_Dispose_NotSupported": {
+    "providers": "ProviderName.ClickHouseOctonica",
+    "note": "Provider-excluded rather than migrated, on the user's call: ActiveIssueNew rewrites an outcome and a test that never returns produces none, so on CI the same --hangdump-timeout kills the whole leg. Five of the ten take IncludeDataSources and had the Octonica entry commented out; five take DataSources(false, ...), whose list is an exclusion list, and had it added. The file's own idiom - //ProviderName.ClickHouseDriver sits commented out of the same lists for a related reason. Verified both directions: --provider ClickHouse.Octonica now resolves zero MARS cases and returns in 8s instead of hanging, and a control run on ClickHouse.MySql + SQLite.MS still executes all ten, 12/12 green.",
+    "issue": "https://github.com/Octonica/ClickHouseClient/issues/59",
+    "attributionSource": "external-url",
+    "observed": "hangs - no progress until the hang dump kills the process; reproduced in isolation (U-16, U-27)",
+    "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
+    "quote": "Octonica/ClickHouseClient#59",
+    "verdict": "remove"
+  }
+}
