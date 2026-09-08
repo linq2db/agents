@@ -1275,5 +1275,45 @@
     "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
     "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
     "providers": "DB2"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::MappingTypingByConstant_FromEnumerable_Int64": {
+    "issue": "4955",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMariaDB,TestProvName.AllMySql57",
+    "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+    "sweptOn": "2026-09-09 local, net10.0, MariaDB.11 + MySqlConnector.5.7",
+    "note": "Measured on MariaDB.11 and MySqlConnector.5.7, direct only - the gate carries SkipForLinqService and the remote cases pass. The test feeds 2147483648L, so a missing CAST to BIGINT brings the value back as an int and it overflows on the way out. #4955 is closed and PostgreSQL-titled; it is the test's origin and the same symptom, with MariaDB and MySQL 5.7 as the residue, so Details carries the provider-specific reason. The MySql.Data third is reasoned rather than measured - that client cannot initialise in-process on this machine (TypeInitializationException on ReplicationManager) - but the mechanism is server-side, so the driver does not enter into it.",
+    "quote": "#4955 'PostgreSQL: Arithmetic overflow due to incorrect expression generation' - the observed failure is that overflow, on the provider family where the fix does not take",
+    "verdict": "matches"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::MappingTypingByConstant_FromQuery_Int64": {
+    "issue": "4955",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllMariaDB",
+    "observed": "System.OverflowException : Arithmetic operation resulted in an overflow.",
+    "sweptOn": "2026-09-09 local, net10.0, MariaDB.11",
+    "note": "Same defect, MariaDB only, all four [Values] combinations. Measured direct; the remote cases are outside the gate and pass.",
+    "quote": "as MappingTypingByConstant_FromEnumerable_Int64",
+    "verdict": "matches"
+  },
+  "Tests/Linq/Update/MergeTests.Types.cs::TestMergeTypes": {
+    "issue": "5591",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Failed to convert 'FieldDate': Optional<Timestamp> to Optional<Date>",
+    "sweptOn": "2026-09-09 local, net10.0, YDB",
+    "note": "Split into two attributes, because the one gate covered two providers for unrelated reasons. The YDB half is measured and cites #5591 (and #5593 in prose) - strict-decimal facets plus Date/Time conversion gaps. The Oracle.21.Devart.Direct half carries 'no-declaration: unvalidated:': the Devart client needs a licence key this machine does not have, so CreateDatabase cannot even connect, and the gate's original prose covered only YDB - nothing on record says why Devart was gated.",
+    "quote": "server: \"Failed to convert 'FieldDate': Optional<Timestamp> to Optional<Date>\"",
+    "verdict": "matches"
+  },
+  "Tests/Linq/Update/UpdateTests.cs::UpdateIssue321Regression": {
+    "issue": "5591",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb",
+    "observed": "Ydb.Sdk.Ado.YdbException : Cannot calculate with different decimals: Decimal(6,2) != Decimal(22,9)",
+    "sweptOn": "2026-09-09 local, net10.0, YDB",
+    "note": "Split the same way. The YDB half is measured and cites #5591. The ProviderName.Sybase half carries 'unvalidated:' - that is the netfx-only native provider, so no case exists on net10.0 and its declaration ('Null value is not allowed in BIT TYPE') is carried over from the gate's own prose rather than harvested.",
+    "quote": "server: \"Cannot calculate with different decimals: Decimal(6,2) != Decimal(22,9)\"",
+    "verdict": "matches"
   }
 }
