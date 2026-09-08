@@ -4,6 +4,42 @@ Behaviour of the GitHub Actions side of CI that cost a run to discover. Azure Pi
 in [`ci-tests.md`](ci-tests.md); the workflows themselves are `.github/workflows/build.yml` (DB-free
 checks, per PR), `tests.yml` (the provider legs) and `tests-comment.yml` (the `/azp run` trigger).
 
+## `build.yml` is a superset of Azure's `build` pipeline — gate on it, don't wait for both
+
+`.github/workflows/build.yml` is a port of `Build/Azure/pipelines/build.yml`, which instantiates
+`templates/build-job.yml` with `with_tests: false` / `with_release: false`. On a PR that Azure job runs
+exactly six things, and each has a GH leg:
+
+| Azure `build` step | GH leg |
+|---|---|
+| Build Examples (Debug) | Examples build |
+| Run Analyzer Tests | Analyzer tests |
+| PublishSingleFile Smoke Test | PublishSingleFile smoke test |
+| Build Solution for Nuget (Release) | Build and pack |
+| Pack Solution for Nuget | Build and pack |
+| third-party notices check + verify | Build and pack |
+
+GH runs **more**: `verify-nuget-sizes.ps1` and `verify-analyzer-delivery.ps1` (Azure has those only in
+`nuget-job.yml`, which the `build` pipeline never includes) plus CLI tests on both OSes (Azure's
+`test-cli.yml` runs only from `default` / `test-all`). It is also far faster — measured 7–15 min against
+Azure's queue, which on the same commits had not started.
+
+So when the gate you need is the DB-free one, wait on the six GH legs (`Build and pack`, `Examples build`,
+`Analyzer tests`, `PublishSingleFile smoke test`, `CLI tests (ubuntu-24.04)`, `CLI tests (windows-2025)`)
+and ignore `build` / `build (Build)` / `default`. [`wait-pr-checks.ps1`](../scripts/wait-pr-checks.ps1)
+does exactly that.
+
+Two things the GH legs do not cover. Azure pins SDKs with `UseDotNet@2` 9.x/10.x while GH uses
+`setup-dotnet` + `global.json` `rollForward`, so an SDK-resolution break could differ between them; and the
+Azure `default` pipeline is what publishes nugets on a master push, so a break there surfaces post-merge.
+Note also that `build` is the **only required** status check on `master` (with `strict: true`), so a merge
+that skips it needs `--admin` — see [`pr-and-push.md`](pr-and-push.md) → *A sync push dismisses the
+approval it needs*.
+
+`tests [all]` is a commit status posted by the dispatch-only `tests` workflow against a specific head sha,
+so it does **not** carry forward when a PR is synced — a uniform `FAILURE` on every open PR is that
+workflow's own state, not a per-PR defect, and it disappears from the rollup after the next push.
+
 ## Which copy of a workflow runs, and against which ref
 
 Three separate questions, and getting them confused wastes a full run.
