@@ -86,6 +86,16 @@ record's name / type / result, and minutes), newest build first. With
 `testDuration` / `logPath`. With -Offsets, each record also carries
 `startOffset` / `endOffset` in minutes from its build's origin, and a `builds[]`
 array reports each build's `origin` / `span` / `partialRerun`.
+
+That JSON does **not** survive being captured. `*> file` writes 0 bytes and
+`| ConvertFrom-Json` yields `$null`, while the document itself still lands in the
+tool output - so an agent that pipes it somewhere gets an empty variable and a
+wall of JSON it did not ask for. Don't fight it: let the output persist to the
+tool-result file and parse that path. Note it can hold **several concatenated
+documents** when more than one invocation ran in the same call, plus any shell
+echoes appended after them, so parse with a `raw_decode` loop that stops on the
+first failure rather than `json.load`. (Both shapes hit on #5880 while collecting
+the Azure-vs-GitHub leg timings.)
 #>
 
 param(

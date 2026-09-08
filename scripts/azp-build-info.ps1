@@ -38,6 +38,14 @@ Usage (via the PowerShell tool, not wrapped in Bash):
     # just the jobs of a build and their results
     .claude\scripts\azp-build-info.ps1 -BuildId 23411
 
+A build can vanish from the `-Pr` / `-Branch` listing without being deleted. Cancelled
+builds are omitted entirely, and a `notStarted` one sorts *after* every build that has a
+startTime - so a queued build you are tracking may sit outside `-Top N` while the older
+completed ones fill it. Neither case is distinguishable from "the build is gone", and both
+happened on #5880: 23448 and 23451 disappeared once a push cancelled them, and 23500 was
+absent from `-Top 1` for two hours while queued. Query it by `-BuildId` before concluding
+anything - that path reports it regardless of state.
+
 Output is JSON on stdout. Non-zero exit on an API failure.
 #>
 
