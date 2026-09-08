@@ -1203,5 +1203,77 @@
     "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica",
     "quote": "Octonica/ClickHouseClient#59",
     "verdict": "remove"
+  },
+  "Tests/Linq/Linq/MathFunctionTests.cs::Round4": {
+    "issue": null,
+    "quote": "gate: \"Fails on CI\"",
+    "note": "Two reasons the local result cannot decide it, either of which is sufficient: the gate is not compiled in this configuration, and its own prose says the failure is a CI one. Both go to the CI sweep with the Devart and Informix sites. Note the sibling Round4Sql, which is gated unconditionally, does fail here - so whatever Round4 hits on CI is not simply DB2's inexact ROUND.",
+    "attributionSource": "none",
+    "sweptOn": "not swept - not compiled in the Testing configuration",
+    "verdict": "needs-investigation",
+    "observed": "not observable here - the gate sits inside #if AZURE, which Tests/Directory.Build.props defines only for Configuration == Azure, so it does not compile in Testing",
+    "providers": "ProviderName.DB2"
+  },
+  "Tests/Linq/Linq/WindowFunctionsTests.RatioToReport.cs::RatioToReportZeroPartitionSum": {
+    "issue": "5897",
+    "quote": "gate cited #5663 \"DB2: DECFLOAT special values (Infinity/NaN) fail column mapping to decimal\" - closed, and about a decimal column",
+    "note": "The gate said the reader cannot map the special value. It maps it fine: the result materialises as double INF / -INF and the assertion fails because the test wants null. DB2 has a native RATIO_TO_REPORT, so linq2db emits it directly and it never reaches the NULLIF emulation that makes a zero partition total yield NULL elsewhere. Filed as #5897 and re-attributed. Verified Inconclusive on DB2 direct and remote.",
+    "attributionSource": "int",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 (LUW)",
+    "verdict": "wrong-issue",
+    "observed": "Shouldly.ShouldAssertException : result should satisfy the condition (r.RatioToReport == null) but [{ Id = 1, RatioToReport = INF }, { Id = 2, RatioToReport = -INF }] do not",
+    "providers": "TestProvName.AllDB2"
+  },
+  "Tests/Linq/Linq/MathFunctionTests.cs::Round4Sql": {
+    "issue": null,
+    "quote": "gate: \"Wrong DB2 implementation\" - the only gate this session whose stated cause survived measurement",
+    "note": "Probed against the live server because linq2db emits a banker's-rounding CASE rather than a plain ROUND, so the emulation was the obvious suspect. It is exonerated: for 6.6, 9.6 and 1.1 the midpoint branch is never taken, so the CASE reduces to plain ROUND - and ROUND(CAST(6.6 AS Float), 5) returns 6.6000000000000005 on its own, one ulp above the nearest double to 6.6. DB2's ROUND on a Float is simply not exact. Nothing to fix on our side and not worth filing against IBM, so a no-issue: marker. The user chose activeissue over a tolerance-based provider-specific assert.",
+    "attributionSource": "none",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 (LUW)",
+    "verdict": "limitation",
+    "observed": "6.6 <> 6.6000000000000005 and 9.6 <> 9.600000000000001 - two of twelve rows, one ulp each",
+    "providers": "TestProvName.AllDB2"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue3360_TypeByOtherQuery_AllProviders": {
+    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
+    "verdict": "needs-investigation",
+    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
+    "providers": "DB2"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue3360_TypeByProjectionProperty_AllProviders": {
+    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
+    "verdict": "needs-investigation",
+    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
+    "providers": "DB2"
+  },
+  "Tests/Linq/Linq/MathFunctionTests.cs::Round11": {
+    "issue": null,
+    "quote": "gate: \"Fails on CI\"",
+    "note": "Two reasons the local result cannot decide it, either of which is sufficient: the gate is not compiled in this configuration, and its own prose says the failure is a CI one. Both go to the CI sweep with the Devart and Informix sites. Note the sibling Round4Sql, which is gated unconditionally, does fail here - so whatever Round4 hits on CI is not simply DB2's inexact ROUND.",
+    "attributionSource": "none",
+    "sweptOn": "not swept - not compiled in the Testing configuration",
+    "verdict": "needs-investigation",
+    "observed": "not observable here - the gate sits inside #if AZURE, which Tests/Directory.Build.props defines only for Configuration == Azure, so it does not compile in Testing",
+    "providers": "ProviderName.DB2"
+  },
+  "Tests/Linq/UserTests/Issue1238Tests.cs::TestInsertOrUpdate": {
+    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
+    "verdict": "needs-investigation",
+    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
+    "providers": "DB2"
+  },
+  "Tests/Linq/Linq/ConvertTests.cs::ConvertFromOneToAnother": {
+    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
+    "verdict": "needs-investigation",
+    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
+    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
+    "providers": "DB2"
   }
 }
