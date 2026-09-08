@@ -57,6 +57,14 @@ One `/azp run` per meaningful change. Do not spam — each run consumes CI capac
 
 **Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`agent-rules.md`](agent-rules.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run.
 
+### Provider *breadth* is CI's job — never fan a local run out across the matrix
+
+Local verification proves the mechanism on a representative subset; `test-all` proves it on every provider. When a fix touches provider-reachable code and the instruction is to make sure **all** providers cover it, that is an instruction about the tests' **attribution**, not about executing the matrix on the dev box: confirm the new tests carry bare `[DataSources]` (every configured provider, no exclusions, plus each one's `.LinqService` variant), then let CI fan out. Starting a rank of containers to do it locally costs per-provider `CreateDatabase` seeding — Oracle, DB2 and HANA are minutes each — risks the host OOM that kills containers with exit 137, and duplicates a matrix CI runs anyway.
+
+Pick the local subset for *driver and engine diversity*, not count: the providers needing no container at all (SQLite.Classic, SQLite.MS, DuckDB) plus whatever is already running. Say which providers you covered and that the remainder is `test-all`'s, so the gap is explicit rather than implied.
+
+(Surfaced 2026-09-08 on [#5893](https://github.com/linq2db/linq2db/pull/5893). A `DisposeAsync` / eager-load-preamble fix drew *"ensure we test all providers for such tests"*, which was read as a local matrix run; a batched plan to start `sql2022`, `sql2025`, `pgsql16`, `mysql`, `mariadb`, `firebird50`, `db2`, `oracle19`, `sybase` and `hana2` was answered with **"who told you to run full locally. just enable providers in tests and we will test it on ci"**. The tests already had bare `[DataSources]`, so the correct answer was one grep and zero container starts.)
+
 ### Scoped pipeline vs `test-all` — the mechanical rule
 
 Match the pipeline to the change's blast radius, but note the genuinely scoped case is narrower than it looks: it is a change whose blast radius maps to **one database** — a provider's SQL builder, dialect, or schema provider. Everything else is `test-all`.
