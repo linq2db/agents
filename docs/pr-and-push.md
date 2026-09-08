@@ -103,6 +103,7 @@ When creating a PR on `linq2db/linq2db`:
     1. The **next-version milestone** (matching `<Version>` in `Directory.Build.props`, or the closest upcoming version) — always first.
     2. Remaining **versioned** milestones (titles starting with a digit, e.g. `6.x`, `7.0.0`), sorted by version.
     3. **Non-versioned** milestones (e.g. `Backlog`, `In-progress`), sorted alphabetically by title.
+- **Creating the PR from outside the branch's worktree.** Branch work lives in a worktree while the shell's cwd stays in the primary clone, and `gh` has **no `-C`** — so the reflex is `cd <worktree>; gh pr create …`, which the compound-command PreToolUse hook rejects on the `;`. Don't `cd`: `gh pr create` needs no checkout of the branch at all. Pass `--repo linq2db/linq2db`, `--head <branch>` (the `<owner>:<branch>` form also works and is what you need for a fork), and an **absolute** `--body-file` path — a relative one resolves against the primary clone, so a body written into the worktree's `.build/.agents/` is silently not found.
 - **CI run proposal.** After `gh pr create`, propose running the full provider matrix on Azure Pipelines via a `/azp run test-all` comment. See [`ci-tests.md`](ci-tests.md) for the trigger syntax and when a narrower `/azp run test-<dbname>` makes more sense. Wait for the user to confirm before posting the comment.
 
 ### Setting a PR's project-board lane

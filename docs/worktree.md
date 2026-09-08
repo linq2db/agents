@@ -134,7 +134,9 @@ Surfaced during 6.4.0 release-prep cleanup, on a worktree whose tree was complet
 
 ## Recreating a worktree wipes `.build/` — `--no-build` packs then fail
 
-`.build/` is gitignored, so it lives only in the working tree: removing a worktree deletes every compiled output with it, and `git worktree add` brings back none of it. A worktree recreated to make one more fix therefore has *no* build output, and rebuilding just the project you touched populates only that project's `ProjectReference` closure for the TFMs that project targets.
+`.build/` is gitignored, so it lives only in the working tree: removing a worktree deletes every compiled output with it, and `git worktree add` brings back none of it.
+
+**The same fact bites a *brand-new* worktree, and there it eats your build log.** `.build/` does not exist until the first build creates it, so piping a build into a path beneath it — `dotnet build … | Set-Content <worktree>/.build/build.log`, or the `Tee-Object` equivalent — fails to open the file at pipeline start and **discards the entire output**. Nothing about the result says so: the build itself runs to completion, `$LASTEXITCODE` is the compiler's `0`, and the only trace is a one-line `Could not find a part of the path` above it. You then have to re-run the whole build to see what it printed. `New-Item -ItemType Directory -Force <worktree>/.build/.agents` before the pipe, or write the log somewhere that already exists. A worktree recreated to make one more fix therefore has *no* build output, and rebuilding just the project you touched populates only that project's `ProjectReference` closure for the TFMs that project targets.
 
 That is what breaks a subsequent `dotnet pack --no-build` (or any script passing it, e.g. [`linqpad-local-push.ps1`](../scripts/linqpad-local-push.ps1) with `-NoBuild`): packing a multi-TFM library needs output for **every** TFM in its `<TargetFrameworks>`, and the ones your project doesn't reference were never built. The error names the missing file rather than the cause:
 
