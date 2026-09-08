@@ -142,7 +142,26 @@ Action:
    gh release edit <tag> --repo linq2db/linq2db --draft=false
    ```
    Or the user clicks "Publish release" on GitHub manually.
-5. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
+5. Confirm the MCP Registry publication. Making the draft live is what fires
+   `.github/workflows/publish-mcp.yml` — the `release: published` event does not fire on draft
+   *creation*, so this is the only moment it triggers. It rewrites `Source/LinqToDB.CLI/server.json`'s
+   two version fields from the tag (they are committed as `0.0.0`), polls nuget.org until it serves
+   the package README carrying the `mcp-name` marker, then publishes via OIDC. **Nothing else
+   reports its outcome** — a failed run is silent unless checked here:
+   ```
+   gh run list --repo linq2db/linq2db --workflow publish-mcp.yml --limit 1 --json conclusion,url,createdAt
+   ```
+   Then confirm the registry serves the new version (plain HTTPS GET — not `gh api`, this is not a
+   GitHub host): `https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.linq2db/linq2db.cli`.
+   - **On failure, re-run in CI** rather than reaching for the interactive publisher:
+     `gh workflow run publish-mcp.yml --repo linq2db/linq2db -f tag=<tag>`. The dispatch path
+     authenticates by OIDC too, so it needs no organization Owner and no secret.
+   - **A release whose tag predates the workflow has no run at all** — a `release`-triggered
+     workflow is read from the tree its tag points at. Publish that one by hand per
+     `Source/LinqToDB.CLI/MCP-REGISTRY.md` → *Publishing manually*.
+   - Registry publication is **not** a release blocker. If it stays broken, park it, note it, and
+     carry on — the nugets are already live.
+6. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
 
 **The pipeline already created a draft — fill it, don't create a second one.** The release build's *Create Release Draft* step (`build-job.yml`) opens the draft as soon as the release branch builds, with only a one-line body (`[Release notes](…) [Nugets](…)`) plus `--generate-notes` output. This step's job is to replace that body with the authored one, so the flow is a **PATCH of the existing draft**, not a `gh release create`.
 
