@@ -443,6 +443,14 @@ function Invoke-Gates {
     $touchesPublic = @($productPaths | Where-Object { $_ -match '^Source/' -and $_ -notmatch 'Internal' }).Count -gt 0
     $movesSql      = @($productPaths | Where-Object { $_ -match '^(Source|Tests)/' }).Count -gt 0
 
+    # G-09 keys on tier rather than on paths: a Tier S change is mechanical by definition (a version pin,
+    # an [ActiveIssue] enable, a doc-only edit), so an adversarial read of its diff spends a subagent call
+    # confirming what the diff already shows. An absent or unparseable tier leaves this at M and the gate
+    # applies - the failure direction that costs one call rather than a maintainer's review round.
+    $planTier = 'M'
+    foreach ($l in $lines) { if ($l -match '\*\*Tier:\*\*\s*([SML])\b') { $planTier = $Matches[1]; break } }
+    $needsReview   = $planTier -ne 'S'
+
     $gates = @()
     $gates += [ordered]@{ id = 'G-01'; name = 'Tests pass via /test, declared proof mode observed'; applies = $true;           why = 'always' }
     $gates += [ordered]@{ id = 'G-02'; name = 'Baselines reviewed, not just regenerated';           applies = $movesSql;        why = 'the change can move emitted SQL' }
@@ -452,6 +460,7 @@ function Invoke-Gates {
     $gates += [ordered]@{ id = 'G-06'; name = 'No unrelated reformatting / renames';                applies = $true;            why = 'always' }
     $gates += [ordered]@{ id = 'G-07'; name = 'No playground scratch staged';                       applies = $true;            why = 'always' }
     $gates += [ordered]@{ id = 'G-08'; name = 'Cross-cutting core change surfaced, proven by test'; applies = $touchesCore;     why = 'P6 touches shared engine code' }
+    $gates += [ordered]@{ id = 'G-09'; name = 'Diff got an adversarial read before the PR opened';  applies = $needsReview;     why = "plan is Tier $planTier" }
 
     Write-JsonOutput ([ordered]@{
         ok          = $true

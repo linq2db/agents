@@ -153,6 +153,7 @@ Gate ids are **not defined here** — they are the items of [`definition-of-done
 | `G-06` | No unrelated reformatting / renames |
 | `G-07` | No playground scratch staged |
 | `G-08` | Cross-cutting core change surfaced, and resting on a red→green test or CI rather than static reasoning |
+| `G-09` | The diff got an adversarial read before the PR opened (Tier M/L only — `-Action gates` keys this one on tier, not on `P6` paths) |
 
 Record each as `G-nn: pass | fail | n/a | skipped | blocked — <the command run and what it returned>`. **`skipped` must name what is therefore unverified; `blocked` must name the deferred dependency. Never dress either up as a pass.** A listed probe or extra gate left with **no result at all** is `fail`, not an omission — a blank line reads as "not important" to every later reader, which is precisely backwards for something the plan thought worth listing.
 
