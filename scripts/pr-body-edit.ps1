@@ -37,12 +37,18 @@ Input (stdin, JSON):
         "anchor":   "## Test plan",        // ASCII literal, must match exactly once (or matchCount: "first"/"last" when multiple allowed)
         "position": "before",              // "before" | "after"; default "before"
         "text":     "…full text block…"    // inserted verbatim; caller is responsible for leading/trailing blank lines
-                                           // NOTE with position "after": the insertion joins the anchor LINE, so a
-                                           // single leading "\n" only terminates that line and yields no blank line.
-                                           // An inserted "## Heading" then sits flush against the anchor paragraph
-                                           // (it still renders — ATX headings may interrupt a paragraph — but it is
-                                           // the one heading in the body without a blank line before it). Use TWO
-                                           // leading newlines when the text starts with a heading.
+                                           // NOTE with position "after": the insertion is spliced immediately after
+                                           // the matched STRING, not after the line containing it. The two coincide
+                                           // only when the anchor IS the whole line — which every example here is —
+                                           // so a SUBSTRING anchor splits its line and strands the tail after your
+                                           // inserted block. Anchor the entire line, and always -dryRun first and
+                                           // read bodyAfter: that is what catches it.
+                                           // Given the above, a single leading "\n" only terminates the anchor line
+                                           // and yields no blank line. An inserted "## Heading" then sits flush
+                                           // against the anchor paragraph (it still renders — ATX headings may
+                                           // interrupt a paragraph — but it is the one heading in the body without
+                                           // a blank line before it). Use TWO leading newlines when the text starts
+                                           // with a heading.
       },
       {
         "anchor":   "## Checklist",
