@@ -41,13 +41,13 @@ Every finding gets routed to exactly one bucket plus a destination (project `.cl
 
 | Bucket | Destination | What it looks like | Severity |
 |---|---|---|---|
-| **feedback** | auto-memory (if personal) / `.claude/docs/agent-rules.md` or a skill's "Don'ts" section (if project-scoped) | User corrected an approach ("stop summarizing"; "don't mock the DB"; "use Y instead of X"). Also includes **confirmations** of non-obvious approaches the user explicitly validated ("yes, exactly that"). | strong / medium / weak |
+| **feedback** | auto-memory (if personal) / the **topic doc** that owns the subject, or a skill's "Don'ts" section (if project-scoped) — see *Where a procedural rule lands* below; `agent-rules.md` is the last resort, not the default | User corrected an approach ("stop summarizing"; "don't mock the DB"; "use Y instead of X"). Also includes **confirmations** of non-obvious approaches the user explicitly validated ("yes, exactly that"). | strong / medium / weak |
 | **doc** | `.claude/docs/<new-or-existing>.md` | Knowledge you had to grep / web-search / ask the user for that isn't documented. Cross-cutting facts about the codebase, external tools, workflows. | strong / medium / weak |
 | **script** | `.claude/scripts/<name>.ps1` | A multi-step Bash / `gh` / `git` sequence invoked more than once, or a one-shot sequence complex enough that repeating it would incur permission prompts. Follows the contract in `agent-rules.md` → *PowerShell Core scripts*. | strong / medium / weak |
 | **skill** | `.claude/skills/<name>/SKILL.md` | A user-triggered workflow that appeared in this session (either done manually or ad-hoc) and is likely to recur. Must be user-invoked (the `/command` shape), not a behind-the-scenes agent. | strong / medium / weak |
 | **agent** | `.claude/agents/<name>.md` | A specialized read-or-write task delegated to a subagent during this session (or that *should* have been delegated). Typically created when a task's tool profile is narrower than the main agent's. | strong / medium / weak |
 | **permission** | instruction edit (`agent-rules.md`) OR script creation / extension (`.claude/scripts/`) OR allowlist (defer to `/fewer-permission-prompts`). Pick per **Diagnosing permission prompts** below. | Bash patterns that triggered permission prompts this session. Analyze root cause per prompt — don't just aggregate. | strong / medium / weak |
-| **dead-end** | auto-memory (`project` type); or `.claude/knowledge-base/areas/<AREA>/tech-debt.md` if KB-tracked | An approach tried and abandoned this session — a disproven hypothesis, a reverted refactor, an API / tool / dialect path that doesn't fit the case. Body uses **Tried:** / **Failed because:** / **Don't re-attempt:**. Consumed via `agent-rules.md` → *Investigating & fixing bugs* → **Check recorded dead-ends before re-attempting**. | strong / medium / weak |
+| **dead-end** | auto-memory (`project` type); or `.claude/knowledge-base/areas/<AREA>/tech-debt.md` if KB-tracked | An approach tried and abandoned this session — a disproven hypothesis, a reverted refactor, an API / tool / dialect path that doesn't fit the case. Body uses **Tried:** / **Failed because:** / **Don't re-attempt:**. Consumed via `agent-rules.md` → *Investigating & fixing bugs* → **Start from the KB and recorded dead-ends**. | strong / medium / weak |
 | **review-rule** | `.claude/agents/code-reviewer.md` (rubric) — or `.claude/docs/review-conventions.md` for a convention | A defect this session surfaced **late or by accident** — from a baseline diff, a CI failure, a human reviewer, or post-merge breakage — that the code-review rubric has no rule for; or a finding *type* that recurred across PRs. Propose a new rubric rule / extension so review catches the next one proactively. (Mirror of `/audit-agents`, which lints *existing* rubric rules; this proposes *new* ones.) | strong / medium / weak |
 | **plan-rule** | `.claude/agents/plan-critic.md` (attack vectors) · `.claude/docs/work-plan.md` (a block's semantics) · `.claude/skills/work-plan/SKILL.md` (the scout brief) | A defect that a **work plan** should have caught before implementation — an impact-map shape the scouts never searched, an unstated assumption no `P4` row named, a decision whose failure mode went unexamined, a test obligation that couldn't actually go red. Distinct from **review-rule**: that one sharpens the reviewer's eye on a *diff*, this one sharpens the design pass so the defect never reaches a diff. Route here when the honest answer to "when was this preventable?" is *at design time*. | strong / medium / weak |
 
@@ -67,11 +67,30 @@ This is the hardest judgment call in the skill — a bad routing pollutes one sy
 |---|---|
 | Facts about *this codebase* (linq2db architecture, conventions, invariants) | `.claude/` |
 | Facts about *this user's role / preferences / workflow* | auto-memory |
-| Procedural rules that any agent working on linq2db should follow | `.claude/` (usually `agent-rules.md` or a skill's "Don'ts") |
+| Procedural rules that any agent working on linq2db should follow | `.claude/` — the topic doc that owns the subject (see *Where a procedural rule lands* below), or a skill's "Don'ts" |
 | Personal quirks of this user's workflow that aren't universally right | auto-memory (`feedback` type) |
 | External resources (issue tracker, Slack, dashboards) | auto-memory (`reference` type) |
 | Current-project state (in-progress initiatives, deadlines) | auto-memory (`project` type) |
 | Approaches tried and abandoned (dead-ends) | auto-memory (`project` type), body `**Tried:** / **Failed because:** / **Don't re-attempt:**` |
+
+#### Where a procedural rule lands — `agent-rules.md` is the last resort, not the default
+
+`.claude/docs/agent-rules.md` is **always loaded**, so every line added to it is paid for in every session on every task, and it ratchets: this skill adds, nothing compacts. Route by *subject* first:
+
+| The rule is about… | Destination |
+|---|---|
+| Proving a claim — probes, controls, mutants, instrumentation, a claim nobody ran | `.claude/docs/evidence-discipline.md` |
+| Handling a review finding — proving, disputing, accepting, dispositioning it | `.claude/docs/acting-on-findings.md` |
+| Conducting a turn — batching, stopping, waiting on background work, how wide the change gets | `.claude/docs/turn-conduct.md` |
+| Bug-investigation situational triggers | `.claude/docs/bug-investigation.md` |
+| CI — reading, waiting on, or attributing a run | `.claude/docs/ci-tests.md` |
+| Windows / Git-Bash / Claude-tool mechanics | `.claude/docs/windows-dev-gotchas.md` · `.claude/docs/windows-gotchas.md` |
+| Authoring or invoking a `.claude/scripts/` script | `.claude/docs/script-authoring.md` |
+| Push / PR mechanics | `.claude/docs/pr-and-push.md` |
+| Subagent guardrails | `.claude/docs/agent-guardrails.md` |
+| Review vocabulary, severity, output shape | `.claude/docs/review-conventions.md` |
+
+`agent-rules.md` earns an entry only when **both** hold: the rule fires in most sessions regardless of the task, **and** an agent who never opened the topic doc would get it wrong. Then add a **one-line trigger** naming the symptom and pointing at the doc — never the paragraph, never the war story (the war story goes in the topic doc, where it is read by someone who already needs it). If no topic doc owns the subject, propose creating one rather than appending to the overlay.
 
 When a finding could plausibly go either way (e.g. "user prefers X over Y" — is that personal or project consensus?), ask the user explicitly during the per-finding confirmation step.
 
@@ -122,7 +141,7 @@ Read the transcript forward once, keeping this index in memory. For a 50+ turn c
 
 ### 2. Classify each signal into a bucket + destination
 
-Run every indexed signal through the bucket table. A single signal can produce at most one finding (if it produces more than one, pick the most specific destination — `.claude/skills/<name>/SKILL.md` beats `.claude/docs/agent-rules.md` beats auto-memory, when the signal fits all three).
+Run every indexed signal through the bucket table. A single signal can produce at most one finding (if it produces more than one, pick the most specific destination — `.claude/skills/<name>/SKILL.md` beats a topic doc under `.claude/docs/` beats `.claude/docs/agent-rules.md` beats auto-memory, when the signal fits all four).
 
 Emit a finding record:
 
