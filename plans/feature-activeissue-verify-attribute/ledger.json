@@ -1261,12 +1261,13 @@
     "providers": "ProviderName.DB2"
   },
   "Tests/Linq/UserTests/Issue1238Tests.cs::TestInsertOrUpdate": {
-    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
-    "verdict": "needs-investigation",
-    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
-    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
-    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
-    "providers": "DB2"
+    "providers": "DB2",
+    "quote": "#1239 'Fix nullable keys handling in merge-based methods' is a merged pull request, not an open defect, and the gate's own comment - 'DB2 needs merge api + arraycontext features from 3.0' - describes a 3.0 gap that no longer exists",
+    "verdict": "wrong-issue",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "note": "Local evidence was inadmissible (the IBM CLI driver could not render the server text under this workstation's UTF-8 ACP); the CI sweep supplies the real message, so A-15's quarantine on this site is discharged. The failure is a genuine DB2 rejection of the emulated upsert, declared with a {0} placeholder because DB2 pads SQL0418N with two spaces that log capture collapses. Disposition: accepted as authored - the merged-PR reference #1239 is kept rather than replaced by a new tracker.",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [42610] ... SQL0418N ... untyped parameter marker; 1 case, DB2",
+    "attributionSource": "int"
   },
   "Tests/Linq/Linq/ConvertTests.cs::ConvertFromOneToAnother": {
     "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
@@ -1315,5 +1316,133 @@
     "note": "Split the same way. The YDB half is measured and cites #5591. The ProviderName.Sybase half carries 'unvalidated:' - that is the netfx-only native provider, so no case exists on net10.0 and its declaration ('Null value is not allowed in BIT TYPE') is carried over from the gate's own prose rather than harvested.",
     "quote": "server: \"Cannot calculate with different decimals: Decimal(6,2) != Decimal(22,9)\"",
     "verdict": "matches"
+  },
+  "Tests/Linq/Linq/FSharpTests.cs::Issue5794Test": {
+    "issue": "5794",
+    "providers": "(all)",
+    "attributionSource": "int",
+    "quote": "#5794 'F#: a trailing join after chained groupJoins silently drops unmatched rows' - open, and the short string is exactly two of the four rows",
+    "note": "Declared on the expected row set rather than the first line: NUnit renders this assertion as an empty \"Assert.That(, )\", so line 0 carries nothing to match on.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "NUnit assertion, 112 cases over 16 legs: expected \"1-1-0-2,1-4-0-2,2-0-2-3,2-0-3-3\", got 15 characters"
+  },
+  "Tests/Linq/Scaffold/SchemaProviderTests.cs::Issue4444Test": {
+    "issue": "4444",
+    "providers": "TestProvName.AllPostgreSQL",
+    "attributionSource": "test-description",
+    "quote": "#4444 'Schema Build Error: System.InvalidOperationException: IsResultDynamic set for function public.dblink' - open, and the issue title is the observed message verbatim",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "System.InvalidOperationException : IsResultDynamic set for function public.dblink; 13 cases"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Difference.cs::ZonedDifferenceMeasuresInstantsNotLocalTime": {
+    "issue": "5797",
+    "providers": "TestProvName.AllSQLiteClassic, TestProvName.AllOracle",
+    "attributionSource": "int",
+    "quote": "#5797 'DateTimeOffset difference is measured on the local reading, not the instant (Oracle, SQLite Classic)' - open, and names both halves of this gate",
+    "note": "Split into two attributes, because the two providers fail on DIFFERENT ROWS - SQLite reads row 1 (same local reading, two zones) as zero, Oracle reads row 0 (same instant, two zones) as two hours. One shared declaration would have been wrong for one of them. Oracle has no GitHub-CI leg, so it was measured locally against oracle11 + oracle12 rather than taken from #5797's prose.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); Oracle.11.Managed + Oracle.12.Managed measured locally 2026-09-09, net10.0",
+    "observed": "SQLite: rows[1] should be 2d but was 0d. Oracle 11/12: rows[0] should be 0d but was 2d. Both Shouldly.ShouldAssertException, both direct and remote."
+  },
+  "Tests/Linq/Mapping/FluentMappingTests.cs::Issue3119Test": {
+    "issue": "3119",
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#3119 'Well-known attributes merging in fluent mapper builder' - open; the two HasAttribute calls are exactly the merge it asks for",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "Assert.That(attrs, Has.Length.EqualTo(1)) - expected 1, got 3; 20 cases"
+  },
+  "Tests/Linq/Linq/FSharpTests.cs::Issue5790Test": {
+    "verdict": "matches",
+    "quote": "#5790 'F#: chained groupJoin with a correlated inner sequence fails to translate' - open; the exception names the flattener the issue is about",
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "LinqToDB.FSharp.FlattenInvariantException : F# chained group join could not be flattened, 112 cases over 16 legs",
+    "issue": "5790",
+    "attributionSource": "int"
+  },
+  "Tests/Linq/Linq/TypesTests.cs::Issue4469Test1": {
+    "issue": "4469",
+    "providers": "TestProvName.AllSQLite",
+    "attributionSource": "test-description",
+    "quote": "#4469 'Firebird different number datatype between constant or variable usage' - open; SQLite is the residue of the same constant-versus-variable difference",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description, and consistent with the already-migrated sibling Issue4469Test2.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "Assert.That(Math.Round(result.Decimal, 5), ...) - the decimal division loses its scale; 16 cases, SQLite only"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Difference.cs::ZonedDifferenceMembersMatchClr": {
+    "issue": "5797",
+    "providers": "TestProvName.AllSQLiteClassic, TestProvName.AllOracle",
+    "attributionSource": "int",
+    "quote": "as ZonedDifferenceMeasuresInstantsNotLocalTime",
+    "note": "Split the same way, and for a sharper reason: the zone loss surfaces on a different MEMBER per provider. SQLite drops the whole two days; Oracle keeps them and is two hours out, which is the offset added back on top of the difference. Measured on oracle11 + oracle12.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); Oracle.11.Managed + Oracle.12.Managed measured locally 2026-09-09, net10.0",
+    "observed": "SQLite: row.Days should be 2 but was 0. Oracle 11/12: row.Hours should be 3 but was 5. Both Shouldly.ShouldAssertException, both direct and remote."
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::Issue4666Test": {
+    "issue": "4666",
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#4666 'Issue with Merge into TPH table and EF Entities' - open; the member that cannot be resolved is the derived-type one",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description, which already links #4666. The declared fragment stops before the type name so it holds for both the linq2db and the EF copies of this test.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "System.InvalidOperationException : Member 'System.String Type1EntityProp' not found in type, 52 cases over 8 legs"
+  },
+  "Tests/Linq/Linq/ParameterTests.Naming.cs::ParameterName_FromHandBuiltIndexExpression": {
+    "verdict": "matches",
+    "quote": "#5879 'IndexExpression in a query tree throws NotSupportedException from PathVisitor' - open, filed from this test",
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "System.NotSupportedException : Unhandled expression type: Index, 16 cases over 4 legs",
+    "issue": "5879",
+    "attributionSource": "int"
+  },
+  "Tests/Linq/Linq/JoinOptimizeTests.cs::SelfJoinWithHint": {
+    "issue": "2452",
+    "providers": "(all)",
+    "attributionSource": "int",
+    "quote": "#2452 '[Draft][API Design] Query hints, options.' is closed, and the hints design it drafted has shipped - so the gate's 'Enable when new hints design will be ready' no longer describes anything pending",
+    "note": "The failure is real and unchanged: a self-join whose two sides carry the same table hint is still not collapsed. The reference is stale rather than wrong about the symptom. Disposition: accepted as authored - the stale #2452 reference is kept rather than replaced by a new tracker.",
+    "verdict": "wrong-issue",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "Assert.That(query.GetTableSource().Joins, Is.Empty) - expected empty, one join present; 4 cases"
+  },
+  "Tests/Linq/Mapping/FluentMappingTests.cs::Issue3136Test": {
+    "issue": "3136",
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#3136 'Per-configuration fluent mapping doesn't work for children' - open; the configuration-scoped Entity overload is the one that adds nothing",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "observed": "Assert.That(attrs, Has.Length.EqualTo(2)) - expected 2, got 1; 20 cases"
+  },
+  "Tests/Linq/Linq/JoinTests.cs::Issue3560Test4LikeClr": {
+    "issue": "3560",
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#3560 'Many joins tests are wrong' - open; this is one of the join tests it names",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description. The gate was also OVER-BROAD: only the LikeClr mode fails, and gating the whole [Values] set turned the two passing SQL modes into failures under the new attribute. The CI sweep could not see this - it emitted no sentinel lines, so it recorded failures only and a partially-stale gate looks exactly like a fully-failing one. Resolved by splitting: Issue3560Test4 keeps [Values(LikeSql, LikeSqlExceptParameters)] ungated, Issue3560Test4LikeClr carries the gate, and both call a shared Issue3560Test4Core. The join key is an arithmetic expression and the compare-nulls rewrite does not reach through it.",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); per-case split measured locally 2026-09-09 on SQLite.Classic, net10.0",
+    "observed": "Assert.That(isNullCount, Is.EqualTo(...)) - expected 2 IS NULL occurrences, got 0. LikeClr only: the two SQL modes pass."
+  },
+  "Tests/Linq/Linq/MappingTests.cs::StorageFieldTest": {
+    "issue": "279",
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#279 'ColumnAttribute.Storage property does not work as expected' is closed as delivered by value converters, with 'Please reopen if a ColumnAttribute.Storage-specific behavior is still needed'",
+    "note": "The mapping under test sets no Storage at all - [Column] public int Field => _field - so it asks linq2db to discover a get-only property's backing field, which is not what #279 reports. PROBED: adding Storage = \"_field\" does not repair it. The generated DDL gains a THIRD column, [_field], alongside [Field] and [Id] (measured: without Storage the CI DDL has two columns, with it three), so the private field is mapped as its own column as well as being the property's storage. Direct SQLite then passes; the LinqService case gets one assertion further and fails on the update - record.TestAccess is 5 where 6 is due, because the two columns race during materialization. Probe reverted; the gate stays as authored, declaring the wrong-value failure it actually produces. The phantom-column behaviour is a separate product finding with no tracker.",
+    "verdict": "test-defect",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); Storage probe measured locally 2026-09-09 on SQLite.Classic, net10.0",
+    "observed": "Assert.That(record.TestAccess, Is.EqualTo(5)) - expected 5, got 0, on every provider; 112 cases over 15 legs"
   }
 }
