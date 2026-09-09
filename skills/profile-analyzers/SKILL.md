@@ -192,7 +192,7 @@ Internal rules need nothing — `CodeGenerators` is already wired as an analyzer
 
 ### 3. Build
 
-From the PowerShell tool, with the **call operator and a real array** — not `pwsh -File`, which passes `-ExtraArgs` as one string and dies on an argument nobody typed ([`agent-rules.md`](../../docs/agent-rules.md) → *`-File` has the same problem for a different reason*, which names this example as the trigger):
+From the PowerShell tool, with the **call operator and a real array** — not `pwsh -File`, which passes `-ExtraArgs` as one string and dies on an argument nobody typed ([`script-authoring.md`](../../docs/script-authoring.md) → *`-File` has the same problem for a different reason*, which names this example as the trigger):
 
 ```powershell
 Set-Location <worktree>

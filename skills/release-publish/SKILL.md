@@ -115,10 +115,10 @@ Action:
    pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version <ver> -Apply
    ```
    Per-PR rows come back in `results[]` with independent `comment` / `close` status, so a partial failure is visible per item rather than collapsing into one exit code.
-4. **Verify against the repo, not the script's own summary** (`agent-rules.md` → *a reported result is a claim, not evidence*): `gh pr list --repo linq2db/linq2db.baselines --state open` should be empty of the closed set, and `gh api repos/linq2db/linq2db.baselines/git/matching-refs/heads/baselines --jq 'length'` should drop by the number closed.
+4. **Verify against the repo, not the script's own summary** (`agent-rules.md` → *A subagent's reported result is a claim, not evidence*): `gh pr list --repo linq2db/linq2db.baselines --state open` should be empty of the closed set, and `gh api repos/linq2db/linq2db.baselines/git/matching-refs/heads/baselines --jq 'length'` should drop by the number closed.
 5. Surface counts: "N closed, M for current-milestone (told user to re-run CI on parent PRs)." Update step status `done`.
 
-**A leftover `baselines/pr_<n>` branch with no open PR is not yours to delete.** The ref-count check in step 4 can show a residue branch whose PR was closed in an earlier release's triage without `--delete-branch`. Leave it: per `agent-rules.md` → *never delete a user-owned artifact*, and CI force-pushes over that head ref on the parent's next run anyway. Note it and move on. (6.4.0: `baselines/pr_5376` survived, parent open on 6.5.0.)
+**A leftover `baselines/pr_<n>` branch with no open PR is not yours to delete.** The ref-count check in step 4 can show a residue branch whose PR was closed in an earlier release's triage without `--delete-branch`. Leave it: per `AGENTS.md` → *GitHub content authoring* (never delete a user-owned artifact), and CI force-pushes over that head ref on the parent's next run anyway. Note it and move on. (6.4.0: `baselines/pr_5376` survived, parent open on 6.5.0.)
 
 ### 3. Reset baselines repo HEAD
 

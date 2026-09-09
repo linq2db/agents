@@ -60,7 +60,7 @@ Set-Location C:\Worktrees\linq2db\<slug>
 [System.IO.File]::ReadAllText('Build\licenses\components.json')   # reads the PRIMARY CLONE's copy
 ```
 
-The failure is silent when the file exists in both trees and noisy in the worst possible way when it doesn't: a `try { $orig = [System.IO.File]::ReadAllBytes($f) } … finally { [System.IO.File]::WriteAllBytes($f, $orig) }` backup-and-restore throws on the *read*, so the `finally` writes `$null` and **the restore never happens** — leaving the file in its mutated state while the transcript shows a tidy try/finally. That is exactly how a deliberate mutation control (see [`agent-rules.md`](agent-rules.md) → *To prove an existing test cannot fail*) corrupts the thing it was probing.
+The failure is silent when the file exists in both trees and noisy in the worst possible way when it doesn't: a `try { $orig = [System.IO.File]::ReadAllBytes($f) } … finally { [System.IO.File]::WriteAllBytes($f, $orig) }` backup-and-restore throws on the *read*, so the `finally` writes `$null` and **the restore never happens** — leaving the file in its mutated state while the transcript shows a tidy try/finally. That is exactly how a deliberate mutation control (see [`evidence-discipline.md`](evidence-discipline.md) → *To prove an existing test cannot fail*) corrupts the thing it was probing.
 
 Two fixes, both cheap:
 

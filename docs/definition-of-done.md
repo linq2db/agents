@@ -2,7 +2,7 @@
 
 A consolidated completion checklist for a code change on linq2db. The completion gates already live, canonically, in the rules this doc points at — they were scattered, so this file gathers them in one place to walk before declaring a change "done" or proposing to commit / push. **Nothing here is a new rule; each item links its owner.** Not every item applies to every change — skip the ones that don't, but skip them knowingly.
 
-Referenced from [`agent-rules.md`](agent-rules.md) → *Definition of done*.
+Referenced from [`AGENTS.md`](../AGENTS.md) → *Definition of done*.
 
 **This is the *exit* checklist; its entry counterpart is the work plan.** A change's design — problem, success criteria, authorized edit-points, impact map, test obligations — is recorded before the first edit in `.claude/plans/<key>/plan.md` ([`work-plan.md`](work-plan.md)). The two interlock: a plan's `P9` block records **results against the items below**, under the gate ids `G-01`…`G-08` that [`work-plan.md`](work-plan.md) → *P9 Verification gates* maps to them. The gates themselves are defined here and nowhere else; the plan only records what they returned, and `work-plan.ps1 -Action gates` derives which of them a given change's edit-points make applicable.
 

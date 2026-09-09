@@ -123,7 +123,7 @@ Two things this buys beyond speed. It reaches statements ordinary LINQ cannot ex
 
 When instrumenting to answer *"does shape X ever occur?"*, log **every** occurrence with a flag, not only the ones that match X. A log containing just the matches cannot distinguish "1 in 1000" from "1 in 1" — and that distinction is usually the entire finding, since it decides whether a hazard is rare-but-live or an artifact.
 
-This is a different failure from *"a control that passes in every arm measured nothing"* (see [`agent-rules.md`](agent-rules.md) → *Before coding a fix or feature*): there the probe cannot discriminate; here it discriminates perfectly and you cannot calibrate the result. The fix costs one field — emit `flagged=true|false` on every call and `Group-Object` at read time.
+This is a different failure from *"a control that passes in every arm measured nothing"* (see [`evidence-discipline.md`](evidence-discipline.md) → *Probes, instrumentation and controls*): there the probe cannot discriminate; here it discriminates perfectly and you cannot calibrate the result. The fix costs one field — emit `flagged=true|false` on every call and `Group-Object` at read time.
 
 (Surfaced on #5673 investigating whether a combined-eager plan can order its harvesters unsafely. The first probe logged only *mixed* plans; one line came back, which was uninterpretable, and the re-run cost a second ten-minute suite pass. Logging every plan gave the answer in one line: **86 plans built, 1 mixed, 0 inverted** — enough to down-scope the finding from a latent bug to a robustness gap.)
 
@@ -163,8 +163,7 @@ reduction there were worth ~17% of the work. It wasn't: the shape performed ~70 
 a ~4.5 s build, so visitor dispatch was ≤1% of runtime and the true ceiling was ~0.2%. Before quoting
 a reduction as a benefit, establish what fraction of *runtime* the instrumented subsystem owns — a
 ratio whose denominator is itself a small slice proves nothing about wall-clock. Verify with a
-profile or an A/B timing run (the timing run needs user consent — see
-[`agent-rules.md`](agent-rules.md) → *Confirm before perf runs* territory).
+profile or an A/B timing run — and ask before launching one, since it occupies the machine).
 
 **A corpus aggregate can hide the pathological case that motivated the work.** The full 10 415-test
 suite put the same scans at 0.82% of dispatch with a projected 0.62× speedup, which read as "stop" —

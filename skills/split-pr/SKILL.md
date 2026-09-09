@@ -44,7 +44,7 @@ git fetch origin master
 git worktree add -b <type>/<slug> <worktrees-root>/<slug> origin/master
 ```
 
-Naming follows [`agent-rules.md`](../docs/agent-rules.md) → *Creating a new branch*. Never branch from the
+Naming follows [`agent-rules.md`](../../docs/agent-rules.md) → *Creating a new branch*. Never branch from the
 feature branch — the point is to carry none of its history.
 
 ### 3. Move the change
@@ -59,7 +59,7 @@ against master first (`git diff origin/master <feature-branch> -- <path>`) and s
 - **only the wanted change** → `git checkout <feature-branch> -- <paths>`, which copies *and* stages it. Batch
   the whole pile in one call, then `git commit -F- -- <pathspec>` per logical change; the files for the later
   commits stay staged meanwhile (which is exactly why an amend here needs `--only`, see
-  [`agent-rules.md`](../docs/agent-rules.md) → *Git commit rules*).
+  [`agent-rules.md`](../../docs/agent-rules.md) → *Git commit rules*).
 - **wanted and unwanted deltas in the same file** (a metrics removal plus a temporary CI toggle; a refactor
   plus a matrix field the split doesn't carry) → hand-apply, and re-check the file afterwards for references
   to anything left behind. Splitting a large file this way is easier as *copy the branch's version, then
@@ -82,7 +82,7 @@ to master's shape.
 Build the affected project. A cherry-pick that merges cleanly can still fail to compile on master, which is
 exactly the risk the split is meant to expose.
 
-Commit with the standard rules ([`agent-rules.md`](../docs/agent-rules.md) → *Git commit rules*). Separate
+Commit with the standard rules ([`agent-rules.md`](../../docs/agent-rules.md) → *Git commit rules*). Separate
 commits per logical change — reviewers of a split PR are seeing this work for the first time, without the
 originating discussion, so the message carries the evidence: what failed, where it was observed, what the
 fix does.
@@ -103,7 +103,7 @@ it. Identical content merges cleanly; where it doesn't, master's side wins. Name
 branch that are now redundant, so they can be dropped when that PR is next tidied.
 
 Choose CI for the new PR by its content, not habit — a provider-scoped fix wants that provider's pipeline,
-not `test-all` ([`ci-tests.md`](../docs/ci-tests.md)).
+not `test-all` ([`ci-tests.md`](../../docs/ci-tests.md)).
 
 ## Don'ts
 
