@@ -148,16 +148,20 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 
 - **Release notes URL:** https://www.devart.com/dotconnect/oracle/revision_history.html
 - **Update rule:** **Public-API surface diff via fuget** (see *Fuget API-diff procedure*) — show diff to user before committing.
-- **Last verified:** 2026-05-15 on release 6.3.0
+- **API-diff exclusions:** the **whole `net20` asset**. linq2db binds Devart only through `netstandard2.0` / `netstandard2.1`, and the net20 asset carries netfx-CAS-era surface (`OraclePermission`, `OraclePermissionAttribute`, `OracleDataSetToolboxItem`, `HandleRef GetNativeHandle()`) that can never be consumable from those TFMs — so it shows up as pure noise on every bump. Maintainer's call on 6.5.0 prep was to exclude the TFM rather than name the types.
+- **Integration shape (why most removals are harmless):** the provider is reached entirely through reflection-mapped wrappers in `OracleProviderAdapter.CreateDevartAdapter()` — `OracleConnection`, `OracleParameter`, `OracleCommand`, `OracleDataReader`, `OracleTimeStamp`, `OracleNumber`, `OracleLoader*`. Nothing subclasses Devart types and nothing binds `OracleColumn` / `DbColumnBase` / `GetColumnSchema` / `DeriveParameters`. Grep the removal list against `Source/` + `Tests/` rather than reading the diff as breakage.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (11.1.123 → 11.2.192: 8 removals, all verified unreferenced)
 
 ## Meziantou.Polyfill
 
 - **Release notes URL:** _none — package does not publish release notes; the list of polyfilled APIs lives in the repo README at https://github.com/meziantou/Meziantou.Polyfill/blob/main/README.md_
+- **The repo publishes no tags or releases, so "compare the README at the two tags" does not work.** `gh api repos/meziantou/Meziantou.Polyfill/tags` and `.../releases` both return empty, and a ref like `1.0.158` 404s. Diff the **README embedded in the two nupkgs** instead — it is the generated API list and it is versioned with the package: `inspect-nupkg.ps1 -Id Meziantou.Polyfill -Version <v> -OutDir <dir>` for each, then compare the `` - `…` `` bullets between the `<!-- begin_polyfills -->` / `<!-- end_polyfills -->` markers.
+- **The `<Polyfill>` list in `Directory.Build.props` is an explicit allowlist (`MeziantouPolyfill_IncludedPolyfills`), so newly-supported APIs are inert until opted in.** That makes the *removal* half of the diff the part that can actually regress the build; a bump with zero removals cannot change generated output at all, whatever its addition count.
 - **Update rule:** On every bump:
-  1. Pull the README diff between the current and target version (`git log --diff-filter=M -p -- README.md` against the Meziantou.Polyfill repo, or compare README at the two release tags) to extract the **list of newly polyfilled APIs**.
+  1. Pull the README diff between the current and target version (per the nupkg method above) to extract the **list of newly polyfilled APIs**.
   2. For each new API, search the linq2db codebase for our own polyfill or conditional-build (`#if`) implementing the same API. If found, propose to **delete** our copy and rely on Meziantou.Polyfill instead.
   3. **Always show the full list of new APIs to the user for review**, even if no internal duplicates are found — the user may want to start using one of the new polyfills somewhere.
-- **Last verified:** 2026-05-15 on release 6.3.0
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (1.0.158 → 1.0.165: 1350 → 1355 polyfills, **0 removals**, no internal duplicate to delete; `RuntimeHelpers.GetSubArray<T>` offered and declined — it would enable array range-slicing on net462/netstandard2.0 next to the existing `Index`/`Range` polyfills, but has no current caller)
 
 ## Oracle.ManagedDataAccess.Core
 
@@ -207,7 +211,8 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 ## Newtonsoft.Json
 
 - **Update rule:** **Pinned at the current shipping version** (`Directory.Packages.props` is authoritative — `13.0.3` as of 6.4.0 prep; this doc previously recorded `13.0.1`, so read the props file rather than trusting the version quoted here). Do not bump even when newer 13.0.x is available, unless flagged vulnerable. Reasoning: shipping with the lowest stable 13.0.x version keeps downstream consumers free of transitive constraints (same intent as runtime-pin policy, but for Newtonsoft specifically since it is referenced from shipping projects). The pin having moved 13.0.1 → 13.0.3 is consistent with the "unless flagged vulnerable" carve-out; the raise itself isn't a rule change.
-- **Last verified:** 2026-07-17 (pin value re-read from `Directory.Packages.props:174`; rule text unchanged since 2026-05-15 / release 6.3.0)
+- **How to discharge the "unless flagged vulnerable" carve-out cheaply:** `gh api 'advisories?ecosystem=nuget&affects=Newtonsoft.Json' --jq '…'`. On 6.5.0 prep the only advisories were `GHSA-5crp-9r3c-p9vr` / `GHSA-8rfx-6mr3-5jh3`, both ranged `< 13.0.1` and therefore already satisfied by the 13.0.3 pin — so 13.0.4 was **held** with no user decision needed. Run the query rather than asking; it turns a judgement call into a lookup.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (held at 13.0.3; 13.0.4 available but no advisory above 13.0.1)
 
 ## NUnit3TestAdapter
 
@@ -299,7 +304,95 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
   3. After update + verification Release build, observe which new rules raised errors. For each rule that raised errors, ask the user: fix the errors, or disable the rule (set severity = none in `.editorconfig`).
   4. **Once the build is clean**, run the profiling pass (`/release-verify` step 3) — Meziantou is historically the dominant analyzer cost in this repo (6.3.0 prep disabled `MA0002` at ~995s/build and `MA0182` at ~1233s/build purely on cost), so both newly-enabled rules and regressions on existing ones need measuring before the release ships.
   5. **First-time-this-rule update only:** also catch up on previously-missed rules — audit the analyzer's full rule catalog at the target version against the current `.editorconfig` and enable any missing rules using the same procedure. Do **not** touch rules that were already explicitly enabled or disabled in `.editorconfig`.
-- **Last verified:** 2026-08-03 on release 6.4.0 (3.0.85 → 3.0.138: 12 new rules MA0201-MA0212, 8 existing rules gained options)
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (3.0.138 → 3.0.231: 13 new rules MA0213-MA0225; ~14 existing rules gained options, **all of them no-ops or default-preserving** — 7 landed on rules the repo holds at `severity = none`, the rest default to current behaviour, and `MA0007.ignore_catch_all_arm` / `MA0115.report_pascal_case_unmatched_parameter` are renames of existing options). Previously 2026-08-03 on 6.4.0 (3.0.85 → 3.0.138: 12 new rules MA0201-MA0212, 8 rules gained options).
+- **Check reachability before assigning severity — several MA rules are structurally dead here.** On the 3.0.231 walk, 5 of 13 new rules had provably zero findings (`MA0216` no union types, `MA0218` no `language=` attributes, `MA0220` no `*_regex` options in `.editorconfig`, `MA0222`/`MA0223` no `JsonSourceGenerationOptions` anywhere), which makes them free to enable as `error`. Two more were decided on *reach*, not taste: `MA0221` had exactly one site, and `MA0224`/`MA0225` had four `JsonSerializerOptions` construction sites whose fix is a **deserialization behaviour change** to user-facing CLI/LINQPad config JSON — held at `none` as out-of-scope for release prep. A grep per rule is cheaper than a build cycle.
+- **Watch for mutually-inverse rule pairs.** `MA0214` ("use await instead of returning the task") and `MA0215` ("return the task instead of awaiting it") contradict each other; enabling both makes every call site wrong either way. linq2db returns the task directly wherever possible, so `MA0215` = error and `MA0214` = none. The blanket "enable each new rule as error" step must not be applied mechanically across such a pair.
+
+## Microsoft.CodeAnalysis.CSharp (the central runtime pin, **not** the 4.8.0 analyzer floor)
+
+- **Release notes URL:** _none per package version — `dotnet/roslyn` versions its releases by `dev17.x`/`dev18.x` branches that do not map to the 4.x/5.x package numbers, and `dotnet/roslyn-analyzers` tags stop at `v3.11.0`._
+- **Three separate consumers, and they straddle the TFM boundary:** `Source/CodeGenerators` (netstandard2.0, `PrivateAssets=all`), `Source/LinqToDB.CLI` (net8.0/net9.0/net10.0, **`PackAsTool` so it bundles what it resolves**), and the **net472 lpx** build of `Source/LinqToDB.LINQPad` (line ~49; the *nuget* driver at line ~72 is pinned separately to `$(RoslynLinqPadVersion)` and is not affected). `Source/LinqToDB.Analyzers` overrides to 4.8.0 and is likewise unaffected.
+- **Update rule — read the *asset* groups, not just the version.** `5.9.0` **dropped the `lib/net8.0` asset** that `5.6.0` shipped (`5.6.0`: net10.0 + net8.0 + netstandard2.0; `5.9.0`: net10.0 + netstandard2.0). Nothing fails — net8.0/net9.0 silently fall back to `lib/netstandard2.0`, whose dependency group drags in `System.Buffers`, `System.Memory`, `System.Numerics.Vectors`, `System.Runtime.CompilerServices.Unsafe`, `System.Text.Encoding.CodePages`, `System.Threading.Tasks.Extensions`, all in-box on .NET 8+ — and the packed CLI then **ships** them. Compare `<group targetFramework=…>` between the current and target nuspec on every bump (`inspect-nupkg.ps1`).
+- **Resolution adopted on 6.5.0 prep — a TFM split keyed on the *gap*, not on a compatibility floor:**
+  ```xml
+  <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" Condition=" '$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0' "   />
+  <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" Condition=" '$(TargetFramework)' != 'net8.0' and '$(TargetFramework)' != 'net9.0' " />
+  ```
+  Only net8.0/net9.0 lose a native asset, so only they hold back; `netstandard2.0` and `net472` already resolve the netstandard2.0 asset and get 5.9.0 for free. Confirmed empirically by the notices harvest, which reported `Microsoft.CodeAnalysis.CSharp` moving on `net10.0` and `net472` only, with **no new bundled packages**.
+- **Co-bump constraint:** `5.9.0` requires `Microsoft.CodeAnalysis.Analyzers >= 5.9.0-1.26328.17` (up from 5.3.0). `Source/CodeGenerators` references *both* directly, so once its branch resolves 5.9.0 the `Analyzers` pin **must** move to stable 5.9.0 or restore fails **NU1605** under `TreatWarningsAsErrors`. Stable `5.9.0` sorts above the prerelease floor, so it satisfies it.
+- **Downstream obligation:** the vendored docfx build in `linq2db/docs` tracks this version — bumping it books a rebuild + re-vendor of the `MaceWindu/docfx` fork (`custom/linq2db`) before `/release-postpublish`'s docs PR. See [`external-repos.md`](./external-repos.md).
+- **Also update** `Tests/Tests.Analyzers.Internal`'s `Microsoft.CodeAnalysis.CSharp.Workspaces` `VersionOverride`, which is *defined* as matching the Roslyn `CodeGenerators` builds against — and `CodeGenerators` is netstandard2.0, so under the split above it follows the **upper** branch. (Its inline comment says "4.8 host"; the project itself targets `net10.0`.)
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (5.6.0 → conditional 5.6.0/5.9.0)
+
+## Microsoft.CodeAnalysis.Analyzers
+
+- **Release notes URL:** _none obtainable per version._ The RS1xxx/RS2xxx catalog cannot be diffed cheaply: `dotnet/roslyn-analyzers` tags stop at `v3.11.0`, the source has since moved into `dotnet/roslyn` (which versions by `dev18.x` branches), and the package ships no rule manifest. **A raw byte-scan of the analyzer assemblies for `RS\d{4}` is unreliable — do not use it**: on 6.5.0 prep it "reported" RS1001/RS1003/RS2001 as *added* in 5.9.0, which are among the oldest rules in the package (the scan aliases across the string heaps).
+- **Update rule:** bump freely and let `/release-verify`'s reactive walk surface new diagnostics. Blast radius is small and never shipped: `PrivateAssets="all"` in `Source/Analyzers.Common.props` (→ `LinqToDB.Analyzers` + `.CodeFixes`) and `Source/CodeGenerators` — all netstandard2.0, so a TFM-conditional split on this id would be a **dead row**. Package shape is stable (5.6.0 and 5.9.0 both have no dependency groups and the same 30 assemblies).
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (5.6.0 → 5.9.0, forced by the Roslyn co-bump constraint above)
+
+## protobuf-net / protobuf-net.Grpc / protobuf-net.Grpc.AspNetCore
+
+- **Release notes URL:** https://github.com/protobuf-net/protobuf-net/releases and https://github.com/protobuf-net/protobuf-net.Grpc/releases
+- **`protobuf-net` is safe to track;** 3.2.56 → 3.4.21 had **0 additions and 0 removals** across all four TFMs (net462, net8.0, netstandard2.0, netstandard2.1) with unchanged dependency groups. Verify via fuget rather than assuming a 3.2→3.4 jump is risky.
+- **`protobuf-net.Grpc` 1.3.x dropped net462 and raised its compat floors — the whole line, not just the newest.** 1.3.0, 1.3.6 and 1.3.14 all ship `.NETFramework4.7.2` (was `4.6.2`) and require `Microsoft.Bcl.AsyncInterfaces` / `System.IO.Pipelines` / `System.Threading.Channels` at **10.0.8** (was 8.0.0), plus `Grpc.Core.Api` 2.80.0. There is no intermediate version that avoids either — check 1.3.0 before proposing a split.
+- **Why that matters:** `Source/LinqToDB.Remote.Grpc` declares no TFMs and so inherits `net462;netstandard2.0;net8.0;net9.0;net10.0` from `Directory.Build.props`. Restore does not fail (net462 falls back to the netstandard2.0 asset), but the shipped `linq2db.Remote.Grpc` then imposes `Microsoft.Bcl.AsyncInterfaces >= 10.0.8` on consumers, against a central pin deliberately held at 8.0.0 by the [#3953](https://github.com/linq2db/linq2db/issues/3953) runtime-pin policy. It does **not** affect the bundled-notices manifest, because Remote.Grpc is not one of the three bundling projects.
+- **Decision on 6.5.0 prep:** maintainer accepted the bump and the constraint escalation (all three ids to 1.3.14), with the standing question of whether net462 is still worth supporting on the gRPC remote package left open. `protobuf-net.Grpc.AspNetCore`'s `Tests/Base` reference sits inside a `'$(TargetFramework)' != 'net462'` ItemGroup, so only `LinqToDB.Remote.Grpc` is exposed to the netfx half.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep
+
+## ModelContextProtocol (+ .Core)
+
+- **Release notes URL:** https://github.com/modelcontextprotocol/csharp-sdk/releases
+- **Update rule:** shipped inside `linq2db.cli` (the MCP server), so diff the API surface via fuget before taking a minor bump — the CLI is published to the MCP Registry, so a breaking change there is consumer-visible. `.Core` is pinned exactly (`[<version>]`) by the metapackage, so the two always move together.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (2.0.0 → 2.2.0: **0 removals**, 4 additions, all TFM groups intact — the whole delta is a new `SubscriptionsListenHandler` / `WithSubscriptionsListenHandler` capability)
+
+## Microsoft.Testing.Platform + Microsoft.Testing.Extensions.\* (`$(MicrosoftTestingVersion)`)
+
+- **Release notes URL:** _none per MTP version._ `microsoft/testfx` hosts the code but tags **MSTest** versions (3.x/4.x), not MTP's 2.x line, so there is no release body to read for a 2.3.3 → 2.4.0 bump.
+- **Risk surface is this repo's own MTP extension, not the runner itself.** `Tests/Base/TestProgressReporter.cs`, `TestProgressState.cs`, `TestRunCommandLineProvider.cs` and `TestCommandLine.cs` implement the `--test-progress` heartbeat that every test run in this workflow depends on, registered per-assembly via three `AssemblyInfo.TestProgress.cs` files. An MTP minor can move `ITestApplicationBuilder` / `IDataConsumer`, which shows up as a `Tests.Base` compile error — or, worse, as a silently missing heartbeat. Nothing shipped is affected.
+- **All five rows move together** via the shared property; check that every `Microsoft.Testing.Extensions.*` id has the target version published, not just `Microsoft.Testing.Platform`.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (2.3.3 → 2.4.0)
+
+## Microting.EntityFrameworkCore.MySql
+
+- **Release notes URL:** https://github.com/microting/EntityFrameworkCore.MySql/releases
+- **Update rule:** EF Core 10 fork of Pomelo (whose own newest line is EF Core 9). Its versions track EF Core patch numbers 1:1, so keep it in step with `$(Net10Latest)` — but when Microting lags, take **the newest release whose own dependency floors `$(Net10Latest)` already satisfies**, per *Prefer the version whose dependencies the repo's pins already satisfy*. Do not hold at an older version merely because the numbers no longer match exactly.
+- **Worked history:** on [#5885](https://github.com/linq2db/linq2db/pull/5885) (2026-09-06) 10.0.11 was **declined** — it needs Relational `[10.0.11, …]` + MySqlConnector `2.6.2` against pins of 10.0.10 / 2.6.1 ("as dependency not satisfied yet, use 10.0.10"). On 6.5.0 prep the same version was **taken**, because `$(Net10Latest)` → 10.0.12 and MySqlConnector → 2.6.2 satisfied both floors. Same package, opposite answer, decided purely by the pins around it.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (10.0.10 → 10.0.11, while `$(Net10Latest)` went to 10.0.12)
+
+## Microsoft.SourceLink.GitHub
+
+- **Release notes URL:** https://github.com/dotnet/sourcelink/releases
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (10.0.303 → 10.0.401)
+
+## Microsoft.SqlServer.TransactSql.ScriptDom
+
+- **Release notes URL:** https://github.com/microsoft/SqlScriptDOM/blob/main/release-notes/ (root; per-version pages sit under it, e.g. `release-notes/180/180.102.0.md`)
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (180.78.1 → 180.102.0)
+
+## MySqlConnector
+
+- **Release notes URL:** https://mysqlconnector.net/overview/version-history/
+- **Co-bump:** gates `Microting.EntityFrameworkCore.MySql` (see its entry) — 10.0.11 requires MySqlConnector 2.6.2.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (2.6.1 → 2.6.2)
+
+## OpenTelemetry / OpenTelemetry.Exporter.Console (`$(OpenTelemetryVersion)`)
+
+- **Release notes URL:** https://github.com/open-telemetry/opentelemetry-dotnet/releases
+- **Update rule:** both ids move together via the shared property; Examples-only, nothing shipped.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (1.17.0 → 1.18.0)
+
+## `$(AspNetCoreLegacyVersion)` / `$(SignalRLegacyVersion)` — the ASP.NET Core 2.x-era rows
+
+- **Release notes URL:** https://github.com/dotnet/aspnetcore/releases
+- **Update rule:** these lines (`Microsoft.AspNetCore` + `Kestrel.Core` at 2.3.x; `Microsoft.AspNetCore.SignalR` + `SignalR.Client` + `SignalR.Core` at 1.2.x) are long out of support and only ever get security republishes, so track the newest patch within the line. **`$(SignalRLegacyVersion)` is not test-only** — `SignalR.Core` and the `!net8+` branch of `SignalR.Client` are shipping rows, so treat it as a consumer-visible bump and check advisories (`gh api 'advisories?ecosystem=nuget&affects=<id>'`) rather than assuming a netfx-only blast radius.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (2.3.11 → 2.3.13, 1.2.11 → 1.2.13; no advisories on either)
+
+## `$(Net8Latest)` / `$(Net9Latest)` / `$(Net10Latest)` — the .NET patch-line properties
+
+- **Release notes URL:** https://github.com/dotnet/core/tree/main/release-notes
+- **Update rule:** auto-bump to the newest stable patch of the line without asking (per the *`*Latest` MSBuild properties* category). **But verify the target exists for every consuming id, not just one** — these properties feed 20+ rows across unrelated packages, and the .NET libraries do not all ship the same patch numbers (`Microsoft.Extensions.Logging.Console` has no 8.0.x beyond 8.0.1; `System.Data.Odbc`/`OleDb` stop at 8.0.1; `Microsoft.Bcl.Memory` has no 8.0.x at all). Compute the per-line maximum per id from the deps cache before editing.
+- **`$(Net10Latest)` has two non-obvious couplings:** it drives `Microsoft.Data.Sqlite`, which (a) triggers the *SQLite version-assert sync* rule under `SourceGear.sqlite3`, and (b) determines the transitive `SQLitePCLRaw.*` version — at 10.0.12 that became **2.1.12**, moving the graph above `GHSA-2m69-gcr7-jv3q`'s `<= 2.1.11` range for the first time. It also gates `Microting.EntityFrameworkCore.MySql`.
+- **Last verified:** 2026-09-09 on release 6.5.0 prep (8.0.29 → 8.0.31, 9.0.18 → 9.0.20, 10.0.10 → 10.0.12)
 
 ## Microsoft.CodeAnalysis.CSharp.Workspaces (+ Microsoft.CodeAnalysis.CSharp for the analyzer project)
 
