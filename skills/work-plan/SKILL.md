@@ -49,7 +49,7 @@ Invoked directly, or by `/fix-issue` after the branch exists and existing test c
 
 Apply the table in [`work-plan.md`](../../docs/work-plan.md) → *Tiers*. Show the user the tier you picked **and why**, and accept an override.
 
-Escalation is free; **de-escalation to skip the critic is the one move this mechanism exists to prevent** — if the user asks for it, record it in `P12` as `waived-by-user: <reason>` rather than silently dropping the pass.
+Escalation is free; **de-escalation to skip the critic is the one move this mechanism exists to prevent** — if the user asks for it, record it in `P12` as `waived-by-user: <reason>` rather than silently dropping the pass. A standing `criticModel: never` in `.claude/plans/config.json` (step 7) is *not* a de-escalation: the tier stays what the table says, the gates stay derived from it, and only the critic pass is waived — with the same `P12` line.
 
 ### 3. Readiness gate
 
@@ -104,9 +104,11 @@ Write the blocks inline from the readiness answers, the scout evidence and the e
 
 Then `work-plan.ps1 -Action init` and fill, or edit the existing file. Run `-Action gates` to derive the applicable `G-nn` subset from `P6` and seed `P9`.
 
-### 7. Attack it with the critic (Tier M/L; mandatory at L)
+### 7. Attack it with the critic (Tier M/L; mandatory at L unless the user waived it)
 
 One `Agent` call to `plan-critic`, **passing the model explicitly on the dispatch** — the model is load-bearing here, so do not rely on frontmatter being picked up.
+
+"Mandatory at L" binds *you*, not the user: the pass is not yours to skip, and the only thing that removes it is the user's own `criticModel` setting below (or an explicit waiver this turn), recorded in `P12` either way.
 
 **First run in this clone: ask two settings once, then persist them.** Read `.claude/plans/config.json` — **gitignored and per-user**, so a fresh clone legitimately has none and the prompt is expected, not a fault. For each key it does not carry, ask the user and write the answer back:
 
@@ -117,10 +119,22 @@ One `Agent` call to `plan-critic`, **passing the model explicitly on the dispatc
 }
 ```
 
-- **`criticModel`** — keyed by host tool, because the right answer differs per tool. The requirement is a model **from a different family than the author's**; a same-model critic re-derives the same blind spots. For Claude Code the suggestion is `fable`. Under another host the choice is the user's.
-- **`criticTiming`** — `before` | `after` | `ask`. Not keyed by tool: it is a workflow preference, not a capability. See below.
+- **`criticModel`** — keyed by host tool, because the right answer differs per tool. Three answers, offered as three options: **a specific model**, **`never`**, or **`ask`** (decide per run). For Claude Code the suggested model is `fable`; under another host the choice is the user's. A model id must be **from a different family than the author's** — a same-model critic re-derives the same blind spots.
+- **`criticTiming`** — `before` | `after` | `ask`. Not keyed by tool: it is a workflow preference, not a capability. See below. **Skip this question entirely when the answer to `criticModel` is `never`** — there is no pass to time — and write only `criticModel`.
 
 Ask both in the **same** prompt when both are missing — don't make the user answer two turns for one setup.
+
+#### `criticModel` — whether the critic runs at all
+
+| Value | This run | What goes in `P12` |
+|---|---|---|
+| a model id | Dispatch `plan-critic` on it. | the verdict + what the critic searched |
+| `never` | **Do not dispatch.** Present the plan in step 8 saying plainly that it has not been attacked. | `waived-by-user: criticModel=never (standing config)` |
+| `ask` | Ask this run: which model, or skip. A skip is the `never` row for this plan only. | whichever of the two above applies |
+
+**Honour `never` without re-arguing it, and still write the waiver line.** Step 2 forbids *offering* de-escalation as a shortcut; a standing `never` is not that — it is the same call the user is entitled to make per plan, made once. So do not re-prompt, do not treat it as a fault, and do not surface a "should we run it anyway?" each session. But the config is gitignored while the plan is shared, so `P12` is the only place a later reader — the user in a month, `/review-pr`, `review-gap-attributor` — can see the design went unattacked. `-Action validate` accepts `waived-by-user` at every tier, so the line is also what keeps a Tier L plan valid.
+
+**`never` does not authorize a self-critique in its place.** A critic-shaped pass written by the plan's author is not a verdict under any setting (see *Don'ts*). Waive it and say so; don't manufacture a substitute.
 
 #### `criticTiming` — when the critic runs relative to step 8
 
@@ -134,7 +148,7 @@ Ask both in the **same** prompt when both are missing — don't make the user an
 
 **`before` remains the recommendation, and the reason is empirical:** on the first real run of this skill ([#5729](https://github.com/linq2db/linq2db/issues/5729)) the critic changed the design on both passes — pass 1 removed an edit-point and forced a helper re-decision, pass 2 refuted an entire folded-in half. Presenting first would have spent the user's attention twice on designs that did not survive.
 
-**Tier S never asks.** No critic runs at Tier S, so neither setting applies; don't prompt for them on a Tier S plan.
+**Tier S never asks.** No critic runs at Tier S, so neither setting applies; don't prompt for them on a Tier S plan. `criticTiming` is equally moot under `criticModel: never` — don't prompt for it, and don't write it.
 
 **Dispatch hygiene — this is the difference between a critic that earns its cost and one that rubber-stamps:**
 
@@ -144,6 +158,7 @@ Ask both in the **same** prompt when both are missing — don't make the user an
 
 Reconcile by verdict:
 
+- **`waived`** (`criticModel: never`, or a per-run skip under `ask`) — nothing was dispatched, so there is nothing to reconcile: write the `waived-by-user` line and carry the un-attacked status into step 8's presentation.
 - **`holds`** — carry forward; record in `P12` **what the critic searched**, not just the word.
 - **`weak`** — carry forward with the objections **visible in the plan you show the user**. Do not absorb them silently; the user approves knowing the strongest case against the design.
 - **`refuted`** — revise once, then **send the revision back to the critic**, not straight to the user. Cap at one round: if the revision still cannot answer the objections, present both and stop for user direction.
@@ -153,6 +168,8 @@ Reconcile by verdict:
 ### 8. Present and get approval
 
 Show the user the plan — tier, `P2` criteria, `P6` edit-points, the critic verdict with its objections, and any `P4` row still open. **Ask for approval in the main loop, never from inside a subagent** — subagents run non-interactively and a prompt there is auto-denied.
+
+**When the critic was waived, the "verdict" line is a one-line statement that it was.** Say the design has not been attacked and name why (`criticModel: never`, or the skip the user chose this run). The user is then approving a design whose only reader is its author, which is a materially different thing to approve than one that survived a critic — and the whole point of the setting is that this is *their* call, so it has to be in front of them when they make it.
 
 Approval is a final word on the **then-current** edit set. Record it on the header line.
 
@@ -207,8 +224,8 @@ Run all three (`-Validate`, `-Gates`, `-Reconcile`) and report. `-Reconcile` exi
 - **Do not write product code.** The skill's scope ends at an approved plan.
 - **Do not commit or push anything without an explicit request this turn** — including the plan. "The plan validates" is not a request.
 - **Do not overwrite an existing plan.** Amend it. `-Force` is the user's call.
-- **Do not let the author critique its own plan.** A self-critique is not a verdict; if the critic cannot run, record `waived-by-user: <reason>` so the skip is visible to the user rather than to nobody.
-- **Do not de-escalate a tier to skip the critic**, and do not offer it as a shortcut.
+- **Do not let the author critique its own plan.** A self-critique is not a verdict; if the critic cannot run — or is off by `criticModel: never` — record `waived-by-user: <reason>` so the skip is visible to the user rather than to nobody.
+- **Do not de-escalate a tier to skip the critic**, and do not offer it as a shortcut. A standing `criticModel: never` is a separate thing: honour it silently, don't re-litigate it each session, and don't lower the tier to match it.
 - **Do not fill `P7` by reasoning.** A row with no named search is invalid even when it happens to be right — the implementer cannot tell the difference.
 - **Do not mark a gate `pass` that you did not run.** `skipped` must name what is therefore unverified; `blocked` must name the dependency.
 - **Do not treat an absent plan as an error.** Branches predating this mechanism and external-contributor PRs have none, and every consumer degrades cleanly.

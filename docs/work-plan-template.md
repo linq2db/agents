@@ -83,7 +83,7 @@ _None._
 
 ## P12 Critic verdict (M/L)
 
-<!-- fill: the plan-critic result — `holds` | `weak` | `refuted` — its objections, and what changed in response. A `weak` verdict is carried forward with the objections VISIBLE, not silently absorbed. A self-critique by the author is not a verdict; when the critic cannot run, record `waived-by-user: <reason>`. -->
+<!-- fill: the plan-critic result — `holds` | `weak` | `refuted` — its objections, and what changed in response. A `weak` verdict is carried forward with the objections VISIBLE, not silently absorbed. A self-critique by the author is not a verdict; when the critic cannot run, or is off by `criticModel: never`, record `waived-by-user: <reason>` naming which. -->
 
 _Not yet critiqued._
 <!-- TEMPLATE-END -->

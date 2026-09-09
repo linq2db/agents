@@ -193,7 +193,7 @@ The `plan-critic` result — `holds` | `weak` | `refuted` — its objections, an
 
 **A `weak` verdict is carried forward with the objections visible, not silently absorbed.** The user approves knowing the strongest case against the design.
 
-**A self-critique by the plan's author is not a verdict.** When the critic genuinely cannot run, record `waived-by-user: <reason>`, which makes the skip visible to the user instead of to nobody.
+**A self-critique by the plan's author is not a verdict.** When the critic genuinely cannot run, record `waived-by-user: <reason>`, which makes the skip visible to the user instead of to nobody. A standing `criticModel: never` (see *Settings* below) is the same thing decided once instead of per plan — it still gets its own `waived-by-user` line naming the config, because the config is gitignored and the plan is not.
 
 ## Lifecycle
 
@@ -233,10 +233,20 @@ Two settings, asked once on the first planning session that needs them and persi
 
 | Key | Values | Meaning |
 |---|---|---|
-| `criticModel` | keyed by **host tool** | Which model critiques. Must be a different family from the author's — that difference *is* the mechanism. Keyed per tool because the available models differ. |
+| `criticModel` | keyed by **host tool**; each value is a model id, `never`, or `ask` | Whether the critic runs, and on what. A model id must be a different family from the author's — that difference *is* the mechanism. Keyed per tool because the available models differ. |
 | `criticTiming` | `before` \| `after` \| `ask` | When the critic runs relative to presenting the plan. Not keyed by tool: a workflow preference, not a capability. |
 
-**`before`** (recommended) runs the critic first, so the user only ever sees a plan with the verdict folded in and approves knowing the strongest case against the design. **`after`** presents first so the user can kill an approach before a critic pass is spent — at the cost that the first approval is provisional and must be re-earned once the verdict lands. **`ask`** decides per run.
+**`criticModel` carries three answers, not one:**
+
+| Value | Effect |
+|---|---|
+| a model id (`fable`, …) | Dispatch `plan-critic` on that model, every Tier M/L plan. The recommendation. |
+| `never` | Never dispatch. Every Tier M/L plan records `waived-by-user: criticModel=never (standing config)` in `P12`, and the skill says so when presenting. |
+| `ask` | Ask per run — model, or skip this one. No standing commitment; one extra question each planning session. |
+
+**`never` is a standing waiver, and the waiver line is what makes it visible.** This file is gitignored, so a reader of the plan — the user weeks later, `/review-pr`, `review-gap-attributor` — cannot see the setting. The `P12` line is the only place the skip is recorded, which is why it is still written per plan rather than inferred from the config. `never` does **not** license a self-critique in its place: the author attacking its own plan is not a verdict under any setting.
+
+**`criticTiming`:** **`before`** (recommended) runs the critic first, so the user only ever sees a plan with the verdict folded in and approves knowing the strongest case against the design. **`after`** presents first so the user can kill an approach before a critic pass is spent — at the cost that the first approval is provisional and must be re-earned once the verdict lands. **`ask`** decides per run. It is moot under `criticModel: never`, so don't prompt for it.
 
 Neither setting applies at Tier S, where no critic runs.
 
