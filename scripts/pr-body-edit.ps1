@@ -41,8 +41,9 @@ Input (stdin, JSON):
                                            // the matched STRING, not after the line containing it. The two coincide
                                            // only when the anchor IS the whole line — which every example here is —
                                            // so a SUBSTRING anchor splits its line and strands the tail after your
-                                           // inserted block. Anchor the entire line, and always -dryRun first and
-                                           // read bodyAfter: that is what catches it.
+                                           // inserted block. Anchor the entire line, and always pass
+                                           // -DryRun (or "dryRun": true) first and read bodyAfter:
+                                           // that is what catches it.
                                            // Given the above, a single leading "\n" only terminates the anchor line
                                            // and yields no blank line. An inserted "## Heading" then sits flush
                                            // against the anchor paragraph (it still renders — ATX headings may
@@ -123,7 +124,15 @@ Exit codes:
   1 = hard failure (bad input, anchor not found, gh error, etc.)
 #>
 
-param([string]$ManifestFile)
+# CmdletBinding so an unknown argument is a hard error. Without it PowerShell drops unrecognised
+# named arguments into $args and runs anyway - and the argument most likely to be misremembered here
+# is -DryRun, so the "preview" silently performed the real edit.
+[CmdletBinding()]
+param(
+    [string]$ManifestFile,
+    # Overrides the manifest's own `dryRun` field when passed; the field remains supported.
+    [switch]$DryRun
+)
 
 $global:ScriptBaseName = 'pr-body-edit'
 . "$PSScriptRoot/_shared.ps1"
@@ -135,7 +144,10 @@ $pr    = [int]$m.pr
 $owner = if ($m.owner) { [string]$m.owner } else { 'linq2db' }
 $repo  = if ($m.repo)  { [string]$m.repo  } else { 'linq2db' }
 $repoFull = "$owner/$repo"
-$dryRun   = [bool]$m.dryRun
+# Distinct name, not a case variant of $DryRun: variable names are case-insensitive, so assigning to
+# $dryRun would write back into the [switch] parameter and coerce this bool into a SwitchParameter -
+# which then serialises as {"IsPresent":true} in the JSON below instead of a plain boolean.
+$isDryRun = $DryRun.IsPresent -or [bool]$m.dryRun
 $workDir  = if ($m.workDir) { [string]$m.workDir } else { '.build/.agents' }
 
 $hasInsertions   = $m.insertions   -and @($m.insertions).Count   -gt 0
@@ -303,7 +315,7 @@ $body = $body -replace "\n{3,}", "`n`n"
 [System.IO.File]::WriteAllText($bodyAfterAbs, $body, $utf8NoBom)
 
 $applied = $false
-if (-not $dryRun) {
+if (-not $isDryRun) {
     $editResult = Invoke-Gh -ArgumentList @('pr', 'edit', "$pr", '--repo', $repoFull, '--body-file', $bodyAfterPath)
     if (-not $editResult.ok) { Exit-WithError "gh pr edit $pr failed: $($editResult.error)" }
     $applied = $true
@@ -313,7 +325,7 @@ Write-JsonOutput ([pscustomobject]@{
     pr         = $pr
     url        = "https://github.com/$repoFull/pull/$pr"
     applied    = $applied
-    dryRun     = $dryRun
+    dryRun     = $isDryRun
     bodyBefore   = $bodyBeforePath
     bodyAfter    = $bodyAfterPath
     insertions   = $results

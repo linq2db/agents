@@ -72,6 +72,43 @@ Consequences:
   surface it, post a commit status against the PR's head sha (`POST /repos/{o}/{r}/statuses/{sha}`);
   a PR renders its head commit's statuses in the checks list.
 
+## `${{ … }}` is evaluated everywhere in a workflow file — comments included
+
+The expression parser runs over the **whole file** before anything executes, not just over the
+fields you think of as expressions. A `${{ … }}` inside a `run:` block — inside a heredoc, inside a
+*comment* in that heredoc — is still parsed, and if it isn't a valid GitHub expression the entire
+workflow fails to load.
+
+This bites when a workflow quotes some *other* system's syntax that happens to collide. Azure
+Pipelines template conditionals are spelled the same way, so a Python comment reading
+`a key literally named '${{ if eq(parameters.full_run, true) }}'` produced:
+
+    HTTP 422: failed to parse workflow: (Line: 105, Col: 14): Unrecognized named-value: 'if'
+
+Two things make it expensive. The file is perfectly valid YAML, so a local `yaml.safe_load` check
+passes; and the position reported is the start of the `run:` block scalar, not the offending line.
+A push also creates a **synthetic failed run attributed to a `push` trigger the workflow does not
+have** — GitHub validates workflow files on push regardless of triggers — so the run list shows a
+failure for an event you never configured.
+
+Assemble the literal instead of writing it: `azure_expr = '$' + '{{'`. There is no escape sequence
+that helps inside a `run:` body.
+
+## An empty `matrix` fails the run — it is not "no jobs"
+
+`matrix: ${{ fromJSON(needs.prepare.outputs.legs) }}` resolving to `{"include": []}` does **not**
+skip the job. It fails the **run**, and it does so invisibly:
+
+- no failed job — `gh run view` lists every job as ✓ or `-`, under a red run;
+- no failed check run — `gh api …/check-suites/<id>/check-runs` shows only successes;
+- nothing in the annotations.
+
+So the tell is a run whose conclusion is `failure` while everything in it is green, which reads like
+a GitHub glitch rather than a configuration error. Gate any dynamically-populated matrix job on its
+own list being non-empty (`if: needs.prepare.outputs.any == 'true'`) so it is *skipped* rather than
+instantiated with nothing in it. Worth doing for the upstream build job too, or a surface with
+nothing to run still pays for it.
+
 ## `upload-artifact` silently drops dotfiles
 
 `actions/upload-artifact` v4+ excludes hidden files by default, **with no warning in the log**. This
