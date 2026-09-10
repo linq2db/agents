@@ -1206,13 +1206,13 @@
   },
   "Tests/Linq/Linq/MathFunctionTests.cs::Round4": {
     "issue": null,
-    "quote": "gate: \"Fails on CI\"",
-    "note": "Two reasons the local result cannot decide it, either of which is sufficient: the gate is not compiled in this configuration, and its own prose says the failure is a CI one. Both go to the CI sweep with the Devart and Informix sites. Note the sibling Round4Sql, which is gated unconditionally, does fail here - so whatever Round4 hits on CI is not simply DB2's inexact ROUND.",
     "attributionSource": "none",
-    "sweptOn": "not swept - not compiled in the Testing configuration",
+    "providers": "ProviderName.DB2",
+    "observed": "not observable here - the gate sits inside #if AZURE, which Tests/Directory.Build.props defines only for Configuration == Azure, so it does not compile in Testing. Confirmed by -getProperty:DefineConstants on a -c Azure build, which lists AZURE.",
     "verdict": "needs-investigation",
-    "observed": "not observable here - the gate sits inside #if AZURE, which Tests/Directory.Build.props defines only for Configuration == Azure, so it does not compile in Testing",
-    "providers": "ProviderName.DB2"
+    "quote": "gate: \"Fails on CI\"",
+    "note": "Migrated with 'no-declaration: unvalidated: no-issue:'. Two independent reasons the local result cannot decide it: the gate is not compiled in this configuration, and its own prose says the failure is a CI one. Not DB2's inexact ROUND - the sibling Round4Sql fails locally on exactly that while Round4 passes - so CI is hitting a different cause and a borrowed declaration would have been wrong. Left ProviderName.DB2 as written rather than widening to AllDB2 like Round4Sql: the two have different causes, so the sibling's provider set is not evidence for this one. The next Azure leg reports the real failure.",
+    "sweptOn": "not swept - not compiled in the Testing configuration; verified to compile under -c Azure"
   },
   "Tests/Linq/Linq/WindowFunctionsTests.RatioToReport.cs::RatioToReportZeroPartitionSum": {
     "issue": "5897",
@@ -1252,13 +1252,13 @@
   },
   "Tests/Linq/Linq/MathFunctionTests.cs::Round11": {
     "issue": null,
-    "quote": "gate: \"Fails on CI\"",
-    "note": "Two reasons the local result cannot decide it, either of which is sufficient: the gate is not compiled in this configuration, and its own prose says the failure is a CI one. Both go to the CI sweep with the Devart and Informix sites. Note the sibling Round4Sql, which is gated unconditionally, does fail here - so whatever Round4 hits on CI is not simply DB2's inexact ROUND.",
     "attributionSource": "none",
-    "sweptOn": "not swept - not compiled in the Testing configuration",
+    "providers": "ProviderName.DB2",
+    "observed": "not observable here - same #if AZURE guard as Round4",
     "verdict": "needs-investigation",
-    "observed": "not observable here - the gate sits inside #if AZURE, which Tests/Directory.Build.props defines only for Configuration == Azure, so it does not compile in Testing",
-    "providers": "ProviderName.DB2"
+    "quote": "gate: \"Fails on CI\"",
+    "note": "Migrated with 'no-declaration: unvalidated: no-issue:', same cohort as Round4. Round11 differs from Round4 only in passing MidpointRounding.ToEven explicitly, which is already Math.Round's default, so the two are expected to stand or fall together.",
+    "sweptOn": "not swept - not compiled in the Testing configuration; verified to compile under -c Azure"
   },
   "Tests/Linq/UserTests/Issue1238Tests.cs::TestInsertOrUpdate": {
     "providers": "DB2",
@@ -2538,5 +2538,707 @@
     "quote": "the test's Description points at PR #2718, not an open defect",
     "note": "First site done under the run-first rule, and it justified it: with a null interval Access, MySQL and SQLite all PASS, so declaring from the harvest alone would have marked those cases as failing. The arms also differ in KIND on SQL Server - the null one gives only the server type mismatch, the non-null one adds a client-side out-of-bounds TIME - so only the non-null arm leaves SQL Server undeclared. Twelve declarations on the non-null arm, nine on the null one. Access OleDb and SQL Server declare nothing (two unrelated failures apiece over one provider set); Oracle likewise for lack of a leg. The SQLite Classic half needs SkipForLinqService because the test body returns early for remote SQLite - caught by the verification run, which reported those cases passed-but-marked.",
     "sweptOn": "2026-09-09 CI sweep; run BEFORE declaring, 2026-09-10, on SqlServer.2022.MS + SQLite.Classic + SQLite.MS + DuckDB"
+  },
+  "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesMultipleRows": {
+    "note": "BulkCopy MultipleRows. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/UserTests/Issue1307Tests.cs::Test_Insert": {
+    "note": "Insert of CJK text. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/UserTests/Issue1307Tests.cs::Test_InsertOrUpdate": {
+    "note": "InsertOrReplace of CJK text. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesMultipleRowsAsync": {
+    "note": "BulkCopy MultipleRows, async. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/UserTests/Issue1307Tests.cs::Test_Inline": {
+    "note": "inline insert of CJK text. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/UserTests/Issue1307Tests.cs::Test_Update": {
+    "note": "Update of CJK text. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [IX000] [IBM][IDS/UNIX64] Code-set conversion function failed due to illegal sequence or invalid value.",
+    "verdict": "environment",
+    "quote": "gate: \"Used docker image needs locale configuration\" - upheld by CI"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_TypeByOtherQuery_DB2": {
+    "issue": "3360",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllDB2",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [42611] [IBM][DB2/LINUXX8664] SQL0604N The length, precision, or scale attribute...",
+    "verdict": "matches",
+    "quote": "issue 3360 title matches the observed typing failure",
+    "note": "Harvested from the CI sweep; DB2 is not measurable on this workstation (A-13/A-15). Unlike the Informix locale family, 3360 IS the right reference here: the gate is about the test's own subject - typing a literal or parameter in a set-query column - and the issue title (\"Constant/parameter column in union query should be typed by column from other unioned query...\", open) matches the SQL0604N length/precision/scale failure. Declared on the SQLSTATE-bearing token alone; the full text carries a double space after it. The direct and remote cases are one cause, the remote being a Grpc wrapper of the same DB2 error, which Matches handles via Contains.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_TypeByProjectionProperty_DB2": {
+    "issue": "3360",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllDB2",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [42611] [IBM][DB2/LINUXX8664] SQL0604N The length, precision, or scale attribute...",
+    "verdict": "matches",
+    "quote": "issue 3360 title matches the observed typing failure",
+    "note": "Harvested from the CI sweep; DB2 is not measurable on this workstation (A-13/A-15). Unlike the Informix locale family, 3360 IS the right reference here: the gate is about the test's own subject - typing a literal or parameter in a set-query column - and the issue title (\"Constant/parameter column in union query should be typed by column from other unioned query...\", open) matches the SQL0604N length/precision/scale failure. Declared on the SQLSTATE-bearing token alone; the full text carries a double space after it. The direct and remote cases are one cause, the remote being a Grpc wrapper of the same DB2 error, which Matches handles via Contains.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB"
+  },
+  "Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs::TestRealVector": {
+    "verdict": "limitation",
+    "observed": "System.Data.Odbc.OdbcException : sql syntax error, incorrect syntax near \"REAL_VECTOR\"",
+    "quote": "gate: \"Type supported only on cloud version and requires column table\" - upheld",
+    "note": "REAL_VECTOR exists only on SAP HANA Cloud and needs a column table, so the on-prem server does not parse the type. The sibling [Test(Description)] link is SAP documentation, not a tracker entry, which is why the census reads this as unattributed and it carries a no-issue: marker.",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "SapHana",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin h_SAPHANA2"
+  },
+  "Tests/Linq/DataProvider/SapHanaTests.cs::CalculationViewLinqQuery": {
+    "verdict": "environment",
+    "observed": "System.Data.Odbc.OdbcException : invalid table name, could not find table/view FIT/CA_PARAM_TEST in schema _SYS_BIC",
+    "quote": "gate: \"Calculation view missing in database\" - upheld verbatim",
+    "note": "The calculation view is not provisioned in the test database. Fragment trimmed to \"invalid table name\" because the full text names the view and an offset.",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "SapHana",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin h_SAPHANA2"
+  },
+  "Tests/Linq/DataProvider/SapHanaTests.cs::TestBinaryParameterSelect": {
+    "verdict": "limitation",
+    "observed": "System.Data.Odbc.OdbcException : General error 467, cannot use parameter variable",
+    "quote": "gate: \"Binary literal regression\"",
+    "note": "The value reaches HANA as a parameter in a position it refuses. The gate says \"literal\" and the server complains about a parameter variable - the same shape from two sides. Fragment trimmed to \"cannot use parameter variable\" because the full text carries a line and column offset.",
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "SapHana",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin h_SAPHANA2"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::Issue4780Test1": {
+    "issue": "https://github.com/npgsql/npgsql/issues/4780",
+    "attributionSource": "external-url",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 42704: type \"enum\" does not exist",
+    "verdict": "wrong-issue",
+    "quote": "linq2db 4780 is \"Update deps and benchmarks\" (merged PR) - the tests mean npgsql 4780",
+    "note": "The 4780 in these names is npgsql/npgsql#4780, cited in the sibling [Test(Description)] and in the enclosing #region - NOT linq2db 4780, which is a merged PR titled \"Update deps and benchmarks\". The census reads these as recoverable-from-name because its description-recovery deliberately matches only linq2db URLs, so an external attribution looks like a safe promotion; a scripted pass would have written the wrong number into both. Second miss of the name convention today, after the Informix locale gates in Issue1307Tests. The linq2db-side gap is real and recorded at the site: the enum's PostgreSQL type name is unknown to us, so the column is rendered against a type literally called \"enum\".",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin i_PostgreSQL1 / c_PostgreSQL2"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::Issue4780Test2": {
+    "issue": "https://github.com/npgsql/npgsql/issues/4780",
+    "attributionSource": "external-url",
+    "providers": "TestProvName.AllPostgreSQL",
+    "observed": "Npgsql.PostgresException : 42704: type \"enum\" does not exist",
+    "verdict": "wrong-issue",
+    "quote": "linq2db 4780 is \"Update deps and benchmarks\" (merged PR) - the tests mean npgsql 4780",
+    "note": "The 4780 in these names is npgsql/npgsql#4780, cited in the sibling [Test(Description)] and in the enclosing #region - NOT linq2db 4780, which is a merged PR titled \"Update deps and benchmarks\". The census reads these as recoverable-from-name because its description-recovery deliberately matches only linq2db URLs, so an external attribution looks like a safe promotion; a scripted pass would have written the wrong number into both. Second miss of the name convention today, after the Informix locale gates in Issue1307Tests. The linq2db-side gap is real and recorded at the site: the enum's PostgreSQL type name is unknown to us, so the column is rendered against a type literally called \"enum\".",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin i_PostgreSQL1 / c_PostgreSQL2"
+  },
+  "Tests/Linq/Linq/StringJoinTests.cs::JoinAggregateArrayNotNullAndFilter": {
+    "note": "Gate removed on the user's call (option b), accepting that the Devart configurations are unmeasurable here. The AllOracle scope was over-broad regardless: the test already excludes Oracle 11 in its own data sources, so only Oracle 12 ever ran it.",
+    "attributionSource": "none",
+    "quote": "gate: \"Null and '' comparison\"",
+    "issue": null,
+    "observed": "PASSES on Oracle 12 Managed, direct and remote",
+    "providers": "TestProvName.AllOracle",
+    "verdict": "remove",
+    "sweptOn": "2026-09-09 local, net10.0, Oracle 11 + 12 Managed"
+  },
+  "Tests/Linq/Linq/JoinTests.cs::Issue4160Test1": {
+    "note": "Harvested only after re-running against Oracle 12 alone: the first attempt included Oracle 11, where the test is ungated, which made the method mixed and hid the gated cases behind a misleading 0 failed.",
+    "attributionSource": "int",
+    "quote": "4160 \"Invalid sub-query SQL generated\" (closed) matches the observed wrong row count",
+    "issue": "4160",
+    "observed": "Assert.That(data, Has.Count.EqualTo(2)) - one row where two are due",
+    "providers": "TestProvName.AllOracle12",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 local, net10.0, Oracle 11 + 12 Managed"
+  },
+  "Tests/Linq/Update/CreateTempTableTests.cs::CreateTempTable_TestSchemaConflicts": {
+    "note": "Gate removed on the user's call (option b), accepting the unmeasurable Devart configurations.",
+    "attributionSource": "none",
+    "quote": "bare gate, no prose",
+    "issue": null,
+    "observed": "PASSES on Oracle 11 and 12 Managed, direct and remote",
+    "providers": "TestProvName.AllOracle",
+    "verdict": "remove",
+    "sweptOn": "2026-09-09 local, net10.0, Oracle 11 + 12 Managed"
+  },
+  "Tests/Linq/Linq/SubQueryTests.cs::Issue3295Test1": {
+    "note": "Third misfire of the name/description convention today. The gate cites an Oracle forums thread in its Details, which is the real cause; the fixture name and the sibling Description point at a closed PostgreSQL issue. No exception type declared: it differs per Oracle client while ORA-12704 does not.",
+    "attributionSource": "none",
+    "quote": "3295 is \"PostgreSQL Test Problem Where filter using let var FirstOrDefault()\", closed - unrelated to an Oracle charset mismatch",
+    "issue": null,
+    "observed": "ORA-12704: character set mismatch",
+    "providers": "TestProvName.AllOracle",
+    "verdict": "wrong-issue",
+    "sweptOn": "2026-09-09 local, net10.0, Oracle 11 + 12 Managed"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Difference.cs::ZonedDifferenceSubMillisecondMembersMatchClr": {
+    "issue": "5797",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllOracle",
+    "observed": "LinqToDBException : the Nanoseconds member could not be converted - \"Current provider measures elapsed time to the microsecond, so the nanosecond component of an interval is always zero and is not translated.\"",
+    "verdict": "remove",
+    "quote": "ErrorHelper.Error_Interval_ComponentBelowResolution - the exact template Oracle produced",
+    "note": "Routed to the existing ThrowsForProvider instead of migrated, on the user's call. #5797 is open and its title matches the gate's prose, but the test never reaches the zone question: Oracle refuses the nanosecond member by design first, and that refusal already has an idiom two lines away for SQLite. The message template's placeholders absorb the two providers' differing resolutions, so one attribute covers both. Verified: six cases green across Oracle 11, Oracle 12 and SQLite, direct and remote.",
+    "sweptOn": "2026-09-09 local, net10.0, Oracle 11 + 12 Managed"
+  },
+  "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesProviderSpecificAsync": {
+    "attributionSource": "none",
+    "issue": null,
+    "quote": "gate: \"Used docker image needs locale configuration\"",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [07006] [IBM] CLI0102E Invalid conversion",
+    "note": "As BulkCopyAllTypesProviderSpecific.",
+    "providers": "TestProvName.AllInformix",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "verdict": "environment"
+  },
+  "Tests/Linq/DataProvider/SqlServerFunctionsTests.cs::ConvertWithStyleTest4": {
+    "attributionSource": "int",
+    "issue": "5810",
+    "quote": "5810, open",
+    "observed": "rendered SQL contains CONVERT(varchar(4), 123, 1)",
+    "note": "As ConvertTest3, with the style argument.",
+    "providers": "TestProvName.AllSqlServer",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "verdict": "matches"
+  },
+  "Tests/Linq/DataProvider/SqlServerFunctionsTests.cs::ConvertTest4": {
+    "attributionSource": "int",
+    "issue": "5810",
+    "quote": "5810, open",
+    "observed": "as ConvertTest3",
+    "note": "As ConvertTest3.",
+    "providers": "TestProvName.AllSqlServer",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "verdict": "matches"
+  },
+  "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesProviderSpecific": {
+    "attributionSource": "none",
+    "issue": null,
+    "quote": "gate: \"Used docker image needs locale configuration\"",
+    "observed": "IBM.Data.Db2.DB2Exception : ERROR [07006] [IBM] CLI0102E Invalid conversion",
+    "note": "Same root as the code-set family but one step earlier: the client refuses the conversion rather than the server refusing the code set. Locally this presented as silent row loss, which A-13 briefly read as a product defect and A-15 withdrew; the CI message settles it as a conversion problem, so the withdrawal was right.",
+    "providers": "TestProvName.AllInformix",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin w_DB2InformixDuckDB",
+    "verdict": "environment"
+  },
+  "Tests/Linq/DataProvider/SqlServerFunctionsTests.cs::ConvertTest3": {
+    "attributionSource": "int",
+    "issue": "5810",
+    "quote": "5810 \"SQL Server: SqlFn.Convert emits another call's target type when call shapes match\", open",
+    "observed": "Shouldly.ShouldAssertException - the rendered SQL contains CONVERT(varchar(4), 123) where another type was due",
+    "note": "Declared on the wrongly emitted CONVERT, which is a complete line of the message. The first line is only the opening quote of the rendered SQL, so a fragment taken from it would match nothing - the A-16 trap in a new shape, since here the useful text is on line 1 rather than line 0.",
+    "providers": "TestProvName.AllSqlServer",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "verdict": "matches"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::CrossApplyJoin": {
+    "issue": "https://github.com/linq2db/linq2db/discussions/4985",
+    "quote": "ErrorHelper.Error_OUTER_Joins, the product's own constant",
+    "verdict": "limitation",
+    "providers": "TestProvName.AllSQLite",
+    "observed": "LinqToDBException, Additional details: 'Provider does not support CROSS/OUTER/LATERAL joins.'",
+    "attributionSource": "external-url",
+    "note": "Kept as a gate rather than routed to ThrowsForProvider like the Oracle nanosecond refusal: joining a table-valued function needs APPLY semantics that SQLite's provider flags refuse, and the discussion asks us to close that gap, so declaring the refusal correct would be wrong. Declared with the literal rather than the ErrorHelper constant because that type is not in scope in this file.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::Issue2429PropertiesTest2": {
+    "issue": "2429",
+    "quote": "2429 \"Derived classes with overridden column properties cannot use column expression methods\", closed",
+    "verdict": "matches",
+    "providers": "(all)",
+    "observed": "LinqToDBException, expression Sql.Alias<int>(obj: x.BaseValue * -1)",
+    "attributionSource": "int",
+    "note": "Closed issue, live residue - the same shape as #4261 and #4955. Declared on the generic translation-refusal line because the distinctive text is the expression block, which spans lines.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/CompileTestsAsync.cs::Issue3266Test": {
+    "issue": "3266",
+    "quote": "3266 \"CompiledQuery with Async Update doesn't work\", open",
+    "verdict": "matches",
+    "providers": "(all)",
+    "observed": "LinqToDBException : The LINQ expression could not be converted to SQL.",
+    "attributionSource": "int",
+    "note": "In CompileTestsAsync, which is the issue's subject.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::Issue2429MethodsTest2": {
+    "issue": "2429",
+    "quote": "2429, closed",
+    "verdict": "matches",
+    "providers": "(all)",
+    "observed": "as Issue2429PropertiesTest2",
+    "attributionSource": "int",
+    "note": "The method form of the same shape.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLExtensionsTests.cs::Issue4562Test": {
+    "issue": "4562",
+    "quote": "4562 \"Postgres Sql.Ext.PostgreSQL().Overlaps => NotSupportedException\", open",
+    "verdict": "matches",
+    "providers": "TestProvName.AllPostgreSQL95Plus",
+    "observed": "LinqToDBException : The LINQ expression could not be converted to SQL. (Sql.Ext...)",
+    "attributionSource": "int",
+    "note": "The failing expression begins with Sql.Ext, matching the issue.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_TypedNullEnumInAnchor2": {
+    "quote": "3360, open - typing a column from the other branch of a set query",
+    "note": "A typed null enum in the anchor cannot be typed from the other branch. Fragment stops before the system type, which renders as an assembly-qualified name carrying the assembly version and would stop matching at the next bump.",
+    "observed": "LinqToDBException : Database column type cannot be determined automatically... for Nullable<StrEnum>",
+    "providers": "TestProvName.AllSqlServer",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "issue": "3360",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::TestDynamicRecordFunction": {
+    "quote": "gate: \"Functionality not implemented yet\"",
+    "note": "A dynamic record function's column types cannot be inferred. Fragment stops before the system type, which renders as an assembly-qualified name carrying the assembly version and would stop matching at the next bump.",
+    "observed": "LinqToDBException : Database column type cannot be determined automatically...",
+    "providers": "TestProvName.AllPostgreSQL",
+    "verdict": "limitation",
+    "attributionSource": "none",
+    "issue": null,
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeFromIQueryable": {
+    "quote": "2363",
+    "note": "The source side of the same shape.",
+    "observed": "as MergeIntoIQueryable",
+    "providers": "(all)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "issue": "2363",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/SqlServerTests.cs::Issue449Test": {
+    "quote": "449 \"MS SQL / Schema generation (linq2db T4) / table functions (UDF)\", open",
+    "note": "The schema provider cannot describe the table function's result, so the procedure carries a ResultException.",
+    "observed": "Assert.That(proc.ResultException, Is.Null)",
+    "providers": "(all)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "issue": "449",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeIntoIQueryable": {
+    "quote": "2363 \"Merge supports IQueryable<T> targets\" - the merged PR that introduced the capability",
+    "note": "An IQueryable merge target reaches the builder as a SubQueryContext.",
+    "observed": "InvalidCastException : SubQueryContext cannot be cast to ITableContext",
+    "providers": "(all)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "issue": "2363",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/SqlServerTests.cs::Issue1468Test": {
+    "quote": "1468 \"MS SQL Temproray tables in procedures. How to build\", closed",
+    "note": "Closed issue with a live residue, as with 2429, 4261 and 4955.",
+    "observed": "Assert.That(proc.ResultException, Is.Null)",
+    "providers": "(all)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "issue": "1468",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/ExpressionTests.cs::CollectionParameterTranslation_IReadOnlyList": {
+    "issue": "5244",
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllPostgreSQL (LinqService only)",
+    "observed": "was: InvalidOperationException \"Call GetDataContext for remote context creation\" from TestBase. After the fix: all four cases pass.",
+    "verdict": "test-defect",
+    "quote": "gate: \"Remote context collections serialization\" - refuted, the tests never reached serialization",
+    "note": "The gate was hiding a broken test, not a known issue. Both call GetDataConnection while their data sources include the remote transport, so the .LinqService case died inside TestBase.GetDataConnection with \"Call GetDataContext for remote context creation\" - before any query was built, and therefore nowhere near the serialization the gate blamed. Switched to GetDataContext, which is what the gate claimed to be exercising and which neither test needed a DataConnection for; all four cases then pass, remote included. So the stated defect does not exist and both gates are removed. This is SC-15 firing exactly as requirement 2 intended: nobody could have seen it, because the old attribute removed the case from discovery.",
+    "sweptOn": "2026-09-09 local, net10.0, PostgreSQL.18 direct and remote"
+  },
+  "Tests/Linq/Linq/ExpressionTests.cs::CollectionParameterTranslation_Array": {
+    "issue": "5244",
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllPostgreSQL (LinqService only)",
+    "observed": "was: InvalidOperationException \"Call GetDataContext for remote context creation\" from TestBase. After the fix: all four cases pass.",
+    "verdict": "test-defect",
+    "quote": "gate: \"Remote context collections serialization\" - refuted, the tests never reached serialization",
+    "note": "The gate was hiding a broken test, not a known issue. Both call GetDataConnection while their data sources include the remote transport, so the .LinqService case died inside TestBase.GetDataConnection with \"Call GetDataContext for remote context creation\" - before any query was built, and therefore nowhere near the serialization the gate blamed. Switched to GetDataContext, which is what the gate claimed to be exercising and which neither test needed a DataConnection for; all four cases then pass, remote included. So the stated defect does not exist and both gates are removed. This is SC-15 firing exactly as requirement 2 intended: nobody could have seen it, because the old attribute removed the case from discovery.",
+    "sweptOn": "2026-09-09 local, net10.0, PostgreSQL.18 direct and remote"
+  },
+  "Tests/Linq/Linq/AbstractionTests.cs::TransientAbstractMapping": {
+    "quote": "1473 \"Abstract Property / Polymorphismus\", open",
+    "observed": "Assert.That(result[0].Details.ID, Is.EqualTo(2)) - was 0",
+    "issue": "1473",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Mapping/DynamicStoreTests.cs::Issue2953Test2": {
+    "quote": "2953, open",
+    "observed": "as Issue2953Test1",
+    "issue": "2953",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Mapping/DynamicStoreTests.cs::Issue2953Test1": {
+    "quote": "2953 \"Dynamic columns storing not works with IDataContext.FromQuery(...)\", open",
+    "observed": "result[0].Properties.ContainsKey(\"FirstName\") was False",
+    "issue": "2953",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/TypesTests.cs::Issue4469Test2": {
+    "quote": "4469 \"Firebird different number datatype between constant or variable usage\", open",
+    "observed": "Math.Round(result.Integer, 5) gave 3 where 3.0303 was due",
+    "issue": "4469",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/StringFunctionTests.cs::String_PadRight_Translation": {
+    "quote": "4799 \"PadLeft implementation trims input\", closed - this is the PadRight residue",
+    "observed": "Sql.AsSql(\"test\".PadRight(0, '.')) returned an empty string",
+    "issue": "4799",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Update/CreateTableTests.cs::Issue3223Test": {
+    "quote": "3223 \"CreateTable Not Map Enum To Varchar When Configure All Enum To String\", open",
+    "observed": "res[0].Value came back one character long instead of \"Value1\"",
+    "issue": "3223",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/FirebirdTests.cs::TestBinaryMapping_Char": {
+    "note": "The char[] side of the same mapping gap.",
+    "quote": "755, open",
+    "providers": "TestProvName.AllFirebird",
+    "issue": "755",
+    "observed": "ArgumentException : Unknown type: System.Char[].",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::Issue4250Test": {
+    "note": "A named parameter inside Sql.Expression is read as a format placeholder.",
+    "quote": "4250 \"The input string was not in a correct format when parameter names in Sql.Expression\", open",
+    "providers": "TestProvName.AllPostgreSQL",
+    "issue": "4250",
+    "observed": "FormatException : The input string 'point1' was not in a correct format.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::Issue2796Test1": {
+    "note": "Remote only, per the gate's SkipForNonLinqService. The declaration matches through the wrapper because Matches uses Contains for a remote case.",
+    "quote": "2796 \"Mapping Postgres tstzrange to NpgsqlRange with linq2db\", open",
+    "providers": "TestProvName.AllPostgreSQL (remote only)",
+    "issue": "2796",
+    "observed": "ArgumentException : Cannot write DateTime with ... (through the Grpc wrapper)",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/FirebirdTests.cs::TestBinaryMapping_String": {
+    "note": "The octets column comes back as a string.",
+    "quote": "755 \"Firebird queries do not work with CHAR(x) CHARACTER SET OCTETS type\", open",
+    "providers": "TestProvName.AllFirebird",
+    "issue": "755",
+    "observed": "InvalidCastException : Unable to cast 'System.String' to 'System.Byte[]'",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/CachingTests.cs::TestExtensionCollectionParameterEqualQuery": {
+    "note": "The wrong-results half of the same cache defect.",
+    "quote": "4266, open",
+    "providers": "TestProvName.AllSqlServer2008Plus",
+    "issue": "4266",
+    "observed": "Expected and result lists are different",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/CachingTests.cs::TestExtensionCollectionParameterSameQuery": {
+    "note": "The collection parameter is absent from the cache key, so a query that should miss is reused.",
+    "quote": "4266 \"Wrong query results when using Extention (query cache problem)\", open",
+    "providers": "TestProvName.AllSqlServer2008Plus",
+    "issue": "4266",
+    "observed": "Assert.That(query.GetCacheMissCount(), Is.EqualTo(currentMiss + 1))",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::FunctionParameterTyping": {
+    "note": "Untyped parameters leave the overload unresolvable. Fragment stops before the argument list, which the server spells out in full.",
+    "quote": "3352 \"T4 LinqToDB.Templates Postgre Function Overloading Problem\", open",
+    "providers": "TestProvName.AllPostgreSQL",
+    "issue": "3352",
+    "observed": "Npgsql 42883: function test_parameter_typing(...) does not exist",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/AssociationTests.cs::ManyAssociationEmptyCheck1": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb (was AllClickHouse + AllYdb)",
+    "observed": "LinqToDBException : The LINQ expression 'p.Children != null / == null' could not be converted to SQL. YDB only.",
+    "verdict": "wrong-issue",
+    "quote": "gate Details claimed a ClickHouse wrong-results half that the sweep did not reproduce",
+    "note": "ClickHouse dropped from the gate's scope. Its Details claimed YDB swallows the rejection while ClickHouse runs the EXISTS and returns wrong results, but the sweep ran ClickHouse with the gate open and it produced no failure, so that half is stale. Only the YDB refusal is declared. If ClickHouse does still fail, CI will now show it as an unexpected failure rather than hiding it.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin b_ClickHouse and Lin u_YdbSybase"
+  },
+  "Tests/Linq/Linq/AssociationTests.cs::ManyAssociationEmptyCheck2": {
+    "issue": "5590",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllYdb (was AllClickHouse + AllYdb)",
+    "observed": "LinqToDBException : The LINQ expression 'p.Children != null / == null' could not be converted to SQL. YDB only.",
+    "verdict": "wrong-issue",
+    "quote": "gate Details claimed a ClickHouse wrong-results half that the sweep did not reproduce",
+    "note": "ClickHouse dropped from the gate's scope. Its Details claimed YDB swallows the rejection while ClickHouse runs the EXISTS and returns wrong results, but the sweep ran ClickHouse with the gate open and it produced no failure, so that half is stale. Only the YDB refusal is declared. If ClickHouse does still fail, CI will now show it as an unexpected failure rather than hiding it.",
+    "sweptOn": "2026-09-09 CI run 34347288135, Lin b_ClickHouse and Lin u_YdbSybase"
+  },
+  "Tests/Linq/Linq/AbstractionTests.cs::UpdateUsingRuntimeType": {
+    "quote": "848 \"ITable<T> considers only declared, not runtime type\", open",
+    "observed": "LinqToDBException : There are no fields to update in the type 'EntityBase'.",
+    "issue": "848",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::Issue2950Test": {
+    "quote": "2950 \"PostgreSQL Test Error when get Hours on TimeSpan\", open",
+    "observed": "LinqToDBException : The LINQ expression 'x.Time.Value.Hours' could not be converted to SQL.",
+    "issue": "2950",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/SqlCeTests.cs::Issue4436Test": {
+    "quote": "4436 \"SQL Server Compact 4.0 ntext field with null value throws\", open",
+    "observed": "SqlCeException : The conversion is not supported.",
+    "issue": "4436",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/DynamicResultTests.cs::Issue3520Test": {
+    "quote": "3520 \"Query - DynamicObject\", open",
+    "observed": "RuntimeBinderException : does not contain a definition for 'AId'",
+    "issue": "3520",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/SqlCeTests.cs::Issue4438Test": {
+    "quote": "4438 \"SQL Server Compact 4.0 BulkCopy throws an Expression evaluation caused an overflow\", open",
+    "observed": "SqlCeException : Expression evaluation caused an overflow.",
+    "issue": "4438",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Extensions/SqlServerTests.cs::TablesInScopeHintWithTReferenceTest": {
+    "quote": "4321 \"TablesInScopeHint ignores references\", open",
+    "observed": "Assert.That(test, Contains.Substring(\"[Parent] [a_Parent] WITH (NoLock)\"))",
+    "issue": "4321",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Data/RetryPolicyTest.cs::Issue3431Test2": {
+    "quote": "3431, open",
+    "observed": "as Issue3431Test1, async path",
+    "issue": "3431",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::Issue4620Test1": {
+    "quote": "4620 \"Union and using associations of multiple classes implementing the same interface\", open",
+    "observed": "ArgumentException : Interface not found.",
+    "issue": "4620",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Data/DataConnectionTests.cs::Issue4811Test2": {
+    "quote": "4811 \"How to Register multiple DbContext?\", open",
+    "observed": "Assert.That(c2.ConnectionString, Is.EqualTo(cs2))",
+    "issue": "4811",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/EagerLoadingTests.cs::Issue3806Test": {
+    "quote": "3806 \"Association generate two query (inner join and select)\", open",
+    "observed": "Assert.That(queries.Queries, Has.Count.EqualTo(1))",
+    "issue": "3806",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/DataProvider/MySqlTests.cs::Issue4354Test": {
+    "quote": "4354 \"MySql's BulkCopy doesn't support custom GuidFormat\", open",
+    "observed": "MySqlException : Data too long for column 'Value' at row 1",
+    "issue": "4354",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Data/RetryPolicyTest.cs::Issue3431Test1": {
+    "quote": "3431 \"RetryingDataConnection Problem: Connection already open\", open",
+    "observed": "InvalidOperationException : Cannot Open when State is Connecting.",
+    "issue": "3431",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
+    "sweptOn": "2026-09-09 CI run 34347288135"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::SubDateMinute": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllOracleDevart",
+    "observed": "nothing - the provider cannot be reached",
+    "verdict": "needs-investigation",
+    "quote": "gate: 'Devart returns 100 as 99.999...'",
+    "note": "Devart cohort, same ceiling as the OracleTests batch: no licence key on this workstation and no Oracle GitHub-CI leg, so the failure was never harvested. Unlike that batch the original attribute did name a symptom - the whole-unit difference comes back a hair low and the (int) truncation loses one - but a symptom is not an exception, so the shared const DevartRoundsDown carries 'no-declaration: unvalidated:'. Co-sited ThrowsCannotBeConverted(AllSqlServer2014Minus) does not overlap the Devart set.",
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateDiffMinute": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllOracleDevart",
+    "observed": "nothing - the provider cannot be reached",
+    "verdict": "needs-investigation",
+    "quote": "gate: 'Devart returns 100 as 99.999...'",
+    "note": "Devart cohort; see SubDateMinute. Shares the file-local DevartRoundsDown const.",
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::SubDateSecond": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllOracleDevart",
+    "observed": "nothing - the provider cannot be reached",
+    "verdict": "needs-investigation",
+    "quote": "gate: 'Devart returns 6000 as 5999.999...'",
+    "note": "Devart cohort; see SubDateMinute. Co-sited ThrowsCannotBeConverted(AllSqlServer2014Minus) does not overlap the Devart set.",
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateDiffSecond": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllOracleDevart",
+    "observed": "nothing - the provider cannot be reached",
+    "verdict": "needs-investigation",
+    "quote": "gate: 'Devart returns 6000 as 5999.999...'",
+    "note": "Devart cohort; see SubDateMinute. Shares the file-local DevartRoundsDown const.",
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg"
+  },
+  "Tests/Linq/Update/InsertTests.cs::DistinctInsert1": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllFirebird",
+    "observed": "not observable here - the gate sits inside #if AZURE. The test itself runs ungated locally on Firebird and passes, which is consistent with the gate's own guess that the cause is the CI database's encoding rather than the query.",
+    "verdict": "needs-investigation",
+    "quote": "gate: \"Error from Azure runs (db encoding issue?): FbException : Malformed string\"",
+    "note": "The one AZURE site that could be declared rather than waived: the original gate quotes the failure verbatim, type and message both, which is the same kind of harvested text a run would give. Declared FbException / 'Malformed string' with an 'unvalidated:' marker to record that I did not observe it myself. Deliberate trade-off - if the quote is stale the next Azure leg fails loudly with the real text, whereas no-declaration: would stay green and teach nothing. That is the attribute's purpose.",
+    "sweptOn": "not swept - not compiled in the Testing configuration; declared from the replaced attribute's quoted failure"
+  },
+  "Tests/Linq/Update/InsertTests.cs::DistinctInsert2": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllFirebird",
+    "observed": "not observable here - same #if AZURE guard as DistinctInsert1",
+    "verdict": "needs-investigation",
+    "quote": "gate: \"Error from Azure runs (db encoding issue?): FbException : Malformed string\"",
+    "note": "See DistinctInsert1 - same quoted failure, same CI-only encoding cause, declared from the quote rather than from a run.",
+    "sweptOn": "not swept - not compiled in the Testing configuration; declared from the replaced attribute's quoted failure"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::Issue3899Test": {
+    "issue": 3899,
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllSQLite (incl. LinqService)",
+    "observed": "all 4 cases fail. Direct (SQLite.Classic, SQLite.MS): System.OverflowException : Value was either too large or too small for a UInt64. Remote (both .LinqService): Grpc.Core.RpcException wrapping LinqToDB.Common.LinqToDBConvertException 'Mapping of column Value2 value failed' -> inner System.OverflowException with the same text.",
+    "verdict": "matches",
+    "quote": "#3899 'SQLite unsigned integers mapping', OPEN - the body's repro assigns ulong.MaxValue and fails reading it back, which is what the test does",
+    "note": "Attribution moved from the Description URL to the int ctor per SC-14. One declaration covers both transports because the remote detail string still spells out 'System.OverflowException' and the same message, so the Contains-based remote match hits while the StartsWith-based direct match hits the bare type. Ran the gate alone rather than with CreateData.CreateDatabase: every case had to be gated for the name filter to reach an Explicit test, so the DBs were provisioned in a separate prior run.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, 4/4 cases"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_LiteralsInAnchor": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllSQLite",
+    "observed": "PASSES on all four AllSQLite variants - SQLite.Classic, SQLite.MS, SQLite.Classic.MPU, SQLite.Classic.MPM",
+    "verdict": "remove",
+    "quote": "gate carried no prose at all - just Configurations = [TestProvName.AllSQLite]",
+    "note": "Gate deleted rather than migrated, same disposition as LetTest1. Deliberately re-ran across all four AllSQLite variants after the first run covered only Classic and MS: AllSQLite expands to four, and a two-variant sample is not evidence about the set the gate names. Both runs agreed.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, 4/4 variants"
+  },
+  "Tests/Linq/Linq/SelectQueryTests.cs::Issue2779Test2": {
+    "issue": 2779,
+    "attributionSource": "test-description",
+    "providers": "bare [ActiveIssue] - gates every provider",
+    "observed": "MIXED, so the bare gate is over-broad. FAIL: SQLite.Classic / .MS / .MPU / .MPM ('no such column: t1.value', as System.Data.SQLite.SQLiteException on Classic and Microsoft.Data.Sqlite.SqliteException on MS) and SqlCe (System.Data.SqlServerCe.SqlCeException : 'Column names must be specified for constants, expressions or aggregate functions when they occur in a FROM sub query.'). PASS: DuckDB, SqlServer.2022.",
+    "verdict": "needs-investigation",
+    "quote": "gate: bare [ActiveIssue]; Description points at https://github.com/linq2db/linq2db/issues/2779",
+    "note": "NOT YET MIGRATED - measurement recorded so it is not repeated. One mechanism, several wordings: FromSql<int>(\"SELECT 1\") emits SELECT [t1].[value] FROM (SELECT 1) [t1], whose inner constant column is unnamed; SQLite reports it as a missing column and SqlCe refuses the unnamed constant outright, while DuckDB and SQL Server tolerate it. By the by-kind rule that is one no-declaration: group - but the provider SET cannot be scoped from 7 locally reachable providers when at least 2 of them pass. Needs either a container sweep or a CI leg before the Configurations list can be written.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, 7 providers (4 SQLite variants, SqlCe, DuckDB, SqlServer.2022)"
   }
 }

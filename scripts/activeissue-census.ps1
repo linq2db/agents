@@ -147,6 +147,18 @@ function Resolve-Token {
 	return $null
 }
 
+# Resolves `const string <Name> = "a" + "b";` declared in the same file, so a Details that points at a
+# shared constant still exposes its markers. Returns '' when the name is not a same-file string const.
+function Resolve-ConstString {
+	param([string] $Text, [string] $Name)
+
+	if ($Text -notmatch "const\s+string\s+$([regex]::Escape($Name))\s*=\s*((?:\s*@?""(?:[^""\\]|\\.)*""\s*\+?)+)\s*;") { return '' }
+
+	$parts = [regex]::Matches($Matches[1], '@?"((?:[^"\\]|\\.)*)"')
+
+	return (($parts | ForEach-Object { $_.Groups[1].Value }) -join '')
+}
+
 # ---------- 2. attribute sites ----------
 
 # Splits an argument list on top-level commas: nested [], (), {} and string literals do not separate args.
@@ -280,6 +292,13 @@ foreach ($file in $files) {
 				$cfgExpr = $Matches[2].Trim()
 			}
 			elseif ($p -match '^\s*Details\s*=\s*"(.*)"\s*$') { $details = $true; $detailsText = $Matches[1] }
+			# `Details = SomeConst` is the idiom once several gates in a file share one explanation, and the
+			# marker lives in the const's value. Without resolving it the markers are invisible and SC-14 fires
+			# on a site that does carry a waiver - which is how this was found.
+			elseif ($p -match '^\s*Details\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\s*$') {
+				$details = $true
+				$detailsText = Resolve-ConstString -Text $text -Name $Matches[1]
+			}
 			elseif ($p -match '^\s*Details\s*=')               { $details = $true }
 			# What the gate asserts about the failure. Without one of these the gate matches *any* failure,
 			# which is the masking risk SC-9 exists to bound.
@@ -330,7 +349,10 @@ foreach ($file in $files) {
 		$depth           = 0
 		$inBlockComment  = $false
 
-		foreach ($l in (($after -split "`n") | Select-Object -First 24)) {
+		# The cap only bounds a scan still inside attributes/comments - the loop breaks the moment it resolves a
+		# member. 24 was too low once a site carried a per-provider declaration each: DateTimeAddTimeSpan's 13
+		# attributes put the signature ~30 lines below the first one, and the site was keyed with an empty member.
+		foreach ($l in (($after -split "`n") | Select-Object -First 160)) {
 			$t     = $l.Trim()
 			$delta = ([regex]::Matches($t, '\[')).Count - ([regex]::Matches($t, '\]')).Count
 
