@@ -2358,5 +2358,35 @@
     "verdict": "matches",
     "observed": "Types don't match between the anchor and the recursive part in column \"Enum1\"; 24 cases across both SqlClient packages and the remote wrapper",
     "providers": "(all - SqlServer2008Plus by data source)"
+  },
+  "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeUsingCteWhere": {
+    "quote": "#3015 - open",
+    "providers": "DB2, AllFirebird, AllInformix, AllOracle, AllSapHana",
+    "observed": "as MergeUsingCteJoin",
+    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "note": "Split identically.",
+    "issue": "3015"
+  },
+  "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeUsingCteJoin": {
+    "quote": "#3015 - open",
+    "providers": "DB2, AllFirebird, AllInformix, AllOracle, AllSapHana",
+    "observed": "four distinct refusals plus Oracle unmeasured",
+    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "note": "One attribute per provider. All five reject the CTE-driven merge, each in its own words - Firebird a dynamic SQL error, Informix a syntax error, DB2 an unexpected token where the WITH clause lands ahead of the MERGE, HANA an incorrect-syntax error. The HANA half is type-less because the ODBC and native drivers raise their own exception; Oracle declares nothing, having no CI leg.",
+    "issue": "3015"
+  },
+  "Tests/Linq/Linq/L2SAttributeTests.cs::Issue3691Test": {
+    "quote": "#3691 - open",
+    "providers": "AllAccess, SqlCe",
+    "observed": "Access (both drivers, direct and via the WCF wrapper): Syntax error in field definition. SqlCe: There was an error parsing the query.",
+    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally)",
+    "verdict": "matches",
+    "attributionSource": "test-description",
+    "note": "Six apparent causes collapse to two: Access's ODBC and OleDb drivers word it differently but share the phrase, and the WCF wrapper carries it, so one message-only attribute covers all sixteen Access cases.",
+    "issue": "3691"
   }
 }
