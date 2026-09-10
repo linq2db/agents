@@ -155,6 +155,12 @@ LINQPad 7+ runs on modern .NET (net8/9/10). Doesn't use `.lpx` — uses the linq
 6. Run the LINQPad 7+ smoke rows from `linqpad-test-checklist.md`.
 7. Run targeted-change rows if applicable.
 
+**Never reuse an already-packed `-local.N` without checking its pack time against the branch's commits.** A prior track, or an earlier session, routinely leaves a full set of packages sitting in `.build/package/release/` and on the feed, and reusing them looks like a free saving. It isn't: on 6.5.0 the `local.1` set was packed at 00:12 while the two prep commits landed at 07:23 and 16:13, so it predated every change the release actually carried — including `Source/LinqToDB.LINQPad/DatabaseProviders/SQLiteProvider.cs` and the driver's own csproj. Smoke-testing it would have produced a confident green for code that isn't shipping. Compare `Get-ChildItem <feed> *.nupkg | Select Name,LastWriteTime` against `git log -1 --format=%ad` on the branch, and re-pack when the packages are older. `.claude/scripts/linqpad-local-push.ps1` handles the whole closure and picks the next free suffix itself, so re-packing is one call.
+
+**Verify the pushed driver package before handing it over** — two checks, both cheap, both catching real regressions:
+- `lib/net8.0/`, **not** `lib/net8.0-windows7.0/`. The driver is WPF but LINQPad installs it via NuGet on every OS; a windows-only TFM is rejected on macOS/Linux with *"No compatible assemblies found"* ([#5497](https://github.com/linq2db/linq2db/issues/5497), broke in 6.2.0).
+- The nuspec's `linq2db.Scaffold` dependency is the **same `-local.N`**. If it points at a release version, the closure is inconsistent and LINQPad silently restores an older core.
+
 **If user reports issues requiring code changes during 4.4:**
 - The current local nuget version is `<X>.<Y>.<Z>-local.<N>`. After fixes, rebuild with `-local.<N+1>` to invalidate LINQPad's NuGet cache. Confirm with the user before rebuilding.
 - Track each iteration in `state.tasks.4.4.annotation`.

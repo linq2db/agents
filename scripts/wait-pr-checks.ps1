@@ -14,6 +14,16 @@ Only the legs named by -Gate are waited on. Azure contexts (`build`, `build (Bui
 because .github/workflows/build.yml is a superset of Azure's `build` pipeline on a PR — see
 docs/github-actions.md -> "`build.yml` is a superset of Azure's `build` pipeline".
 
+That is a claim about COVERAGE, not about MERGEABILITY, and the two diverge. `master`'s branch
+protection lists exactly one required status check and it is the Azure one:
+
+    gh api repos/linq2db/linq2db/branches/master/protection --jq '.required_status_checks.contexts'
+    ["build"]
+
+So "all gated legs green" (exit 0) can coincide with a PR still reporting mergeStateStatus BLOCKED,
+and on 6.5.0 it did. Read exit 0 as "the DB-free coverage is in" and check the PR's own merge state
+separately before concluding anything about merging; azp-wait.ps1 is what waits on the Azure side.
+
 Launch it with run_in_background and wait for the completion notification; do not poll its output file.
 
 .EXAMPLE
