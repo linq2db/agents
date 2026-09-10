@@ -2478,5 +2478,25 @@
     "quote": "#4199 - the test names it",
     "note": "The purest case the by-kind rule covers: one mechanism, no shared text. Twenty providers report the missing table in twenty phrasings - relation does not exist, Invalid object name, Dynamic SQL Error, no such table, Catalog Error, Unknown table expression identifier - and not even the two SQLite drivers share a fragment. Declared nothing rather than pinning vendor prose that a driver upgrade would break.",
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS"
+  },
+  "Tests/Linq/Update/DeleteTests.cs::DeleteFromWithTake_NoSort": {
+    "providers": "as DeleteFromWithTake, plus Sybase",
+    "observed": "as DeleteFromWithTake; Sybase rejects the derived table by name",
+    "quote": "as DeleteFromWithTake",
+    "attributionSource": "search",
+    "note": "Split identically, with Sybase declared here because this variant carries no ThrowsForProvider.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB",
+    "issue": null,
+    "verdict": "no-issue"
+  },
+  "Tests/Linq/Update/DeleteTests.cs::DeleteFromWithTake": {
+    "providers": "11 families, minus Sybase which the co-sited ThrowsForProvider governs",
+    "observed": "six distinct mechanisms across 34 providers",
+    "quote": "the gate's own comment - based on TestDeleteFrom in the EFCore tests, to be reenabled after fix",
+    "attributionSource": "search",
+    "note": "Sixteen apparent causes, six real. linq2db refuses the shape outright on providers that cannot express a derived table (Informix, MySQL, SqlCe, SQLite, YDB - all \"Unexpected table type SqlQuery\"); PostgreSQL, Firebird, DuckDB and HANA emit SQL their server rejects. ClickHouse takes no-declaration (two modes across three drivers, no common text), Oracle likewise for lack of a leg. METHOD NOTE: a first pass dropped AllSQLite and SqlCe as passing - they do fail, and were simply past the fourth entry of a provider list the summary display had truncated. The verification run caught it; the corrected grouping comes from the full failing set. Absence from a SAMPLE is not absence from the sweep, which is a sharper form of the rule already recorded for absence from the sweep itself.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB",
+    "issue": null,
+    "verdict": "no-issue"
   }
 }
