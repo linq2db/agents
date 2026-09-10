@@ -153,6 +153,8 @@ For each user pick (or the "next recommended" task):
 
 4. **Refresh state.** When the sub-skill returns, call `release-state.ps1 -Action update -Version <ver> -TaskId <id> -Status <status>` with the sub-skill's status (`done` / `partial` / `in-progress` / `skipped` / `open` — these are the only accepted values; a sub-skill that bailed out is recorded as `partial` or `open`, with the reason in `-Annotation`). Then call `release-state.ps1 -Action sync-to-pr -Version <ver> -PrepPR <n>` to push the checklist refresh into the PR body in-place (preserving any non-checklist prose).
 
+   **`sync-to-pr` appends its `<!-- release-state:checklist:start -->` block; it does not adopt a checklist that is already there.** So a prep PR whose body was written by hand — with its own `- [ ] 4. Test matrix` list — ends up carrying **two** checklists, and only the marker-delimited one tracks state as tasks close. Either create the PR body *without* a manual checklist and let step 1's `sync-to-pr` supply it, or remove yours after the first sync. `pr-body-edit.ps1` cannot do that removal (it only inserts at anchors), so it takes a full `--body-file` replacement — write the file with `[System.IO.File]::WriteAllText(path, body, UTF8NoBom)` and verify the **whole** stored body afterwards, since a tail-only check passes while the head is silently collapsed. (6.5.0 #5905: hand-written body, two checklists after the task-2 sync.)
+
 5. **Re-render table**, loop.
 
 ### 5. Prep-merge gate

@@ -18,7 +18,7 @@ Also owns the **analyzer release-tracking** move for the `linq2db.Analyzers` pac
 
 ## When to run
 
-- During release prep as task 2 (called by `/release` orchestrator), **after** task 6 (`/release-verify`) has produced a clean build. Task 6's build addresses any RS0016/RS0017 diagnostics that step 1 here would normally surface, so when invoked post-task-6 the build step (1) is **skip-able** — go straight to step 3 (plan).
+- During release prep as task 2 (called by `/release` orchestrator), **after** task 6 (`/release-verify`) has produced a clean build. Step 1 still runs: task 6's build does **not** load the API analyzers and so says nothing about PublicAPI state — see step 1, which explains why. (This line previously claimed step 1 was skip-able post-task-6. On 6.5.0 that reading was followed, `discover` reported `clean: true` off a build that had in fact failed at restore against the wrong tree, and the real run then found 66 drifted symbols.)
 - Manually when the user wants to roll Unshipped into Shipped outside of a release (rare).
 
 ## Required reading
@@ -35,12 +35,16 @@ Also owns the **analyzer release-tracking** move for the `linq2db.Analyzers` pac
 CI is the same story: `Build/Azure/pipelines/default.yml` sets `with_api_analyzers: true` only when a PR targets the `release` branch, so the analyzers run once per release cycle, on the master→release PR. That is the intended trade-off (they're expensive), but it means **this skill is the only gate before that PR** — drift accumulated over the whole cycle surfaces here or it detonates there.
 
 ```
-pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action build -Version <ver>
+pwsh -NoProfile -File .claude/scripts/release-publicapi-reconcile.ps1 -Action build -Version <ver> -RepoRoot <abs-worktree-path>
 ```
+
+**Pass `-RepoRoot` whenever the prep branch is in a worktree, which is the normal case.** The child `dotnet` process does not inherit a `Set-Location`, so without it the build resolves the solution against the session's process directory and builds the **primary clone** — while still writing its log into the worktree, which makes the result look entirely correct. Same failure `/api-baselines` guards against with its `<repoRoot>` table. (Hit on 6.5.0: the primary clone was on `master`, whose SourceLink pin fails `NU1902`, so the build died at restore and `discover` certified the API as clean off a log that had analysed nothing.)
 
 The script passes `-p:RunApiAnalyzersDuringBuild=true` for exactly this reason — don't hand-roll the build without it. It builds the **whole solution** (not just the changed project) and captures stdout+stderr to `.build/.agents/release-<ver>-publicapi-raw.txt`. Build the solution because drift hides in projects the reconciliation didn't touch: on 6.4.0 the core project came back clean while `LinqToDB.Scaffold` and `LinqToDB.EntityFrameworkCore` still carried their own.
 
-If the build fails on compile errors unrelated to PublicAPI, stop and surface those — they need fixing before reconciliation makes sense. One known false alarm: `LinqToDB.LINQPad` can fail with `CS2001: Source file '...*.g.cs' could not be found` from its WPF `_wpftmp` markup-compile pass under a parallel solution build. Re-build that one project alone to confirm it's transient rather than chasing it.
+If the build fails on compile errors unrelated to PublicAPI, stop and surface those — they need fixing before reconciliation makes sense. `discover` now refuses such a log outright rather than reporting `clean`, since a build that died before `CoreCompile` emits no RS diagnostics either and "zero findings" would otherwise be indistinguishable from a clean API. `RS####` codes are exempt from that check — they are the analyzers' own output, not a build failure. One known false alarm: `LinqToDB.LINQPad` can fail with `CS2001: Source file '...*.g.cs' could not be found` from its WPF `_wpftmp` markup-compile pass under a parallel solution build. Re-build that one project alone to confirm it's transient rather than chasing it.
+
+**A project that fails on RS diagnostics blocks its dependents from being analysed at all**, so expect convergence over passes even when RS0025 is zero. On 6.5.0 pass 1 reported 66 symbols, all in `LinqToDB`; only once those were declared did `LinqToDB.Remote.Grpc`, `.Remote.HttpClient.Client` and `.Remote.SignalR.Client` compile far enough to report their own five. This is the same shape as the RS0025-masks-RS0016 note below, at project granularity rather than symbol granularity.
 
 ### 2. Discover RS0016 / RS0017 / RS0025
 

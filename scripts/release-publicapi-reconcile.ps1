@@ -79,6 +79,10 @@ param(
     [string]$Configuration = 'Release',
     [string]$RawFile,
     [string]$SourceRoot,
+    # Repo to operate on. Release-prep work happens in a worktree, not the primary clone,
+    # so this must be explicit or derived from the caller's location - never left to the
+    # child process's inherited working directory, which Set-Location does not move.
+    [string]$RepoRoot,
     [switch]$Force,
     [switch]$Apply
 )
@@ -90,8 +94,13 @@ $script:BoundParams = $PSBoundParameters
 
 # -- paths -------------------------------------------------------------------
 
+function Get-RepoRoot {
+    if ($RepoRoot) { return (Resolve-Path -LiteralPath $RepoRoot).Path }
+    return (Get-Location).Path
+}
+
 function Get-WorkDir {
-    $dir = Join-Path (Get-Location) '.build/.agents'
+    $dir = Join-Path (Get-RepoRoot) '.build/.agents'
     if (-not (Test-Path -LiteralPath $dir)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
@@ -172,7 +181,13 @@ function Do-Build {
     # without it Source/Directory.Build.props omits the PublicApiAnalyzers
     # PackageReference entirely and the build reports zero RS diagnostics
     # regardless of actual drift. Global property, so it reaches every project.
-    $args = @('build','linq2db.slnx','-c',$Configuration,'-p:RunApiAnalyzersDuringBuild=true','--nologo','/clp:NoSummary')
+    # Absolute solution path, not a bare 'linq2db.slnx': Invoke-Process does not hand the
+    # child our working directory, so a relative path resolves against the session's process
+    # directory and silently builds the primary clone while the log lands in the worktree -
+    # a wrong-tree result that looks entirely correct.
+    $slnPath = Join-Path (Get-RepoRoot) 'linq2db.slnx'
+    if (-not (Test-Path -LiteralPath $slnPath)) { Exit-WithError "build: solution not found at $slnPath (pass -RepoRoot)" }
+    $args = @('build',$slnPath,'-c',$Configuration,'-p:RunApiAnalyzersDuringBuild=true','--nologo','/clp:NoSummary')
 
     # Stream to file while running. Use Invoke-Process to merge stdout+stderr.
     $r = Invoke-Process -FilePath 'dotnet' -ArgumentList $args
@@ -220,6 +235,25 @@ function Do-Discover {
         Exit-WithError "discover: raw build log not found at $raw — run -Action build first"
     }
     $text = [System.IO.File]::ReadAllText($raw, [System.Text.UTF8Encoding]::new($false))
+
+    # A build that failed for an unrelated reason emits no RS diagnostics either, so "zero
+    # findings" is indistinguishable from "clean" unless we look. Refuse rather than certify:
+    # a restore failure certified as a clean public API is exactly how drift reaches the
+    # master->release PR unnoticed.
+    # "Unrelated" means a real build failure - CS/NU/MSB and friends. Every RS#### code is a
+    # Roslyn analyzer diagnostic from the very analyzers this action exists to read (RS0016/17/25
+    # here, RS0041 obliviousness, RS2000-2002 release tracking), so those are findings, not
+    # evidence the tree failed to compile. Excluding only the three parsed codes made RS0041
+    # look like a restore failure and stopped a build that had in fact analysed everything.
+    $otherErrors = @(
+        [regex]::Matches($text, '(?im):\s+error\s+(?<code>[A-Za-z]+\d+)') |
+            Where-Object { $_.Groups['code'].Value -notmatch '^(?i:RS\d+)$' }
+    )
+    if ($otherErrors.Count -gt 0) {
+        $codes = @($otherErrors | ForEach-Object { $_.Groups['code'].Value } | Sort-Object -Unique) -join ', '
+        Exit-WithError "discover: the build log records $($otherErrors.Count) non-RS error(s) [$codes], so it analysed an incomplete tree - zero RS findings here would mean 'nothing was checked', not 'clean'. Fix the build and re-run -Action build."
+    }
+
     $findings = @()
     foreach ($m in [regex]::Matches($text, $script:DiagRx)) {
         $projTfm = $m.Groups['projTfm'].Value
@@ -329,15 +363,30 @@ function Do-FixDrift {
     foreach ($code in @('RS0016','RS0017')) {
         foreach ($g in @($diags | Where-Object { $_.code -eq $code } | Group-Object { "$($_.csproj)|$($_.symbol)" })) {
             $d       = $g.Group[0]
-            $apiRoot = Join-Path (Split-Path -Parent $d.csproj) 'PublicAPI'
+            $projDir = Split-Path -Parent $d.csproj
+            $apiRoot = Join-Path $projDir 'PublicAPI'
+            # Two layouts exist in this repo and plan/apply handle both: a PublicAPI/ subdirectory
+            # (LinqToDB, Scaffold, EntityFrameworkCore, Compat) and a flat one where the files sit
+            # directly in the project directory (Extensions, the five Remote.* clients/servers,
+            # Tools). Without this fallback fix-drift refused every flat-layout project.
+            $isFlat = $false
             if (-not (Test-Path -LiteralPath $apiRoot)) {
-                $failures += "$code '$($d.symbol)': no PublicAPI directory under $(Split-Path -Parent $d.csproj)"
-                continue
+                if (Test-Path -LiteralPath (Join-Path $projDir 'PublicAPI.Shipped.txt')) {
+                    $apiRoot = $projDir
+                    $isFlat  = $true
+                } else {
+                    $failures += "$code '$($d.symbol)': no PublicAPI directory or flat PublicAPI.Shipped.txt under $projDir"
+                    continue
+                }
             }
             $line = if ($code -eq 'RS0017') { "*REMOVED*$($d.symbol)" } else { $d.symbol }
 
             $declared = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-            foreach ($f in @(Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter 'PublicAPI.Shipped.txt')) {
+            # Not -Recurse when flat: $apiRoot is then the project directory, and recursing would
+            # walk bin/ and obj/ as well.
+            $shippedFiles = if ($isFlat) { @(Get-ChildItem -LiteralPath $apiRoot -File -Filter 'PublicAPI.Shipped.txt') }
+                            else         { @(Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter 'PublicAPI.Shipped.txt') }
+            foreach ($f in $shippedFiles) {
                 foreach ($l in (Read-ApiLines $f.FullName)) { [void]$declared.Add($l) }
             }
             if ($code -eq 'RS0016' -and $declared.Contains($d.symbol)) {
@@ -349,11 +398,13 @@ function Do-FixDrift {
                 continue
             }
 
-            $presentDirs = @(Get-ChildItem -LiteralPath $apiRoot -Directory | ForEach-Object Name | Sort-Object)
+            $presentDirs = if ($isFlat) { @() } else { @(Get-ChildItem -LiteralPath $apiRoot -Directory | ForEach-Object Name | Sort-Object) }
             $flagged     = @($g.Group | ForEach-Object { $_.tfm } | Where-Object { $_ } | Sort-Object -Unique)
 
-            if ($presentDirs.Count -gt 0 -and $flagged.Count -gt 0 -and
-                @(Compare-Object $presentDirs $flagged -SyncWindow 0).Count -eq 0) {
+            # A flat-layout project has exactly one pair, so there is no per-TFM placement to decide.
+            if ($isFlat -or
+                ($presentDirs.Count -gt 0 -and $flagged.Count -gt 0 -and
+                 @(Compare-Object $presentDirs $flagged -SyncWindow 0).Count -eq 0)) {
                 Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
             } elseif ($flagged.Count -eq 0) {
                 Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
@@ -403,7 +454,12 @@ function Do-FixDrift {
         $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
         foreach ($l in (Read-ApiLines $p)) { [void]$set.Add($l) }
         foreach ($l in $edits[$p])         { [void]$set.Add($l) }
-        $arr = $set.ToArray()
+        # HashSet<T> has no ToArray() - that is List<T>, and LINQ's is an extension method,
+        # which PowerShell does not surface as an instance method. Calling it here made
+        # PowerShell fall back to member enumeration and distribute the call over the set's
+        # elements, so the failure read "[System.String] does not contain a method named
+        # 'ToArray'" - naming the element type rather than the receiver.
+        $arr = [string[]]@($set)
         [array]::Sort($arr, [System.StringComparer]::Ordinal)
         $bom = Test-HasUtf8Bom -Path $p
         Write-PublicApiFile -Path $p -Lines (@('#nullable enable') + @($arr)) -WithBom:$bom
