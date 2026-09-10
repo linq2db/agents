@@ -1,2476 +1,4350 @@
 {
-  "capturedOn": "2026-08-04",
-  "release": "6.4.0",
+  "capturedOn": "2026-09-10",
+  "release": "6.5.0",
   "machineNote": "captured on the maintainer Windows dev box; cross-machine deltas are directional only",
-  "totalAnalyzerCpuSeconds": 8924.2,
+  "totalAnalyzerCpuSeconds": 7851.2,
   "analyzerPackages": {
-    "Meziantou.Analyzer": "3.0.138",
-    "Meziantou.Polyfill": "1.0.158",
-    "Microsoft.CodeAnalysis.Analyzers": "5.6.0",
+    "Meziantou.Analyzer": "3.0.231",
+    "Meziantou.Polyfill": "1.0.165",
+    "Microsoft.CodeAnalysis.Analyzers": "5.9.0",
     "Microsoft.CodeAnalysis.BannedApiAnalyzers": "5.6.0",
     "Microsoft.CodeAnalysis.PublicApiAnalyzers": "5.6.0",
     "NUnit.Analyzers": "4.14.0",
     "AsyncFixer": "2.1.0",
-    "Lindhart.Analyser.MissingAwaitWarning": "4.0.0-beta"
+    "Lindhart.Analyser.MissingAwaitWarning": "4.0.0-beta",
+    "protobuf-net.BuildTools": "3.4.21 (ships inside protobuf-net.core)"
   },
   "busiestAnalyzers": [
     {
-      "analyzer": "CSharpRemoveUnnecessaryImportsDiagnosticAnalyzer",
-      "rules": "(EnableGenerateDocumentationFile, IDE0005, IDE0005_gen, RemoveUnnecessaryImportsFixable)",
-      "totalSeconds": 913.514
-    },
-    {
       "analyzer": "UseAnOverloadThatHasCancellationTokenAnalyzer",
       "rules": "(MA0032, MA0040, MA0079, MA0080)",
-      "totalSeconds": 462.39
-    },
-    {
-      "analyzer": "LindhartAnalyserMissingAwaitWarningAnalyzer",
-      "rules": "(LindhartAnalyserMissingAwaitWarning, LindhartAnalyserMissingAwaitWarningVariable)",
-      "totalSeconds": 395.007
-    },
-    {
-      "analyzer": "CSharpAvoidMultipleEnumerationsAnalyzer",
-      "rules": "(CA1851)",
-      "totalSeconds": 382.681
+      "totalSeconds": 445.467
     },
     {
       "analyzer": "CSharpUseExplicitTypeDiagnosticAnalyzer",
       "rules": "(IDE0008)",
-      "totalSeconds": 371.094
+      "totalSeconds": 371.627
     },
     {
       "analyzer": "UseStringComparisonAnalyzer",
       "rules": "(MA0001, MA0074)",
-      "totalSeconds": 364.801
+      "totalSeconds": 359.01
+    },
+    {
+      "analyzer": "LindhartAnalyserMissingAwaitWarningAnalyzer",
+      "rules": "(LindhartAnalyserMissingAwaitWarning, LindhartAnalyserMissingAwaitWarningVariable)",
+      "totalSeconds": 351.943
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryImportsDiagnosticAnalyzer",
+      "rules": "(EnableGenerateDocumentationFile, IDE0005, IDE0005_gen, RemoveUnnecessaryImportsFixable)",
+      "totalSeconds": 346.297
     },
     {
       "analyzer": "CSharpSymbolIsBannedAnalyzer",
       "rules": "(RS0030, RS0031)",
-      "totalSeconds": 358.458
+      "totalSeconds": 340.607
     },
     {
-      "analyzer": "UseInKeywordForInParameterAnalyzer",
-      "rules": "(MA0209, MA0210)",
-      "totalSeconds": 274.747
+      "analyzer": "CSharpAvoidMultipleEnumerationsAnalyzer",
+      "rules": "(CA1851)",
+      "totalSeconds": 283.681
     },
     {
       "analyzer": "CSharpUseCollectionInitializerDiagnosticAnalyzer",
       "rules": "(IDE0028)",
-      "totalSeconds": 209.598
+      "totalSeconds": 234.924
     },
     {
       "analyzer": "AwaitTaskBeforeDisposingResourcesAnalyzer",
       "rules": "(MA0100)",
-      "totalSeconds": 183.632
+      "totalSeconds": 226.928
     },
     {
       "analyzer": "UseExpressionBodyDiagnosticAnalyzer",
       "rules": "(IDE0021, IDE0022, IDE0023, IDE0024, IDE0025, IDE0026, IDE0027, IDE0061)",
-      "totalSeconds": 177.183
+      "totalSeconds": 162.066
     },
     {
       "analyzer": "CSharpRemoveUnusedParametersAndValuesDiagnosticAnalyzer",
       "rules": "(IDE0058, IDE0059, IDE0060)",
-      "totalSeconds": 167.943
+      "totalSeconds": 137.817
     },
     {
       "analyzer": "CSharpUseImplicitlyTypedLambdaExpressionDiagnosticAnalyzer",
       "rules": "(IDE0350)",
-      "totalSeconds": 136.204
-    },
-    {
-      "analyzer": "ConditionalCompilationBranchesAreIdenticalAnalyzer",
-      "rules": "(MA0202)",
-      "totalSeconds": 100.486
-    },
-    {
-      "analyzer": "CSharpRemoveUnusedMembersDiagnosticAnalyzer",
-      "rules": "(IDE0051, IDE0052)",
-      "totalSeconds": 95.911
-    },
-    {
-      "analyzer": "CSharpConsecutiveStatementPlacementDiagnosticAnalyzer",
-      "rules": "(IDE2003)",
-      "totalSeconds": 95.31
-    },
-    {
-      "analyzer": "DoNotPassDisposablesIntoUnawaitedTasksAnalyzer",
-      "rules": "(CA2025)",
-      "totalSeconds": 88.7
-    },
-    {
-      "analyzer": "CSharpHiddenExplicitCastDiagnosticAnalyzer",
-      "rules": "(IDE0221)",
-      "totalSeconds": 88.143
-    },
-    {
-      "analyzer": "IdentifiersShouldDifferByMoreThanCaseAnalyzer",
-      "rules": "(CA1708)",
-      "totalSeconds": 78.802
-    },
-    {
-      "analyzer": "SpecifyIFormatProviderAnalyzer",
-      "rules": "(CA1305)",
-      "totalSeconds": 76.959
-    },
-    {
-      "analyzer": "DisposableFieldsShouldBeDisposed",
-      "rules": "(CA2213)",
-      "totalSeconds": 76.638
-    },
-    {
-      "analyzer": "NestedTaskToOuterTaskAnalyzer",
-      "rules": "(AsyncFixer05)",
-      "totalSeconds": 76.603
-    },
-    {
-      "analyzer": "AwaitAwaitableMethodInSyncMethodAnalyzer",
-      "rules": "(MA0134)",
-      "totalSeconds": 73.751
-    },
-    {
-      "analyzer": "ImplicitTaskTypeMismatchAnalyzer",
-      "rules": "(AsyncFixer06)",
-      "totalSeconds": 64.849
-    },
-    {
-      "analyzer": "CSharpUseDeconstructionDiagnosticAnalyzer",
-      "rules": "(IDE0042)",
-      "totalSeconds": 64.044
-    },
-    {
-      "analyzer": "TestCaseSourceUsesStringAnalyzer",
-      "rules": "(NUnit1002, NUnit1011, NUnit1015, NUnit1016, NUnit1017, NUnit1018, NUnit1019, NUnit1020, NUnit1029, NUnit1030)",
-      "totalSeconds": 62.841
-    },
-    {
-      "analyzer": "CSharpForwardCancellationTokenToInvocationsAnalyzer",
-      "rules": "(CA2016)",
-      "totalSeconds": 62.107
-    },
-    {
-      "analyzer": "CSharpMultipleBlankLinesDiagnosticAnalyzer",
-      "rules": "(IDE2000)",
-      "totalSeconds": 61.947
-    },
-    {
-      "analyzer": "DoNotAddArchiveItemPathToTheTargetFileSystemPath",
-      "rules": "(CA5389)",
-      "totalSeconds": 59.814
-    },
-    {
-      "analyzer": "InheritdocShouldBeUsedOnInheritingMemberAnalyzer",
-      "rules": "(MA0196)",
-      "totalSeconds": 52.785
-    },
-    {
-      "analyzer": "DoNotUseImplicitCultureSensitiveToStringAnalyzer",
-      "rules": "(MA0075, MA0076, MA0107)",
-      "totalSeconds": 51.956
-    },
-    {
-      "analyzer": "CSharpConstantExpectedAnalyzer",
-      "rules": "(CA1856, CA1857)",
-      "totalSeconds": 50.723
-    },
-    {
-      "analyzer": "MakeClassStaticAnalyzer",
-      "rules": "(MA0036)",
-      "totalSeconds": 49.857
-    },
-    {
-      "analyzer": "BlockingCallInsideAsyncAnalyzer",
-      "rules": "(AsyncFixer02)",
-      "totalSeconds": 43.099
-    },
-    {
-      "analyzer": "InternalUsageDiagnosticAnalyzer",
-      "rules": "(EF1001)",
-      "totalSeconds": 41.0
-    },
-    {
-      "analyzer": "PreferHashDataOverComputeHashAnalyzer",
-      "rules": "(CA1850)",
-      "totalSeconds": 39.668
-    },
-    {
-      "analyzer": "CSharpInlineDeclarationDiagnosticAnalyzer",
-      "rules": "(IDE0018)",
-      "totalSeconds": 39.214
-    },
-    {
-      "analyzer": "ArgumentExceptionShouldSpecifyArgumentNameAnalyzer",
-      "rules": "(MA0015, MA0043)",
-      "totalSeconds": 38.845
-    },
-    {
-      "analyzer": "UseAsyncMethodInAsyncContext",
-      "rules": "(CA1849)",
-      "totalSeconds": 36.922
-    },
-    {
-      "analyzer": "CSharpQualifyMemberAccessDiagnosticAnalyzer",
-      "rules": "(IDE0009)",
-      "totalSeconds": 36.086
-    },
-    {
-      "analyzer": "CSharpRemoveUnnecessaryUnsafeModifierDiagnosticAnalyzer",
-      "rules": "(IDE0380)",
-      "totalSeconds": 35.616
-    },
-    {
-      "analyzer": "TypeNamesShouldNotMatchNamespacesAnalyzer",
-      "rules": "(CA1724)",
-      "totalSeconds": 35.339
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForEmptyDiagnosticAnalyzer",
-      "rules": "(IDE0301)",
-      "totalSeconds": 34.213
-    },
-    {
-      "analyzer": "CSharpUseLocalFunctionDiagnosticAnalyzer",
-      "rules": "(IDE0039)",
-      "totalSeconds": 33.352
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForBuilderDiagnosticAnalyzer",
-      "rules": "(IDE0304)",
-      "totalSeconds": 32.754
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForCreateDiagnosticAnalyzer",
-      "rules": "(IDE0303)",
-      "totalSeconds": 31.673
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForFluentDiagnosticAnalyzer",
-      "rules": "(IDE0305)",
-      "totalSeconds": 30.689
-    },
-    {
-      "analyzer": "CSharpUsePatternCombinatorsDiagnosticAnalyzer",
-      "rules": "(IDE0078)",
-      "totalSeconds": 29.834
-    },
-    {
-      "analyzer": "PotentialReferenceCycleInDeserializedObjectGraph",
-      "rules": "(CA5362)",
-      "totalSeconds": 28.858
-    },
-    {
-      "analyzer": "ParameterNamesShouldMatchBaseDeclarationAnalyzer",
-      "rules": "(CA1725)",
-      "totalSeconds": 27.015
-    },
-    {
-      "analyzer": "CSharpUseAutoPropertyAnalyzer",
-      "rules": "(IDE0032)",
-      "totalSeconds": 26.759
-    },
-    {
-      "analyzer": "CSharpUseRangeOperatorDiagnosticAnalyzer",
-      "rules": "(IDE0057)",
-      "totalSeconds": 25.2
-    },
-    {
-      "analyzer": "TestFixtureShouldBeAbstractAnalyzer",
-      "rules": "(NUnit1034)",
-      "totalSeconds": 25.042
-    },
-    {
-      "analyzer": "DoNotUseDefaultEqualsOnValueTypeAnalyzer",
-      "rules": "(MA0065, MA0066)",
-      "totalSeconds": 24.797
-    },
-    {
-      "analyzer": "CSharpPreferGenericOverloadsAnalyzer",
-      "rules": "(CA2263)",
-      "totalSeconds": 24.69
-    },
-    {
-      "analyzer": "DoNotUseInsecureDeserializerJsonNetWithoutBinder",
-      "rules": "(CA2329, CA2330)",
-      "totalSeconds": 24.178
-    },
-    {
-      "analyzer": "ValidateArgumentsCorrectlyAnalyzer",
-      "rules": "(MA0050)",
-      "totalSeconds": 23.733
-    },
-    {
-      "analyzer": "CSharpRemoveUnnecessaryLambdaExpressionDiagnosticAnalyzer",
-      "rules": "(IDE0200)",
-      "totalSeconds": 23.419
-    },
-    {
-      "analyzer": "AvoidPotentiallyExpensiveCallWhenLoggingAnalyzer",
-      "rules": "(CA1873)",
-      "totalSeconds": 23.004
-    },
-    {
-      "analyzer": "CSharpMakeFieldReadonlyDiagnosticAnalyzer",
-      "rules": "(IDE0044)",
-      "totalSeconds": 22.599
-    },
-    {
-      "analyzer": "UseSecureCookiesASPNetCore",
-      "rules": "(CA5382, CA5383)",
-      "totalSeconds": 22.252
-    },
-    {
-      "analyzer": "AttributeStringLiteralsShouldParseCorrectlyAnalyzer",
-      "rules": "(CA2243)",
-      "totalSeconds": 21.999
-    },
-    {
-      "analyzer": "PreferDictionaryTryMethodsOverContainsKeyGuardAnalyzer",
-      "rules": "(CA1854, CA1864)",
-      "totalSeconds": 21.752
-    },
-    {
-      "analyzer": "ProvideObsoleteAttributeMessageAnalyzer",
-      "rules": "(CA1041)",
-      "totalSeconds": 21.697
-    },
-    {
-      "analyzer": "AvoidUnreliableStreamReadAnalyzer",
-      "rules": "(CA2022)",
-      "totalSeconds": 21.321
-    },
-    {
-      "analyzer": "UseSystemThreadingLockInsteadOfObjectAnalyzer",
-      "rules": "(MA0158)",
-      "totalSeconds": 20.62
-    },
-    {
-      "analyzer": "IdentifiersShouldHaveCorrectSuffixAnalyzer",
-      "rules": "(CA1710)",
-      "totalSeconds": 20.533
-    },
-    {
-      "analyzer": "LocalVariablesShouldNotHideSymbolsAnalyzer",
-      "rules": "(MA0084)",
-      "totalSeconds": 20.247
-    },
-    {
-      "analyzer": "CSharpSimplifyLinqTypeCheckAndCastDiagnosticAnalyzer",
-      "rules": "(IDE0121)",
-      "totalSeconds": 19.883
-    },
-    {
-      "analyzer": "ClassMustBeSealedAnalyzer",
-      "rules": "(MA0053)",
-      "totalSeconds": 19.735
-    },
-    {
-      "analyzer": "AvoidUnusedPrivateFieldsAnalyzer",
-      "rules": "(CA1823)",
-      "totalSeconds": 19.629
-    },
-    {
-      "analyzer": "DoNotRaiseExceptionsInExceptionClausesAnalyzer",
-      "rules": "(CA2219)",
-      "totalSeconds": 18.663
-    },
-    {
-      "analyzer": "ComponentInternalUsageDiagnosticAnalyzer",
-      "rules": "(BL0006)",
-      "totalSeconds": 18.617
-    },
-    {
-      "analyzer": "CSharpUseUnboundGenericTypeInNameOfDiagnosticAnalyzer",
-      "rules": "(IDE0340)",
-      "totalSeconds": 18.406
-    },
-    {
-      "analyzer": "CSharpRemoveUnnecessaryNullableDirectiveDiagnosticAnalyzer",
-      "rules": "(IDE0241)",
-      "totalSeconds": 18.302
-    },
-    {
-      "analyzer": "DoNotUseInsecureSettingsForJsonNet",
-      "rules": "(CA2327, CA2328)",
-      "totalSeconds": 18.157
-    },
-    {
-      "analyzer": "AvoidClosureWhenUsingConcurrentDictionaryAnalyzer",
-      "rules": "(MA0105, MA0106)",
-      "totalSeconds": 17.825
-    },
-    {
-      "analyzer": "CSharpUseImplicitTypeDiagnosticAnalyzer",
-      "rules": "(IDE0007)",
-      "totalSeconds": 17.746
-    },
-    {
-      "analyzer": "OptimizeStartsWithAnalyzer",
-      "rules": "(MA0089)",
-      "totalSeconds": 17.469
-    },
-    {
-      "analyzer": "UseValidPlatformString",
-      "rules": "(CA1418)",
-      "totalSeconds": 17.181
-    },
-    {
-      "analyzer": "CSharpUseIsNullCheckForReferenceEqualsDiagnosticAnalyzer",
-      "rules": "(IDE0041)",
-      "totalSeconds": 17.11
-    },
-    {
-      "analyzer": "UseReadOnlyStructForRefReadOnlyParametersAnalyzer",
-      "rules": "(MA0168)",
-      "totalSeconds": 16.833
-    },
-    {
-      "analyzer": "UseAutoValidateAntiforgeryToken",
-      "rules": "(CA5391, CA5395)",
-      "totalSeconds": 16.495
-    },
-    {
-      "analyzer": "DynamicallyAccessedMembersAnalyzer",
-      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2046, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2110, IL2111, IL2112, IL2113, IL2114, IL2115, IL2116, IL2122, IL2123, IL2124, IL2125, IL2126, IL2127, IL3000, IL3001, IL3002, IL3003, IL3004, IL3005, IL3050, IL3051, IL3056, IL3057, IL3058, IL4000, IL4001)",
-      "totalSeconds": 16.368
-    },
-    {
-      "analyzer": "CSharpUseTupleSwapDiagnosticAnalyzer",
-      "rules": "(IDE0180)",
-      "totalSeconds": 16.362
-    },
-    {
-      "analyzer": "CSharpDataSetDataTableInSerializableTypeAnalyzer",
-      "rules": "(CA2352, CA2353, CA2362)",
-      "totalSeconds": 16.344
-    },
-    {
-      "analyzer": "DeclareTypesInNamespacesAnalyzer",
-      "rules": "(MA0047)",
-      "totalSeconds": 15.839
-    },
-    {
-      "analyzer": "ReviewCodeForXssVulnerabilities",
-      "rules": "(CA3002)",
-      "totalSeconds": 15.755
-    },
-    {
-      "analyzer": "UseRSAWithSufficientKeySize",
-      "rules": "(CA5385)",
-      "totalSeconds": 15.556
-    },
-    {
-      "analyzer": "CSharpAsAndNullCheckDiagnosticAnalyzer",
-      "rules": "(IDE0019)",
-      "totalSeconds": 15.311
-    },
-    {
-      "analyzer": "DisableRuntimeMarshallingAnalyzer",
-      "rules": "(CA1420, CA1421)",
-      "totalSeconds": 15.151
-    },
-    {
-      "analyzer": "CommaAnalyzer",
-      "rules": "(MA0007)",
-      "totalSeconds": 14.755
-    },
-    {
-      "analyzer": "CSharpUseObjectInitializerDiagnosticAnalyzer",
-      "rules": "(IDE0017)",
-      "totalSeconds": 14.753
-    },
-    {
-      "analyzer": "RuntimeComApiUsageWithSourceGeneratedComAnalyzer",
-      "rules": "(SYSLIB1099)",
-      "totalSeconds": 14.61
-    },
-    {
-      "analyzer": "UseMemoryMarshalGetReferenceForEmptyBuffersAnalyzer",
-      "rules": "(MA0212)",
-      "totalSeconds": 14.417
-    },
-    {
-      "analyzer": "CSharpDataSetDataTableInSerializableObjectGraphAnalyzer",
-      "rules": "(CA2355)",
-      "totalSeconds": 14.417
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForNewDiagnosticAnalyzer",
-      "rules": "(IDE0306)",
-      "totalSeconds": 14.397
-    },
-    {
-      "analyzer": "UseGuidEmptyAnalyzer",
-      "rules": "(MA0067)",
-      "totalSeconds": 13.723
-    },
-    {
-      "analyzer": "CSharpDetectPreviewFeatureAnalyzer",
-      "rules": "(CA2252)",
-      "totalSeconds": 13.721
-    },
-    {
-      "analyzer": "DoNotUseBlockingCallInAsyncContextAnalyzer",
-      "rules": "(MA0042, MA0045)",
-      "totalSeconds": 13.686
-    },
-    {
-      "analyzer": "AvoidConstArraysAnalyzer",
-      "rules": "(CA1861)",
-      "totalSeconds": 13.66
-    },
-    {
-      "analyzer": "CSharpSimplifyInterpolationDiagnosticAnalyzer",
-      "rules": "(IDE0071)",
-      "totalSeconds": 13.477
-    },
-    {
-      "analyzer": "UseCountProperlyAnalyzer",
-      "rules": "(CA1827, CA1828, CA1829, CA1836)",
-      "totalSeconds": 13.435
-    },
-    {
-      "analyzer": "OptimizeLinqUsageAnalyzer",
-      "rules": "(MA0020, MA0029, MA0030, MA0031, MA0063, MA0078, MA0098, MA0112, MA0159)",
-      "totalSeconds": 13.388
-    },
-    {
-      "analyzer": "DontUseDangerousThreadingMethodsAnalyzer",
-      "rules": "(MA0035)",
-      "totalSeconds": 13.379
-    },
-    {
-      "analyzer": "UseLangwordInXmlCommentAnalyzer",
-      "rules": "(MA0154)",
-      "totalSeconds": 12.956
-    },
-    {
-      "analyzer": "CSharpValidateFormatStringDiagnosticAnalyzer",
-      "rules": "(IDE0043)",
-      "totalSeconds": 12.806
-    },
-    {
-      "analyzer": "UseAttributeIsDefinedAnalyzer",
-      "rules": "(MA0179)",
-      "totalSeconds": 12.703
-    },
-    {
-      "analyzer": "DoNotGuardCallAnalyzer",
-      "rules": "(CA1853, CA1868)",
-      "totalSeconds": 12.566
-    },
-    {
-      "analyzer": "CSharpUseSearchValuesAnalyzer",
-      "rules": "(CA1870)",
-      "totalSeconds": 12.518
-    },
-    {
-      "analyzer": "DynamicallyAccessedMembersAnalyzer",
-      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2046, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2109, IL2110, IL2111, IL2116, IL3000, IL3001, IL3002, IL3003, IL3004, IL3050, IL3051, IL3056, IL4000, IL4001)",
-      "totalSeconds": 12.362
-    },
-    {
-      "analyzer": "CSharpPreferDictionaryContainsMethods",
-      "rules": "(CA1841)",
-      "totalSeconds": 11.792
+      "totalSeconds": 121.495
     },
     {
       "analyzer": "DoNotUseToStringIfObjectAnalyzer",
       "rules": "(MA0150)",
-      "totalSeconds": 11.711
+      "totalSeconds": 115.904
     },
     {
-      "analyzer": "UriReturnValuesShouldNotBeStringsAnalyzer",
-      "rules": "(CA1055)",
-      "totalSeconds": 11.652
+      "analyzer": "IdentifiersShouldDifferByMoreThanCaseAnalyzer",
+      "rules": "(CA1708)",
+      "totalSeconds": 98.513
     },
     {
-      "analyzer": "CSharpDataSetDataTableInIFormatterSerializableObjectGraphAnalyzer",
-      "rules": "(CA2354)",
-      "totalSeconds": 11.322
+      "analyzer": "DisposableFieldsShouldBeDisposed",
+      "rules": "(CA2213)",
+      "totalSeconds": 94.896
     },
     {
-      "analyzer": "SimplifyCallerArgumentExpressionAnalyzer",
-      "rules": "(MA0108)",
-      "totalSeconds": 11.309
+      "analyzer": "CSharpHiddenExplicitCastDiagnosticAnalyzer",
+      "rules": "(IDE0221)",
+      "totalSeconds": 85.706
     },
     {
-      "analyzer": "UseExplicitTupleNameDiagnosticAnalyzer",
-      "rules": "(IDE0033)",
-      "totalSeconds": 11.274
+      "analyzer": "CSharpRemoveUnusedMembersDiagnosticAnalyzer",
+      "rules": "(IDE0051, IDE0052)",
+      "totalSeconds": 84.051
     },
     {
-      "analyzer": "CSharpDiagnosticAnalyzerApiUsageAnalyzer",
-      "rules": "(RS1022)",
-      "totalSeconds": 11.233
+      "analyzer": "DoNotPassDisposablesIntoUnawaitedTasksAnalyzer",
+      "rules": "(CA2025)",
+      "totalSeconds": 78.189
     },
     {
-      "analyzer": "DynamicallyAccessedMembersAnalyzer",
-      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2110, IL2111)",
-      "totalSeconds": 11.23
+      "analyzer": "TestCaseSourceUsesStringAnalyzer",
+      "rules": "(NUnit1002, NUnit1011, NUnit1015, NUnit1016, NUnit1017, NUnit1018, NUnit1019, NUnit1020, NUnit1029, NUnit1030)",
+      "totalSeconds": 75.013
     },
     {
-      "analyzer": "DoNotUseNotYetInitializedStaticFieldAnalyzer",
-      "rules": "(MA0195)",
-      "totalSeconds": 11.211
+      "analyzer": "CSharpConsecutiveStatementPlacementDiagnosticAnalyzer",
+      "rules": "(IDE2003)",
+      "totalSeconds": 70.676
     },
     {
-      "analyzer": "OptionalParametersAttributeAnalyzer",
-      "rules": "(MA0087, MA0088)",
-      "totalSeconds": 11.192
+      "analyzer": "NestedTaskToOuterTaskAnalyzer",
+      "rules": "(AsyncFixer05)",
+      "totalSeconds": 69.092
     },
     {
-      "analyzer": "DoNotNaNInComparisonsAnalyzer",
-      "rules": "(MA0082)",
-      "totalSeconds": 10.964
+      "analyzer": "AwaitAwaitableMethodInSyncMethodAnalyzer",
+      "rules": "(MA0134)",
+      "totalSeconds": 66.383
     },
     {
-      "analyzer": "CSharpSimplifyLinqExpressionDiagnosticAnalyzer",
-      "rules": "(IDE0120)",
-      "totalSeconds": 10.695
+      "analyzer": "CSharpForwardCancellationTokenToInvocationsAnalyzer",
+      "rules": "(CA2016)",
+      "totalSeconds": 65.478
     },
     {
-      "analyzer": "UseStringEqualsOverStringCompare",
-      "rules": "(CA2251)",
-      "totalSeconds": 10.615
+      "analyzer": "CSharpQualifyMemberAccessDiagnosticAnalyzer",
+      "rules": "(IDE0009)",
+      "totalSeconds": 59.082
     },
     {
-      "analyzer": "AvoidUnusedInternalTypesAnalyzer",
-      "rules": "(MA0182)",
-      "totalSeconds": 10.546
+      "analyzer": "SpecifyIFormatProviderAnalyzer",
+      "rules": "(CA1305)",
+      "totalSeconds": 58.896
     },
     {
-      "analyzer": "CSharpRemoveUnnecessaryExpressionParenthesesDiagnosticAnalyzer",
-      "rules": "(IDE0047)",
-      "totalSeconds": 10.541
+      "analyzer": "CSharpConstantExpectedAnalyzer",
+      "rules": "(CA1856, CA1857)",
+      "totalSeconds": 51.466
     },
     {
-      "analyzer": "PreferAsSpanOverSubstring",
-      "rules": "(CA1846)",
-      "totalSeconds": 10.239
+      "analyzer": "CSharpUseDeconstructionDiagnosticAnalyzer",
+      "rules": "(IDE0042)",
+      "totalSeconds": 50.773
     },
     {
-      "analyzer": "EqualityShouldBeCorrectlyImplementedAnalyzer",
-      "rules": "(MA0077, MA0094, MA0095, MA0096, MA0097)",
-      "totalSeconds": 10.075
+      "analyzer": "CSharpUseCollectionExpressionForFluentDiagnosticAnalyzer",
+      "rules": "(IDE0305)",
+      "totalSeconds": 47.67
     },
     {
-      "analyzer": "FileNameMustMatchTypeNameAnalyzer",
-      "rules": "(MA0048)",
-      "totalSeconds": 9.66
+      "analyzer": "DoNotUseImplicitCultureSensitiveToStringAnalyzer",
+      "rules": "(MA0075, MA0076, MA0107)",
+      "totalSeconds": 46.512
     },
     {
-      "analyzer": "PreserveParamsOnOverrideAnalyzer",
-      "rules": "(MA0081)",
-      "totalSeconds": 9.612
+      "analyzer": "CSharpMultipleBlankLinesDiagnosticAnalyzer",
+      "rules": "(IDE2000)",
+      "totalSeconds": 44.861
     },
     {
-      "analyzer": "PreferStringContainsOverIndexOfAnalyzer",
-      "rules": "(CA2249)",
-      "totalSeconds": 9.59
+      "analyzer": "UseAsyncMethodInAsyncContext",
+      "rules": "(CA1849)",
+      "totalSeconds": 42.001
     },
     {
-      "analyzer": "MergeIsPatternChecksAnalyzer",
-      "rules": "(MA0194)",
-      "totalSeconds": 9.545
+      "analyzer": "InheritdocShouldBeUsedOnInheritingMemberAnalyzer",
+      "rules": "(MA0196)",
+      "totalSeconds": 40.992
     },
     {
-      "analyzer": "AvoidLengthCalculationWhenSlicingToEndAnalyzer",
-      "rules": "(CA1514)",
-      "totalSeconds": 9.53
+      "analyzer": "ImplicitTaskTypeMismatchAnalyzer",
+      "rules": "(AsyncFixer06)",
+      "totalSeconds": 40.358
     },
     {
-      "analyzer": "CSharpUseIndexOperatorDiagnosticAnalyzer",
-      "rules": "(IDE0056)",
-      "totalSeconds": 9.429
+      "analyzer": "DoNotAddArchiveItemPathToTheTargetFileSystemPath",
+      "rules": "(CA5389)",
+      "totalSeconds": 39.896
     },
     {
-      "analyzer": "CSharpUseCompoundAssignmentDiagnosticAnalyzer",
-      "rules": "(IDE0054)",
-      "totalSeconds": 9.364
+      "analyzer": "BlockingCallInsideAsyncAnalyzer",
+      "rules": "(AsyncFixer02)",
+      "totalSeconds": 38.212
     },
     {
-      "analyzer": "DoNotUseInsecureDeserializerNetDataContractSerializerWithoutBinder",
-      "rules": "(CA2311, CA2312)",
-      "totalSeconds": 9.35
+      "analyzer": "MakeClassStaticAnalyzer",
+      "rules": "(MA0036)",
+      "totalSeconds": 37.179
     },
     {
-      "analyzer": "CSharpOrderModifiersDiagnosticAnalyzer",
-      "rules": "(IDE0036)",
-      "totalSeconds": 9.2
+      "analyzer": "TypeNamesShouldNotMatchNamespacesAnalyzer",
+      "rules": "(CA1724)",
+      "totalSeconds": 33.756
     },
     {
-      "analyzer": "DoNotCatchCorruptedStateExceptionsAnalyzer",
-      "rules": "(CA2153)",
-      "totalSeconds": 9.092
+      "analyzer": "ArgumentExceptionShouldSpecifyArgumentNameAnalyzer",
+      "rules": "(MA0015, MA0043)",
+      "totalSeconds": 33.209
     },
     {
-      "analyzer": "ValueSourceUsageAnalyzer",
-      "rules": "(NUnit1021, NUnit1022, NUnit1023, NUnit1024, NUnit1025)",
-      "totalSeconds": 8.999
+      "analyzer": "CSharpUseCollectionExpressionForEmptyDiagnosticAnalyzer",
+      "rules": "(IDE0301)",
+      "totalSeconds": 32.823
     },
     {
-      "analyzer": "ComparableTypesAnalyzer",
-      "rules": "(NUnit2041, NUnit2042)",
-      "totalSeconds": 8.999
+      "analyzer": "DoNotUseDefaultEqualsOnValueTypeAnalyzer",
+      "rules": "(MA0065, MA0066)",
+      "totalSeconds": 32.735
     },
     {
-      "analyzer": "PrimaryConstructorParameterShouldBeReadOnlyAnalyzer",
-      "rules": "(MA0143)",
-      "totalSeconds": 8.916
+      "analyzer": "UseLangwordInXmlCommentAnalyzer",
+      "rules": "(MA0154, MA0218, MA0219)",
+      "totalSeconds": 32.08
+    },
+    {
+      "analyzer": "AttributeStringLiteralsShouldParseCorrectlyAnalyzer",
+      "rules": "(CA2243)",
+      "totalSeconds": 31.595
+    },
+    {
+      "analyzer": "CSharpInlineDeclarationDiagnosticAnalyzer",
+      "rules": "(IDE0018)",
+      "totalSeconds": 31.552
+    },
+    {
+      "analyzer": "CSharpUsePatternCombinatorsDiagnosticAnalyzer",
+      "rules": "(IDE0078)",
+      "totalSeconds": 31.429
+    },
+    {
+      "analyzer": "ValidateArgumentsCorrectlyAnalyzer",
+      "rules": "(MA0050)",
+      "totalSeconds": 30.65
+    },
+    {
+      "analyzer": "PreferHashDataOverComputeHashAnalyzer",
+      "rules": "(CA1850)",
+      "totalSeconds": 30.304
+    },
+    {
+      "analyzer": "CSharpUseCollectionExpressionForBuilderDiagnosticAnalyzer",
+      "rules": "(IDE0304)",
+      "totalSeconds": 30.276
+    },
+    {
+      "analyzer": "IdentifiersShouldHaveCorrectSuffixAnalyzer",
+      "rules": "(CA1710)",
+      "totalSeconds": 29.877
+    },
+    {
+      "analyzer": "CSharpUseCollectionExpressionForCreateDiagnosticAnalyzer",
+      "rules": "(IDE0303)",
+      "totalSeconds": 27.592
+    },
+    {
+      "analyzer": "ParameterNamesShouldMatchBaseDeclarationAnalyzer",
+      "rules": "(CA1725)",
+      "totalSeconds": 26.278
     },
     {
       "analyzer": "UseConfigureAwaitAnalyzer",
       "rules": "(MA0004)",
-      "totalSeconds": 8.63
+      "totalSeconds": 26.13
     },
     {
-      "analyzer": "DoNotCallEnumerableCastOrOfTypeWithIncompatibleTypesAnalyzer",
-      "rules": "(CA2021)",
-      "totalSeconds": 8.573
+      "analyzer": "CSharpUseUnboundGenericTypeInNameOfDiagnosticAnalyzer",
+      "rules": "(IDE0340)",
+      "totalSeconds": 25.358
     },
     {
-      "analyzer": "CSharpUsePrimaryConstructorDiagnosticAnalyzer",
-      "rules": "(IDE0290)",
-      "totalSeconds": 8.434
+      "analyzer": "InvalidRegexConfigurationAnalyzer",
+      "rules": "(MA0220)",
+      "totalSeconds": 25.22
     },
     {
-      "analyzer": "DoNotUseServerCertificateValidationCallbackAnalyzer",
-      "rules": "(MA0039)",
-      "totalSeconds": 8.407
+      "analyzer": "InternalUsageDiagnosticAnalyzer",
+      "rules": "(EF1001)",
+      "totalSeconds": 23.906
     },
     {
-      "analyzer": "MethodOverridesShouldNotChangeParameterDefaultsAnalyzer",
-      "rules": "(MA0061)",
-      "totalSeconds": 8.364
-    },
-    {
-      "analyzer": "UseContainsKeyInsteadOfTryGetValueAnalyzer",
-      "rules": "(MA0160)",
-      "totalSeconds": 8.204
-    },
-    {
-      "analyzer": "OptimizeGuidCreationAnalyzer",
-      "rules": "(MA0176)",
-      "totalSeconds": 8.189
-    },
-    {
-      "analyzer": "TestMethodAccessibilityLevelAnalyzer",
-      "rules": "(NUnit1026)",
-      "totalSeconds": 8.159
-    },
-    {
-      "analyzer": "CSharpUseNameofInPlaceOfStringAnalyzer",
-      "rules": "(CA1507)",
-      "totalSeconds": 8.116
-    },
-    {
-      "analyzer": "DisposeFieldsAndPropertiesInTearDownAnalyzer",
-      "rules": "(NUnit1032)",
-      "totalSeconds": 8.079
-    },
-    {
-      "analyzer": "CSharpMarkAssembliesWithNeutralResourcesLanguageAnalyzer",
-      "rules": "(CA1824)",
-      "totalSeconds": 7.991
-    },
-    {
-      "analyzer": "CSharpRemoveUnnecessaryAttributeSuppressionsDiagnosticAnalyzer",
-      "rules": "(IDE0076, IDE0077)",
-      "totalSeconds": 7.915
-    },
-    {
-      "analyzer": "DoNotCreateTasksWithoutPassingATaskSchedulerAnalyzer",
-      "rules": "(CA2008)",
-      "totalSeconds": 7.912
-    },
-    {
-      "analyzer": "PreferConvertToHexStringOverBitConverterAnalyzer",
-      "rules": "(CA1872)",
-      "totalSeconds": 7.907
-    },
-    {
-      "analyzer": "DoNotHideBaseClassMethodsAnalyzer",
-      "rules": "(CA1061)",
-      "totalSeconds": 7.861
-    },
-    {
-      "analyzer": "UseValueTasksCorrectlyAnalyzer",
-      "rules": "(CA2012)",
-      "totalSeconds": 7.728
-    },
-    {
-      "analyzer": "CSharpSimplifyPropertyAccessorDiagnosticAnalyzer",
-      "rules": "(IDE0360)",
-      "totalSeconds": 7.663
-    },
-    {
-      "analyzer": "TestForEmptyStringsUsingStringLengthAnalyzer",
-      "rules": "(CA1820)",
-      "totalSeconds": 7.605
-    },
-    {
-      "analyzer": "UseEnvironmentMembers",
-      "rules": "(CA1837, CA1839, CA1840)",
-      "totalSeconds": 7.591
-    },
-    {
-      "analyzer": "DoNotCreateTaskCompletionSourceWithWrongArguments",
-      "rules": "(CA2247)",
-      "totalSeconds": 7.575
-    },
-    {
-      "analyzer": "EqualToIncompatibleTypesAnalyzer",
-      "rules": "(NUnit2021)",
-      "totalSeconds": 7.484
-    },
-    {
-      "analyzer": "ReviewCodeForCommandExecutionVulnerabilities",
-      "rules": "(CA3006)",
-      "totalSeconds": 7.411
-    },
-    {
-      "analyzer": "CSharpMakeTypesInternal",
-      "rules": "(CA1515)",
-      "totalSeconds": 7.117
-    },
-    {
-      "analyzer": "UseHasFlagMethodAnalyzer",
-      "rules": "(MA0192, MA0201)",
-      "totalSeconds": 7.089
-    },
-    {
-      "analyzer": "MissingPropertyAnalyzer",
-      "rules": "(NUnit2022)",
-      "totalSeconds": 7.065
-    },
-    {
-      "analyzer": "NativeMarshallingAttributeAnalyzer",
-      "rules": "(SYSLIB1058)",
-      "totalSeconds": 6.884
-    },
-    {
-      "analyzer": "OptimizeStringBuilderUsageAnalyzer",
-      "rules": "(MA0028)",
-      "totalSeconds": 6.855
-    },
-    {
-      "analyzer": "UseSpecificConstraintAnalyzer",
-      "rules": "(NUnit4002)",
-      "totalSeconds": 6.829
-    },
-    {
-      "analyzer": "UseThreadStaticCorrectly",
-      "rules": "(CA2019, CA2259)",
-      "totalSeconds": 6.798
-    },
-    {
-      "analyzer": "CSharpAddRequiredExpressionParenthesesDiagnosticAnalyzer",
-      "rules": "(IDE0048)",
-      "totalSeconds": 6.768
-    },
-    {
-      "analyzer": "TypesShouldNotExtendSystemApplicationExceptionAnalyzer",
-      "rules": "(MA0013)",
-      "totalSeconds": 6.752
-    },
-    {
-      "analyzer": "UseRegexMembers",
-      "rules": "(CA1874, CA1875)",
-      "totalSeconds": 6.657
-    },
-    {
-      "analyzer": "UseSystemHashCodeDiagnosticAnalyzer",
-      "rules": "(IDE0070)",
-      "totalSeconds": 6.525
-    },
-    {
-      "analyzer": "StringFormatShouldBeConstantAnalyzer",
-      "rules": "(MA0183)",
-      "totalSeconds": 6.509
-    },
-    {
-      "analyzer": "CSharpAddOrRemoveAccessibilityModifiersDiagnosticAnalyzer",
-      "rules": "(IDE0040)",
-      "totalSeconds": 6.499
-    },
-    {
-      "analyzer": "DoNotHardCodeCertificate",
-      "rules": "(CA5403)",
-      "totalSeconds": 6.449
-    },
-    {
-      "analyzer": "ProcessStartAnalyzer",
-      "rules": "(MA0161, MA0162, MA0163)",
-      "totalSeconds": 6.361
-    },
-    {
-      "analyzer": "PreferLengthCountIsEmptyOverAnyAnalyzer",
-      "rules": "(CA1860)",
-      "totalSeconds": 6.33
-    },
-    {
-      "analyzer": "UseIsPatternInsteadOfSequenceEqualAnalyzer",
-      "rules": "(MA0128)",
-      "totalSeconds": 6.306
-    },
-    {
-      "analyzer": "UseXmlReaderForDataSetReadXml",
-      "rules": "(CA5366)",
-      "totalSeconds": 6.202
-    },
-    {
-      "analyzer": "UseDefaultDllImportSearchPathsAttribute",
-      "rules": "(CA5392, CA5393)",
-      "totalSeconds": 6.19
-    },
-    {
-      "analyzer": "CSharpUseSpanClearInsteadOfFillAnalyzer",
-      "rules": "(CA1855)",
-      "totalSeconds": 6.187
-    },
-    {
-      "analyzer": "CSharpIsAndCastCheckDiagnosticAnalyzer",
-      "rules": "(IDE0020)",
-      "totalSeconds": 6.178
-    },
-    {
-      "analyzer": "DoNotUseWeakKDFAlgorithm",
-      "rules": "(CA5379)",
-      "totalSeconds": 6.138
-    },
-    {
-      "analyzer": "DoNotDirectlyAwaitATaskAnalyzer",
-      "rules": "(CA2007)",
-      "totalSeconds": 6.031
-    },
-    {
-      "analyzer": "ReturnTaskFromResultInsteadOfReturningNullAnalyzer",
-      "rules": "(MA0022)",
-      "totalSeconds": 5.96
-    },
-    {
-      "analyzer": "ComparisonConstraintUsageAnalyzer",
-      "rules": "(NUnit2043)",
-      "totalSeconds": 5.954
-    },
-    {
-      "analyzer": "NonFlagsEnumsShouldNotBeMarkedWithFlagsAttributeAnalyzer",
-      "rules": "(MA0062)",
-      "totalSeconds": 5.93
-    },
-    {
-      "analyzer": "DoNotUseDeprecatedSecurityProtocols",
-      "rules": "(CA5364, CA5386)",
-      "totalSeconds": 5.92
-    },
-    {
-      "analyzer": "SameActualExpectedValueAnalyzer",
-      "rules": "(NUnit2009)",
-      "totalSeconds": 5.861
-    },
-    {
-      "analyzer": "CSharpUseCoalesceExpressionForIfNullStatementCheckDiagnosticAnalyzer",
-      "rules": "(IDE0270)",
-      "totalSeconds": 5.827
-    },
-    {
-      "analyzer": "CSharpUseNameofInAttributeDiagnosticAnalyzer",
-      "rules": "(IDE0280)",
-      "totalSeconds": 5.826
-    },
-    {
-      "analyzer": "UseTimeSpanZeroAnalyzer",
-      "rules": "(MA0178)",
-      "totalSeconds": 5.822
-    },
-    {
-      "analyzer": "AsyncVoidAnalyzer",
-      "rules": "(AsyncFixer03)",
-      "totalSeconds": 5.809
-    },
-    {
-      "analyzer": "CSharpRestrictedInternalsVisibleToAnalyzer",
-      "rules": "(RS0035)",
-      "totalSeconds": 5.753
-    },
-    {
-      "analyzer": "PreferTypedStringBuilderAppendOverloads",
-      "rules": "(CA1830)",
-      "totalSeconds": 5.731
-    },
-    {
-      "analyzer": "DoNotUseObsoleteKDFAlgorithm",
-      "rules": "(CA5373)",
-      "totalSeconds": 5.691
-    },
-    {
-      "analyzer": "CSharpAddBracesDiagnosticAnalyzer",
-      "rules": "(IDE0011)",
-      "totalSeconds": 5.661
-    },
-    {
-      "analyzer": "EventsShouldHaveProperArgumentsAnalyzer",
-      "rules": "(MA0091, MA0092, MA0093)",
-      "totalSeconds": 5.658
-    },
-    {
-      "analyzer": "RegexMethodUsageAnalyzer",
-      "rules": "(MA0009, MA0023)",
-      "totalSeconds": 5.656
-    },
-    {
-      "analyzer": "InstanceOfAnalyzer",
-      "rules": "(NUnit2055)",
-      "totalSeconds": 5.647
-    },
-    {
-      "analyzer": "SameAsOnValueTypesAnalyzer",
-      "rules": "(NUnit2040)",
-      "totalSeconds": 5.632
-    },
-    {
-      "analyzer": "PreferReturningCollectionAbstractionInsteadOfImplementationAnalyzer",
-      "rules": "(MA0016)",
-      "totalSeconds": 5.556
-    },
-    {
-      "analyzer": "StringConstraintWrongActualTypeAnalyzer",
-      "rules": "(NUnit2024)",
-      "totalSeconds": 5.524
-    },
-    {
-      "analyzer": "ReviewSqlQueriesForSecurityVulnerabilities",
-      "rules": "(CA2100)",
-      "totalSeconds": 5.504
-    },
-    {
-      "analyzer": "ValidateUnsafeAccessorAttributeUsageAnalyzer",
-      "rules": "(MA0145, MA0146)",
-      "totalSeconds": 5.484
-    },
-    {
-      "analyzer": "StringConstraintUsageAnalyzer",
-      "rules": "(NUnit2011, NUnit2012, NUnit2013)",
-      "totalSeconds": 5.484
-    },
-    {
-      "analyzer": "EqualConstraintUsageAnalyzer",
-      "rules": "(NUnit2010)",
-      "totalSeconds": 5.417
-    },
-    {
-      "analyzer": "PreferJaggedArraysOverMultidimensionalAnalyzer",
-      "rules": "(CA1814)",
-      "totalSeconds": 5.242
-    },
-    {
-      "analyzer": "SameAsIncompatibleTypesAnalyzer",
-      "rules": "(NUnit2020)",
-      "totalSeconds": 5.235
-    },
-    {
-      "analyzer": "DoNotAddSchemaByURL",
-      "rules": "(CA3061)",
-      "totalSeconds": 5.23
-    },
-    {
-      "analyzer": "NullableAttributeUsageAnalyzer",
-      "rules": "(MA0068)",
-      "totalSeconds": 5.229
-    },
-    {
-      "analyzer": "SetHttpOnlyForHttpCookie",
-      "rules": "(CA5396)",
-      "totalSeconds": 5.225
-    },
-    {
-      "analyzer": "WithinUsageAnalyzer",
-      "rules": "(NUnit2047)",
-      "totalSeconds": 5.225
-    },
-    {
-      "analyzer": "DoNotUseStringGetHashCodeAnalyzer",
-      "rules": "(MA0021)",
-      "totalSeconds": 5.198
-    },
-    {
-      "analyzer": "CSharpUseNullPropagationDiagnosticAnalyzer",
-      "rules": "(IDE0031)",
-      "totalSeconds": 5.15
-    },
-    {
-      "analyzer": "DoNotUseEnumerableMethodsOnIndexableCollectionsInsteadUseTheCollectionDirectlyAnalyzer",
-      "rules": "(CA1826)",
-      "totalSeconds": 5.134
-    },
-    {
-      "analyzer": "DoNotUseInsecureXSLTScriptExecutionAnalyzer",
-      "rules": "(CA3076)",
-      "totalSeconds": 5.13
-    },
-    {
-      "analyzer": "MissingNotNullWhenAttributeOnEqualsAnalyzer",
-      "rules": "(MA0186)",
-      "totalSeconds": 5.058
-    },
-    {
-      "analyzer": "SomeItemsConstraintUsageAnalyzer",
-      "rules": "(NUnit2014)",
-      "totalSeconds": 5.028
-    },
-    {
-      "analyzer": "DoNotSetSwitch",
-      "rules": "(CA5361, CA5378)",
-      "totalSeconds": 5.026
-    },
-    {
-      "analyzer": "DoNotUseDataSetReadXml",
-      "rules": "(CA2351, CA2361)",
-      "totalSeconds": 5.011
-    },
-    {
-      "analyzer": "DoNotImplicitlyConvertDateTimeToDateTimeOffsetAnalyzer",
-      "rules": "(MA0132, MA0133)",
-      "totalSeconds": 4.981
-    },
-    {
-      "analyzer": "InvokeDelegateWithConditionalAccessAnalyzer",
-      "rules": "(IDE1005)",
-      "totalSeconds": 4.978
-    },
-    {
-      "analyzer": "IgnoreCaseUsageAnalyzer",
-      "rules": "(NUnit2008)",
-      "totalSeconds": 4.978
-    },
-    {
-      "analyzer": "OperatorsShouldHaveSymmetricalOverloadsAnalyzer",
-      "rules": "(CA2226)",
-      "totalSeconds": 4.963
-    },
-    {
-      "analyzer": "DoNotOverwriteRazorComponentParameterValue",
-      "rules": "(MA0121)",
-      "totalSeconds": 4.96
-    },
-    {
-      "analyzer": "CSharpUseCompoundCoalesceAssignmentDiagnosticAnalyzer",
-      "rules": "(IDE0074)",
-      "totalSeconds": 4.957
-    },
-    {
-      "analyzer": "ConvertComImportToGeneratedComInterfaceAnalyzer",
-      "rules": "(SYSLIB1096)",
-      "totalSeconds": 4.937
-    },
-    {
-      "analyzer": "DoNotUseEqualityComparerDefaultOfStringAnalyzer",
-      "rules": "(MA0024)",
-      "totalSeconds": 4.935
-    },
-    {
-      "analyzer": "DelegateRequiredAnalyzer",
-      "rules": "(NUnit2044)",
-      "totalSeconds": 4.888
-    },
-    {
-      "analyzer": "UseXmlReaderForValidatingReader",
-      "rules": "(CA5370)",
-      "totalSeconds": 4.866
-    },
-    {
-      "analyzer": "UseXmlReaderForSchemaRead",
-      "rules": "(CA5371)",
-      "totalSeconds": 4.837
-    },
-    {
-      "analyzer": "UseIFormatProviderAnalyzer",
-      "rules": "(MA0011)",
-      "totalSeconds": 4.816
-    },
-    {
-      "analyzer": "DoNotUseEndOfStreamInAsyncMethodsAnalyzer",
-      "rules": "(CA2024)",
-      "totalSeconds": 4.813
-    },
-    {
-      "analyzer": "CSharpAvoidZeroLengthArrayAllocationsAnalyzer",
-      "rules": "(CA1825)",
-      "totalSeconds": 4.792
-    },
-    {
-      "analyzer": "NullConstraintUsageAnalyzer",
-      "rules": "(NUnit2023)",
-      "totalSeconds": 4.758
-    },
-    {
-      "analyzer": "MakeAnonymousFunctionStaticDiagnosticAnalyzer",
-      "rules": "(IDE0320)",
-      "totalSeconds": 4.737
-    },
-    {
-      "analyzer": "UseXmlReaderForDeserialize",
-      "rules": "(CA5369)",
-      "totalSeconds": 4.712
-    },
-    {
-      "analyzer": "UseDateTimeUnixEpochAnalyzer",
-      "rules": "(MA0113, MA0114)",
-      "totalSeconds": 4.688
-    },
-    {
-      "analyzer": "TypesThatOwnDisposableFieldsShouldBeDisposableAnalyzer",
-      "rules": "(CA1001)",
-      "totalSeconds": 4.685
-    },
-    {
-      "analyzer": "SomeItemsIncompatibleTypesAnalyzer",
-      "rules": "(NUnit2026)",
-      "totalSeconds": 4.669
-    },
-    {
-      "analyzer": "CustomMarshallerAttributeAnalyzer",
-      "rules": "(SYSLIB1055, SYSLIB1056, SYSLIB1057, SYSLIB1060, SYSLIB1061)",
-      "totalSeconds": 4.629
-    },
-    {
-      "analyzer": "DoNotRaiseReservedExceptionTypesAnalyzer",
-      "rules": "(CA2201)",
-      "totalSeconds": 4.616
-    },
-    {
-      "analyzer": "DebuggerDisplayAttributeShouldContainValidExpressionsAnalyzer",
-      "rules": "(MA0151)",
-      "totalSeconds": 4.579
-    },
-    {
-      "analyzer": "CSharpUseCollectionExpressionForArrayDiagnosticAnalyzer",
-      "rules": "(IDE0300)",
-      "totalSeconds": 4.551
-    },
-    {
-      "analyzer": "DoNotUseInsecureDeserializerBinaryFormatterMethods",
-      "rules": "(CA2300)",
-      "totalSeconds": 4.538
-    },
-    {
-      "analyzer": "TestMethodUsageAnalyzer",
-      "rules": "(NUnit1005, NUnit1006, NUnit1007, NUnit1012, NUnit1013, NUnit1014, NUnit1027)",
-      "totalSeconds": 4.526
-    },
-    {
-      "analyzer": "DoNotLockOnObjectsWithWeakIdentityAnalyzer",
-      "rules": "(CA2002)",
-      "totalSeconds": 4.454
-    },
-    {
-      "analyzer": "DoNotUseReferenceEqualsWithValueTypesAnalyzer",
-      "rules": "(CA2013)",
-      "totalSeconds": 4.404
-    },
-    {
-      "analyzer": "GeneralParameterAttributesAnalyzer",
-      "rules": "(BDN1200, BDN1201, BDN1202, BDN1203, BDN1204, BDN1205, BDN1206, BDN1207)",
-      "totalSeconds": 4.376
-    },
-    {
-      "analyzer": "DoNotUseReturnTagForVoidMethodAnalyzer",
-      "rules": "(MA0203)",
-      "totalSeconds": 4.37
-    },
-    {
-      "analyzer": "UseExpressionBodyForLambdaDiagnosticAnalyzer",
-      "rules": "(IDE0053)",
-      "totalSeconds": 4.362
-    },
-    {
-      "analyzer": "ReviewCodeForXamlInjectionVulnerabilities",
-      "rules": "(CA3010)",
-      "totalSeconds": 4.327
-    },
-    {
-      "analyzer": "BufferBlockCopyLengthAnalyzer",
-      "rules": "(CA2018)",
-      "totalSeconds": 4.325
-    },
-    {
-      "analyzer": "CSharpUseConditionalExpressionForAssignmentDiagnosticAnalyzer",
-      "rules": "(IDE0045)",
-      "totalSeconds": 4.295
-    },
-    {
-      "analyzer": "UseJSRuntimeInvokeVoidAsyncWhenReturnValueIsNotUsedAnalyzer",
-      "rules": "(MA0120)",
-      "totalSeconds": 4.28
-    },
-    {
-      "analyzer": "EquatableAnalyzer",
-      "rules": "(CA1066, CA1067)",
-      "totalSeconds": 4.18
-    },
-    {
-      "analyzer": "SimplifyValuesAnalyzer",
-      "rules": "(NUnit4001)",
-      "totalSeconds": 4.177
-    },
-    {
-      "analyzer": "InheritdocShouldHaveSourceOnTypesAnalyzer",
-      "rules": "(MA0199)",
-      "totalSeconds": 4.106
-    },
-    {
-      "analyzer": "ComponentParameterUsageAnalyzer",
-      "rules": "(BL0005)",
-      "totalSeconds": 4.087
-    },
-    {
-      "analyzer": "ReplaceEnumToStringWithNameofAnalyzer",
-      "rules": "(MA0052)",
-      "totalSeconds": 4.08
-    },
-    {
-      "analyzer": "GeneratedRegexAttributeUsageAnalyzer",
-      "rules": "(MA0009, MA0023)",
-      "totalSeconds": 4.07
-    },
-    {
-      "analyzer": "RemoveUselessToStringAnalyzer",
-      "rules": "(MA0044)",
-      "totalSeconds": 4.069
-    },
-    {
-      "analyzer": "DoNotUseWhenAllOrWaitAllWithSingleArgument",
-      "rules": "(CA1842, CA1843)",
-      "totalSeconds": 4.064
-    },
-    {
-      "analyzer": "CSharpUseStringMethodCharOverloadWithSingleCharacters",
-      "rules": "(CA1865, CA1866, CA1867)",
-      "totalSeconds": 4.04
-    },
-    {
-      "analyzer": "MisusedConstraintsAnalyzer",
-      "rules": "(NUnit2058)",
-      "totalSeconds": 4.031
-    },
-    {
-      "analyzer": "LoggerParameterTypeAnalyzer",
-      "rules": "(MA0124, MA0125, MA0126, MA0135, MA0139)",
-      "totalSeconds": 4.029
-    },
-    {
-      "analyzer": "RecommendCaseInsensitiveStringComparisonAnalyzer",
-      "rules": "(CA1862)",
-      "totalSeconds": 4.023
-    },
-    {
-      "analyzer": "DoNotUseDataTableReadXml",
-      "rules": "(CA2350)",
-      "totalSeconds": 3.993
-    },
-    {
-      "analyzer": "ValueReturnedByStreamReadShouldBeUsedAnalyzer",
+      "analyzer": "DoNotIgnoreReturnValueAnalyzer",
       "rules": "(MA0060)",
-      "totalSeconds": 3.992
+      "totalSeconds": 23.533
     },
     {
-      "analyzer": "DoNotCatchGeneralExceptionTypesAnalyzer",
-      "rules": "(CA1031)",
-      "totalSeconds": 3.962
-    },
-    {
-      "analyzer": "ConstActualValueUsageAnalyzer",
-      "rules": "(NUnit2007)",
-      "totalSeconds": 3.962
-    },
-    {
-      "analyzer": "ReviewCodeForSqlInjectionVulnerabilities",
-      "rules": "(CA3001)",
-      "totalSeconds": 3.95
-    },
-    {
-      "analyzer": "ReviewCodeForXmlInjectionVulnerabilities",
-      "rules": "(CA3009)",
-      "totalSeconds": 3.928
-    },
-    {
-      "analyzer": "IdentifiersShouldNotHaveIncorrectSuffixAnalyzer",
-      "rules": "(CA1711)",
-      "totalSeconds": 3.901
-    },
-    {
-      "analyzer": "JSInteropMustNotBeUsedInOnInitializedAnalyzer",
-      "rules": "(MA0119)",
-      "totalSeconds": 3.878
-    },
-    {
-      "analyzer": "PreferConstCharOverConstUnitStringAnalyzer",
-      "rules": "(CA1834)",
-      "totalSeconds": 3.822
-    },
-    {
-      "analyzer": "DisposeMethodsShouldCallBaseClassDispose",
-      "rules": "(CA2215)",
-      "totalSeconds": 3.789
-    },
-    {
-      "analyzer": "UseXmlReaderForXPathDocument",
-      "rules": "(CA5372)",
-      "totalSeconds": 3.734
-    },
-    {
-      "analyzer": "MarkAssembliesWithAttributesDiagnosticAnalyzer",
-      "rules": "(CA1014, CA1016)",
-      "totalSeconds": 3.683
-    },
-    {
-      "analyzer": "RemoveUnnecessaryPartialModifierAnalyzer",
-      "rules": "(MA0204)",
-      "totalSeconds": 3.611
-    },
-    {
-      "analyzer": "DoNotRaiseReservedExceptionTypeAnalyzer",
-      "rules": "(MA0012)",
-      "totalSeconds": 3.61
-    },
-    {
-      "analyzer": "BenchmarkClassAnalyzer",
-      "rules": "(BDN1100, BDN1101, BDN1102, BDN1103, BDN1104, BDN1105, BDN1106, BDN1107, BDN1108)",
-      "totalSeconds": 3.595
-    },
-    {
-      "analyzer": "DoNotUseXslTransform",
-      "rules": "(CA5374)",
-      "totalSeconds": 3.571
-    },
-    {
-      "analyzer": "UpgradeToGeneratedRegexAnalyzer",
-      "rules": "(SYSLIB1045)",
-      "totalSeconds": 3.554
-    },
-    {
-      "analyzer": "ReviewCodeForRegexInjectionVulnerabilities",
-      "rules": "(CA3012)",
-      "totalSeconds": 3.54
-    },
-    {
-      "analyzer": "ProvideCorrectArgumentToEnumHasFlag",
-      "rules": "(CA2248)",
-      "totalSeconds": 3.53
-    },
-    {
-      "analyzer": "DoNotUseEqualityOperatorsForSpanOfCharAnalyzer",
-      "rules": "(MA0103)",
-      "totalSeconds": 3.522
-    },
-    {
-      "analyzer": "ConvertSwitchStatementToExpressionDiagnosticAnalyzer",
-      "rules": "(IDE0066)",
-      "totalSeconds": 3.518
-    },
-    {
-      "analyzer": "ClassicModelAssertUsageAnalyzer",
-      "rules": "(NUnit2001, NUnit2002, NUnit2003, NUnit2004, NUnit2005, NUnit2006, NUnit2015, NUnit2016, NUnit2017, NUnit2018, NUnit2019, NUnit2027, NUnit2028, NUnit2029, NUnit2030, NUnit2031, NUnit2032, NUnit2033, NUnit2034, NUnit2035, NUnit2036, NUnit2037, NUnit2038, NUnit2039, NUnit2051, NUnit2052, NUnit2053, NUnit2054)",
-      "totalSeconds": 3.486
-    },
-    {
-      "analyzer": "ReviewCodeForDllInjectionVulnerabilities",
-      "rules": "(CA3011)",
-      "totalSeconds": 3.471
-    },
-    {
-      "analyzer": "UseStringComparerAnalyzer",
-      "rules": "(MA0002)",
-      "totalSeconds": 3.456
-    },
-    {
-      "analyzer": "SimplifyStringCreateWhenAllParametersAreCultureInvariantAnalyzer",
-      "rules": "(MA0185)",
-      "totalSeconds": 3.451
-    },
-    {
-      "analyzer": "SealInternalTypes",
-      "rules": "(CA1852)",
-      "totalSeconds": 3.444
-    },
-    {
-      "analyzer": "SpecifyStringComparisonAnalyzer",
-      "rules": "(CA1307, CA1310)",
-      "totalSeconds": 3.443
-    },
-    {
-      "analyzer": "DoNotDefineFinalizersForTypesDerivedFromMemoryManager",
-      "rules": "(CA2015)",
-      "totalSeconds": 3.441
-    },
-    {
-      "analyzer": "UpdateStringFormatToInterpolatableStringAnalyzer",
-      "rules": "(NUnit2050)",
-      "totalSeconds": 3.425
-    },
-    {
-      "analyzer": "UseStringCreateInsteadOfFormattableStringAnalyzer",
-      "rules": "(MA0111)",
-      "totalSeconds": 3.424
-    },
-    {
-      "analyzer": "ReviewCodeForXPathInjectionVulnerabilities",
-      "rules": "(CA3008)",
-      "totalSeconds": 3.364
-    },
-    {
-      "analyzer": "AvoidStringBuilderPInvokeParametersAnalyzer",
-      "rules": "(CA1838)",
-      "totalSeconds": 3.309
-    },
-    {
-      "analyzer": "CSharpUseIsNullCheckForCastAndEqualityOperatorDiagnosticAnalyzer",
-      "rules": "(IDE0041)",
-      "totalSeconds": 3.277
-    },
-    {
-      "analyzer": "DoNotUseConfigureAwaitWithSuppressThrowing",
-      "rules": "(CA2261)",
-      "totalSeconds": 3.257
-    },
-    {
-      "analyzer": "ProvideCorrectArgumentsToFormattingMethodsAnalyzer",
-      "rules": "(CA2241)",
-      "totalSeconds": 3.214
-    },
-    {
-      "analyzer": "CSharpUseImplicitObjectCreationDiagnosticAnalyzer",
-      "rules": "(IDE0090)",
-      "totalSeconds": 3.204
-    },
-    {
-      "analyzer": "CSharpUseInferredMemberNameDiagnosticAnalyzer",
-      "rules": "(IDE0037)",
-      "totalSeconds": 3.193
-    },
-    {
-      "analyzer": "ApprovedCipherModeAnalyzer",
-      "rules": "(CA5358)",
-      "totalSeconds": 3.16
-    },
-    {
-      "analyzer": "CSharpUseThrowExpressionDiagnosticAnalyzer",
-      "rules": "(IDE0016)",
-      "totalSeconds": 3.157
-    },
-    {
-      "analyzer": "ParameterAttributeForRazorComponentAnalyzer",
-      "rules": "(MA0116, MA0117, MA0122)",
-      "totalSeconds": 3.144
-    },
-    {
-      "analyzer": "DoNotCallToImmutableCollectionOnAnImmutableCollectionValueAnalyzer",
-      "rules": "(CA2009)",
-      "totalSeconds": 3.121
-    },
-    {
-      "analyzer": "RemoveUnnecessaryBracesInTypeDeclarationAnalyzer",
-      "rules": "(MA0206)",
-      "totalSeconds": 3.106
-    },
-    {
-      "analyzer": "AsyncCallInsideUsingBlockAnalyzer",
-      "rules": "(AsyncFixer04)",
-      "totalSeconds": 3.096
-    },
-    {
-      "analyzer": "DiagnosticDescriptorCreationAnalyzer",
-      "rules": "(RS1007, RS1015, RS1017, RS1018, RS1019, RS1020, RS1021, RS1028, RS1029, RS1031, RS1032, RS1033, RS1037, RS2000, RS2001, RS2002, RS2003, RS2004, RS2005, RS2006, RS2007, RS2008)",
-      "totalSeconds": 3.087
-    },
-    {
-      "analyzer": "UseAsSpanInsteadOfRangeIndexerAnalyzer",
-      "rules": "(CA1831, CA1832, CA1833)",
-      "totalSeconds": 3.08
+      "analyzer": "CSharpDataSetDataTableInSerializableTypeAnalyzer",
+      "rules": "(CA2352, CA2353, CA2362)",
+      "totalSeconds": 23.532
     },
     {
       "analyzer": "ObjectGetTypeOnTypeInstanceAnalyzer",
       "rules": "(MA0130)",
-      "totalSeconds": 3.055
+      "totalSeconds": 22.958
     },
     {
-      "analyzer": "NamespaceMigrationAnalyzer",
-      "rules": "(HUMANIZER001)",
-      "totalSeconds": 3.054
+      "analyzer": "DynamicallyAccessedMembersAnalyzer",
+      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2046, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2109, IL2110, IL2111, IL2116, IL3000, IL3001, IL3002, IL3003, IL3004, IL3050, IL3051, IL3056, IL4000, IL4001)",
+      "totalSeconds": 22.831
     },
     {
-      "analyzer": "UseEqualsMethodInsteadOfOperatorAnalyzer",
-      "rules": "(MA0169)",
-      "totalSeconds": 3.053
+      "analyzer": "UseTimeSpanZeroAnalyzer",
+      "rules": "(MA0178)",
+      "totalSeconds": 22.825
     },
     {
-      "analyzer": "NonConstantStaticFieldsShouldNotBeVisibleAnalyzer",
-      "rules": "(MA0069)",
-      "totalSeconds": 3.052
+      "analyzer": "CSharpUseRangeOperatorDiagnosticAnalyzer",
+      "rules": "(IDE0057)",
+      "totalSeconds": 22.617
     },
     {
-      "analyzer": "PlatformCompatibilityAnalyzer",
-      "rules": "(CA1416, CA1422)",
-      "totalSeconds": 3.038
+      "analyzer": "CSharpAsAndNullCheckDiagnosticAnalyzer",
+      "rules": "(IDE0019)",
+      "totalSeconds": 21.81
     },
     {
-      "analyzer": "ModuleInitializerAttributeShouldNotBeUsedInLibraries",
-      "rules": "(CA2255)",
-      "totalSeconds": 3.022
+      "analyzer": "CSharpUseCollectionExpressionForNewDiagnosticAnalyzer",
+      "rules": "(IDE0306)",
+      "totalSeconds": 21.511
     },
     {
-      "analyzer": "UseLazyInitializerEnsureInitializeAnalyzer",
-      "rules": "(MA0173)",
-      "totalSeconds": 3.015
+      "analyzer": "PotentialReferenceCycleInDeserializedObjectGraph",
+      "rules": "(CA5362)",
+      "totalSeconds": 21.224
     },
     {
-      "analyzer": "MisplacedUsingDirectivesDiagnosticAnalyzer",
-      "rules": "(IDE0065)",
-      "totalSeconds": 3.013
+      "analyzer": "ComponentInternalUsageDiagnosticAnalyzer",
+      "rules": "(BL0006)",
+      "totalSeconds": 21.102
     },
     {
-      "analyzer": "DoNotSerializeTypeWithPointerFields",
-      "rules": "(CA5367)",
-      "totalSeconds": 2.986
+      "analyzer": "EquatableAnalyzer",
+      "rules": "(CA1066, CA1067)",
+      "totalSeconds": 20.692
     },
     {
-      "analyzer": "ReviewCodeForFilePathInjectionVulnerabilities",
-      "rules": "(CA3003)",
-      "totalSeconds": 2.966
+      "analyzer": "CSharpUseIsNullCheckForReferenceEqualsDiagnosticAnalyzer",
+      "rules": "(IDE0041)",
+      "totalSeconds": 20.67
     },
     {
-      "analyzer": "DoNotUseInterpolatedStringWithoutParametersAnalyzer",
-      "rules": "(MA0184)",
-      "totalSeconds": 2.921
+      "analyzer": "CSharpUseAutoPropertyAnalyzer",
+      "rules": "(IDE0032)",
+      "totalSeconds": 20.47
     },
     {
-      "analyzer": "UseAssertEnterMultipleScopeAnalyzer",
-      "rules": "(NUnit2056)",
-      "totalSeconds": 2.879
+      "analyzer": "CSharpRemoveUnnecessaryUnsafeModifierDiagnosticAnalyzer",
+      "rules": "(IDE0380)",
+      "totalSeconds": 20.447
     },
     {
-      "analyzer": "RouteHandlerAnalyzer",
-      "rules": "(ASP0003, ASP0004, ASP0005, ASP0007, ASP0020, ASP0021, ASP0022, ASP0024)",
-      "totalSeconds": 2.867
+      "analyzer": "RuntimeComApiUsageWithSourceGeneratedComAnalyzer",
+      "rules": "(SYSLIB1099)",
+      "totalSeconds": 20.075
     },
     {
-      "analyzer": "CSharpUseOrdinalStringComparisonAnalyzer",
-      "rules": "(CA1309)",
-      "totalSeconds": 2.848
+      "analyzer": "CSharpPreferGenericOverloadsAnalyzer",
+      "rules": "(CA2263)",
+      "totalSeconds": 19.285
     },
     {
-      "analyzer": "DisposableTypesShouldDeclareFinalizerAnalyzer",
-      "rules": "(CA2216)",
-      "totalSeconds": 2.843
+      "analyzer": "CSharpRemoveUnnecessaryAttributeSuppressionsDiagnosticAnalyzer",
+      "rules": "(IDE0076, IDE0077)",
+      "totalSeconds": 19.231
     },
     {
-      "analyzer": "ConvertToFileScopedNamespaceDiagnosticAnalyzer",
-      "rules": "(IDE0161)",
-      "totalSeconds": 2.828
+      "analyzer": "DoNotUseInsecureDeserializerJsonNetWithoutBinder",
+      "rules": "(CA2329, CA2330)",
+      "totalSeconds": 19.165
     },
     {
-      "analyzer": "DoNotUseUnknownParameterForRazorComponentAnalyzer",
-      "rules": "(MA0115)",
-      "totalSeconds": 2.8
+      "analyzer": "CSharpSimplifyLinqTypeCheckAndCastDiagnosticAnalyzer",
+      "rules": "(IDE0121)",
+      "totalSeconds": 18.874
     },
     {
-      "analyzer": "UseCollectionConstraintAnalyzer",
-      "rules": "(NUnit2046)",
-      "totalSeconds": 2.798
+      "analyzer": "CSharpSimplifyPropertyAccessorDiagnosticAnalyzer",
+      "rules": "(IDE0360)",
+      "totalSeconds": 18.871
     },
     {
-      "analyzer": "InstantiateArgumentExceptionsCorrectlyAnalyzer",
-      "rules": "(CA2208)",
-      "totalSeconds": 2.793
+      "analyzer": "UseRSAWithSufficientKeySize",
+      "rules": "(CA5385)",
+      "totalSeconds": 18.432
     },
     {
-      "analyzer": "DelegateUnnecessaryAnalyzer",
-      "rules": "(NUnit2057)",
-      "totalSeconds": 2.755
+      "analyzer": "CSharpRemoveUnnecessaryLambdaExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0200)",
+      "totalSeconds": 18.4
     },
     {
-      "analyzer": "AvoidSingleUseOfLocalJsonSerializerOptions",
-      "rules": "(CA1869)",
-      "totalSeconds": 2.739
+      "analyzer": "AvoidPotentiallyExpensiveCallWhenLoggingAnalyzer",
+      "rules": "(CA1873)",
+      "totalSeconds": 18.326
     },
     {
-      "analyzer": "LoggerMessageDefineAnalyzer",
-      "rules": "(CA1727, CA1848, CA2017, CA2023, CA2253, CA2254)",
-      "totalSeconds": 2.719
+      "analyzer": "TestMethodUsageAnalyzer",
+      "rules": "(NUnit1005, NUnit1006, NUnit1007, NUnit1012, NUnit1013, NUnit1014, NUnit1027)",
+      "totalSeconds": 18.308
     },
     {
-      "analyzer": "DoNotDisableTokenValidationChecks",
-      "rules": "(CA5404)",
-      "totalSeconds": 2.715
+      "analyzer": "DynamicallyAccessedMembersAnalyzer",
+      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2046, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2110, IL2111, IL2112, IL2113, IL2114, IL2115, IL2116, IL2122, IL2123, IL2124, IL2125, IL2126, IL2127, IL3000, IL3001, IL3002, IL3003, IL3004, IL3005, IL3050, IL3051, IL3056, IL3057, IL3058, IL4000, IL4001)",
+      "totalSeconds": 18.302
     },
     {
-      "analyzer": "UseStringContainsCharOverloadWithSingleCharactersAnalyzer",
-      "rules": "(CA1847)",
-      "totalSeconds": 2.694
+      "analyzer": "UseAutoValidateAntiforgeryToken",
+      "rules": "(CA5391, CA5395)",
+      "totalSeconds": 18.232
     },
     {
-      "analyzer": "CSharpFileHeaderDiagnosticAnalyzer",
-      "rules": "(IDE0073)",
-      "totalSeconds": 2.69
+      "analyzer": "CSharpMakeFieldReadonlyDiagnosticAnalyzer",
+      "rules": "(IDE0044)",
+      "totalSeconds": 17.918
     },
     {
-      "analyzer": "WebApplicationBuilderAnalyzer",
-      "rules": "(ASP0008, ASP0009, ASP0010, ASP0011, ASP0012, ASP0013, ASP0014)",
-      "totalSeconds": 2.686
+      "analyzer": "UseSecureCookiesASPNetCore",
+      "rules": "(CA5382, CA5383)",
+      "totalSeconds": 17.574
     },
     {
-      "analyzer": "EnumWithFlagsAttributeAnalyzer",
-      "rules": "(CA1027, CA2217)",
-      "totalSeconds": 2.678
+      "analyzer": "UseReadOnlyStructForRefReadOnlyParametersAnalyzer",
+      "rules": "(MA0168)",
+      "totalSeconds": 17.288
     },
     {
-      "analyzer": "DoNotHardCodeEncryptionKey",
-      "rules": "(CA5390)",
-      "totalSeconds": 2.677
+      "analyzer": "PreferDictionaryTryMethodsOverContainsKeyGuardAnalyzer",
+      "rules": "(CA1854, CA1864)",
+      "totalSeconds": 17.238
     },
     {
-      "analyzer": "EmbedCaughtExceptionAsInnerExceptionAnalyzer",
-      "rules": "(MA0054)",
-      "totalSeconds": 2.677
+      "analyzer": "CSharpSimplifyInterpolationDiagnosticAnalyzer",
+      "rules": "(IDE0071)",
+      "totalSeconds": 17.177
     },
     {
-      "analyzer": "ThrowIfNullWithNonNullableInstanceAnalyzer",
-      "rules": "(MA0131)",
-      "totalSeconds": 2.675
+      "analyzer": "DisposeFieldsAndPropertiesInTearDownAnalyzer",
+      "rules": "(NUnit1032)",
+      "totalSeconds": 17.123
     },
     {
-      "analyzer": "DontTagInstanceFieldsWithThreadStaticAttributeAnalyzer",
-      "rules": "(MA0033)",
-      "totalSeconds": 2.663
+      "analyzer": "DoNotUseInsecureSettingsForJsonNet",
+      "rules": "(CA2327, CA2328)",
+      "totalSeconds": 16.7
     },
     {
-      "analyzer": "DoNotCallVirtualMethodInConstructorAnalyzer",
-      "rules": "(MA0056)",
-      "totalSeconds": 2.652
+      "analyzer": "ProvideObsoleteAttributeMessageAnalyzer",
+      "rules": "(CA1041)",
+      "totalSeconds": 16.381
     },
     {
-      "analyzer": "BothSideOfTheConditionAreIdenticalAnalyzer",
-      "rules": "(MA0172)",
-      "totalSeconds": 2.639
+      "analyzer": "UseValidPlatformString",
+      "rules": "(CA1418)",
+      "totalSeconds": 16.222
     },
     {
-      "analyzer": "CollectionsShouldImplementGenericInterfaceAnalyzer",
-      "rules": "(CA1010)",
-      "totalSeconds": 2.588
+      "analyzer": "LocalVariablesShouldNotHideSymbolsAnalyzer",
+      "rules": "(MA0084)",
+      "totalSeconds": 16.179
     },
     {
-      "analyzer": "IfElseBranchesAreIdenticalAnalyzer",
-      "rules": "(MA0140)",
-      "totalSeconds": 2.576
+      "analyzer": "CSharpRemoveUnnecessaryNullableDirectiveDiagnosticAnalyzer",
+      "rules": "(IDE0241)",
+      "totalSeconds": 14.995
     },
     {
-      "analyzer": "CSharpUseConditionalExpressionForReturnDiagnosticAnalyzer",
-      "rules": "(IDE0046)",
-      "totalSeconds": 2.545
+      "analyzer": "DoNotRaiseExceptionsInExceptionClausesAnalyzer",
+      "rules": "(CA2219)",
+      "totalSeconds": 14.887
     },
     {
-      "analyzer": "TaskReturnShouldBeUsedAnalyzer",
-      "rules": "(NUnit2059)",
-      "totalSeconds": 2.499
+      "analyzer": "CSharpValidateFormatStringDiagnosticAnalyzer",
+      "rules": "(IDE0043)",
+      "totalSeconds": 14.69
     },
     {
-      "analyzer": "CSharpUseLiteralsWhereAppropriate",
-      "rules": "(CA1802)",
-      "totalSeconds": 2.498
+      "analyzer": "CSharpUseObjectInitializerDiagnosticAnalyzer",
+      "rules": "(IDE0017)",
+      "totalSeconds": 14.309
     },
     {
-      "analyzer": "ObsoleteAttributesShouldIncludeExplanationsAnalyzer",
-      "rules": "(MA0070)",
-      "totalSeconds": 2.469
+      "analyzer": "TestFixtureShouldBeAbstractAnalyzer",
+      "rules": "(NUnit1034)",
+      "totalSeconds": 14.08
     },
     {
-      "analyzer": "DoNotPassNonNullableValueToArgumentNullExceptionThrowIfNull",
-      "rules": "(CA1871, CA2264)",
-      "totalSeconds": 2.466
+      "analyzer": "DisableRuntimeMarshallingAnalyzer",
+      "rules": "(CA1420, CA1421)",
+      "totalSeconds": 14.07
     },
     {
-      "analyzer": "ReviewCodeForOpenRedirectVulnerabilities",
-      "rules": "(CA3007)",
-      "totalSeconds": 2.464
+      "analyzer": "CommaAnalyzer",
+      "rules": "(MA0007)",
+      "totalSeconds": 14.004
     },
     {
-      "analyzer": "DoNotPrefixEnumValuesWithTypeNameAnalyzer",
-      "rules": "(CA1712)",
-      "totalSeconds": 2.42
+      "analyzer": "DoNotHideBaseClassMethodsAnalyzer",
+      "rules": "(CA1061)",
+      "totalSeconds": 13.967
     },
     {
-      "analyzer": "ProvideHttpClientHandlerMaxResponseHeaderLengthValueCorrectly",
-      "rules": "(CA2262)",
-      "totalSeconds": 2.419
+      "analyzer": "CSharpUseSearchValuesAnalyzer",
+      "rules": "(CA1870)",
+      "totalSeconds": 13.568
     },
     {
-      "analyzer": "CSharpPreventNumericIntPtrUIntPtrBehavioralChanges",
-      "rules": "(CA2020)",
-      "totalSeconds": 2.408
-    },
-    {
-      "analyzer": "CSharpSpecifyCultureForToLowerAndToUpperAnalyzer",
-      "rules": "(CA1311)",
-      "totalSeconds": 2.391
-    },
-    {
-      "analyzer": "CSharpUseSystemThreadingLockDiagnosticAnalyzer",
-      "rules": "(IDE0330)",
-      "totalSeconds": 2.367
-    },
-    {
-      "analyzer": "SequenceNumberMustBeAConstantAnalyzer",
-      "rules": "(MA0123)",
-      "totalSeconds": 2.358
-    },
-    {
-      "analyzer": "UseTaskUnwrapAnalyzer",
-      "rules": "(MA0152)",
-      "totalSeconds": 2.354
-    },
-    {
-      "analyzer": "UseUtf8StringLiteralDiagnosticAnalyzer",
-      "rules": "(IDE0230)",
-      "totalSeconds": 2.351
-    },
-    {
-      "analyzer": "AddAuthorizationBuilderAnalyzer",
-      "rules": "(ASP0025)",
-      "totalSeconds": 2.347
-    },
-    {
-      "analyzer": "UseOperatingSystemInsteadOfRuntimeInformationAnalyzer",
-      "rules": "(MA0144)",
-      "totalSeconds": 2.319
-    },
-    {
-      "analyzer": "TestForNaNCorrectlyAnalyzer",
-      "rules": "(CA2242)",
-      "totalSeconds": 2.315
-    },
-    {
-      "analyzer": "CSharpRemoveUnreachableCodeDiagnosticAnalyzer",
-      "rules": "(IDE0035)",
-      "totalSeconds": 2.297
-    },
-    {
-      "analyzer": "DoNotCallOverridableMethodsInConstructorsAnalyzer",
-      "rules": "(CA2214)",
-      "totalSeconds": 2.261
-    },
-    {
-      "analyzer": "CSharpMatchFolderAndNamespaceDiagnosticAnalyzer",
-      "rules": "(IDE0130)",
-      "totalSeconds": 2.259
-    },
-    {
-      "analyzer": "StringAssertUsageAnalyzer",
-      "rules": "(NUnit2048)",
-      "totalSeconds": 2.218
-    },
-    {
-      "analyzer": "UseEventArgsEmptyAnalyzer",
-      "rules": "(MA0019)",
-      "totalSeconds": 2.211
-    },
-    {
-      "analyzer": "EventArgsNameShouldEndWithEventArgsAnalyzer",
-      "rules": "(MA0059)",
-      "totalSeconds": 2.209
+      "analyzer": "DoNotUseNotYetInitializedStaticFieldAnalyzer",
+      "rules": "(MA0195)",
+      "totalSeconds": 13.5
     },
     {
       "analyzer": "DoNotUseAsyncVoidAnalyzer",
       "rules": "(MA0155)",
-      "totalSeconds": 2.2
+      "totalSeconds": 13.28
     },
     {
-      "analyzer": "SqlBuilderAliasAnalyzer",
-      "rules": "(LINQ2DB0001)",
-      "totalSeconds": 2.199
+      "analyzer": "ClassMustBeSealedAnalyzer",
+      "rules": "(MA0053)",
+      "totalSeconds": 13.265
+    },
+    {
+      "analyzer": "DeclareTypesInNamespacesAnalyzer",
+      "rules": "(MA0047)",
+      "totalSeconds": 12.804
+    },
+    {
+      "analyzer": "NativeMarshallingAttributeAnalyzer",
+      "rules": "(SYSLIB1058)",
+      "totalSeconds": 12.8
+    },
+    {
+      "analyzer": "CSharpDataSetDataTableInSerializableObjectGraphAnalyzer",
+      "rules": "(CA2355)",
+      "totalSeconds": 12.638
+    },
+    {
+      "analyzer": "NamespaceMigrationAnalyzer",
+      "rules": "(HUMANIZER001)",
+      "totalSeconds": 12.501
+    },
+    {
+      "analyzer": "AvoidConstArraysAnalyzer",
+      "rules": "(CA1861)",
+      "totalSeconds": 12.15
+    },
+    {
+      "analyzer": "AvoidUnusedPrivateFieldsAnalyzer",
+      "rules": "(CA1823)",
+      "totalSeconds": 11.957
+    },
+    {
+      "analyzer": "UseCountProperlyAnalyzer",
+      "rules": "(CA1827, CA1828, CA1829, CA1836)",
+      "totalSeconds": 11.892
+    },
+    {
+      "analyzer": "CSharpUseSystemThreadingLockDiagnosticAnalyzer",
+      "rules": "(IDE0330)",
+      "totalSeconds": 11.85
+    },
+    {
+      "analyzer": "AssigningSymbolAndItsMemberInSameStatement",
+      "rules": "(CA2246)",
+      "totalSeconds": 11.744
+    },
+    {
+      "analyzer": "AvoidClosureWhenUsingConcurrentDictionaryAnalyzer",
+      "rules": "(MA0105, MA0106)",
+      "totalSeconds": 11.615
+    },
+    {
+      "analyzer": "OptimizeLinqUsageAnalyzer",
+      "rules": "(MA0020, MA0029, MA0030, MA0031, MA0063, MA0078, MA0098, MA0112, MA0159)",
+      "totalSeconds": 11.558
+    },
+    {
+      "analyzer": "AotMigrationAnalyzer",
+      "rules": "(PBN3010, PBN3011, PBN3012, PBN3013)",
+      "totalSeconds": 11.523
+    },
+    {
+      "analyzer": "UseSystemThreadingLockInsteadOfObjectAnalyzer",
+      "rules": "(MA0158)",
+      "totalSeconds": 11.505
+    },
+    {
+      "analyzer": "DoNotCreateTaskCompletionSourceWithWrongArguments",
+      "rules": "(CA2247)",
+      "totalSeconds": 11.212
+    },
+    {
+      "analyzer": "OptionalParametersAttributeAnalyzer",
+      "rules": "(MA0087, MA0088)",
+      "totalSeconds": 11.095
+    },
+    {
+      "analyzer": "StringFormatShouldBeConstantAnalyzer",
+      "rules": "(MA0183)",
+      "totalSeconds": 11.082
+    },
+    {
+      "analyzer": "ReviewCodeForXssVulnerabilities",
+      "rules": "(CA3002)",
+      "totalSeconds": 11.035
+    },
+    {
+      "analyzer": "AvoidUnreliableStreamReadAnalyzer",
+      "rules": "(CA2022)",
+      "totalSeconds": 10.984
+    },
+    {
+      "analyzer": "UseStringEqualsOverStringCompare",
+      "rules": "(CA2251)",
+      "totalSeconds": 10.495
+    },
+    {
+      "analyzer": "DoNotUseBlockingCallInAsyncContextAnalyzer",
+      "rules": "(MA0042, MA0045)",
+      "totalSeconds": 10.399
+    },
+    {
+      "analyzer": "PreferJaggedArraysOverMultidimensionalAnalyzer",
+      "rules": "(CA1814)",
+      "totalSeconds": 10.218
+    },
+    {
+      "analyzer": "UseAttributeIsDefinedAnalyzer",
+      "rules": "(MA0179)",
+      "totalSeconds": 10.194
+    },
+    {
+      "analyzer": "CSharpDetectPreviewFeatureAnalyzer",
+      "rules": "(CA2252)",
+      "totalSeconds": 10.156
+    },
+    {
+      "analyzer": "CSharpUseTupleSwapDiagnosticAnalyzer",
+      "rules": "(IDE0180)",
+      "totalSeconds": 10.154
+    },
+    {
+      "analyzer": "EqualityShouldBeCorrectlyImplementedAnalyzer",
+      "rules": "(MA0077, MA0094, MA0095, MA0096, MA0097)",
+      "totalSeconds": 10.152
+    },
+    {
+      "analyzer": "AvoidUnusedInternalTypesAnalyzer",
+      "rules": "(MA0182)",
+      "totalSeconds": 9.472
+    },
+    {
+      "analyzer": "ValueSourceUsageAnalyzer",
+      "rules": "(NUnit1021, NUnit1022, NUnit1023, NUnit1024, NUnit1025)",
+      "totalSeconds": 9.424
+    },
+    {
+      "analyzer": "PreferStringContainsOverIndexOfAnalyzer",
+      "rules": "(CA2249)",
+      "totalSeconds": 9.397
+    },
+    {
+      "analyzer": "CSharpUseLocalFunctionDiagnosticAnalyzer",
+      "rules": "(IDE0039)",
+      "totalSeconds": 9.383
+    },
+    {
+      "analyzer": "EqualToIncompatibleTypesAnalyzer",
+      "rules": "(NUnit2021)",
+      "totalSeconds": 9.253
+    },
+    {
+      "analyzer": "MethodOverridesShouldNotChangeParameterDefaultsAnalyzer",
+      "rules": "(MA0061)",
+      "totalSeconds": 8.997
+    },
+    {
+      "analyzer": "CSharpPreferDictionaryContainsMethods",
+      "rules": "(CA1841)",
+      "totalSeconds": 8.911
+    },
+    {
+      "analyzer": "DoNotRaiseReservedExceptionTypesAnalyzer",
+      "rules": "(CA2201)",
+      "totalSeconds": 8.858
+    },
+    {
+      "analyzer": "PreserveParamsOnOverrideAnalyzer",
+      "rules": "(MA0081)",
+      "totalSeconds": 8.845
+    },
+    {
+      "analyzer": "CSharpUseImplicitTypeDiagnosticAnalyzer",
+      "rules": "(IDE0007)",
+      "totalSeconds": 8.702
+    },
+    {
+      "analyzer": "DoNotNaNInComparisonsAnalyzer",
+      "rules": "(MA0082)",
+      "totalSeconds": 8.636
+    },
+    {
+      "analyzer": "UseXmlReaderForDeserialize",
+      "rules": "(CA5369)",
+      "totalSeconds": 8.56
+    },
+    {
+      "analyzer": "AvoidLengthCalculationWhenSlicingToEndAnalyzer",
+      "rules": "(CA1514)",
+      "totalSeconds": 8.132
+    },
+    {
+      "analyzer": "DoNotCallEnumerableCastOrOfTypeWithIncompatibleTypesAnalyzer",
+      "rules": "(CA2021)",
+      "totalSeconds": 8.115
+    },
+    {
+      "analyzer": "UriReturnValuesShouldNotBeStringsAnalyzer",
+      "rules": "(CA1055)",
+      "totalSeconds": 8.098
+    },
+    {
+      "analyzer": "DoNotGuardCallAnalyzer",
+      "rules": "(CA1853, CA1868)",
+      "totalSeconds": 8.094
+    },
+    {
+      "analyzer": "DoNotUseWeakKDFAlgorithm",
+      "rules": "(CA5379)",
+      "totalSeconds": 8.087
+    },
+    {
+      "analyzer": "MergeIsPatternChecksAnalyzer",
+      "rules": "(MA0194)",
+      "totalSeconds": 8.048
+    },
+    {
+      "analyzer": "CSharpUseIndexOperatorDiagnosticAnalyzer",
+      "rules": "(IDE0056)",
+      "totalSeconds": 7.953
+    },
+    {
+      "analyzer": "CSharpUseCompoundAssignmentDiagnosticAnalyzer",
+      "rules": "(IDE0054)",
+      "totalSeconds": 7.87
     },
     {
       "analyzer": "AvoidDuplicateElementInitialization",
       "rules": "(CA2244)",
-      "totalSeconds": 2.197
+      "totalSeconds": 7.838
     },
     {
-      "analyzer": "DoNotLogClassifiedDataAnalyzer",
-      "rules": "(MA0153)",
-      "totalSeconds": 2.19
+      "analyzer": "ProjectFlagsAnalyzer",
+      "rules": "(LINQ2DB0004, LINQ2DB0005, LINQ2DB0006)",
+      "totalSeconds": 7.785
     },
     {
-      "analyzer": "ILoggerParameterTypeShouldMatchContainingTypeAnalyzer",
-      "rules": "(MA0180)",
-      "totalSeconds": 2.181
+      "analyzer": "ComparableTypesAnalyzer",
+      "rules": "(NUnit2041, NUnit2042)",
+      "totalSeconds": 7.746
+    },
+    {
+      "analyzer": "FileNameMustMatchTypeNameAnalyzer",
+      "rules": "(MA0048)",
+      "totalSeconds": 7.626
+    },
+    {
+      "analyzer": "CSharpUseStringMethodCharOverloadWithSingleCharacters",
+      "rules": "(CA1865, CA1866, CA1867)",
+      "totalSeconds": 7.62
+    },
+    {
+      "analyzer": "CSharpDataSetDataTableInIFormatterSerializableObjectGraphAnalyzer",
+      "rules": "(CA2354)",
+      "totalSeconds": 7.581
+    },
+    {
+      "analyzer": "InstantiateArgumentExceptionsCorrectlyAnalyzer",
+      "rules": "(CA2208)",
+      "totalSeconds": 7.574
+    },
+    {
+      "analyzer": "CSharpMarkAssembliesWithNeutralResourcesLanguageAnalyzer",
+      "rules": "(CA1824)",
+      "totalSeconds": 7.557
+    },
+    {
+      "analyzer": "UseEnvironmentMembers",
+      "rules": "(CA1837, CA1839, CA1840)",
+      "totalSeconds": 7.476
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerNetDataContractSerializerWithoutBinder",
+      "rules": "(CA2311, CA2312)",
+      "totalSeconds": 7.426
+    },
+    {
+      "analyzer": "NonFlagsEnumsShouldNotBeMarkedWithFlagsAttributeAnalyzer",
+      "rules": "(MA0062)",
+      "totalSeconds": 7.358
+    },
+    {
+      "analyzer": "ReturnTaskInsteadOfAwaitingItAnalyzer",
+      "rules": "(MA0215)",
+      "totalSeconds": 7.306
+    },
+    {
+      "analyzer": "DoNotPrefixEnumValuesWithTypeNameAnalyzer",
+      "rules": "(CA1712)",
+      "totalSeconds": 7.256
+    },
+    {
+      "analyzer": "DoNotUseWhenAllOrWaitAllWithSingleArgument",
+      "rules": "(CA1842, CA1843)",
+      "totalSeconds": 7.122
+    },
+    {
+      "analyzer": "OptimizeStartsWithAnalyzer",
+      "rules": "(MA0089)",
+      "totalSeconds": 7.069
+    },
+    {
+      "analyzer": "CSharpUseNullPropagationDiagnosticAnalyzer",
+      "rules": "(IDE0031)",
+      "totalSeconds": 7.04
+    },
+    {
+      "analyzer": "MakeAnonymousFunctionStaticDiagnosticAnalyzer",
+      "rules": "(IDE0320)",
+      "totalSeconds": 6.949
+    },
+    {
+      "analyzer": "PreferAsSpanOverSubstring",
+      "rules": "(CA1846)",
+      "totalSeconds": 6.937
+    },
+    {
+      "analyzer": "CSharpMakeTypesInternal",
+      "rules": "(CA1515)",
+      "totalSeconds": 6.935
+    },
+    {
+      "analyzer": "DoNotUseServerCertificateValidationCallbackAnalyzer",
+      "rules": "(MA0039)",
+      "totalSeconds": 6.908
+    },
+    {
+      "analyzer": "UseValueTasksCorrectlyAnalyzer",
+      "rules": "(CA2012)",
+      "totalSeconds": 6.737
+    },
+    {
+      "analyzer": "DoNotCatchGeneralExceptionTypesAnalyzer",
+      "rules": "(CA1031)",
+      "totalSeconds": 6.697
+    },
+    {
+      "analyzer": "UseGuidEmptyAnalyzer",
+      "rules": "(MA0067)",
+      "totalSeconds": 6.571
+    },
+    {
+      "analyzer": "UseMemoryMarshalGetReferenceForEmptyBuffersAnalyzer",
+      "rules": "(MA0212)",
+      "totalSeconds": 6.511
+    },
+    {
+      "analyzer": "UseExplicitTupleNameDiagnosticAnalyzer",
+      "rules": "(IDE0033)",
+      "totalSeconds": 6.494
+    },
+    {
+      "analyzer": "ProvideCorrectArgumentToEnumHasFlag",
+      "rules": "(CA2248)",
+      "totalSeconds": 6.389
+    },
+    {
+      "analyzer": "UseContainsKeyInsteadOfTryGetValueAnalyzer",
+      "rules": "(MA0160)",
+      "totalSeconds": 6.384
+    },
+    {
+      "analyzer": "DoNotCreateTasksWithoutPassingATaskSchedulerAnalyzer",
+      "rules": "(CA2008)",
+      "totalSeconds": 6.381
+    },
+    {
+      "analyzer": "PrimaryConstructorParameterShouldBeReadOnlyAnalyzer",
+      "rules": "(MA0143)",
+      "totalSeconds": 6.284
+    },
+    {
+      "analyzer": "SimplifyCallerArgumentExpressionAnalyzer",
+      "rules": "(MA0108)",
+      "totalSeconds": 6.283
+    },
+    {
+      "analyzer": "UseSystemHashCodeDiagnosticAnalyzer",
+      "rules": "(IDE0070)",
+      "totalSeconds": 6.187
+    },
+    {
+      "analyzer": "UseXmlReaderForDataSetReadXml",
+      "rules": "(CA5366)",
+      "totalSeconds": 6.182
+    },
+    {
+      "analyzer": "UseThreadStaticCorrectly",
+      "rules": "(CA2019, CA2259)",
+      "totalSeconds": 6.16
+    },
+    {
+      "analyzer": "AsyncVoidAnalyzer",
+      "rules": "(AsyncFixer03)",
+      "totalSeconds": 6.101
+    },
+    {
+      "analyzer": "CSharpUseNameofInPlaceOfStringAnalyzer",
+      "rules": "(CA1507)",
+      "totalSeconds": 6.076
+    },
+    {
+      "analyzer": "ProcessStartAnalyzer",
+      "rules": "(MA0161, MA0162, MA0163)",
+      "totalSeconds": 6.022
+    },
+    {
+      "analyzer": "CSharpSimplifyLinqExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0120)",
+      "totalSeconds": 6.013
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryExpressionParenthesesDiagnosticAnalyzer",
+      "rules": "(IDE0047)",
+      "totalSeconds": 6.008
+    },
+    {
+      "analyzer": "MissingPropertyAnalyzer",
+      "rules": "(NUnit2022)",
+      "totalSeconds": 5.965
+    },
+    {
+      "analyzer": "SameActualExpectedValueAnalyzer",
+      "rules": "(NUnit2009)",
+      "totalSeconds": 5.843
+    },
+    {
+      "analyzer": "CSharpOrderModifiersDiagnosticAnalyzer",
+      "rules": "(IDE0036)",
+      "totalSeconds": 5.807
+    },
+    {
+      "analyzer": "DoNotUseEnumerableMethodsOnIndexableCollectionsInsteadUseTheCollectionDirectlyAnalyzer",
+      "rules": "(CA1826)",
+      "totalSeconds": 5.78
+    },
+    {
+      "analyzer": "CSharpUseNameofInAttributeDiagnosticAnalyzer",
+      "rules": "(IDE0280)",
+      "totalSeconds": 5.748
+    },
+    {
+      "analyzer": "UseHasFlagMethodAnalyzer",
+      "rules": "(MA0192, MA0201)",
+      "totalSeconds": 5.717
+    },
+    {
+      "analyzer": "CSharpUseSpanClearInsteadOfFillAnalyzer",
+      "rules": "(CA1855)",
+      "totalSeconds": 5.681
+    },
+    {
+      "analyzer": "PreferTypedStringBuilderAppendOverloads",
+      "rules": "(CA1830)",
+      "totalSeconds": 5.658
+    },
+    {
+      "analyzer": "CSharpUsePrimaryConstructorDiagnosticAnalyzer",
+      "rules": "(IDE0290)",
+      "totalSeconds": 5.587
+    },
+    {
+      "analyzer": "StringConstraintUsageAnalyzer",
+      "rules": "(NUnit2011, NUnit2012, NUnit2013)",
+      "totalSeconds": 5.537
+    },
+    {
+      "analyzer": "DoNotUseStringGetHashCodeAnalyzer",
+      "rules": "(MA0021)",
+      "totalSeconds": 5.507
+    },
+    {
+      "analyzer": "AvoidStringBuilderPInvokeParametersAnalyzer",
+      "rules": "(CA1838)",
+      "totalSeconds": 5.506
+    },
+    {
+      "analyzer": "UseIsPatternInsteadOfSequenceEqualAnalyzer",
+      "rules": "(MA0128)",
+      "totalSeconds": 5.506
+    },
+    {
+      "analyzer": "RemoveUselessToStringAnalyzer",
+      "rules": "(MA0044)",
+      "totalSeconds": 5.475
+    },
+    {
+      "analyzer": "DoNotUseDeprecatedSecurityProtocols",
+      "rules": "(CA5364, CA5386)",
+      "totalSeconds": 5.454
+    },
+    {
+      "analyzer": "StringConstraintWrongActualTypeAnalyzer",
+      "rules": "(NUnit2024)",
+      "totalSeconds": 5.371
+    },
+    {
+      "analyzer": "ComponentParameterUsageAnalyzer",
+      "rules": "(BL0005)",
+      "totalSeconds": 5.344
+    },
+    {
+      "analyzer": "UseSpecificConstraintAnalyzer",
+      "rules": "(NUnit4002)",
+      "totalSeconds": 5.34
+    },
+    {
+      "analyzer": "ComparisonConstraintUsageAnalyzer",
+      "rules": "(NUnit2043)",
+      "totalSeconds": 5.296
+    },
+    {
+      "analyzer": "ModuleInitializerAttributeShouldNotBeUsedInLibraries",
+      "rules": "(CA2255)",
+      "totalSeconds": 5.288
+    },
+    {
+      "analyzer": "UseStringComparerAnalyzer",
+      "rules": "(MA0002)",
+      "totalSeconds": 5.284
+    },
+    {
+      "analyzer": "DoNotUseReturnTagForVoidMethodAnalyzer",
+      "rules": "(MA0203)",
+      "totalSeconds": 5.256
+    },
+    {
+      "analyzer": "DiagnosticDescriptorCreationAnalyzer",
+      "rules": "(RS1007, RS1015, RS1017, RS1018, RS1019, RS1020, RS1021, RS1028, RS1029, RS1031, RS1032, RS1033, RS1037, RS2000, RS2001, RS2002, RS2003, RS2004, RS2005, RS2006, RS2007, RS2008)",
+      "totalSeconds": 5.195
+    },
+    {
+      "analyzer": "IgnoreCaseUsageAnalyzer",
+      "rules": "(NUnit2008)",
+      "totalSeconds": 5.194
+    },
+    {
+      "analyzer": "IdentifiersShouldNotHaveIncorrectSuffixAnalyzer",
+      "rules": "(CA1711)",
+      "totalSeconds": 5.187
+    },
+    {
+      "analyzer": "TestForEmptyStringsUsingStringLengthAnalyzer",
+      "rules": "(CA1820)",
+      "totalSeconds": 5.15
+    },
+    {
+      "analyzer": "UseDateTimeUnixEpochAnalyzer",
+      "rules": "(MA0113, MA0114)",
+      "totalSeconds": 5.12
+    },
+    {
+      "analyzer": "SameAsIncompatibleTypesAnalyzer",
+      "rules": "(NUnit2020)",
+      "totalSeconds": 5.083
+    },
+    {
+      "analyzer": "EqualConstraintUsageAnalyzer",
+      "rules": "(NUnit2010)",
+      "totalSeconds": 5.067
+    },
+    {
+      "analyzer": "SomeItemsConstraintUsageAnalyzer",
+      "rules": "(NUnit2014)",
+      "totalSeconds": 5.006
+    },
+    {
+      "analyzer": "OptimizeGuidCreationAnalyzer",
+      "rules": "(MA0176)",
+      "totalSeconds": 4.989
     },
     {
       "analyzer": "TaskInUsingAnalyzer",
       "rules": "(MA0129)",
-      "totalSeconds": 2.138
+      "totalSeconds": 4.977
     },
     {
-      "analyzer": "DoNotUseInsecureCryptographicAlgorithmsAnalyzer",
-      "rules": "(CA5350, CA5351)",
-      "totalSeconds": 2.122
+      "analyzer": "WithinUsageAnalyzer",
+      "rules": "(NUnit2047)",
+      "totalSeconds": 4.977
     },
     {
-      "analyzer": "DoNotCompareSpanToNullAnalyzer",
-      "rules": "(CA2265)",
-      "totalSeconds": 2.115
+      "analyzer": "CSharpUseConditionalExpressionForAssignmentDiagnosticAnalyzer",
+      "rules": "(IDE0045)",
+      "totalSeconds": 4.967
     },
     {
-      "analyzer": "InheritdocShouldNotBeAmbiguousOnTypesAnalyzer",
-      "rules": "(MA0198)",
-      "totalSeconds": 2.113
+      "analyzer": "GeneratedRegexAttributeUsageAnalyzer",
+      "rules": "(MA0009, MA0023)",
+      "totalSeconds": 4.943
     },
     {
-      "analyzer": "UseCancellationTokenThrowIfCancellationRequested",
-      "rules": "(CA2250)",
-      "totalSeconds": 2.088
+      "analyzer": "RegexMethodUsageAnalyzer",
+      "rules": "(MA0009, MA0023)",
+      "totalSeconds": 4.927
     },
     {
-      "analyzer": "CSharpRemoveRedundantNullableDirectiveDiagnosticAnalyzer",
-      "rules": "(IDE0240)",
-      "totalSeconds": 2.061
+      "analyzer": "SetHttpOnlyForHttpCookie",
+      "rules": "(CA5396)",
+      "totalSeconds": 4.881
     },
     {
-      "analyzer": "CSharpSymbolIsBannedInAnalyzersAnalyzer",
-      "rules": "(RS1035, RS1036)",
-      "totalSeconds": 2.056
+      "analyzer": "CSharpUseCollectionExpressionForArrayDiagnosticAnalyzer",
+      "rules": "(IDE0300)",
+      "totalSeconds": 4.862
     },
     {
-      "analyzer": "NonTestMethodAccessibilityLevelAnalyzer",
-      "rules": "(NUnit1028)",
-      "totalSeconds": 2.038
+      "analyzer": "ConvertSwitchStatementToExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0066)",
+      "totalSeconds": 4.797
     },
     {
-      "analyzer": "RemoveEmptyFinalizersAnalyzer",
-      "rules": "(CA1821)",
-      "totalSeconds": 1.994
+      "analyzer": "CSharpUseImplicitObjectCreationDiagnosticAnalyzer",
+      "rules": "(IDE0090)",
+      "totalSeconds": 4.765
     },
     {
-      "analyzer": "CollectionAssertUsageAnalyzer",
-      "rules": "(NUnit2049)",
-      "totalSeconds": 1.988
+      "analyzer": "DoNotUseObsoleteKDFAlgorithm",
+      "rules": "(CA5373)",
+      "totalSeconds": 4.733
+    },
+    {
+      "analyzer": "DelegateRequiredAnalyzer",
+      "rules": "(NUnit2044)",
+      "totalSeconds": 4.721
+    },
+    {
+      "analyzer": "SameAsOnValueTypesAnalyzer",
+      "rules": "(NUnit2040)",
+      "totalSeconds": 4.72
+    },
+    {
+      "analyzer": "UseIFormatProviderAnalyzer",
+      "rules": "(MA0011)",
+      "totalSeconds": 4.715
+    },
+    {
+      "analyzer": "ReviewCodeForCommandExecutionVulnerabilities",
+      "rules": "(CA3006)",
+      "totalSeconds": 4.711
+    },
+    {
+      "analyzer": "UseUtf8StringLiteralDiagnosticAnalyzer",
+      "rules": "(IDE0230)",
+      "totalSeconds": 4.665
+    },
+    {
+      "analyzer": "UseRegexMembers",
+      "rules": "(CA1874, CA1875)",
+      "totalSeconds": 4.657
+    },
+    {
+      "analyzer": "DoNotCatchCorruptedStateExceptionsAnalyzer",
+      "rules": "(CA2153)",
+      "totalSeconds": 4.583
+    },
+    {
+      "analyzer": "CSharpAddBracesDiagnosticAnalyzer",
+      "rules": "(IDE0011)",
+      "totalSeconds": 4.578
+    },
+    {
+      "analyzer": "InstanceOfAnalyzer",
+      "rules": "(NUnit2055)",
+      "totalSeconds": 4.502
+    },
+    {
+      "analyzer": "UseXmlReaderForValidatingReader",
+      "rules": "(CA5370)",
+      "totalSeconds": 4.433
+    },
+    {
+      "analyzer": "DoNotAddSchemaByURL",
+      "rules": "(CA3061)",
+      "totalSeconds": 4.43
+    },
+    {
+      "analyzer": "SomeItemsIncompatibleTypesAnalyzer",
+      "rules": "(NUnit2026)",
+      "totalSeconds": 4.411
+    },
+    {
+      "analyzer": "UseDefaultDllImportSearchPathsAttribute",
+      "rules": "(CA5392, CA5393)",
+      "totalSeconds": 4.39
+    },
+    {
+      "analyzer": "DynamicallyAccessedMembersAnalyzer",
+      "rules": "(IL2026, IL2032, IL2041, IL2043, IL2055, IL2057, IL2058, IL2059, IL2060, IL2062, IL2063, IL2064, IL2065, IL2066, IL2067, IL2068, IL2069, IL2070, IL2071, IL2072, IL2073, IL2074, IL2075, IL2076, IL2077, IL2078, IL2079, IL2080, IL2081, IL2082, IL2083, IL2084, IL2085, IL2086, IL2087, IL2088, IL2089, IL2090, IL2091, IL2092, IL2093, IL2094, IL2095, IL2096, IL2097, IL2098, IL2099, IL2103, IL2106, IL2110, IL2111)",
+      "totalSeconds": 4.389
+    },
+    {
+      "analyzer": "DoNotCallVirtualMethodInConstructorAnalyzer",
+      "rules": "(MA0056)",
+      "totalSeconds": 4.387
+    },
+    {
+      "analyzer": "GeneralParameterAttributesAnalyzer",
+      "rules": "(BDN1200, BDN1201, BDN1202, BDN1203, BDN1204, BDN1205, BDN1206, BDN1207)",
+      "totalSeconds": 4.38
+    },
+    {
+      "analyzer": "NullConstraintUsageAnalyzer",
+      "rules": "(NUnit2023)",
+      "totalSeconds": 4.379
+    },
+    {
+      "analyzer": "UseXmlReaderForSchemaRead",
+      "rules": "(CA5371)",
+      "totalSeconds": 4.305
+    },
+    {
+      "analyzer": "ValidateUnsafeAccessorAttributeUsageAnalyzer",
+      "rules": "(MA0145, MA0146)",
+      "totalSeconds": 4.279
+    },
+    {
+      "analyzer": "SqlBuilderAliasAnalyzer",
+      "rules": "(LINQ2DB0001)",
+      "totalSeconds": 4.254
+    },
+    {
+      "analyzer": "TypesThatOwnDisposableFieldsShouldBeDisposableAnalyzer",
+      "rules": "(CA1001)",
+      "totalSeconds": 4.163
+    },
+    {
+      "analyzer": "InheritdocShouldHaveSourceOnTypesAnalyzer",
+      "rules": "(MA0199)",
+      "totalSeconds": 4.158
+    },
+    {
+      "analyzer": "EventsShouldHaveProperArgumentsAnalyzer",
+      "rules": "(MA0091, MA0092, MA0093)",
+      "totalSeconds": 4.123
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerBinaryFormatterMethods",
+      "rules": "(CA2300)",
+      "totalSeconds": 4.049
+    },
+    {
+      "analyzer": "ConvertComImportToGeneratedComInterfaceAnalyzer",
+      "rules": "(SYSLIB1096)",
+      "totalSeconds": 4.035
+    },
+    {
+      "analyzer": "PreferLengthCountIsEmptyOverAnyAnalyzer",
+      "rules": "(CA1860)",
+      "totalSeconds": 4.021
     },
     {
       "analyzer": "UseSimpleUsingStatementDiagnosticAnalyzer",
       "rules": "(IDE0063)",
-      "totalSeconds": 1.986
+      "totalSeconds": 3.993
     },
     {
-      "analyzer": "ComponentParameterAnalyzer",
-      "rules": "(BL0001, BL0002, BL0003, BL0004, BL0007)",
-      "totalSeconds": 1.98
+      "analyzer": "ReturnTaskFromResultInsteadOfReturningNullAnalyzer",
+      "rules": "(MA0022)",
+      "totalSeconds": 3.962
     },
     {
-      "analyzer": "CSharpConvertTypeOfToNameOfDiagnosticAnalyzer",
-      "rules": "(IDE0082)",
-      "totalSeconds": 1.941
+      "analyzer": "PreferReturningCollectionAbstractionInsteadOfImplementationAnalyzer",
+      "rules": "(MA0016)",
+      "totalSeconds": 3.96
     },
     {
-      "analyzer": "AvoidInfiniteRecursion",
-      "rules": "(CA2011)",
-      "totalSeconds": 1.922
+      "analyzer": "CSharpAddRequiredExpressionParenthesesDiagnosticAnalyzer",
+      "rules": "(IDE0048)",
+      "totalSeconds": 3.923
     },
     {
-      "analyzer": "CSharpAvoidUninstantiatedInternalClasses",
-      "rules": "(CA1812)",
-      "totalSeconds": 1.914
+      "analyzer": "DontUseDangerousThreadingMethodsAnalyzer",
+      "rules": "(MA0035)",
+      "totalSeconds": 3.917
     },
     {
-      "analyzer": "CSharpRemoveUnnecessaryPatternParenthesesDiagnosticAnalyzer",
-      "rules": "(IDE0047)",
-      "totalSeconds": 1.873
+      "analyzer": "DoNotUseReferenceEqualsWithValueTypesAnalyzer",
+      "rules": "(CA2013)",
+      "totalSeconds": 3.905
     },
     {
-      "analyzer": "UseTimeProviderInsteadOfInterfaceAnalyzer",
-      "rules": "(MA0188)",
-      "totalSeconds": 1.862
+      "analyzer": "DoNotSetSwitch",
+      "rules": "(CA5361, CA5378)",
+      "totalSeconds": 3.899
     },
     {
-      "analyzer": "MakeMethodStaticAnalyzer",
-      "rules": "(MA0038, MA0041)",
-      "totalSeconds": 1.852
+      "analyzer": "SpecifyStringComparisonAnalyzer",
+      "rules": "(CA1307, CA1310)",
+      "totalSeconds": 3.89
+    },
+    {
+      "analyzer": "UseXmlReaderForXPathDocument",
+      "rules": "(CA5372)",
+      "totalSeconds": 3.873
+    },
+    {
+      "analyzer": "AsyncCallInsideUsingBlockAnalyzer",
+      "rules": "(AsyncFixer04)",
+      "totalSeconds": 3.846
+    },
+    {
+      "analyzer": "PreferConvertToHexStringOverBitConverterAnalyzer",
+      "rules": "(CA1872)",
+      "totalSeconds": 3.84
+    },
+    {
+      "analyzer": "DoNotPassNonNullableValueToArgumentNullExceptionThrowIfNull",
+      "rules": "(CA1871, CA2264)",
+      "totalSeconds": 3.809
+    },
+    {
+      "analyzer": "ValidateFixedAddressValueTypeAttributeUsageAnalyzer",
+      "rules": "(MA0207, MA0208)",
+      "totalSeconds": 3.776
+    },
+    {
+      "analyzer": "OptimizeStringBuilderUsageAnalyzer",
+      "rules": "(MA0028)",
+      "totalSeconds": 3.746
+    },
+    {
+      "analyzer": "RecommendCaseInsensitiveStringComparisonAnalyzer",
+      "rules": "(CA1862)",
+      "totalSeconds": 3.729
+    },
+    {
+      "analyzer": "DoNotCallToImmutableCollectionOnAnImmutableCollectionValueAnalyzer",
+      "rules": "(CA2009)",
+      "totalSeconds": 3.714
+    },
+    {
+      "analyzer": "UseAsSpanInsteadOfRangeIndexerAnalyzer",
+      "rules": "(CA1831, CA1832, CA1833)",
+      "totalSeconds": 3.69
+    },
+    {
+      "analyzer": "PreferConstCharOverConstUnitStringAnalyzer",
+      "rules": "(CA1834)",
+      "totalSeconds": 3.683
+    },
+    {
+      "analyzer": "CSharpUseConditionalExpressionForReturnDiagnosticAnalyzer",
+      "rules": "(IDE0046)",
+      "totalSeconds": 3.636
+    },
+    {
+      "analyzer": "CSharpAddOrRemoveAccessibilityModifiersDiagnosticAnalyzer",
+      "rules": "(IDE0040)",
+      "totalSeconds": 3.604
+    },
+    {
+      "analyzer": "BenchmarkClassAnalyzer",
+      "rules": "(BDN1100, BDN1101, BDN1102, BDN1103, BDN1104, BDN1105, BDN1106, BDN1107, BDN1108)",
+      "totalSeconds": 3.573
+    },
+    {
+      "analyzer": "DoNotUseEqualityComparerDefaultOfStringAnalyzer",
+      "rules": "(MA0024)",
+      "totalSeconds": 3.562
+    },
+    {
+      "analyzer": "CSharpUseLiteralsWhereAppropriate",
+      "rules": "(CA1802)",
+      "totalSeconds": 3.554
+    },
+    {
+      "analyzer": "SimplifyValuesAnalyzer",
+      "rules": "(NUnit4001)",
+      "totalSeconds": 3.504
+    },
+    {
+      "analyzer": "BufferBlockCopyLengthAnalyzer",
+      "rules": "(CA2018)",
+      "totalSeconds": 3.467
+    },
+    {
+      "analyzer": "RouteHandlerAnalyzer",
+      "rules": "(ASP0003, ASP0004, ASP0005, ASP0007, ASP0020, ASP0021, ASP0022, ASP0024)",
+      "totalSeconds": 3.429
+    },
+    {
+      "analyzer": "UseExpressionBodyForLambdaDiagnosticAnalyzer",
+      "rules": "(IDE0053)",
+      "totalSeconds": 3.428
+    },
+    {
+      "analyzer": "NullableAttributeUsageAnalyzer",
+      "rules": "(MA0068)",
+      "totalSeconds": 3.402
+    },
+    {
+      "analyzer": "DoNotOverwriteRazorComponentParameterValue",
+      "rules": "(MA0121)",
+      "totalSeconds": 3.346
+    },
+    {
+      "analyzer": "CSharpUseCompoundCoalesceAssignmentDiagnosticAnalyzer",
+      "rules": "(IDE0074)",
+      "totalSeconds": 3.307
+    },
+    {
+      "analyzer": "CSharpAvoidZeroLengthArrayAllocationsAnalyzer",
+      "rules": "(CA1825)",
+      "totalSeconds": 3.251
+    },
+    {
+      "analyzer": "CSharpRestrictedInternalsVisibleToAnalyzer",
+      "rules": "(RS0035)",
+      "totalSeconds": 3.225
+    },
+    {
+      "analyzer": "MisusedConstraintsAnalyzer",
+      "rules": "(NUnit2058)",
+      "totalSeconds": 3.195
+    },
+    {
+      "analyzer": "RemoveUnnecessaryPartialModifierAnalyzer",
+      "rules": "(MA0204)",
+      "totalSeconds": 3.162
+    },
+    {
+      "analyzer": "LoggerParameterTypeAnalyzer",
+      "rules": "(MA0124, MA0125, MA0126, MA0135, MA0139)",
+      "totalSeconds": 3.153
+    },
+    {
+      "analyzer": "DoNotImplicitlyConvertDateTimeToDateTimeOffsetAnalyzer",
+      "rules": "(MA0132, MA0133)",
+      "totalSeconds": 3.146
     },
     {
       "analyzer": "PropertiesShouldNotBeWriteOnlyAnalyzer",
       "rules": "(CA1044)",
-      "totalSeconds": 1.84
+      "totalSeconds": 3.119
     },
     {
-      "analyzer": "AddGeneratedComClassAnalyzer",
-      "rules": "(SYSLIB1097)",
-      "totalSeconds": 1.83
+      "analyzer": "ReplaceEnumToStringWithNameofAnalyzer",
+      "rules": "(MA0052)",
+      "totalSeconds": 3.117
     },
     {
-      "analyzer": "TestContextWriteIsObsoleteAnalyzer",
-      "rules": "(NUnit1033)",
-      "totalSeconds": 1.819
+      "analyzer": "DataContractAnalyzer",
+      "rules": "(PBN0001, PBN0002, PBN0003, PBN0004, PBN0005, PBN0006, PBN0007, PBN0008, PBN0009, PBN0010, PBN0011, PBN0012, PBN0013, PBN0014, PBN0015, PBN0016, PBN0017, PBN0018, PBN0019, PBN0020, PBN0021, PBN0022, PBN0023, PBN0024, PBN0025, PBN0026)",
+      "totalSeconds": 3.099
+    },
+    {
+      "analyzer": "CustomMarshallerAttributeAnalyzer",
+      "rules": "(SYSLIB1055, SYSLIB1056, SYSLIB1057, SYSLIB1060, SYSLIB1061)",
+      "totalSeconds": 3.035
+    },
+    {
+      "analyzer": "UseOperatingSystemInsteadOfRuntimeInformationAnalyzer",
+      "rules": "(MA0144)",
+      "totalSeconds": 3.029
+    },
+    {
+      "analyzer": "DoNotUseXslTransform",
+      "rules": "(CA5374)",
+      "totalSeconds": 2.994
+    },
+    {
+      "analyzer": "IfElseBranchesAreIdenticalAnalyzer",
+      "rules": "(MA0140)",
+      "totalSeconds": 2.953
+    },
+    {
+      "analyzer": "MissingNotNullWhenAttributeOnEqualsAnalyzer",
+      "rules": "(MA0186)",
+      "totalSeconds": 2.925
+    },
+    {
+      "analyzer": "RemoveEmptyFinalizersAnalyzer",
+      "rules": "(CA1821)",
+      "totalSeconds": 2.918
+    },
+    {
+      "analyzer": "TestForNaNCorrectlyAnalyzer",
+      "rules": "(CA2242)",
+      "totalSeconds": 2.88
+    },
+    {
+      "analyzer": "JSInteropMustNotBeUsedInOnInitializedAnalyzer",
+      "rules": "(MA0119)",
+      "totalSeconds": 2.878
+    },
+    {
+      "analyzer": "DoNotRaiseReservedExceptionTypeAnalyzer",
+      "rules": "(MA0012)",
+      "totalSeconds": 2.859
+    },
+    {
+      "analyzer": "DoNotOverloadOperatorEqualsOnReferenceTypes",
+      "rules": "(CA1046)",
+      "totalSeconds": 2.858
+    },
+    {
+      "analyzer": "DoNotDefineFinalizersForTypesDerivedFromMemoryManager",
+      "rules": "(CA2015)",
+      "totalSeconds": 2.853
+    },
+    {
+      "analyzer": "ParameterAttributeForRazorComponentAnalyzer",
+      "rules": "(MA0116, MA0117, MA0122)",
+      "totalSeconds": 2.826
+    },
+    {
+      "analyzer": "DelegateUnnecessaryAnalyzer",
+      "rules": "(NUnit2057)",
+      "totalSeconds": 2.811
+    },
+    {
+      "analyzer": "DoNotDirectlyAwaitATaskAnalyzer",
+      "rules": "(CA2007)",
+      "totalSeconds": 2.79
+    },
+    {
+      "analyzer": "TaskReturnShouldBeUsedAnalyzer",
+      "rules": "(NUnit2059)",
+      "totalSeconds": 2.766
+    },
+    {
+      "analyzer": "DoNotUseEndOfStreamInAsyncMethodsAnalyzer",
+      "rules": "(CA2024)",
+      "totalSeconds": 2.756
+    },
+    {
+      "analyzer": "UseLazyInitializerEnsureInitializeAnalyzer",
+      "rules": "(MA0173)",
+      "totalSeconds": 2.747
+    },
+    {
+      "analyzer": "AvoidInfiniteRecursion",
+      "rules": "(CA2011)",
+      "totalSeconds": 2.723
+    },
+    {
+      "analyzer": "ConstActualValueUsageAnalyzer",
+      "rules": "(NUnit2007)",
+      "totalSeconds": 2.72
+    },
+    {
+      "analyzer": "CSharpUseIsNullCheckForCastAndEqualityOperatorDiagnosticAnalyzer",
+      "rules": "(IDE0041)",
+      "totalSeconds": 2.699
+    },
+    {
+      "analyzer": "TestCaseUsageAnalyzer",
+      "rules": "(NUnit1001, NUnit1003, NUnit1004)",
+      "totalSeconds": 2.681
+    },
+    {
+      "analyzer": "CSharpUseNotPatternDiagnosticAnalyzer",
+      "rules": "(IDE0083)",
+      "totalSeconds": 2.678
+    },
+    {
+      "analyzer": "UseEqualsMethodInsteadOfOperatorAnalyzer",
+      "rules": "(MA0169)",
+      "totalSeconds": 2.669
+    },
+    {
+      "analyzer": "UseStringCreateInsteadOfFormattableStringAnalyzer",
+      "rules": "(MA0111)",
+      "totalSeconds": 2.655
+    },
+    {
+      "analyzer": "UpdateStringFormatToInterpolatableStringAnalyzer",
+      "rules": "(NUnit2050)",
+      "totalSeconds": 2.648
+    },
+    {
+      "analyzer": "DoNotUseDataSetReadXml",
+      "rules": "(CA2351, CA2361)",
+      "totalSeconds": 2.645
+    },
+    {
+      "analyzer": "DoNotUseEqualityOperatorsForSpanOfCharAnalyzer",
+      "rules": "(MA0103)",
+      "totalSeconds": 2.633
+    },
+    {
+      "analyzer": "SimplifyStringCreateWhenAllParametersAreCultureInvariantAnalyzer",
+      "rules": "(MA0185)",
+      "totalSeconds": 2.604
+    },
+    {
+      "analyzer": "CSharpPreventNumericIntPtrUIntPtrBehavioralChanges",
+      "rules": "(CA2020)",
+      "totalSeconds": 2.602
+    },
+    {
+      "analyzer": "UpgradeToGeneratedRegexAnalyzer",
+      "rules": "(SYSLIB1045)",
+      "totalSeconds": 2.582
+    },
+    {
+      "analyzer": "ConvertToFileScopedNamespaceDiagnosticAnalyzer",
+      "rules": "(IDE0161)",
+      "totalSeconds": 2.554
+    },
+    {
+      "analyzer": "UseJSRuntimeInvokeVoidAsyncWhenReturnValueIsNotUsedAnalyzer",
+      "rules": "(MA0120)",
+      "totalSeconds": 2.552
+    },
+    {
+      "analyzer": "DoNotUseInsecureXSLTScriptExecutionAnalyzer",
+      "rules": "(CA3076)",
+      "totalSeconds": 2.543
+    },
+    {
+      "analyzer": "UseCollectionConstraintAnalyzer",
+      "rules": "(NUnit2046)",
+      "totalSeconds": 2.533
+    },
+    {
+      "analyzer": "UseArrayEmptyAnalyzer",
+      "rules": "(MA0005)",
+      "totalSeconds": 2.518
+    },
+    {
+      "analyzer": "ApprovedCipherModeAnalyzer",
+      "rules": "(CA5358)",
+      "totalSeconds": 2.516
+    },
+    {
+      "analyzer": "DebuggerDisplayAttributeShouldContainValidExpressionsAnalyzer",
+      "rules": "(MA0151)",
+      "totalSeconds": 2.514
+    },
+    {
+      "analyzer": "ReviewCodeForXPathInjectionVulnerabilities",
+      "rules": "(CA3008)",
+      "totalSeconds": 2.483
+    },
+    {
+      "analyzer": "DoNotUseUnknownParameterForRazorComponentAnalyzer",
+      "rules": "(MA0115)",
+      "totalSeconds": 2.477
+    },
+    {
+      "analyzer": "DoNotUseDataTableReadXml",
+      "rules": "(CA2350)",
+      "totalSeconds": 2.473
+    },
+    {
+      "analyzer": "CSharpSpecifyCultureForToLowerAndToUpperAnalyzer",
+      "rules": "(CA1311)",
+      "totalSeconds": 2.468
+    },
+    {
+      "analyzer": "InvokeDelegateWithConditionalAccessAnalyzer",
+      "rules": "(IDE1005)",
+      "totalSeconds": 2.448
+    },
+    {
+      "analyzer": "BothSideOfTheConditionAreIdenticalAnalyzer",
+      "rules": "(MA0172)",
+      "totalSeconds": 2.436
+    },
+    {
+      "analyzer": "DoNotLockOnObjectsWithWeakIdentityAnalyzer",
+      "rules": "(CA2002)",
+      "totalSeconds": 2.416
+    },
+    {
+      "analyzer": "UseAssertEnterMultipleScopeAnalyzer",
+      "rules": "(NUnit2056)",
+      "totalSeconds": 2.404
     },
     {
       "analyzer": "DoNotRaiseNotImplementedExceptionAnalyzer",
       "rules": "(MA0025)",
-      "totalSeconds": 1.808
+      "totalSeconds": 2.403
+    },
+    {
+      "analyzer": "CSharpUseCrossPlatformIntrinsicsAnalyzer",
+      "rules": "(CA1516)",
+      "totalSeconds": 2.384
+    },
+    {
+      "analyzer": "JsonSourceGenerationOptionsAnalyzer",
+      "rules": "(MA0222, MA0223)",
+      "totalSeconds": 2.357
+    },
+    {
+      "analyzer": "CSharpRemoveRedundantNullableDirectiveDiagnosticAnalyzer",
+      "rules": "(IDE0240)",
+      "totalSeconds": 2.33
+    },
+    {
+      "analyzer": "ClassicModelAssertUsageAnalyzer",
+      "rules": "(NUnit2001, NUnit2002, NUnit2003, NUnit2004, NUnit2005, NUnit2006, NUnit2015, NUnit2016, NUnit2017, NUnit2018, NUnit2019, NUnit2027, NUnit2028, NUnit2029, NUnit2030, NUnit2031, NUnit2032, NUnit2033, NUnit2034, NUnit2035, NUnit2036, NUnit2037, NUnit2038, NUnit2039, NUnit2051, NUnit2052, NUnit2053, NUnit2054)",
+      "totalSeconds": 2.312
+    },
+    {
+      "analyzer": "StringAssertUsageAnalyzer",
+      "rules": "(NUnit2048)",
+      "totalSeconds": 2.298
+    },
+    {
+      "analyzer": "PlatformCompatibilityAnalyzer",
+      "rules": "(CA1416, CA1422)",
+      "totalSeconds": 2.273
+    },
+    {
+      "analyzer": "DisposeMethodsShouldCallBaseClassDispose",
+      "rules": "(CA2215)",
+      "totalSeconds": 2.266
+    },
+    {
+      "analyzer": "OperatorsShouldHaveSymmetricalOverloadsAnalyzer",
+      "rules": "(CA2226)",
+      "totalSeconds": 2.263
+    },
+    {
+      "analyzer": "EnumWithFlagsAttributeAnalyzer",
+      "rules": "(CA1027, CA2217)",
+      "totalSeconds": 2.225
+    },
+    {
+      "analyzer": "DoNotUseConfigureAwaitWithSuppressThrowing",
+      "rules": "(CA2261)",
+      "totalSeconds": 2.202
+    },
+    {
+      "analyzer": "LoggerMessageDefineAnalyzer",
+      "rules": "(CA1727, CA1848, CA2017, CA2023, CA2253, CA2254)",
+      "totalSeconds": 2.202
+    },
+    {
+      "analyzer": "TestMethodAccessibilityLevelAnalyzer",
+      "rules": "(NUnit1026)",
+      "totalSeconds": 2.164
+    },
+    {
+      "analyzer": "CSharpAvoidUsingCrefTagsWithAPrefixAnalyzer",
+      "rules": "(CA1200)",
+      "totalSeconds": 2.157
+    },
+    {
+      "analyzer": "CSharpSymbolIsBannedInAnalyzersAnalyzer",
+      "rules": "(RS1035, RS1036)",
+      "totalSeconds": 2.154
+    },
+    {
+      "analyzer": "AbstractTypesShouldNotHaveConstructorsAnalyzer",
+      "rules": "(CA1012)",
+      "totalSeconds": 2.153
+    },
+    {
+      "analyzer": "CSharpUseSpanBasedStringConcat",
+      "rules": "(CA1845)",
+      "totalSeconds": 2.149
+    },
+    {
+      "analyzer": "DoNotHardCodeEncryptionKey",
+      "rules": "(CA5390)",
+      "totalSeconds": 2.141
+    },
+    {
+      "analyzer": "ReviewCodeForXamlInjectionVulnerabilities",
+      "rules": "(CA3010)",
+      "totalSeconds": 2.134
+    },
+    {
+      "analyzer": "ILoggerParameterTypeShouldMatchContainingTypeAnalyzer",
+      "rules": "(MA0180)",
+      "totalSeconds": 2.113
+    },
+    {
+      "analyzer": "RemoveUnnecessaryBracesInTypeDeclarationAnalyzer",
+      "rules": "(MA0206)",
+      "totalSeconds": 2.101
+    },
+    {
+      "analyzer": "ReviewCodeForXmlInjectionVulnerabilities",
+      "rules": "(CA3009)",
+      "totalSeconds": 2.081
+    },
+    {
+      "analyzer": "DoNotUseOutAttributeStringPInvokeParametersAnalyzer",
+      "rules": "(CA1417)",
+      "totalSeconds": 2.075
+    },
+    {
+      "analyzer": "AddAuthorizationBuilderAnalyzer",
+      "rules": "(ASP0025)",
+      "totalSeconds": 2.067
+    },
+    {
+      "analyzer": "WebApplicationBuilderAnalyzer",
+      "rules": "(ASP0008, ASP0009, ASP0010, ASP0011, ASP0012, ASP0013, ASP0014)",
+      "totalSeconds": 2.045
+    },
+    {
+      "analyzer": "CollectionAssertUsageAnalyzer",
+      "rules": "(NUnit2049)",
+      "totalSeconds": 2.036
+    },
+    {
+      "analyzer": "UseEventArgsEmptyAnalyzer",
+      "rules": "(MA0019)",
+      "totalSeconds": 2.033
+    },
+    {
+      "analyzer": "AvoidSingleUseOfLocalJsonSerializerOptions",
+      "rules": "(CA1869)",
+      "totalSeconds": 2.031
+    },
+    {
+      "analyzer": "NonTestMethodAccessibilityLevelAnalyzer",
+      "rules": "(NUnit1028)",
+      "totalSeconds": 2.025
+    },
+    {
+      "analyzer": "CSharpUseOrdinalStringComparisonAnalyzer",
+      "rules": "(CA1309)",
+      "totalSeconds": 2.024
+    },
+    {
+      "analyzer": "NonConstantStaticFieldsShouldNotBeVisibleAnalyzer",
+      "rules": "(MA0069)",
+      "totalSeconds": 2.001
+    },
+    {
+      "analyzer": "CompareSymbolsCorrectlyAnalyzer",
+      "rules": "(RS1024)",
+      "totalSeconds": 1.998
+    },
+    {
+      "analyzer": "CSharpUseCoalesceExpressionForIfNullStatementCheckDiagnosticAnalyzer",
+      "rules": "(IDE0270)",
+      "totalSeconds": 1.997
+    },
+    {
+      "analyzer": "DoNotHardCodeCertificate",
+      "rules": "(CA5403)",
+      "totalSeconds": 1.996
+    },
+    {
+      "analyzer": "ThrowIfNullWithNonNullableInstanceAnalyzer",
+      "rules": "(MA0131)",
+      "totalSeconds": 1.995
+    },
+    {
+      "analyzer": "InheritdocShouldNotBeAmbiguousOnTypesAnalyzer",
+      "rules": "(MA0198)",
+      "totalSeconds": 1.947
+    },
+    {
+      "analyzer": "CSharpUseInferredMemberNameDiagnosticAnalyzer",
+      "rules": "(IDE0037)",
+      "totalSeconds": 1.929
+    },
+    {
+      "analyzer": "DisposableTypesShouldDeclareFinalizerAnalyzer",
+      "rules": "(CA2216)",
+      "totalSeconds": 1.912
+    },
+    {
+      "analyzer": "RemoveUnnecessaryClosedModifierAnalyzer",
+      "rules": "(MA0216)",
+      "totalSeconds": 1.911
+    },
+    {
+      "analyzer": "DoNotCompareSpanToNullAnalyzer",
+      "rules": "(CA2265)",
+      "totalSeconds": 1.899
+    },
+    {
+      "analyzer": "SealInternalTypes",
+      "rules": "(CA1852)",
+      "totalSeconds": 1.858
+    },
+    {
+      "analyzer": "EmbedCaughtExceptionAsInnerExceptionAnalyzer",
+      "rules": "(MA0054)",
+      "totalSeconds": 1.852
+    },
+    {
+      "analyzer": "BasicImplementStandardExceptionConstructorsAnalyzer",
+      "rules": "(CA1032)",
+      "totalSeconds": 1.784
+    },
+    {
+      "analyzer": "DoNotSerializeTypeWithPointerFields",
+      "rules": "(CA5367)",
+      "totalSeconds": 1.777
+    },
+    {
+      "analyzer": "MisplacedUsingDirectivesDiagnosticAnalyzer",
+      "rules": "(IDE0065)",
+      "totalSeconds": 1.772
+    },
+    {
+      "analyzer": "CSharpIsAndCastCheckDiagnosticAnalyzer",
+      "rules": "(IDE0020)",
+      "totalSeconds": 1.77
+    },
+    {
+      "analyzer": "SequenceNumberMustBeAConstantAnalyzer",
+      "rules": "(MA0123)",
+      "totalSeconds": 1.751
+    },
+    {
+      "analyzer": "DoNotDisableTokenValidationChecks",
+      "rules": "(CA5404)",
+      "totalSeconds": 1.741
+    },
+    {
+      "analyzer": "ConditionalExpressionPlacementDiagnosticAnalyzer",
+      "rules": "(IDE2005)",
+      "totalSeconds": 1.728
+    },
+    {
+      "analyzer": "ValuesUsageAnalyzer",
+      "rules": "(NUnit1031)",
+      "totalSeconds": 1.69
+    },
+    {
+      "analyzer": "BlazorPropertyInjectionShouldUseConstructorInjectionAnalyzer",
+      "rules": "(MA0187)",
+      "totalSeconds": 1.687
+    },
+    {
+      "analyzer": "MarkAssembliesWithAttributesDiagnosticAnalyzer",
+      "rules": "(CA1014, CA1016)",
+      "totalSeconds": 1.684
+    },
+    {
+      "analyzer": "AddGeneratedComClassAnalyzer",
+      "rules": "(SYSLIB1097)",
+      "totalSeconds": 1.655
+    },
+    {
+      "analyzer": "UseTimeProviderInsteadOfInterfaceAnalyzer",
+      "rules": "(MA0188)",
+      "totalSeconds": 1.625
+    },
+    {
+      "analyzer": "TypesShouldNotExtendSystemApplicationExceptionAnalyzer",
+      "rules": "(MA0013)",
+      "totalSeconds": 1.607
+    },
+    {
+      "analyzer": "ReviewCodeForDllInjectionVulnerabilities",
+      "rules": "(CA3011)",
+      "totalSeconds": 1.585
+    },
+    {
+      "analyzer": "UseStructLayoutAttributeAnalyzer",
+      "rules": "(MA0008)",
+      "totalSeconds": 1.575
+    },
+    {
+      "analyzer": "ReviewCodeForSqlInjectionVulnerabilities",
+      "rules": "(CA3001)",
+      "totalSeconds": 1.569
+    },
+    {
+      "analyzer": "UseCancellationTokenThrowIfCancellationRequested",
+      "rules": "(CA2250)",
+      "totalSeconds": 1.553
+    },
+    {
+      "analyzer": "CSharpRegisterActionAnalyzer",
+      "rules": "(RS1002, RS1003, RS1006, RS1012, RS1013)",
+      "totalSeconds": 1.537
+    },
+    {
+      "analyzer": "ObsoleteAttributesShouldIncludeExplanationsAnalyzer",
+      "rules": "(MA0070)",
+      "totalSeconds": 1.53
+    },
+    {
+      "analyzer": "UseStringContainsCharOverloadWithSingleCharactersAnalyzer",
+      "rules": "(CA1847)",
+      "totalSeconds": 1.51
+    },
+    {
+      "analyzer": "JSInvokableMethodsMustBePublicAnalyzer",
+      "rules": "(MA0118)",
+      "totalSeconds": 1.506
+    },
+    {
+      "analyzer": "ArrowExpressionClausePlacementDiagnosticAnalyzer",
+      "rules": "(IDE2006)",
+      "totalSeconds": 1.458
+    },
+    {
+      "analyzer": "UseConcreteTypeAnalyzer",
+      "rules": "(CA1859)",
+      "totalSeconds": 1.456
+    },
+    {
+      "analyzer": "JsonNetTypeNameHandling",
+      "rules": "(CA2326)",
+      "totalSeconds": 1.411
+    },
+    {
+      "analyzer": "MvcAnalyzer",
+      "rules": "(ASP0023, ASP0026)",
+      "totalSeconds": 1.399
+    },
+    {
+      "analyzer": "CompilerExtensionStrictApiAnalyzer",
+      "rules": "(RS1038)",
+      "totalSeconds": 1.393
+    },
+    {
+      "analyzer": "CSharpMatchFolderAndNamespaceDiagnosticAnalyzer",
+      "rules": "(IDE0130)",
+      "totalSeconds": 1.385
+    },
+    {
+      "analyzer": "CSharpMakeStructMemberReadOnlyDiagnosticAnalyzer",
+      "rules": "(IDE0251)",
+      "totalSeconds": 1.382
+    },
+    {
+      "analyzer": "CSharpUseCollectionExpressionForStackAllocDiagnosticAnalyzer",
+      "rules": "(IDE0302)",
+      "totalSeconds": 1.38
+    },
+    {
+      "analyzer": "UseExceptionThrowHelpers",
+      "rules": "(CA1510, CA1511, CA1512, CA1513)",
+      "totalSeconds": 1.361
+    },
+    {
+      "analyzer": "RenderTreeBuilderAnalyzer",
+      "rules": "(ASP0006)",
+      "totalSeconds": 1.361
+    },
+    {
+      "analyzer": "DoNotLogClassifiedDataAnalyzer",
+      "rules": "(MA0153)",
+      "totalSeconds": 1.36
+    },
+    {
+      "analyzer": "DontTagInstanceFieldsWithThreadStaticAttributeAnalyzer",
+      "rules": "(MA0033)",
+      "totalSeconds": 1.352
+    },
+    {
+      "analyzer": "AttributeNameShouldEndWithAttributeAnalyzer",
+      "rules": "(MA0057)",
+      "totalSeconds": 1.331
+    },
+    {
+      "analyzer": "SerializationRulesDiagnosticAnalyzer",
+      "rules": "(CA2235, CA2237)",
+      "totalSeconds": 1.314
+    },
+    {
+      "analyzer": "InitializeStaticFieldsInlineAnalyzer",
+      "rules": "(CA1810, CA2207)",
+      "totalSeconds": 1.278
+    },
+    {
+      "analyzer": "ProvideCorrectArgumentsToFormattingMethodsAnalyzer",
+      "rules": "(CA2241)",
+      "totalSeconds": 1.277
+    },
+    {
+      "analyzer": "TestContextWriteIsObsoleteAnalyzer",
+      "rules": "(NUnit1033)",
+      "totalSeconds": 1.264
+    },
+    {
+      "analyzer": "ReviewCodeForRegexInjectionVulnerabilities",
+      "rules": "(CA3012)",
+      "totalSeconds": 1.26
+    },
+    {
+      "analyzer": "CSharpConvertTypeOfToNameOfDiagnosticAnalyzer",
+      "rules": "(IDE0082)",
+      "totalSeconds": 1.254
+    },
+    {
+      "analyzer": "UseRegexSourceGeneratorAnalyzer",
+      "rules": "(MA0110)",
+      "totalSeconds": 1.244
+    },
+    {
+      "analyzer": "UseStringEqualsAnalyzer",
+      "rules": "(MA0006)",
+      "totalSeconds": 1.232
+    },
+    {
+      "analyzer": "StaticHolderTypesAnalyzer",
+      "rules": "(CA1052)",
+      "totalSeconds": 1.231
+    },
+    {
+      "analyzer": "DoNotUseFinalizerAnalyzer",
+      "rules": "(MA0055)",
+      "totalSeconds": 1.222
+    },
+    {
+      "analyzer": "CSharpMakeStructReadOnlyDiagnosticAnalyzer",
+      "rules": "(IDE0250)",
+      "totalSeconds": 1.222
+    },
+    {
+      "analyzer": "MarkAttributesWithAttributeUsageAttributeAnalyzer",
+      "rules": "(MA0010)",
+      "totalSeconds": 1.215
+    },
+    {
+      "analyzer": "DoNotUseInsecureCryptographicAlgorithmsAnalyzer",
+      "rules": "(CA5350, CA5351)",
+      "totalSeconds": 1.213
+    },
+    {
+      "analyzer": "SslProtocolsAnalyzer",
+      "rules": "(CA5397, CA5398)",
+      "totalSeconds": 1.209
+    },
+    {
+      "analyzer": "EventArgsNameShouldEndWithEventArgsAnalyzer",
+      "rules": "(MA0059)",
+      "totalSeconds": 1.206
+    },
+    {
+      "analyzer": "MarkAttributesWithAttributeUsageAnalyzer",
+      "rules": "(CA1018)",
+      "totalSeconds": 1.194
+    },
+    {
+      "analyzer": "UseTaskUnwrapAnalyzer",
+      "rules": "(MA0152)",
+      "totalSeconds": 1.189
+    },
+    {
+      "analyzer": "MakeMemberReadOnlyAnalyzer",
+      "rules": "(MA0102)",
+      "totalSeconds": 1.185
+    },
+    {
+      "analyzer": "DoNotCallOverridableMethodsInConstructorsAnalyzer",
+      "rules": "(CA2214)",
+      "totalSeconds": 1.178
+    },
+    {
+      "analyzer": "ProvideHttpClientHandlerMaxResponseHeaderLengthValueCorrectly",
+      "rules": "(CA2262)",
+      "totalSeconds": 1.173
+    },
+    {
+      "analyzer": "CSharpUseThrowExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0016)",
+      "totalSeconds": 1.162
+    },
+    {
+      "analyzer": "CSharpForEachCastDiagnosticAnalyzer",
+      "rules": "(IDE0220)",
+      "totalSeconds": 1.159
+    },
+    {
+      "analyzer": "ReviewCodeForFilePathInjectionVulnerabilities",
+      "rules": "(CA3003)",
+      "totalSeconds": 1.123
+    },
+    {
+      "analyzer": "UseStartsWithInsteadOfIndexOfComparisonWithZero",
+      "rules": "(CA1858)",
+      "totalSeconds": 1.112
+    },
+    {
+      "analyzer": "ReviewCodeForOpenRedirectVulnerabilities",
+      "rules": "(CA3007)",
+      "totalSeconds": 1.109
+    },
+    {
+      "analyzer": "DoNotInstallRootCert",
+      "rules": "(CA5380, CA5381)",
+      "totalSeconds": 1.101
+    },
+    {
+      "analyzer": "GrpcMigrationAnalyzer",
+      "rules": "(PBN4015, PBN4016, PBN4017)",
+      "totalSeconds": 1.094
+    },
+    {
+      "analyzer": "ParamsAttributeAnalyzer",
+      "rules": "(BDN1300, BDN1301, BDN1302)",
+      "totalSeconds": 1.077
+    },
+    {
+      "analyzer": "PInvokeDiagnosticAnalyzer",
+      "rules": "(CA1401, CA2101)",
+      "totalSeconds": 1.03
+    },
+    {
+      "analyzer": "ComponentParameterAnalyzer",
+      "rules": "(BL0001, BL0002, BL0003, BL0004, BL0007)",
+      "totalSeconds": 1.02
+    },
+    {
+      "analyzer": "ReviewSqlQueriesForSecurityVulnerabilities",
+      "rules": "(CA2100)",
+      "totalSeconds": 1.003
+    },
+    {
+      "analyzer": "ServerSideOnlyContractAnalyzer",
+      "rules": "(LINQ2DB0002, LINQ2DB0003)",
+      "totalSeconds": 1.002
+    },
+    {
+      "analyzer": "CSharpImplementGenericMathInterfacesCorrectly",
+      "rules": "(CA2260)",
+      "totalSeconds": 0.981
+    },
+    {
+      "analyzer": "CSharpFileHeaderDiagnosticAnalyzer",
+      "rules": "(IDE0073)",
+      "totalSeconds": 0.978
+    },
+    {
+      "analyzer": "ArgumentsAttributeAnalyzer",
+      "rules": "(BDN1500, BDN1501, BDN1502, BDN1503)",
+      "totalSeconds": 0.968
+    },
+    {
+      "analyzer": "DoNotUseDSA",
+      "rules": "(CA5384)",
+      "totalSeconds": 0.947
+    },
+    {
+      "analyzer": "MissingMaybeNullWhenAttributeOnTryGetValueAnalyzer",
+      "rules": "(MA0221)",
+      "totalSeconds": 0.902
+    },
+    {
+      "analyzer": "CollectionsShouldImplementGenericInterfaceAnalyzer",
+      "rules": "(CA1010)",
+      "totalSeconds": 0.89
+    },
+    {
+      "analyzer": "HeaderDictionaryIndexerAnalyzer",
+      "rules": "(ASP0015)",
+      "totalSeconds": 0.884
+    },
+    {
+      "analyzer": "RangeUsageAnalyzer",
+      "rules": "(NUnit1035, NUnit1036, NUnit1037, NUnit1038)",
+      "totalSeconds": 0.875
+    },
+    {
+      "analyzer": "CSharpSimplifyConditionalDiagnosticAnalyzer",
+      "rules": "(IDE0075)",
+      "totalSeconds": 0.873
+    },
+    {
+      "analyzer": "CancellationTokenParametersMustComeLastAnalyzer",
+      "rules": "(CA1068)",
+      "totalSeconds": 0.873
+    },
+    {
+      "analyzer": "DoNotRaiseExceptionsInUnexpectedLocationsAnalyzer",
+      "rules": "(CA1065)",
+      "totalSeconds": 0.87
+    },
+    {
+      "analyzer": "DoNotUseAsyncDelegateForSyncDelegateAnalyzer",
+      "rules": "(MA0147)",
+      "totalSeconds": 0.855
+    },
+    {
+      "analyzer": "CSharpUseCoalesceExpressionForTernaryConditionalCheckDiagnosticAnalyzer",
+      "rules": "(IDE0029)",
+      "totalSeconds": 0.851
+    },
+    {
+      "analyzer": "CSharpSemanticModelGetDeclaredSymbolAlwaysReturnsNullAnalyzer",
+      "rules": "(RS1039, RS1040)",
+      "totalSeconds": 0.851
+    },
+    {
+      "analyzer": "DoNotRaiseApplicationExceptionAnalyzer",
+      "rules": "(MA0014)",
+      "totalSeconds": 0.827
+    },
+    {
+      "analyzer": "AvoidComparisonWithBoolConstantAnalyzer",
+      "rules": "(MA0073)",
+      "totalSeconds": 0.795
+    },
+    {
+      "analyzer": "StringShouldNotContainsNonDeterministicEndOfLineAnalyzer",
+      "rules": "(MA0101, MA0136)",
+      "totalSeconds": 0.794
+    },
+    {
+      "analyzer": "DoNotUseInsecureDtdProcessingInApiDesignAnalyzer",
+      "rules": "(CA3077)",
+      "totalSeconds": 0.789
+    },
+    {
+      "analyzer": "CSharpDoNotInitializeUnnecessarilyAnalyzer",
+      "rules": "(CA1805)",
+      "totalSeconds": 0.764
+    },
+    {
+      "analyzer": "HeaderDictionaryAddAnalyzer",
+      "rules": "(ASP0019)",
+      "totalSeconds": 0.744
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerNetDataContractSerializerMethods",
+      "rules": "(CA2310)",
+      "totalSeconds": 0.742
+    },
+    {
+      "analyzer": "ConvertToTopLevelStatementsDiagnosticAnalyzer",
+      "rules": "(IDE0210)",
+      "totalSeconds": 0.742
+    },
+    {
+      "analyzer": "ProvidePublicParameterlessSafeHandleConstructorAnalyzer",
+      "rules": "(CA1419)",
+      "totalSeconds": 0.712
+    },
+    {
+      "analyzer": "CollectionPropertiesShouldBeReadOnlyAnalyzer",
+      "rules": "(CA2227)",
+      "totalSeconds": 0.71
+    },
+    {
+      "analyzer": "MvcAnalyzer",
+      "rules": "(ASP0023)",
+      "totalSeconds": 0.704
+    },
+    {
+      "analyzer": "ConstructorArgumentParametersShouldExistInConstructorsAnalyzer",
+      "rules": "(MA0083)",
+      "totalSeconds": 0.701
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerBinaryFormatterWithoutBinder",
+      "rules": "(CA2301, CA2302)",
+      "totalSeconds": 0.672
+    },
+    {
+      "analyzer": "CSharpImplementStandardExceptionConstructorsAnalyzer",
+      "rules": "(CA1032)",
+      "totalSeconds": 0.67
+    },
+    {
+      "analyzer": "ConsecutiveBracePlacementDiagnosticAnalyzer",
+      "rules": "(IDE2002)",
+      "totalSeconds": 0.668
+    },
+    {
+      "analyzer": "ExceptionNameShouldEndWithExceptionAnalyzer",
+      "rules": "(MA0058)",
+      "totalSeconds": 0.651
+    },
+    {
+      "analyzer": "DoNotUseEmptyPropertyPatternOnNonNullableValueTypeAnalyzer",
+      "rules": "(MA0200)",
+      "totalSeconds": 0.639
+    },
+    {
+      "analyzer": "AnonymousDelegatesShouldNotBeUsedToUnsubscribeFromEventsAnalyzer",
+      "rules": "(MA0085)",
+      "totalSeconds": 0.628
+    },
+    {
+      "analyzer": "RequiresAssemblyFilesAnalyzer",
+      "rules": "(IL3000, IL3001, IL3002, IL3003, IL3004, IL3005)",
+      "totalSeconds": 0.624
+    },
+    {
+      "analyzer": "DoNotDisableCertificateValidation",
+      "rules": "(CA5359)",
+      "totalSeconds": 0.621
+    },
+    {
+      "analyzer": "FixerWithFixAllAnalyzer",
+      "rules": "(RS1010, RS1011, RS1016)",
+      "totalSeconds": 0.613
+    },
+    {
+      "analyzer": "BasicSymbolIsBannedAnalyzer",
+      "rules": "(RS0030, RS0031)",
+      "totalSeconds": 0.607
+    },
+    {
+      "analyzer": "UseAnOverloadThatHasMidpointRoundingAnalyzer",
+      "rules": "(MA0193)",
+      "totalSeconds": 0.586
+    },
+    {
+      "analyzer": "OverrideMethodsOnComparableTypesAnalyzer",
+      "rules": "(CA1036)",
+      "totalSeconds": 0.578
+    },
+    {
+      "analyzer": "UseInlineArrayInsteadOfFixedBufferAnalyzer",
+      "rules": "(MA0189)",
+      "totalSeconds": 0.568
+    },
+    {
+      "analyzer": "CSharpDiagnosticAnalyzerFieldsAnalyzer",
+      "rules": "(RS1008)",
+      "totalSeconds": 0.564
+    },
+    {
+      "analyzer": "DoNotUseInterpolatedStringWithoutParametersAnalyzer",
+      "rules": "(MA0184)",
+      "totalSeconds": 0.562
+    },
+    {
+      "analyzer": "TypesShouldNotExtendCertainBaseTypesAnalyzer",
+      "rules": "(CA1058)",
+      "totalSeconds": 0.561
+    },
+    {
+      "analyzer": "ParallelizableUsageAnalyzer",
+      "rules": "(NUnit1008, NUnit1009, NUnit1010)",
+      "totalSeconds": 0.554
+    },
+    {
+      "analyzer": "SimplifyNegatedBooleanExpressionAnalyzer",
+      "rules": "(MA0213)",
+      "totalSeconds": 0.549
+    },
+    {
+      "analyzer": "BasicMarkAssembliesWithNeutralResourcesLanguageAnalyzer",
+      "rules": "(CA1824)",
+      "totalSeconds": 0.544
+    },
+    {
+      "analyzer": "UsePartialPropertyInsteadOfPartialMethodForGeneratedRegexAnalyzer",
+      "rules": "(MA0190)",
+      "totalSeconds": 0.542
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerLosFormatter",
+      "rules": "(CA2305)",
+      "totalSeconds": 0.539
+    },
+    {
+      "analyzer": "CSharpDataSetDataTableInWebSerializableObjectGraphAnalyzer",
+      "rules": "(CA2356)",
+      "totalSeconds": 0.536
+    },
+    {
+      "analyzer": "DoNotDisableHttpClientCRLCheck",
+      "rules": "(CA5399, CA5400)",
+      "totalSeconds": 0.532
+    },
+    {
+      "analyzer": "CSharpMakeStructFieldsWritableDiagnosticAnalyzer",
+      "rules": "(IDE0064)",
+      "totalSeconds": 0.53
+    },
+    {
+      "analyzer": "ServiceContractAnalyzer",
+      "rules": "(PBN2001, PBN2002, PBN2003, PBN2004, PBN2005, PBN2006, PBN2007, PBN2008, PBN2009, PBN2010)",
+      "totalSeconds": 0.529
+    },
+    {
+      "analyzer": "CSharpAvoidDeadConditionalCode",
+      "rules": "(CA1508)",
+      "totalSeconds": 0.517
+    },
+    {
+      "analyzer": "ConstructorInitializerPlacementDiagnosticAnalyzer",
+      "rules": "(IDE2004)",
+      "totalSeconds": 0.517
+    },
+    {
+      "analyzer": "DiagnosticAnalyzerAttributeAnalyzer",
+      "rules": "(RS1001, RS1004)",
+      "totalSeconds": 0.515
+    },
+    {
+      "analyzer": "AvoidLockingOnPubliclyAccessibleInstanceAnalyzer",
+      "rules": "(MA0064)",
+      "totalSeconds": 0.507
+    },
+    {
+      "analyzer": "MakeMethodStaticAnalyzer",
+      "rules": "(MA0038, MA0041)",
+      "totalSeconds": 0.501
+    },
+    {
+      "analyzer": "CSharpRemoveUnreachableCodeDiagnosticAnalyzer",
+      "rules": "(IDE0035)",
+      "totalSeconds": 0.498
+    },
+    {
+      "analyzer": "UsePatternMatchingForEqualityComparisonsAnalyzer",
+      "rules": "(MA0141, MA0142, MA0148, MA0149)",
+      "totalSeconds": 0.491
+    },
+    {
+      "analyzer": "CSharpUseCoalesceExpressionForNullableTernaryConditionalCheckDiagnosticAnalyzer",
+      "rules": "(IDE0030)",
+      "totalSeconds": 0.486
+    },
+    {
+      "analyzer": "UseAnOverloadThatHasTimeProviderAnalyzer",
+      "rules": "(MA0166, MA0167)",
+      "totalSeconds": 0.482
+    },
+    {
+      "analyzer": "AbstractTypesShouldNotHaveConstructorsAnalyzer",
+      "rules": "(MA0017)",
+      "totalSeconds": 0.48
+    },
+    {
+      "analyzer": "ParamsAllValuesAttributeAnalyzer",
+      "rules": "(BDN1303, BDN1304)",
+      "totalSeconds": 0.474
+    },
+    {
+      "analyzer": "ImplementIDisposableCorrectlyAnalyzer",
+      "rules": "(CA1063)",
+      "totalSeconds": 0.462
+    },
+    {
+      "analyzer": "UseExclusiveOrOperatorAnalyzer",
+      "rules": "(MA0205)",
+      "totalSeconds": 0.459
+    },
+    {
+      "analyzer": "RequestDelegateReturnTypeAnalyzer",
+      "rules": "(ASP0016)",
+      "totalSeconds": 0.452
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnusedParametersAndValuesDiagnosticAnalyzer",
+      "rules": "(IDE0058, IDE0059, IDE0060)",
+      "totalSeconds": 0.435
+    },
+    {
+      "analyzer": "DoNotUseInsecureRandomness",
+      "rules": "(CA5394)",
+      "totalSeconds": 0.433
+    },
+    {
+      "analyzer": "ImplementationIsObsoleteAnalyzer",
+      "rules": "(RS1042)",
+      "totalSeconds": 0.433
+    },
+    {
+      "analyzer": "AvoidPropertySelfAssignment",
+      "rules": "(CA2245)",
+      "totalSeconds": 0.433
+    },
+    {
+      "analyzer": "CSharpAvoidUninstantiatedInternalClasses",
+      "rules": "(CA1812)",
+      "totalSeconds": 0.429
+    },
+    {
+      "analyzer": "EmbeddedStatementPlacementDiagnosticAnalyzer",
+      "rules": "(IDE2001)",
+      "totalSeconds": 0.424
+    },
+    {
+      "analyzer": "BasicAvoidMultipleEnumerationsAnalyzer",
+      "rules": "(CA1851)",
+      "totalSeconds": 0.423
+    },
+    {
+      "analyzer": "NestedTypesShouldNotBeVisibleAnalyzer",
+      "rules": "(CA1034)",
+      "totalSeconds": 0.422
+    },
+    {
+      "analyzer": "ComHostingDoesNotSupportGeneratedComInterfaceAnalyzer",
+      "rules": "(SYSLIB1098)",
+      "totalSeconds": 0.417
+    },
+    {
+      "analyzer": "UseEventHandlerOfTAnalyzer",
+      "rules": "(MA0046)",
+      "totalSeconds": 0.403
+    },
+    {
+      "analyzer": "CSharpReportDiagnosticAnalyzer",
+      "rules": "(RS1005)",
+      "totalSeconds": 0.397
+    },
+    {
+      "analyzer": "DoNotUseWeakKDFInsufficientIterationCount",
+      "rules": "(CA5387, CA5388)",
+      "totalSeconds": 0.396
+    },
+    {
+      "analyzer": "GeneralArgumentAttributesAnalyzer",
+      "rules": "(BDN1400)",
+      "totalSeconds": 0.395
+    },
+    {
+      "analyzer": "MethodShouldNotBeTooLongAnalyzer",
+      "rules": "(MA0051)",
+      "totalSeconds": 0.391
+    },
+    {
+      "analyzer": "DoNotCallDangerousMethodsInDeserialization",
+      "rules": "(CA5360)",
+      "totalSeconds": 0.384
+    },
+    {
+      "analyzer": "ConvertToProgramMainDiagnosticAnalyzer",
+      "rules": "(IDE0211)",
+      "totalSeconds": 0.381
+    },
+    {
+      "analyzer": "CSharpUseNullCheckOverTypeCheckDiagnosticAnalyzer",
+      "rules": "(IDE0150)",
+      "totalSeconds": 0.38
+    },
+    {
+      "analyzer": "CSharpNamingStyleDiagnosticAnalyzer",
+      "rules": "(IDE1006)",
+      "totalSeconds": 0.377
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnnecessaryImportsDiagnosticAnalyzer",
+      "rules": "(EnableGenerateDocumentationFile, IDE0005, IDE0005_gen, RemoveUnnecessaryImportsFixable)",
+      "totalSeconds": 0.375
+    },
+    {
+      "analyzer": "DoNotDisableHTTPHeaderChecking",
+      "rules": "(CA5365)",
+      "totalSeconds": 0.375
+    },
+    {
+      "analyzer": "UseCompositeFormatAnalyzer",
+      "rules": "(CA1863)",
+      "totalSeconds": 0.375
+    },
+    {
+      "analyzer": "ConvertToLibraryImportAnalyzer",
+      "rules": "(SYSLIB1054)",
+      "totalSeconds": 0.369
+    },
+    {
+      "analyzer": "RequiresDynamicCodeAnalyzer",
+      "rules": "(IL3050, IL3051, IL3056)",
+      "totalSeconds": 0.36
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerJavaScriptSerializerWithSimpleTypeResolver",
+      "rules": "(CA2321, CA2322)",
+      "totalSeconds": 0.352
+    },
+    {
+      "analyzer": "DoNotThrowFromFinalizerAnalyzer",
+      "rules": "(MA0086)",
+      "totalSeconds": 0.351
+    },
+    {
+      "analyzer": "TypeNameMustNotMatchNamespaceAnalyzer",
+      "rules": "(MA0049)",
+      "totalSeconds": 0.35
+    },
+    {
+      "analyzer": "CSharpMissingShebangInFileBasedProgram",
+      "rules": "(CA2266)",
+      "totalSeconds": 0.326
+    },
+    {
+      "analyzer": "RequiresAssemblyFilesAnalyzer",
+      "rules": "(IL3000, IL3001, IL3002, IL3003, IL3004)",
+      "totalSeconds": 0.324
+    },
+    {
+      "analyzer": "InterpolatedStringUsageInRawQueriesDiagnosticAnalyzer",
+      "rules": "(EF1002)",
+      "totalSeconds": 0.323
+    },
+    {
+      "analyzer": "ImmutableObjectMethodAnalyzer",
+      "rules": "(RS1014)",
+      "totalSeconds": 0.322
+    },
+    {
+      "analyzer": "DynamicInterfaceCastableImplementationAnalyzer",
+      "rules": "(CA2256, CA2257, CA2258)",
+      "totalSeconds": 0.322
+    },
+    {
+      "analyzer": "ListenOnIPv6AnyAnalyzer",
+      "rules": "(ASP0028)",
+      "totalSeconds": 0.315
+    },
+    {
+      "analyzer": "IdentifiersShouldNotMatchKeywordsAnalyzer",
+      "rules": "(CA1716)",
+      "totalSeconds": 0.312
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryDiscardDesignationDiagnosticAnalyzer",
+      "rules": "(IDE0110)",
+      "totalSeconds": 0.306
+    },
+    {
+      "analyzer": "CSharpAddRequiredPatternParenthesesDiagnosticAnalyzer",
+      "rules": "(IDE0048)",
+      "totalSeconds": 0.302
+    },
+    {
+      "analyzer": "DoNotUseInsecureDeserializerObjectStateFormatter",
+      "rules": "(CA2315)",
+      "totalSeconds": 0.302
+    },
+    {
+      "analyzer": "DoNotUseZeroToInitializeAnEnumValue",
+      "rules": "(MA0099)",
+      "totalSeconds": 0.295
+    },
+    {
+      "analyzer": "DoNotUseCompilationGetSemanticModelAnalyzer",
+      "rules": "(RS1030)",
+      "totalSeconds": 0.294
+    },
+    {
+      "analyzer": "RunAnalyzer",
+      "rules": "(BDN1000, BDN1001, BDN1002, BDN1003, BDN1004)",
+      "totalSeconds": 0.288
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryPatternParenthesesDiagnosticAnalyzer",
+      "rules": "(IDE0047)",
+      "totalSeconds": 0.282
+    },
+    {
+      "analyzer": "DoNotThrowFromFinallyBlockAnalyzer",
+      "rules": "(MA0072)",
+      "totalSeconds": 0.281
+    },
+    {
+      "analyzer": "StartupAnalyzer",
+      "rules": "(ASP0000, ASP0001, MVC1005)",
+      "totalSeconds": 0.28
+    },
+    {
+      "analyzer": "RemoveEmptyBlockAnalyzer",
+      "rules": "(MA0090)",
+      "totalSeconds": 0.271
+    },
+    {
+      "analyzer": "CSharpUseLabeledJumpStatementsDiagnosticAnalyzer",
+      "rules": "(IDE0410)",
+      "totalSeconds": 0.271
+    },
+    {
+      "analyzer": "DotNotUseNameFromBCLAnalyzer",
+      "rules": "(MA0104)",
+      "totalSeconds": 0.267
+    },
+    {
+      "analyzer": "DoNotAlwaysSkipTokenValidationInDelegates",
+      "rules": "(CA5405)",
+      "totalSeconds": 0.267
+    },
+    {
+      "analyzer": "UseGenericEventHandlerInstancesAnalyzer",
+      "rules": "(CA1003)",
+      "totalSeconds": 0.266
+    },
+    {
+      "analyzer": "InheritdocShouldNotBeUsedOnTypesAnalyzer",
+      "rules": "(MA0197)",
+      "totalSeconds": 0.264
+    },
+    {
+      "analyzer": "MakeLocalFunctionStaticDiagnosticAnalyzer",
+      "rules": "(IDE0062)",
+      "totalSeconds": 0.264
+    },
+    {
+      "analyzer": "ConfigureGeneratedCodeAnalysisAnalyzer",
+      "rules": "(RS1025)",
+      "totalSeconds": 0.258
+    },
+    {
+      "analyzer": "RequiresUnreferencedCodeAnalyzer",
+      "rules": "(IL2026, IL2046, IL2055, IL2060, IL2109, IL2116)",
+      "totalSeconds": 0.252
+    },
+    {
+      "analyzer": "RequiresUnreferencedCodeAnalyzer",
+      "rules": "(IL2026, IL2046, IL2055, IL2060, IL2116, IL2123, IL2125)",
+      "totalSeconds": 0.247
+    },
+    {
+      "analyzer": "CSharpDoNotUseStackallocInLoopsAnalyzer",
+      "rules": "(CA2014)",
+      "totalSeconds": 0.243
+    },
+    {
+      "analyzer": "PersistentStateAnalyzer",
+      "rules": "(BL0009)",
+      "totalSeconds": 0.241
+    },
+    {
+      "analyzer": "DoNotPassLiteralsAsLocalizedParameters",
+      "rules": "(CA1303)",
+      "totalSeconds": 0.239
+    },
+    {
+      "analyzer": "CSharpSimplifyPropertyPatternDiagnosticAnalyzer",
+      "rules": "(IDE0170)",
+      "totalSeconds": 0.237
+    },
+    {
+      "analyzer": "UseIntegralOrStringArgumentForIndexersAnalyzer",
+      "rules": "(CA1043)",
+      "totalSeconds": 0.236
+    },
+    {
+      "analyzer": "ExceptionsShouldBePublicAnalyzer",
+      "rules": "(CA1064)",
+      "totalSeconds": 0.236
+    },
+    {
+      "analyzer": "DoNotIgnoreMethodResultsAnalyzer",
+      "rules": "(CA1806)",
+      "totalSeconds": 0.232
+    },
+    {
+      "analyzer": "CompilerExtensionTargetFrameworkAnalyzer",
+      "rules": "(RS1041)",
+      "totalSeconds": 0.23
+    },
+    {
+      "analyzer": "DoNotRemoveOriginalExceptionFromThrowStatementAnalyzer",
+      "rules": "(MA0027)",
+      "totalSeconds": 0.227
+    },
+    {
+      "analyzer": "DoNotDeclareStaticMembersOnGenericTypes",
+      "rules": "(MA0018)",
+      "totalSeconds": 0.222
+    },
+    {
+      "analyzer": "BasicAvoidDeadConditionalCode",
+      "rules": "(CA1508)",
+      "totalSeconds": 0.218
+    },
+    {
+      "analyzer": "RecordClassDeclarationShouldBeExplicitAnalyzer",
+      "rules": "(MA0174)",
+      "totalSeconds": 0.217
+    },
+    {
+      "analyzer": "UriPropertiesShouldNotBeStringsAnalyzer",
+      "rules": "(CA1056)",
+      "totalSeconds": 0.216
+    },
+    {
+      "analyzer": "MethodsReturningAnAwaitableTypeMustHaveTheAsyncSuffixAnalyzer",
+      "rules": "(MA0137, MA0138, MA0156, MA0157)",
+      "totalSeconds": 0.215
+    },
+    {
+      "analyzer": "RequiresDynamicCodeAnalyzer",
+      "rules": "(IL3050, IL3051, IL3056, IL3057, IL3058)",
+      "totalSeconds": 0.211
+    },
+    {
+      "analyzer": "RethrowToPreserveStackDetailsAnalyzer",
+      "rules": "(CA2200)",
+      "totalSeconds": 0.211
+    },
+    {
+      "analyzer": "ProvideStreamMemoryBasedAsyncOverrides",
+      "rules": "(CA1844)",
+      "totalSeconds": 0.202
+    },
+    {
+      "analyzer": "VisualBasicUseInferredMemberNameDiagnosticAnalyzer",
+      "rules": "(IDE0037)",
+      "totalSeconds": 0.195
+    },
+    {
+      "analyzer": "DereferencePossiblyNullReferenceSuppressor",
+      "rules": "(NUnit3001)",
+      "totalSeconds": 0.195
+    },
+    {
+      "analyzer": "AddOverloadWithSpanOrMemoryAnalyzer",
+      "rules": "(MA0109)",
+      "totalSeconds": 0.191
+    },
+    {
+      "analyzer": "PreferStreamAsyncMemoryOverloads",
+      "rules": "(CA1835)",
+      "totalSeconds": 0.187
+    },
+    {
+      "analyzer": "IDE0058Suppressor",
+      "rules": "(MAS0003)",
+      "totalSeconds": 0.182
+    },
+    {
+      "analyzer": "COMAnalyzer",
+      "rules": "(IL2050)",
+      "totalSeconds": 0.178
+    },
+    {
+      "analyzer": "CSharpAsAndMemberAccessDiagnosticAnalyzer",
+      "rules": "(IDE0260)",
+      "totalSeconds": 0.178
+    },
+    {
+      "analyzer": "StringsUsageInRawQueriesDiagnosticAnalyzer",
+      "rules": "(EF1002, EF1003)",
+      "totalSeconds": 0.174
+    },
+    {
+      "analyzer": "VisualBasicUseCollectionInitializerDiagnosticAnalyzer",
+      "rules": "(IDE0028)",
+      "totalSeconds": 0.173
+    },
+    {
+      "analyzer": "UsePropertiesWhereAppropriateAnalyzer",
+      "rules": "(CA1024)",
+      "totalSeconds": 0.166
+    },
+    {
+      "analyzer": "GeneratedComInterfaceAttributeAnalyzer",
+      "rules": "(SYSLIB1090)",
+      "totalSeconds": 0.164
+    },
+    {
+      "analyzer": "NotPatternShouldBeParenthesizedAnalyzer",
+      "rules": "(MA0164)",
+      "totalSeconds": 0.164
+    },
+    {
+      "analyzer": "UseContainerLevelAccessPolicy",
+      "rules": "(CA5377)",
+      "totalSeconds": 0.163
+    },
+    {
+      "analyzer": "MarkMembersAsStaticAnalyzer",
+      "rules": "(CA1822)",
+      "totalSeconds": 0.159
+    },
+    {
+      "analyzer": "NamedParameterAnalyzer",
+      "rules": "(MA0003)",
+      "totalSeconds": 0.159
+    },
+    {
+      "analyzer": "UsePatternMatchingInsteadOfHasValueAnalyzer",
+      "rules": "(MA0171)",
+      "totalSeconds": 0.158
+    },
+    {
+      "analyzer": "NormalizeStringsToUppercaseAnalyzer",
+      "rules": "(CA1308)",
+      "totalSeconds": 0.156
+    },
+    {
+      "analyzer": "EnableConcurrentExecutionAnalyzer",
+      "rules": "(RS1026)",
+      "totalSeconds": 0.154
+    },
+    {
+      "analyzer": "DoNotDeclareProtectedMembersInSealedTypes",
+      "rules": "(CA1047)",
+      "totalSeconds": 0.153
+    },
+    {
+      "analyzer": "OverrideEqualsAndOperatorEqualsOnValueTypesAnalyzer",
+      "rules": "(CA1815)",
+      "totalSeconds": 0.15
+    },
+    {
+      "analyzer": "EnumsShouldHaveZeroValueAnalyzer",
+      "rules": "(CA1008)",
+      "totalSeconds": 0.143
+    },
+    {
+      "analyzer": "BasicForwardCancellationTokenToInvocationsAnalyzer",
+      "rules": "(CA2016)",
+      "totalSeconds": 0.139
+    },
+    {
+      "analyzer": "DoNotUseCreateEncryptorWithNonDefaultIV",
+      "rules": "(CA5401, CA5402)",
+      "totalSeconds": 0.128
+    },
+    {
+      "analyzer": "DefineAccessorsForAttributeArgumentsAnalyzer",
+      "rules": "(CA1019)",
+      "totalSeconds": 0.126
+    },
+    {
+      "analyzer": "DoNotDeclareVisibleInstanceFieldsAnalyzer",
+      "rules": "(CA1051)",
+      "totalSeconds": 0.126
+    },
+    {
+      "analyzer": "PreferIsKindAnalyzer",
+      "rules": "(RS1034)",
+      "totalSeconds": 0.123
+    },
+    {
+      "analyzer": "IdentifiersShouldNotContainUnderscoresAnalyzer",
+      "rules": "(CA1707)",
+      "totalSeconds": 0.119
+    },
+    {
+      "analyzer": "CSharpPassSystemUriObjectsInsteadOfStringsAnalyzer",
+      "rules": "(CA2234)",
+      "totalSeconds": 0.115
+    },
+    {
+      "analyzer": "UseAwaitInsteadOfReturningTaskAnalyzer",
+      "rules": "(MA0214)",
+      "totalSeconds": 0.115
+    },
+    {
+      "analyzer": "BasicMakeTypesInternal",
+      "rules": "(CA1515)",
+      "totalSeconds": 0.111
+    },
+    {
+      "analyzer": "UseStaticLambdaAnalyzer",
+      "rules": "(MA0217)",
+      "totalSeconds": 0.11
+    },
+    {
+      "analyzer": "RecordClassDeclarationShouldBeImplicitAnalyzer",
+      "rules": "(MA0175)",
+      "totalSeconds": 0.109
+    },
+    {
+      "analyzer": "ClassIsNotDiagnosticAnalyzer",
+      "rules": "(RS1027)",
+      "totalSeconds": 0.106
+    },
+    {
+      "analyzer": "DoNotUseNullForgivenessAnalyzer",
+      "rules": "(MA0191)",
+      "totalSeconds": 0.105
+    },
+    {
+      "analyzer": "VisualBasicConsecutiveStatementPlacementDiagnosticAnalyzer",
+      "rules": "(IDE2003)",
+      "totalSeconds": 0.099
+    },
+    {
+      "analyzer": "SupplyParameterFromFormAnalyzer",
+      "rules": "(BL0008)",
+      "totalSeconds": 0.096
+    },
+    {
+      "analyzer": "DeclareTypesInNamespacesAnalyzer",
+      "rules": "(CA1050)",
+      "totalSeconds": 0.095
+    },
+    {
+      "analyzer": "BasicRestrictedInternalsVisibleToAnalyzer",
+      "rules": "(RS0035)",
+      "totalSeconds": 0.095
+    },
+    {
+      "analyzer": "ReviewCodeForLdapInjectionVulnerabilities",
+      "rules": "(CA3005)",
+      "totalSeconds": 0.094
+    },
+    {
+      "analyzer": "SetViewStateUserKey",
+      "rules": "(CA5368)",
+      "totalSeconds": 0.093
+    },
+    {
+      "analyzer": "InternalImplementationOnlyAnalyzer",
+      "rules": "(RS1009)",
+      "totalSeconds": 0.089
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnusedMembersDiagnosticAnalyzer",
+      "rules": "(IDE0051, IDE0052)",
+      "totalSeconds": 0.084
+    },
+    {
+      "analyzer": "UriParametersShouldNotBeStringsAnalyzer",
+      "rules": "(CA1054)",
+      "totalSeconds": 0.083
+    },
+    {
+      "analyzer": "DoNotPassTypesByReference",
+      "rules": "(CA1045)",
+      "totalSeconds": 0.081
+    },
+    {
+      "analyzer": "BasicPreferGenericOverloadsAnalyzer",
+      "rules": "(CA2263)",
+      "totalSeconds": 0.08
+    },
+    {
+      "analyzer": "AttributesShouldNotBeAppliedToPageModelAnalyzer",
+      "rules": "(MVC1001, MVC1002, MVC1003)",
+      "totalSeconds": 0.08
+    },
+    {
+      "analyzer": "AvoidUsingRedundantElseAnalyzer",
+      "rules": "(MA0071)",
+      "totalSeconds": 0.079
+    },
+    {
+      "analyzer": "SealMethodsThatSatisfyPrivateInterfacesAnalyzer",
+      "rules": "(CA2119)",
+      "totalSeconds": 0.077
+    },
+    {
+      "analyzer": "VisualBasicSimplifyLinqExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0120)",
+      "totalSeconds": 0.075
+    },
+    {
+      "analyzer": "TopLevelParameterNameAnalyzer",
+      "rules": "(MVC1004)",
+      "totalSeconds": 0.072
+    },
+    {
+      "analyzer": "ConvertToBlockScopedNamespaceDiagnosticAnalyzer",
+      "rules": "(IDE0160)",
+      "totalSeconds": 0.072
+    },
+    {
+      "analyzer": "CallGCSuppressFinalizeCorrectlyAnalyzer",
+      "rules": "(CA1816)",
+      "totalSeconds": 0.072
+    },
+    {
+      "analyzer": "CSharpPopulateSwitchExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0072)",
+      "totalSeconds": 0.069
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryAsyncModifierDiagnosticAnalyzer",
+      "rules": "(IDE0390)",
+      "totalSeconds": 0.068
+    },
+    {
+      "analyzer": "AvoidUnsealedAttributesAnalyzer",
+      "rules": "(CA1813)",
+      "totalSeconds": 0.068
+    },
+    {
+      "analyzer": "IdentifiersShouldHaveCorrectPrefixAnalyzer",
+      "rules": "(CA1715)",
+      "totalSeconds": 0.068
+    },
+    {
+      "analyzer": "CSharpFormattingAnalyzer",
+      "rules": "(IDE0055)",
+      "totalSeconds": 0.065
+    },
+    {
+      "analyzer": "BasicUseSpanBasedStringConcat",
+      "rules": "(CA1845)",
+      "totalSeconds": 0.064
+    },
+    {
+      "analyzer": "DoNotNameEnumValuesReserved",
+      "rules": "(CA1700)",
+      "totalSeconds": 0.064
+    },
+    {
+      "analyzer": "DoNotUseCastAnalyzer",
+      "rules": "(MA0181)",
+      "totalSeconds": 0.063
+    },
+    {
+      "analyzer": "CSharpUseDefaultLiteralDiagnosticAnalyzer",
+      "rules": "(IDE0034)",
+      "totalSeconds": 0.062
+    },
+    {
+      "analyzer": "BasicDetectPreviewFeatureAnalyzer",
+      "rules": "(CA2252)",
+      "totalSeconds": 0.059
+    },
+    {
+      "analyzer": "UnnecessaryAsyncAnalyzer",
+      "rules": "(AsyncFixer01)",
+      "totalSeconds": 0.059
+    },
+    {
+      "analyzer": "UseMultiLineXmlCommentSyntaxAnalyzer",
+      "rules": "(MA0211)",
+      "totalSeconds": 0.059
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryCastDiagnosticAnalyzer",
+      "rules": "(IDE0004)",
+      "totalSeconds": 0.058
+    },
+    {
+      "analyzer": "VisualBasicSimplifyInterpolationDiagnosticAnalyzer",
+      "rules": "(IDE0071)",
+      "totalSeconds": 0.055
+    },
+    {
+      "analyzer": "VisualBasicAddOrRemoveAccessibilityModifiersDiagnosticAnalyzer",
+      "rules": "(IDE0040)",
+      "totalSeconds": 0.054
+    },
+    {
+      "analyzer": "CSharpRemoveConfusingSuppressionDiagnosticAnalyzer",
+      "rules": "(IDE0080)",
+      "totalSeconds": 0.053
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnnecessaryParenthesesDiagnosticAnalyzer",
+      "rules": "(IDE0047)",
+      "totalSeconds": 0.052
+    },
+    {
+      "analyzer": "BasicDataSetDataTableInIFormatterSerializableObjectGraphAnalyzer",
+      "rules": "(CA2354)",
+      "totalSeconds": 0.05
+    },
+    {
+      "analyzer": "PropertyNamesShouldNotMatchGetMethodsAnalyzer",
+      "rules": "(CA1721)",
+      "totalSeconds": 0.049
+    },
+    {
+      "analyzer": "CSharpRemoveRedundantEqualityDiagnosticAnalyzer",
+      "rules": "(IDE0100)",
+      "totalSeconds": 0.049
+    },
+    {
+      "analyzer": "UseStringEqualsInsteadOfIsPatternAnalyzer",
+      "rules": "(MA0127)",
+      "totalSeconds": 0.048
+    },
+    {
+      "analyzer": "VisualBasicUseObjectInitializerDiagnosticAnalyzer",
+      "rules": "(IDE0017)",
+      "totalSeconds": 0.048
+    },
+    {
+      "analyzer": "DoNotUseInsecureDtdProcessingAnalyzer",
+      "rules": "(CA3075)",
+      "totalSeconds": 0.047
+    },
+    {
+      "analyzer": "BasicPreferDictionaryContainsMethods",
+      "rules": "(CA1841)",
+      "totalSeconds": 0.045
+    },
+    {
+      "analyzer": "MarkVerbHandlersWithValidateAntiforgeryTokenAnalyzer",
+      "rules": "(CA3147)",
+      "totalSeconds": 0.045
+    },
+    {
+      "analyzer": "CA1822DecoratedMethodSuppressor",
+      "rules": "(MAS0001, MAS0002)",
+      "totalSeconds": 0.045
+    },
+    {
+      "analyzer": "UseInKeywordForInParameterAnalyzer",
+      "rules": "(MA0209, MA0210)",
+      "totalSeconds": 0.045
+    },
+    {
+      "analyzer": "DoNotUseAccountSAS",
+      "rules": "(CA5375)",
+      "totalSeconds": 0.044
+    },
+    {
+      "analyzer": "DoNotDisableRequestValidation",
+      "rules": "(CA5363)",
+      "totalSeconds": 0.043
+    },
+    {
+      "analyzer": "IdentifiersShouldNotContainTypeNames",
+      "rules": "(CA1720)",
+      "totalSeconds": 0.043
+    },
+    {
+      "analyzer": "FixToDoAnalyzer",
+      "rules": "(MA0026)",
+      "totalSeconds": 0.043
+    },
+    {
+      "analyzer": "TagHelpersInCodeBlocksAnalyzer",
+      "rules": "(MVC1006)",
+      "totalSeconds": 0.042
+    },
+    {
+      "analyzer": "ValidateArgumentsOfPublicMethods",
+      "rules": "(CA1062)",
+      "totalSeconds": 0.041
+    },
+    {
+      "analyzer": "RemoveEmptyStatementAnalyzer",
+      "rules": "(MA0037)",
+      "totalSeconds": 0.041
+    },
+    {
+      "analyzer": "CA1507SerializationPropertyNameSuppressor",
+      "rules": "(MAS0004)",
+      "totalSeconds": 0.041
+    },
+    {
+      "analyzer": "InterfaceMethodsShouldBeCallableByChildTypesAnalyzer",
+      "rules": "(CA1033)",
+      "totalSeconds": 0.04
+    },
+    {
+      "analyzer": "EnumStorageShouldBeInt32Analyzer",
+      "rules": "(CA1028)",
+      "totalSeconds": 0.04
+    },
+    {
+      "analyzer": "DoNotUseFileTypesForAnalyzersOrGenerators",
+      "rules": "(RS1043)",
+      "totalSeconds": 0.04
+    },
+    {
+      "analyzer": "VisualBasicMakeFieldReadonlyDiagnosticAnalyzer",
+      "rules": "(IDE0044)",
+      "totalSeconds": 0.04
+    },
+    {
+      "analyzer": "VisualBasicValidateFormatStringDiagnosticAnalyzer",
+      "rules": "(IDE0043)",
+      "totalSeconds": 0.04
+    },
+    {
+      "analyzer": "DisposeObjectsBeforeLosingScope",
+      "rules": "(CA2000)",
+      "totalSeconds": 0.039
+    },
+    {
+      "analyzer": "BasicUseStringMethodCharOverloadWithSingleCharacters",
+      "rules": "(CA1865, CA1866, CA1867)",
+      "totalSeconds": 0.039
+    },
+    {
+      "analyzer": "UseSharedAccessProtocolHttpsOnly",
+      "rules": "(CA5376)",
+      "totalSeconds": 0.039
+    },
+    {
+      "analyzer": "DoNotDeclareStaticMembersOnGenericTypesAnalyzer",
+      "rules": "(CA1000)",
+      "totalSeconds": 0.039
+    },
+    {
+      "analyzer": "UseEventsWhereAppropriateAnalyzer",
+      "rules": "(CA1030)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "ReviewCodeForInformationDisclosureVulnerabilities",
+      "rules": "(CA3004)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "OverloadOperatorEqualsOnOverridingValueTypeEqualsAnalyzer",
+      "rules": "(CA2231)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "PropertiesShouldNotReturnArraysAnalyzer",
+      "rules": "(CA1819)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "EnumShouldNotHaveDuplicatedValues",
+      "rules": "(CA1069)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "OperatorOverloadsHaveNamedAlternatesAnalyzer",
+      "rules": "(CA2225)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "CodeMetricsAnalyzer",
+      "rules": "(CA1501, CA1502, CA1505, CA1506, CA1509)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "AvoidEmptyInterfacesAnalyzer",
+      "rules": "(CA1040)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "EventsShouldNotHaveBeforeOrAfterPrefix",
+      "rules": "(CA1713)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "NonConstantFieldsShouldNotBeVisibleAnalyzer",
+      "rules": "(CA2211)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "DoNotExposeGenericLists",
+      "rules": "(CA1002)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "ShapeBreakingDiagnosticSuppressor",
+      "rules": "(SYSLIBSUPPRESS0001)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "AvoidExcessiveParametersOnGenericTypes",
+      "rules": "(CA1005)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "SpecifyCultureInfoAnalyzer",
+      "rules": "(CA1304)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "MarkAssembliesWithComVisibleAnalyzer",
+      "rules": "(CA1017)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "ConditionalCompilationBranchesAreIdenticalAnalyzer",
+      "rules": "(MA0202)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "MovePInvokesToNativeMethodsClassAnalyzer",
+      "rules": "(CA1060)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "AvoidOutParameters",
+      "rules": "(CA1021)",
+      "totalSeconds": 0.038
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnnecessaryAttributeSuppressionsDiagnosticAnalyzer",
+      "rules": "(IDE0076, IDE0077)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryNullableWarningSuppressionsDiagnosticAnalyzer",
+      "rules": "(IDE0370)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "DoNotDeclareEventFieldsAsVirtual",
+      "rules": "(CA1070)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "TypeCannotBeUsedInAnAttributeParameterAnalyzer",
+      "rules": "(MA0170)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "CSharpPopulateSwitchStatementDiagnosticAnalyzer",
+      "rules": "(IDE0010)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "CSharpRemoveUnnecessaryAsyncModifierInterfaceImplementationOrOverrideDiagnosticAnalyzer",
+      "rules": "(IDE0391)",
+      "totalSeconds": 0.037
+    },
+    {
+      "analyzer": "CSharpCallBaseClassMethodsOnISerializableTypesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpDoNotUseTimersThatPreventPowerStateChangesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpVariableNamesShouldNotMatchFieldNamesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpAvoidCallingProblematicMethodsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpMarkBooleanPInvokeArgumentsWithMarshalAsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpAvoidDuplicateAcceleratorsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpProvideDeserializationMethodsForOptionalFieldsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpDoNotMarkServicedComponentsWithWebMethodAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpUsePreferredTermsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "JsonSerializerOptionsAnalyzer",
+      "rules": "(MA0224, MA0225)",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpUseManagedEquivalentsOfWin32ApiAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "CSharpSetLocaleForDataTypesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "UseInlineXmlCommentSyntaxWhenPossibleAnalyzer",
+      "rules": "(MA0177)",
+      "totalSeconds": 0.035
+    },
+    {
+      "analyzer": "VisualBasicOrderModifiersDiagnosticAnalyzer",
+      "rules": "(IDE0036)",
+      "totalSeconds": 0.031
+    },
+    {
+      "analyzer": "BasicDataSetDataTableInSerializableObjectGraphAnalyzer",
+      "rules": "(CA2355)",
+      "totalSeconds": 0.027
+    },
+    {
+      "analyzer": "AvoidHtmlPartialAnalyzer",
+      "rules": "(MVC1000)",
+      "totalSeconds": 0.026
+    },
+    {
+      "analyzer": "CSharpDiagnosticAnalyzerApiUsageAnalyzer",
+      "rules": "(RS1022)",
+      "totalSeconds": 0.026
+    },
+    {
+      "analyzer": "BasicAvoidUsingCrefTagsWithAPrefixAnalyzer",
+      "rules": "(CA1200)",
+      "totalSeconds": 0.025
+    },
+    {
+      "analyzer": "VisualBasicUseAutoPropertyAnalyzer",
+      "rules": "(IDE0032)",
+      "totalSeconds": 0.025
+    },
+    {
+      "analyzer": "VisualBasicAddRequiredParenthesesForBinaryLikeExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0048)",
+      "totalSeconds": 0.024
+    },
+    {
+      "analyzer": "PublicPartialProgramClassAnalyzer",
+      "rules": "(ASP0027)",
+      "totalSeconds": 0.024
+    },
+    {
+      "analyzer": "CSharpUpgradeMSBuildWorkspaceAnalyzer",
+      "rules": "(RS1023)",
+      "totalSeconds": 0.018
+    },
+    {
+      "analyzer": "VisualBasicUseIsNullCheckForReferenceEqualsDiagnosticAnalyzer",
+      "rules": "(IDE0041)",
+      "totalSeconds": 0.017
+    },
+    {
+      "analyzer": "VisualBasicUseCompoundAssignmentDiagnosticAnalyzer",
+      "rules": "(IDE0054)",
+      "totalSeconds": 0.016
+    },
+    {
+      "analyzer": "VisualBasicMultipleBlankLinesDiagnosticAnalyzer",
+      "rules": "(IDE2000)",
+      "totalSeconds": 0.016
+    },
+    {
+      "analyzer": "VisualBasicUseNullPropagationDiagnosticAnalyzer",
+      "rules": "(IDE0031)",
+      "totalSeconds": 0.013
+    },
+    {
+      "analyzer": "BasicPassSystemUriObjectsInsteadOfStringsAnalyzer",
+      "rules": "(CA2234)",
+      "totalSeconds": 0.013
+    },
+    {
+      "analyzer": "VisualBasicFileHeaderDiagnosticAnalyzer",
+      "rules": "(IDE0073)",
+      "totalSeconds": 0.012
+    },
+    {
+      "analyzer": "BasicDataSetDataTableInSerializableTypeAnalyzer",
+      "rules": "(CA2352, CA2353, CA2362)",
+      "totalSeconds": 0.011
+    },
+    {
+      "analyzer": "UseAssertMultipleAnalyzer",
+      "rules": "(NUnit2045)",
+      "totalSeconds": 0.011
+    },
+    {
+      "analyzer": "BasicAvoidZeroLengthArrayAllocationsAnalyzer",
+      "rules": "(CA1825)",
+      "totalSeconds": 0.01
+    },
+    {
+      "analyzer": "VisualBasicNamingStyleDiagnosticAnalyzer",
+      "rules": "(IDE1006)",
+      "totalSeconds": 0.009
+    },
+    {
+      "analyzer": "VisualBasicSimplifyConditionalDiagnosticAnalyzer",
+      "rules": "(IDE0075)",
+      "totalSeconds": 0.009
+    },
+    {
+      "analyzer": "VisualBasicUseCoalesceExpressionForIfNullStatementCheckDiagnosticAnalyzer",
+      "rules": "(IDE0270)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "NonNullableFieldOrPropertyIsUninitializedSuppressor",
+      "rules": "(NUnit3002)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "ContainsConstraintWrongActualTypeAnalyzer",
+      "rules": "(NUnit2025)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "AvoidUninstantiatedInternalClassSuppressor",
+      "rules": "(NUnit3003)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "TypesThatOwnDisposableFieldsShouldBeDisposableSuppressor",
+      "rules": "(NUnit3004)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "VisualBasicQualifyMemberAccessDiagnosticAnalyzer",
+      "rules": "(IDE0009)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "VisualBasicSimplifyObjectCreationDiagnosticAnalyzer",
+      "rules": "(IDE0140)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "BasicOverrideEqualsOnOverloadingOperatorEqualsAnalyzer",
+      "rules": "(CA2224)",
+      "totalSeconds": 0.008
+    },
+    {
+      "analyzer": "RoutePatternAnalyzer",
+      "rules": "(ASP0017, ASP0018)",
+      "totalSeconds": 0.007
+    },
+    {
+      "analyzer": "BasicUseLiteralsWhereAppropriate",
+      "rules": "(CA1802)",
+      "totalSeconds": 0.006
+    },
+    {
+      "analyzer": "BasicOverrideGetHashCodeOnOverridingEqualsAnalyzer",
+      "rules": "(CA2218)",
+      "totalSeconds": 0.005
+    },
+    {
+      "analyzer": "BasicUseNameofInPlaceOfStringAnalyzer",
+      "rules": "(CA1507)",
+      "totalSeconds": 0.004
+    },
+    {
+      "analyzer": "BasicUseOrdinalStringComparisonAnalyzer",
+      "rules": "(CA1309)",
+      "totalSeconds": 0.004
+    },
+    {
+      "analyzer": "VisualBasicUseIsNotExpressionDiagnosticAnalyzer",
+      "rules": "(IDE0084)",
+      "totalSeconds": 0.004
+    },
+    {
+      "analyzer": "BasicSpecifyCultureForToLowerAndToUpperAnalyzer",
+      "rules": "(CA1311)",
+      "totalSeconds": 0.004
+    },
+    {
+      "analyzer": "UninitializedDbSetDiagnosticSuppressor",
+      "rules": "(EFSPR1001)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "CS1066Suppressor",
+      "rules": "(MCP_CS1066_PROMPT, MCP_CS1066_RESOURCE, MCP_CS1066_TOOL)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicVariableNamesShouldNotMatchFieldNamesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicSetLocaleForDataTypesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicMarkBooleanPInvokeArgumentsWithMarshalAsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicUseCoalesceExpressionForTernaryConditionalCheckDiagnosticAnalyzer",
+      "rules": "(IDE0029)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicAvoidCallingProblematicMethodsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicUseCoalesceExpressionForNullableTernaryConditionalCheckDiagnosticAnalyzer",
+      "rules": "(IDE0030)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicConvertTypeOfToNameOfDiagnosticAnalyzer",
+      "rules": "(IDE0082)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicDoNotInitializeUnnecessarilyAnalyzer",
+      "rules": "(CA1805)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicCallBaseClassMethodsOnISerializableTypesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicDoNotUseTimersThatPreventPowerStateChangesAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicRemoveRedundantEqualityDiagnosticAnalyzer",
+      "rules": "(IDE0100)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnnecessaryByValDiagnosticAnalyzer",
+      "rules": "(IDE0081)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicRemoveUnnecessaryCastDiagnosticAnalyzer",
+      "rules": "(IDE0004)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicUseManagedEquivalentsOfWin32ApiAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicUseConditionalExpressionForReturnDiagnosticAnalyzer",
+      "rules": "(IDE0046)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicUsePreferredTermsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicProvideDeserializationMethodsForOptionalFieldsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicFormattingAnalyzer",
+      "rules": "(IDE0055)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicUseConditionalExpressionForAssignmentDiagnosticAnalyzer",
+      "rules": "(IDE0045)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicAvoidUninstantiatedInternalClasses",
+      "rules": "(CA1812)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "VisualBasicPopulateSwitchStatementDiagnosticAnalyzer",
+      "rules": "(IDE0010)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicDoNotMarkServicedComponentsWithWebMethodAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicDataSetDataTableInWebSerializableObjectGraphAnalyzer",
+      "rules": "(CA2356)",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "BasicAvoidDuplicateAcceleratorsAnalyzer",
+      "rules": "()",
+      "totalSeconds": 0.002
+    },
+    {
+      "analyzer": "ComponentParameterNullableWarningSuppressor",
+      "rules": "(RZS1001)",
+      "totalSeconds": 0.002
     }
   ],
   "projectTotals": [
     {
       "project": "LinqToDB",
-      "totalSeconds": 1155.293
+      "totalSeconds": 1202.522
     },
     {
       "project": "LinqToDB",
-      "totalSeconds": 1104.823
+      "totalSeconds": 1159.915
     },
     {
       "project": "LinqToDB",
-      "totalSeconds": 778.827
+      "totalSeconds": 1095.786
     },
     {
       "project": "LinqToDB",
-      "totalSeconds": 713.645
+      "totalSeconds": 1069.26
     },
     {
       "project": "LinqToDB",
-      "totalSeconds": 709.759
-    },
-    {
-      "project": "LinqToDB",
-      "totalSeconds": 520.363
+      "totalSeconds": 416.126
     },
     {
       "project": "Tests",
-      "totalSeconds": 501.618
+      "totalSeconds": 386.512
     },
     {
       "project": "Tests",
-      "totalSeconds": 466.133
+      "totalSeconds": 361.448
     },
     {
       "project": "Tests",
-      "totalSeconds": 281.89
+      "totalSeconds": 358.841
     },
     {
       "project": "Tests",
-      "totalSeconds": 270.522
+      "totalSeconds": 352.073
     },
     {
       "project": "LinqToDB.Scaffold",
-      "totalSeconds": 110.086
-    },
-    {
-      "project": "Tests.T4",
-      "totalSeconds": 109.562
-    },
-    {
-      "project": "Tests.EntityFrameworkCore.EF3",
-      "totalSeconds": 108.561
+      "totalSeconds": 233.779
     },
     {
       "project": "LinqToDB.Scaffold",
-      "totalSeconds": 102.227
-    },
-    {
-      "project": "Tests.T4",
-      "totalSeconds": 100.276
-    },
-    {
-      "project": "Tests.T4",
-      "totalSeconds": 98.754
-    },
-    {
-      "project": "Tests.T4",
-      "totalSeconds": 78.895
+      "totalSeconds": 225.43
     },
     {
       "project": "LinqToDB.Scaffold",
-      "totalSeconds": 78.369
-    },
-    {
-      "project": "Tests.EntityFrameworkCore.EF9",
-      "totalSeconds": 72.704
+      "totalSeconds": 102.282
     },
     {
       "project": "Tests.EntityFrameworkCore.EF10",
-      "totalSeconds": 65.747
+      "totalSeconds": 86.5
     },
     {
-      "project": "LinqToDB.CLI",
-      "totalSeconds": 61.184
+      "project": "Tests.T4",
+      "totalSeconds": 74.611
     },
     {
-      "project": "LinqToDB.CLI",
-      "totalSeconds": 58.652
-    },
-    {
-      "project": "linq2db.Sybase",
-      "totalSeconds": 56.415
-    },
-    {
-      "project": "LinqToDB.EntityFrameworkCore.EF3",
-      "totalSeconds": 49.412
-    },
-    {
-      "project": "LinqToDB.EntityFrameworkCore.EF9",
-      "totalSeconds": 49.115
-    },
-    {
-      "project": "linq2db.Benchmarks",
-      "totalSeconds": 45.662
-    },
-    {
-      "project": "linq2db.Benchmarks",
-      "totalSeconds": 43.488
-    },
-    {
-      "project": "LinqToDB.LINQPad",
-      "totalSeconds": 43.133
-    },
-    {
-      "project": "LinqToDB.EntityFrameworkCore.EF8",
-      "totalSeconds": 42.992
-    },
-    {
-      "project": "LinqToDB.Scaffold",
-      "totalSeconds": 41.305
-    },
-    {
-      "project": "LinqToDB.Tools",
-      "totalSeconds": 39.392
-    },
-    {
-      "project": "LinqToDB.EntityFrameworkCore.EF3",
-      "totalSeconds": 38.654
-    },
-    {
-      "project": "Tests.Model",
-      "totalSeconds": 33.197
-    },
-    {
-      "project": "LinqToDB.Tools",
-      "totalSeconds": 32.872
-    },
-    {
-      "project": "Tests.Analyzers",
-      "totalSeconds": 32.238
+      "project": "Tests.T4",
+      "totalSeconds": 74.499
     },
     {
       "project": "Tests.EntityFrameworkCore.EF8",
-      "totalSeconds": 32.147
+      "totalSeconds": 71.167
     },
     {
-      "project": "LinqToDB.Tools",
-      "totalSeconds": 30.443
+      "project": "Tests.T4",
+      "totalSeconds": 69.377
     },
     {
-      "project": "LinqToDB.Scaffold",
-      "totalSeconds": 30.036
-    },
-    {
-      "project": "Tests.Model",
-      "totalSeconds": 29.627
-    },
-    {
-      "project": "LinqToDB.CLI",
-      "totalSeconds": 28.507
-    },
-    {
-      "project": "Tests.Model",
-      "totalSeconds": 27.491
-    },
-    {
-      "project": "Tests.Base",
-      "totalSeconds": 27.369
-    },
-    {
-      "project": "Tests.Base",
-      "totalSeconds": 26.67
-    },
-    {
-      "project": "linq2db.SQLite",
-      "totalSeconds": 26.382
-    },
-    {
-      "project": "LinqToDB.EntityFrameworkCore.EF10",
-      "totalSeconds": 26.324
-    },
-    {
-      "project": "Tests.LinqToDB.CLI",
-      "totalSeconds": 25.977
-    },
-    {
-      "project": "linq2db.ClickHouse",
-      "totalSeconds": 25.511
-    },
-    {
-      "project": "Tests.Base",
-      "totalSeconds": 24.441
-    },
-    {
-      "project": "linq2db.Access",
-      "totalSeconds": 23.277
+      "project": "LinqToDB.EntityFrameworkCore.EF8",
+      "totalSeconds": 67.646
     },
     {
       "project": "linq2db.Benchmarks",
-      "totalSeconds": 22.958
+      "totalSeconds": 67.473
     },
     {
-      "project": "linq2db.Oracle",
-      "totalSeconds": 22.831
+      "project": "Tests.T4",
+      "totalSeconds": 67.454
     },
     {
-      "project": "LinqToDB.Tools",
-      "totalSeconds": 22.081
-    },
-    {
-      "project": "linq2db.t4models",
-      "totalSeconds": 21.504
-    },
-    {
-      "project": "Tests.LinqToDB.CLI",
-      "totalSeconds": 21.277
-    },
-    {
-      "project": "linq2db.Benchmarks",
-      "totalSeconds": 21.202
-    },
-    {
-      "project": "LinqToDB.LINQPad.Pack",
-      "totalSeconds": 20.763
-    },
-    {
-      "project": "linq2db.Informix",
-      "totalSeconds": 20.454
-    },
-    {
-      "project": "Tests.Base",
-      "totalSeconds": 20.347
-    },
-    {
-      "project": "LinqToDB.LINQPad",
-      "totalSeconds": 19.955
-    },
-    {
-      "project": "NuGet",
-      "totalSeconds": 19.915
-    },
-    {
-      "project": "linq2db.SqlCe",
-      "totalSeconds": 18.786
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Client",
-      "totalSeconds": 18.512
-    },
-    {
-      "project": "LinqToDB.Remote.Grpc",
-      "totalSeconds": 18.46
-    },
-    {
-      "project": "LinqToDB.Remote.Grpc",
-      "totalSeconds": 18.114
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Server",
-      "totalSeconds": 17.969
-    },
-    {
-      "project": "linq2db.Sybase",
-      "totalSeconds": 17.513
-    },
-    {
-      "project": "LinqToDB.Extensions",
-      "totalSeconds": 16.675
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Client",
-      "totalSeconds": 16.641
-    },
-    {
-      "project": "LinqToDB.Remote.Grpc",
-      "totalSeconds": 16.543
-    },
-    {
-      "project": "linq2db.Firebird",
-      "totalSeconds": 16.311
-    },
-    {
-      "project": "LinqToDB.Extensions",
-      "totalSeconds": 16.216
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Server",
-      "totalSeconds": 15.842
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Client",
-      "totalSeconds": 15.806
-    },
-    {
-      "project": "Tests.LinqToDB.CLI",
-      "totalSeconds": 15.776
-    },
-    {
-      "project": "linq2db.DB2",
-      "totalSeconds": 15.259
-    },
-    {
-      "project": "LinqToDB.Scaffold",
-      "totalSeconds": 14.812
-    },
-    {
-      "project": "Tests.Model",
-      "totalSeconds": 14.69
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Server",
-      "totalSeconds": 14.548
-    },
-    {
-      "project": "LinqToDB.Compat",
-      "totalSeconds": 14.117
+      "project": "LinqToDB.EntityFrameworkCore.EF9",
+      "totalSeconds": 67.203
     },
     {
       "project": "LinqToDB.Tools",
-      "totalSeconds": 13.667
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Client",
-      "totalSeconds": 12.993
-    },
-    {
-      "project": "linq2db.SapHana",
-      "totalSeconds": 12.716
-    },
-    {
-      "project": "LinqToDB.Remote.Grpc",
-      "totalSeconds": 12.658
-    },
-    {
-      "project": "LinqToDB.Compat",
-      "totalSeconds": 12.556
-    },
-    {
-      "project": "linq2db.MySql",
-      "totalSeconds": 12.221
-    },
-    {
-      "project": "LinqToDB.Compat",
-      "totalSeconds": 12.071
-    },
-    {
-      "project": "LinqToDB.Remote.Grpc",
-      "totalSeconds": 11.774
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Client",
-      "totalSeconds": 11.716
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Client",
-      "totalSeconds": 11.361
-    },
-    {
-      "project": "LinqToDB.Remote.Wcf",
-      "totalSeconds": 10.945
-    },
-    {
-      "project": "LinqToDB.Compat",
-      "totalSeconds": 10.1
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Server",
-      "totalSeconds": 9.656
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Client",
-      "totalSeconds": 9.381
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Client",
-      "totalSeconds": 9.191
-    },
-    {
-      "project": "linq2db.SqlServer",
-      "totalSeconds": 8.876
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Server",
-      "totalSeconds": 8.784
-    },
-    {
-      "project": "LinqToDB.Extensions",
-      "totalSeconds": 8.558
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Server",
-      "totalSeconds": 7.682
-    },
-    {
-      "project": "linq2db.PostgreSQL",
-      "totalSeconds": 7.554
-    },
-    {
-      "project": "LinqToDB.Analyzers.CodeFixes",
-      "totalSeconds": 7.543
-    },
-    {
-      "project": "LinqToDB.Analyzers.CodeFixes",
-      "totalSeconds": 7.291
-    },
-    {
-      "project": "LinqToDB.Compat",
-      "totalSeconds": 6.936
-    },
-    {
-      "project": "LinqToDB.Extensions",
-      "totalSeconds": 4.851
-    },
-    {
-      "project": "LinqToDB.Analyzers",
-      "totalSeconds": 4.725
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Server",
-      "totalSeconds": 4.616
-    },
-    {
-      "project": "LinqToDB.Extensions",
-      "totalSeconds": 4.538
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Client",
-      "totalSeconds": 4.494
-    },
-    {
-      "project": "LinqToDB.Remote.SignalR.Server",
-      "totalSeconds": 4.194
-    },
-    {
-      "project": "LinqToDB.Remote.HttpClient.Client",
-      "totalSeconds": 4.179
-    },
-    {
-      "project": "CodeGenerators",
-      "totalSeconds": 3.909
+      "totalSeconds": 64.562
     },
     {
       "project": "Tests.EntityFrameworkCore.EF3",
-      "totalSeconds": 2.786
+      "totalSeconds": 60.699
     },
     {
-      "project": "linq2db.PostgreSQL",
-      "totalSeconds": 2.671
+      "project": "LinqToDB.Scaffold",
+      "totalSeconds": 58.878
+    },
+    {
+      "project": "LinqToDB.EntityFrameworkCore.EF3",
+      "totalSeconds": 57.85
+    },
+    {
+      "project": "LinqToDB.LINQPad",
+      "totalSeconds": 54.193
+    },
+    {
+      "project": "Tests.Base",
+      "totalSeconds": 52.682
+    },
+    {
+      "project": "LinqToDB.Scaffold",
+      "totalSeconds": 52.266
+    },
+    {
+      "project": "linq2db.Benchmarks",
+      "totalSeconds": 50.336
+    },
+    {
+      "project": "LinqToDB.EntityFrameworkCore.EF3",
+      "totalSeconds": 48.528
+    },
+    {
+      "project": "Tests.Model",
+      "totalSeconds": 48.216
+    },
+    {
+      "project": "LinqToDB.Tools",
+      "totalSeconds": 47.042
+    },
+    {
+      "project": "linq2db.Benchmarks",
+      "totalSeconds": 45.864
     },
     {
       "project": "LinqToDB.EntityFrameworkCore.EF10",
-      "totalSeconds": 2.554
+      "totalSeconds": 44.81
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Server",
+      "totalSeconds": 44.024
+    },
+    {
+      "project": "LinqToDB.LINQPad",
+      "totalSeconds": 43.968
+    },
+    {
+      "project": "LinqToDB.CLI",
+      "totalSeconds": 43.156
+    },
+    {
+      "project": "LinqToDB.Extensions",
+      "totalSeconds": 42.923
+    },
+    {
+      "project": "Tests.Base",
+      "totalSeconds": 39.684
+    },
+    {
+      "project": "Tests.LinqToDB.CLI",
+      "totalSeconds": 35.324
+    },
+    {
+      "project": "LinqToDB.Tools",
+      "totalSeconds": 35.051
+    },
+    {
+      "project": "Tests.Base",
+      "totalSeconds": 33.41
+    },
+    {
+      "project": "Tests.EntityFrameworkCore.EF9",
+      "totalSeconds": 32.833
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Client",
+      "totalSeconds": 31.152
+    },
+    {
+      "project": "linq2db.Benchmarks",
+      "totalSeconds": 30.477
+    },
+    {
+      "project": "LinqToDB.Compat",
+      "totalSeconds": 28.814
+    },
+    {
+      "project": "LinqToDB.Tools",
+      "totalSeconds": 28.709
+    },
+    {
+      "project": "LinqToDB.LINQPad",
+      "totalSeconds": 28.096
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Client",
+      "totalSeconds": 28.001
+    },
+    {
+      "project": "Tests.Base",
+      "totalSeconds": 27.435
+    },
+    {
+      "project": "linq2db.PostgreSQL",
+      "totalSeconds": 26.737
+    },
+    {
+      "project": "LinqToDB.Analyzers.CodeFixes",
+      "totalSeconds": 26.593
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Server",
+      "totalSeconds": 25.058
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Server",
+      "totalSeconds": 24.986
+    },
+    {
+      "project": "Tests.LinqToDB.CLI",
+      "totalSeconds": 24.833
+    },
+    {
+      "project": "LinqToDB.Compat",
+      "totalSeconds": 21.988
+    },
+    {
+      "project": "LinqToDB.Remote.Grpc",
+      "totalSeconds": 21.382
+    },
+    {
+      "project": "LinqToDB.Remote.Grpc",
+      "totalSeconds": 21.265
+    },
+    {
+      "project": "LinqToDB.CLI",
+      "totalSeconds": 21.201
+    },
+    {
+      "project": "Tests.Analyzers",
+      "totalSeconds": 20.918
+    },
+    {
+      "project": "LinqToDB.CLI",
+      "totalSeconds": 20.76
+    },
+    {
+      "project": "LinqToDB.Extensions",
+      "totalSeconds": 19.77
+    },
+    {
+      "project": "LinqToDB.Extensions",
+      "totalSeconds": 19.401
+    },
+    {
+      "project": "Tests.Analyzers.Internal",
+      "totalSeconds": 18.678
+    },
+    {
+      "project": "linq2db.SapHana",
+      "totalSeconds": 18.477
+    },
+    {
+      "project": "linq2db.MySql",
+      "totalSeconds": 18.374
+    },
+    {
+      "project": "LinqToDB.Extensions",
+      "totalSeconds": 18.328
+    },
+    {
+      "project": "linq2db.Sybase",
+      "totalSeconds": 18.325
+    },
+    {
+      "project": "linq2db.ClickHouse",
+      "totalSeconds": 18.325
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Client",
+      "totalSeconds": 17.761
+    },
+    {
+      "project": "linq2db.Firebird",
+      "totalSeconds": 17.728
+    },
+    {
+      "project": "linq2db.DB2",
+      "totalSeconds": 17.717
+    },
+    {
+      "project": "linq2db.SqlCe",
+      "totalSeconds": 16.969
+    },
+    {
+      "project": "linq2db.PostgreSQL",
+      "totalSeconds": 16.371
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Client",
+      "totalSeconds": 15.731
+    },
+    {
+      "project": "Tests.Model",
+      "totalSeconds": 15.684
+    },
+    {
+      "project": "LinqToDB.Analyzers.CodeFixes",
+      "totalSeconds": 15.313
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Client",
+      "totalSeconds": 15.019
+    },
+    {
+      "project": "Tests.LinqToDB.CLI",
+      "totalSeconds": 15.002
+    },
+    {
+      "project": "linq2db.t4models",
+      "totalSeconds": 14.982
+    },
+    {
+      "project": "LinqToDB.Tools",
+      "totalSeconds": 14.418
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Client",
+      "totalSeconds": 14.393
+    },
+    {
+      "project": "LinqToDB.Remote.Grpc",
+      "totalSeconds": 14.011
+    },
+    {
+      "project": "LinqToDB.Remote.Grpc",
+      "totalSeconds": 13.703
+    },
+    {
+      "project": "linq2db.Informix",
+      "totalSeconds": 13.702
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Server",
+      "totalSeconds": 13.364
+    },
+    {
+      "project": "linq2db.Oracle",
+      "totalSeconds": 13.013
+    },
+    {
+      "project": "linq2db.SqlServer",
+      "totalSeconds": 12.907
+    },
+    {
+      "project": "linq2db.Access",
+      "totalSeconds": 12.742
+    },
+    {
+      "project": "Tests.Model",
+      "totalSeconds": 12.742
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Server",
+      "totalSeconds": 12.573
+    },
+    {
+      "project": "LinqToDB.Compat",
+      "totalSeconds": 12.505
+    },
+    {
+      "project": "LinqToDB.Compat",
+      "totalSeconds": 12.109
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Client",
+      "totalSeconds": 11.933
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Client",
+      "totalSeconds": 11.925
+    },
+    {
+      "project": "Tests.Model",
+      "totalSeconds": 10.836
+    },
+    {
+      "project": "LinqToDB.Remote.HttpClient.Server",
+      "totalSeconds": 10.257
+    },
+    {
+      "project": "LinqToDB.Analyzers",
+      "totalSeconds": 10.092
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Client",
+      "totalSeconds": 10.047
+    },
+    {
+      "project": "LinqToDB.Extensions",
+      "totalSeconds": 9.969
+    },
+    {
+      "project": "LinqToDB.Remote.Wcf",
+      "totalSeconds": 9.964
+    },
+    {
+      "project": "CodeGenerators",
+      "totalSeconds": 9.265
+    },
+    {
+      "project": "LinqToDB.Analyzers",
+      "totalSeconds": 8.864
+    },
+    {
+      "project": "NuGet",
+      "totalSeconds": 8.331
+    },
+    {
+      "project": "CodeGenerators",
+      "totalSeconds": 8.131
+    },
+    {
+      "project": "linq2db.SQLite",
+      "totalSeconds": 7.994
+    },
+    {
+      "project": "LinqToDB.LINQPad.Pack",
+      "totalSeconds": 7.853
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Client",
+      "totalSeconds": 7.804
+    },
+    {
+      "project": "Tests.Model",
+      "totalSeconds": 6.254
+    },
+    {
+      "project": "LinqToDB.Compat",
+      "totalSeconds": 5.339
+    },
+    {
+      "project": "LinqToDB.Remote.Grpc",
+      "totalSeconds": 4.606
+    },
+    {
+      "project": "LinqToDB.Remote.SignalR.Server",
+      "totalSeconds": 4.197
     },
     {
       "project": "Tests.VisualBasic",
-      "totalSeconds": 1.757
+      "totalSeconds": 2.613
+    },
+    {
+      "project": "Tests.VisualBasic",
+      "totalSeconds": 2.573
+    },
+    {
+      "project": "Tests.LinqToDB.CLI",
+      "totalSeconds": 2.507
+    },
+    {
+      "project": "Tests.VisualBasic",
+      "totalSeconds": 2.394
     }
   ]
 }
