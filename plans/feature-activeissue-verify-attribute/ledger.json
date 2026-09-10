@@ -2318,5 +2318,45 @@
     "issue": null,
     "attributionSource": "search",
     "providers": "(all)"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_NullsInAnchor": {
+    "issue": "3015",
+    "attributionSource": "int",
+    "quote": "#3015 - open",
+    "note": "OVER-BROAD gate, narrowed: ClickHouse and MySQL both ran in the sweep and both pass. The remainder fails two different ways - SQL Server refuses the recursive query, Firebird overflows while widening the anchor null literal.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SqlServer.2022.MS + SQLite.Classic",
+    "verdict": "matches",
+    "observed": "SQL Server: Types don't match ... column \"Byte\". Firebird: arithmetic exception, numeric overflow, or string truncation. ClickHouse and MySQL PASS.",
+    "providers": "AllFirebird, AllSqlServer (AllClickHouse and AllMySql removed)"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue2451_ComplexColumn": {
+    "issue": "2451",
+    "attributionSource": "name",
+    "quote": "#2451 - the test names it",
+    "note": "One cause; message-only for the two SqlClient packages.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SqlServer.2022.MS + SQLite.Classic",
+    "verdict": "matches",
+    "observed": "as Issue3360_InvalidColumnIndexMapping, on column \"FirstName\"",
+    "providers": "(all - SqlServer2008Plus by data source)"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_DoubleColumnSelection": {
+    "issue": "3015",
+    "attributionSource": "int",
+    "quote": "#3015 - open",
+    "note": "Narrowed the same way and split the same way.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SqlServer.2022.MS + SQLite.Classic",
+    "verdict": "matches",
+    "observed": "as Issue3360_NullsInAnchor, on column \"Enum\"",
+    "providers": "AllFirebird, AllSqlServer (AllClickHouse and AllMySql removed)"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_InvalidColumnIndexMapping": {
+    "issue": "3360",
+    "attributionSource": "name",
+    "quote": "#3360 - the test names it",
+    "note": "One cause, counted as three because each transport rewrites the first line. The test Description records an older symptom - a convert exception on an enum value - that the sweep did not reproduce; Details records the current behaviour rather than leaving the stale account standing.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SqlServer.2022.MS + SQLite.Classic",
+    "verdict": "matches",
+    "observed": "Types don't match between the anchor and the recursive part in column \"Enum1\"; 24 cases across both SqlClient packages and the remote wrapper",
+    "providers": "(all - SqlServer2008Plus by data source)"
   }
 }
