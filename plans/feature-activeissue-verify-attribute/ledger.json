@@ -1642,5 +1642,104 @@
     "providers": "(all - the test is SQLite-only by its data source)",
     "quote": "nothing on the tracker; #4799 is the only PadLeft issue and reports trimming, a different defect",
     "issue": null
+  },
+  "Tests/Linq/Linq/JoinTests.cs::ApplyJoin_MySql": {
+    "issue": null,
+    "observed": "System.FormatException : Input string was not in a correct format.; 2 cases",
+    "note": "A tracker search for JSON_TABLE found nothing. Declared from CI; no MySQL container was running at the time.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - 'Implement JSON_TABLE-like functions support'",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "providers": "(all - MySqlWithApply by data source)",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/UserTests/Issue5576Tests.cs::LeftJoinLocalClassWithDecimalArithmetic": {
+    "issue": "5611",
+    "observed": "Shouldly.ShouldAssertException : 0m should be 5m; 8 cases",
+    "note": "Declared with the environment-independent Shouldly shape per A-29.",
+    "verdict": "matches",
+    "quote": "#5611 - SQLite renders decimal division as integer division",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "TestProvName.AllSQLite",
+    "attributionSource": "int"
+  },
+  "Tests/Linq/Linq/TphInheritanceTests.cs::TPH_SiblingColumn_DifferentValueConverters": {
+    "observed": "Assert.That(((TphConvScaled)all[1]).Value, Is.EqualTo(7)); 4 cases",
+    "issue": null,
+    "quote": "the gate's own prose - siblings share one SqlField/ColumnDescriptor, so the second converter is not applied on read",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "(all - SQLite by data source)",
+    "attributionSource": "search",
+    "verdict": "no-issue"
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::TestDynamicTableFunction": {
+    "issue": null,
+    "observed": "System.ArgumentException : ... is a generic method definition; 13 cases over 2 legs",
+    "note": "The builder is handed the open generic method definition and never closes it. Declared from CI; no PostgreSQL container was running.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - 'Functionality not implemented yet'",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "providers": "(all - PostgreSQL by data source)",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/Linq/CteTests.cs::AggressiveCteOptimization": {
+    "issue": null,
+    "observed": "DuckDB: Conversion Error: invalid timestamp field format. Oracle 11: not measured - no CI leg and no container was running.",
+    "note": "Split per provider because the single gate covered two providers failing for unrelated reasons and only one of them has a CI leg. The DuckDB half is measured and declares the driver's conversion error; the Oracle 11 half carries 'no-issue: unvalidated:' and keeps the prose's ORA-01841 as its fragment.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose, which names two unrelated causes in one sentence",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "TestProvName.AllOracle11, TestProvName.AllDuckDB",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/Linq/TphInheritanceTests.cs::TPH_SiblingColumn_SameValueConverterType": {
+    "issue": null,
+    "observed": "Assert.That(sql.Split([\"[Payload]\"], StringSplitOptions.None).Length - 1, Is.EqualTo(1)) - expected 1, got 2; 4 cases",
+    "note": "The failure message opens with the SQL the test printed, so the first line is not the assertion; the declared fragment is the assertion text itself, which appears further down. A first-line heuristic would have declared 'SELECT' here.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - the dedup compares converter instances by reference and GetValueConverter builds a fresh one per column",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "(all - SQLite by data source)",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs::TestHalfVectorType": {
+    "issue": null,
+    "observed": "System.NotSupportedException : Unsupported Vector type 'System.Half'.; 1 case",
+    "note": "Searched dotnet/SqlClient: the closest items are #3444 (an umbrella for vector enhancements, whose checklist does not mention Half) and #3834 (float16 returned as a string, closed). Neither is this refusal, so the gate keeps a no-issue marker with both cited in Details rather than claiming one of them.",
+    "verdict": "limitation",
+    "quote": "the gate's own prose - 'Waiting for SqlClient support' - and the refusal comes from the driver, not from linq2db",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "providers": "(all - SqlServer2025Plus by data source)",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/Linq/CteTests.cs::AggressiveCteOptimizationTwoColumns": {
+    "issue": null,
+    "observed": "as AggressiveCteOptimization",
+    "note": "Split the same way and for the same reason.",
+    "verdict": "no-issue",
+    "quote": "as AggressiveCteOptimization",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "TestProvName.AllOracle11, TestProvName.AllDuckDB",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/Linq/ConcatUnionTests.cs::TestConcatInheritance2": {
+    "issue": null,
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression 't.GetType() == ... Type.op_Equality(...)' could not be converted; 6 cases",
+    "note": "Declared on Type.op_Equality, the operator the translator names when it gives up, which is stable across both providers the gate covers.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - 'type !=/== type parsing is not supported currently'",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "(all - SQLite Classic and ClickHouse by data source)",
+    "attributionSource": "search"
+  },
+  "Tests/Linq/Linq/FSharpTests.cs::Option_CustomScalarElementMapped": {
+    "issue": null,
+    "observed": "MyId option column was not mapped - auto-option-mapping did not recognise the user-registered scalar type; 112 cases",
+    "note": "#195, which the test's Description cites, is the closed umbrella issue for F# option support and does not cover this gap. The declared fragment is the test's own Assert.Fail text, which is stable across every provider.",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - IsScalarOption consults MappingSchema.Default",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "providers": "(all)",
+    "attributionSource": "search"
   }
 }
