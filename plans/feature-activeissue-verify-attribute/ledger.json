@@ -2458,5 +2458,25 @@
     "issue": null,
     "verdict": "no-issue",
     "observed": "SQL Server: two unrelated failures over the same providers (server rejecting datetimeoffset arithmetic; client refusing an out-of-bounds TIME). ClickHouse: cannot infer the parameter type. MySQL: the read back fails. Oracle: not measured."
+  },
+  "Tests/Linq/Linq/SelectTests.cs::Issue4199Test1": {
+    "issue": "4199",
+    "attributionSource": "test-description",
+    "providers": "(all)",
+    "observed": "the interface-typed table has no backing table; 112 cases, ~20 distinct wordings, one mechanism",
+    "verdict": "matches",
+    "quote": "#4199 - the test names it",
+    "note": "The purest case the by-kind rule covers: one mechanism, no shared text. Twenty providers report the missing table in twenty phrasings - relation does not exist, Invalid object name, Dynamic SQL Error, no such table, Catalog Error, Unknown table expression identifier - and not even the two SQLite drivers share a fragment. Declared nothing rather than pinning vendor prose that a driver upgrade would break.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS"
+  },
+  "Tests/Linq/Linq/SelectTests.cs::Issue4199Test2": {
+    "issue": "4199",
+    "attributionSource": "test-description",
+    "providers": "(all)",
+    "observed": "the interface-typed table has no backing table; 112 cases, ~20 distinct wordings, one mechanism",
+    "verdict": "matches",
+    "quote": "#4199 - the test names it",
+    "note": "The purest case the by-kind rule covers: one mechanism, no shared text. Twenty providers report the missing table in twenty phrasings - relation does not exist, Invalid object name, Dynamic SQL Error, no such table, Catalog Error, Unknown table expression identifier - and not even the two SQLite drivers share a fragment. Declared nothing rather than pinning vendor prose that a driver upgrade would break.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS"
   }
 }
