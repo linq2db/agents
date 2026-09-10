@@ -2201,13 +2201,13 @@
   },
   "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_Insert": {
     "quote": "the test's own Description names #2107",
-    "verdict": "needs-investigation",
     "attributionSource": "test-description",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
     "issue": "2107",
     "providers": "(all - SQLite by data source)",
     "observed": "four distinct failures across the inline x DateTimeKind x columnType matrix; the TEXT column type PASSES on both drivers",
-    "note": "Fourth instance of the A-28 class and the hardest so far: staleness runs along columnType (TEXT passes, REAL and INTEGER fail) while the FAILURE MODE varies along the other two axes, so a split by one parameter does not by itself yield a declarable arm. A first attempt declared the Classic driver and left the MS half no-declaration; the verification run refuted it - the TEXT cases came back \"passed but is marked\" on BOTH drivers. Left on the old attribute pending a decision on how far to restructure a three-axis matrix test."
+    "verdict": "matches",
+    "note": "Fourth and hardest instance of the A-28 class: staleness ran along TWO [Values] axes. The intermediate attempt is the evidence - splitting columnType alone still left the TEXT/Utc cases reporting \"passed but is marked\" on both drivers. Final partition: TEXT with a local or unspecified kind passes and is ungated; TEXT with Utc fails identically on both drivers and declares the assertion; REAL and INTEGER fail four ways depending on inline and kind and declare nothing. The numeric arm keeps no-declaration rather than a weak fragment. On the Classic driver those cases are Inconclusive from the test's own guard, which ActiveIssueNew leaves alone.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
   },
   "Tests/Linq/DataProvider/SQLiteTests.cs::Issue2432Test1": {
     "quote": "#2432 - open",
@@ -2221,12 +2221,52 @@
   },
   "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_BulkCopy": {
     "quote": "the test's own Description names #2107",
-    "verdict": "needs-investigation",
     "attributionSource": "test-description",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
     "issue": "2107",
     "providers": "(all - SQLite by data source)",
     "observed": "as DateTimeRoundtrip_Insert, over a four-axis matrix",
-    "note": "As DateTimeRoundtrip_Insert. Left on the old attribute."
+    "verdict": "matches",
+    "note": "Fourth and hardest instance of the A-28 class: staleness ran along TWO [Values] axes. The intermediate attempt is the evidence - splitting columnType alone still left the TEXT/Utc cases reporting \"passed but is marked\" on both drivers. Final partition: TEXT with a local or unspecified kind passes and is ungated; TEXT with Utc fails identically on both drivers and declares the assertion; REAL and INTEGER fail four ways depending on inline and kind and declare nothing. The numeric arm keeps no-declaration rather than a weak fragment. On the Classic driver those cases are Inconclusive from the test's own guard, which ActiveIssueNew leaves alone.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_InsertUtc": {
+    "issue": "2107",
+    "attributionSource": "test-description",
+    "providers": "(all - SQLite by data source)",
+    "observed": "Assert.That(result.DateTime, Is.EqualTo(dt.ToLocalTime())) - identical on both drivers",
+    "verdict": "matches",
+    "quote": "#2107 - the test names it",
+    "note": "New method carved out of the DateTimeRoundtrip split; see the parent rows.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_InsertNumeric": {
+    "issue": "2107",
+    "attributionSource": "test-description",
+    "providers": "(all - SQLite by data source)",
+    "observed": "four failure modes across inline x kind; Classic is Inconclusive from the test guard",
+    "verdict": "matches",
+    "quote": "#2107 - the test names it",
+    "note": "New method carved out of the DateTimeRoundtrip split; see the parent rows.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_BulkCopyUtc": {
+    "issue": "2107",
+    "attributionSource": "test-description",
+    "providers": "(all - SQLite by data source)",
+    "observed": "Assert.That(result.DateTime, Is.EqualTo(dt.ToLocalTime())) - identical on both drivers",
+    "verdict": "matches",
+    "quote": "#2107 - the test names it",
+    "note": "New method carved out of the DateTimeRoundtrip split; see the parent rows.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_BulkCopyNumeric": {
+    "issue": "2107",
+    "attributionSource": "test-description",
+    "providers": "(all - SQLite by data source)",
+    "observed": "four failure modes across inline x kind; Classic is Inconclusive from the test guard",
+    "verdict": "matches",
+    "quote": "#2107 - the test names it",
+    "note": "New method carved out of the DateTimeRoundtrip split; see the parent rows.",
+    "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
   }
 }
