@@ -2418,5 +2418,25 @@
     "note": "The one site where per-provider declaration would be wrong rather than merely tedious: the messages differ only in vendor phrasing, so pinning them would pin prose rather than a contract. Blanket half takes no-declaration; ClickHouse is declared because it differs in KIND, not just in wording.",
     "verdict": "no-issue",
     "attributionSource": "none"
+  },
+  "Tests/Linq/Linq/ComplexTests.cs::Issue4139Test": {
+    "issue": "4139",
+    "attributionSource": "test-description",
+    "providers": "(all)",
+    "observed": "LinqToDB.LinqToDBException : Member 'Ref(TableContext(#)(T: #)::...)' is not an association.; 112 cases, one message",
+    "verdict": "matches",
+    "quote": "#4139 - open; a nested association through a complex column",
+    "note": "The cause index reported 112 distinct causes and there is one. The message opens with a TableContext identifier that changes every run, so keying a count on the message text makes every case unique. The declaration starts after the varying part. Worth generalising: a high cause count is evidence of a varying VALUE in the message at least as often as it is evidence of many failures.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic"
+  },
+  "Tests/Linq/Linq/EagerLoadingTests.cs::Issue4585Test": {
+    "issue": "4585",
+    "attributionSource": "test-description",
+    "providers": "(all)",
+    "observed": "LinqToDB.LinqToDBException : Member 'Ref(TableContext(#)(T: #)::...)' is not an association.; 112 cases, one message",
+    "verdict": "matches",
+    "quote": "#4585 - open; a fluently-mapped nested association",
+    "note": "The cause index reported 112 distinct causes and there is one. The message opens with a TableContext identifier that changes every run, so keying a count on the message text makes every case unique. The declaration starts after the varying part. Worth generalising: a high cause count is evidence of a varying VALUE in the message at least as often as it is evidence of many failures.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic"
   }
 }
