@@ -2188,5 +2188,45 @@
     "verdict": "matches",
     "quote": "#1855 - open",
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::Issue2432Test2": {
+    "quote": "#2432 - open",
+    "verdict": "matches",
+    "attributionSource": "test-description",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
+    "issue": "2432",
+    "providers": "(all - SQLite by data source)",
+    "observed": "as Issue2432Test1",
+    "note": "Split the same way; Issue2432Test2Inline verified passing ungated."
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_Insert": {
+    "quote": "the test's own Description names #2107",
+    "verdict": "needs-investigation",
+    "attributionSource": "test-description",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
+    "issue": "2107",
+    "providers": "(all - SQLite by data source)",
+    "observed": "four distinct failures across the inline x DateTimeKind x columnType matrix; the TEXT column type PASSES on both drivers",
+    "note": "Fourth instance of the A-28 class and the hardest so far: staleness runs along columnType (TEXT passes, REAL and INTEGER fail) while the FAILURE MODE varies along the other two axes, so a split by one parameter does not by itself yield a declarable arm. A first attempt declared the Classic driver and left the MS half no-declaration; the verification run refuted it - the TEXT cases came back \"passed but is marked\" on BOTH drivers. Left on the old attribute pending a decision on how far to restructure a three-axis matrix test."
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::Issue2432Test1": {
+    "quote": "#2432 - open",
+    "verdict": "matches",
+    "attributionSource": "test-description",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
+    "issue": "2432",
+    "providers": "(all - SQLite by data source)",
+    "observed": "datatype mismatch, on the parameterised arm only; the inline arm passes",
+    "note": "Third instance of the A-28 class. Split by the inline parameter per the option-b precedent; the new Issue2432Test1Inline is verified passing ungated. The declaration also collapses three apparent causes into one - MS, Classic and the Grpc wrapper all contain \"datatype mismatch\"."
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::DateTimeRoundtrip_BulkCopy": {
+    "quote": "the test's own Description names #2107",
+    "verdict": "needs-investigation",
+    "attributionSource": "test-description",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS",
+    "issue": "2107",
+    "providers": "(all - SQLite by data source)",
+    "observed": "as DateTimeRoundtrip_Insert, over a four-axis matrix",
+    "note": "As DateTimeRoundtrip_Insert. Left on the old attribute."
   }
 }
