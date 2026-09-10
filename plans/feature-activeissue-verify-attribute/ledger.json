@@ -2518,5 +2518,25 @@
     "quote": "#4615 - the test names it",
     "note": "Fifth instance of the A-28 class: RowByRow never builds the empty column list and passes everywhere, so the gate was marking working cases as failing. Split per the option-b precedent; the new RowByRow methods are verified passing ungated. The remainder declares nothing because the failure modes OVERLAP on the provider axis - almost everyone reports a syntax error at the closing parenthesis in its own words, while SQL Server, ClickHouse and MySqlConnector also produce \"Sequence contains no elements\" or \"SourceOrdinal is an invalid value\" over the same providers. No Configuration separates them and no fragment covers both.",
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS + DuckDB"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeAddTimeSpan": {
+    "issue": null,
+    "attributionSource": "search",
+    "providers": "12 families",
+    "observed": "510 cases, 14 distinct mechanisms; the null arm passes on Access, MySQL and SQLite",
+    "verdict": "no-issue",
+    "quote": "the test's Description points at PR #2718, not an open defect",
+    "note": "First site done under the run-first rule, and it justified it: with a null interval Access, MySQL and SQLite all PASS, so declaring from the harvest alone would have marked those cases as failing. The arms also differ in KIND on SQL Server - the null one gives only the server type mismatch, the non-null one adds a client-side out-of-bounds TIME - so only the non-null arm leaves SQL Server undeclared. Twelve declarations on the non-null arm, nine on the null one. Access OleDb and SQL Server declare nothing (two unrelated failures apiece over one provider set); Oracle likewise for lack of a leg. The SQLite Classic half needs SkipForLinqService because the test body returns early for remote SQLite - caught by the verification run, which reported those cases passed-but-marked.",
+    "sweptOn": "2026-09-09 CI sweep; run BEFORE declaring, 2026-09-10, on SqlServer.2022.MS + SQLite.Classic + SQLite.MS + DuckDB"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeAddTimeSpanNull": {
+    "issue": null,
+    "attributionSource": "search",
+    "providers": "12 families",
+    "observed": "510 cases, 14 distinct mechanisms; the null arm passes on Access, MySQL and SQLite",
+    "verdict": "no-issue",
+    "quote": "the test's Description points at PR #2718, not an open defect",
+    "note": "First site done under the run-first rule, and it justified it: with a null interval Access, MySQL and SQLite all PASS, so declaring from the harvest alone would have marked those cases as failing. The arms also differ in KIND on SQL Server - the null one gives only the server type mismatch, the non-null one adds a client-side out-of-bounds TIME - so only the non-null arm leaves SQL Server undeclared. Twelve declarations on the non-null arm, nine on the null one. Access OleDb and SQL Server declare nothing (two unrelated failures apiece over one provider set); Oracle likewise for lack of a leg. The SQLite Classic half needs SkipForLinqService because the test body returns early for remote SQLite - caught by the verification run, which reported those cases passed-but-marked.",
+    "sweptOn": "2026-09-09 CI sweep; run BEFORE declaring, 2026-09-10, on SqlServer.2022.MS + SQLite.Classic + SQLite.MS + DuckDB"
   }
 }
