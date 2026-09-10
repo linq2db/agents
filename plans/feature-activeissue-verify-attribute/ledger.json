@@ -2268,5 +2268,55 @@
     "quote": "#2107 - the test names it",
     "note": "New method carved out of the DateTimeRoundtrip split; see the parent rows.",
     "sweptOn": "2026-09-09 CI sweep; measured and re-measured locally 2026-09-10 on SQLite.Classic + SQLite.MS"
+  },
+  "Tests/Linq/Linq/StringFunctionTests.cs::IndexOf3": {
+    "verdict": "no-issue",
+    "note": "Three-way split. SQLite is message-only because the two drivers put the detail on different lines. Oracle keeps no-declaration: unvalidated - no CI leg. Not over-broad: every other named family does fail.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "quote": "the gate's own prose - Sql.CharIndex(string, string, int) have incorrect SQL logic for all providers (except HANA)",
+    "observed": "seven families: InvalidOperationException Sequence contains no elements. SQLite: no such function: CharIndex. Oracle: not measured.",
+    "issue": null,
+    "attributionSource": "search",
+    "providers": "9 families (Oracle now carries its own no-declaration attribute)"
+  },
+  "Tests/Linq/Linq/ArrayTests.cs::TestDateOnly": {
+    "verdict": "matches",
+    "note": "Two attributes: PostgreSQL types the array and then emits SQL its own parser rejects, so it fails one stage later than everything else.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "quote": "#3929 - the test names it",
+    "observed": "LinqToDBException for System.DateOnly[] on most providers; PostgreSQL instead reaches Npgsql 42601 syntax error at or near \"Array\"",
+    "issue": "3929",
+    "attributionSource": "test-description",
+    "providers": "(all)"
+  },
+  "Tests/Linq/Linq/ArrayTests.cs::InsertArray": {
+    "verdict": "no-issue",
+    "note": "One cause seen through three transports - direct, the Grpc wrapper and the WCF FaultException - which the cause index counted as three. All three carry the inner type name, so a single attribute with ErrorTypeName covers every case.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "quote": "no prose: the attribute was bare",
+    "observed": "LinqToDBException : column type cannot be determined for System.Int32[]; 112 cases",
+    "issue": null,
+    "attributionSource": "search",
+    "providers": "(all)"
+  },
+  "Tests/Linq/Linq/ArrayTests.cs::CollectionContainsMapping": {
+    "verdict": "matches",
+    "note": "One cause seen through three transports - direct, the Grpc wrapper and the WCF FaultException - which the cause index counted as three. All three carry the inner type name, so a single attribute with ErrorTypeName covers every case.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "quote": "#1660 - the test names it",
+    "observed": "as InsertArray",
+    "issue": "1660",
+    "attributionSource": "test-description",
+    "providers": "(all)"
+  },
+  "Tests/Linq/Linq/ArrayTests.cs::UpdateArray": {
+    "verdict": "no-issue",
+    "note": "One cause seen through three transports - direct, the Grpc wrapper and the WCF FaultException - which the cause index counted as three. All three carry the inner type name, so a single attribute with ErrorTypeName covers every case.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "quote": "no prose: the attribute was bare",
+    "observed": "as InsertArray",
+    "issue": null,
+    "attributionSource": "search",
+    "providers": "(all)"
   }
 }
