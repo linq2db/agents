@@ -1741,5 +1741,185 @@
     "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
     "providers": "(all)",
     "attributionSource": "search"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::BulkCopy21ProviderSpecificAsync": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::Issue612TestDefaultTSTZPrecisonCanDiffersOfUpTo9Ticks": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/Update/MultiInsertTests.cs::InheritanceMapping": {
+    "quote": "#2988 'MultiInsert doesn't insert InheritanceMapping values' - open, and the column Oracle rejects is the discriminator",
+    "observed": "ORA-01400: cannot insert NULL into (\"...MULTI_INSERT_INHERIT\".\"Type\"), direct and remote",
+    "note": "The declared fragment stops before the schema-qualified table name, which differs per provider configuration.",
+    "verdict": "matches",
+    "issue": "2988",
+    "sweptOn": "2026-09-10 local, net10.0, Oracle.11.Managed + Oracle.12.Managed",
+    "attributionSource": "test-description",
+    "providers": "(all - Oracle by data source)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::TestDateTimeOffset": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::ProcedureOutParameters": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::Issue2365Test": {
+    "quote": "#2365 'BulkCopy failure on CLOB fields' - open; the CLOB column carries a length it should not have",
+    "observed": "Assert.That(column.Length, Is.Null) - expected null, got 22",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description. No CI evidence exists for any Oracle gate - measured locally.",
+    "verdict": "matches",
+    "issue": "2365",
+    "sweptOn": "2026-09-10 local, net10.0, Oracle.11.Managed + Oracle.12.Managed",
+    "attributionSource": "test-description",
+    "providers": "(all - Oracle by data source)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::Issue612Test": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::Issue515Test": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::BulkCopy21ProviderSpecific": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::TestInParameter": {
+    "quote": "#1645 'table value parameters for store procedure' - open; IsIn has no translation, so the table-valued IN parameter never reaches SQL",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression could not be converted to SQL, on OracleTests.IsIn<int>",
+    "note": "The reference was buried in Details as a URL; moved into the attribute so SC-14 can see it.",
+    "verdict": "matches",
+    "issue": "1645",
+    "sweptOn": "2026-09-10 local, net10.0, Oracle.11.Managed + Oracle.12.Managed",
+    "attributionSource": "details-url",
+    "providers": "(all - Oracle by data source)"
+  },
+  "Tests/Linq/Update/MergeTests.Issues.cs::UnusedSource_Query": {
+    "quote": "the gate's prose - 'ASE is terminating this process'",
+    "observed": "Sybase direct: AdoNetCore.AseClient.AseException : Connection entered broken state. Sybase remote: the server dies mid-token, surfacing as Grpc.Core.RpcException wrapping a socket error.",
+    "note": "MIS-SCOPED, the same way two EF pilot gates were: [ActiveIssue(TestProvName.AllSybase, ...)] binds the (string issue) constructor, so the provider name became the issue reference and the gate applied to EVERY provider. Narrowed to Configuration = TestProvName.AllSybase; CI confirms every other provider passes. Split by transport because the crash surfaces differently on each - only the Grpc wrapper is stable on the remote side, the socket error inside it is not. Both cases verified Inconclusive.",
+    "verdict": "no-issue",
+    "issue": null,
+    "sweptOn": "2026-09-10 local, net10.0, Sybase.Managed",
+    "attributionSource": "search",
+    "providers": "TestProvName.AllSybase (was: every provider - see note)"
+  },
+  "Tests/Linq/Data/MiniProfilerTests.cs::TestOracleDevart": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::TestDateTimeSQL": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/Linq/ConvertTests.cs::TextExecuteScalarEntityColumnConverterWithCtor": {
+    "quote": "as TextExecuteColumnConverterWithCtor",
+    "observed": "passes - as its sibling",
+    "note": "Gate deleted.",
+    "verdict": "remove",
+    "issue": null,
+    "sweptOn": "2026-09-10 local, net10.0, SQLite.Classic",
+    "attributionSource": "none",
+    "providers": "ProviderName.SQLiteClassic"
+  },
+  "Tests/Linq/Linq/ConvertTests.cs::TextExecuteColumnConverterWithCtor": {
+    "quote": "the gate's prose - 'Not supported case as we cannot connect .ctor parameter to column' - no longer holds",
+    "observed": "passes - measured alone on SQLite.Classic, and no CI failure on the SQLite leg either",
+    "note": "Gate deleted. The test asserts real round-tripped values (Field1 == 1, Field2 == -1 through a JSON converter into a ctor-based type), so it is not vacuously green.",
+    "verdict": "remove",
+    "issue": null,
+    "sweptOn": "2026-09-10 local, net10.0, SQLite.Classic",
+    "attributionSource": "none",
+    "providers": "ProviderName.SQLiteClassic"
+  },
+  "Tests/Linq/SchemaProvider/SchemaProviderTests.cs::ForeignKeyMemberNameTest1": {
+    "quote": "the gate's prose - 'Unstable, depends on metadata selection order'",
+    "observed": "no CI failure; the gate records an intermittent one - expected FK_TestSchemaY_OtherID, got FK_TestSchemaY_TestSchemaX",
+    "note": "A flaky gate cannot be expressed by an asserting attribute at all: it goes red on every run where the test happens to pass. Root cause found in the DDL rather than the code - TestSchemaY has three foreign keys to TestSchemaX and two of them (FK_TestSchemaY_TestSchemaX and FK_TestSchemaY_OtherID) are on the SAME column, TestSchemaXID. Both derive the member name TestSchemaX, one wins and the loser falls back to its constraint name, and which one wins depends on metadata order. The test baked in a winner. Repaired to pin the collision contract instead - three keys, ParentTestSchemaX present, TestSchemaX present, and exactly one of the two colliding constraint names - which is stronger than the original assertion, not weaker.",
+    "verdict": "test-defect",
+    "issue": null,
+    "sweptOn": "pending: needs a SQL Server instance to confirm the repair",
+    "attributionSource": "none",
+    "providers": "(all - SQL Server by data source)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::TestDataTypes": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::TestDateTimeRoundtrip": {
+    "quote": "no prose: the original attribute carried a Configuration and nothing else",
+    "observed": "nothing - the provider cannot be reached",
+    "note": "Carries 'no-declaration: unvalidated:' from a shared file-local const, which is the honest ceiling for this cohort: Devart needs a licence key this workstation does not have, and Oracle has no GitHub-CI leg, so no failure has ever been harvested and the attribute it replaces offered no explanation to carry forward. Same treatment A-26 gave the licence-blocked Oracle.21.Devart.Direct half of TestMergeTypes.",
+    "verdict": "needs-investigation",
+    "issue": null,
+    "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
+    "attributionSource": "none",
+    "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
   }
 }
