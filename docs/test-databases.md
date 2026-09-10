@@ -165,19 +165,25 @@ Oracle 18+ images are large and add very little test value until per-version dia
 | Version | Provider IDs | Setup script | Container | Image | Pref |
 |---|---|---|---|---|---|
 | 2.5 | `Firebird.2.5` | `firebird25.cmd` | `firebird25` | `jacobalberty/firebird:2.5-sc` | **default** |
-| 3 | `Firebird.3` | `firebird30.cmd` | `firebird30` | `jacobalberty/firebird:v3` | **default** |
-| 4 | `Firebird.4` | `firebird40.cmd` | `firebird40` | `jacobalberty/firebird:v4` | **default** |
-| 5 | `Firebird.5` | `firebird50.cmd` | `firebird50` | `jacobalberty/firebird:v5` | **default** |
+| 3 | `Firebird.3` | `firebird30.cmd` | `firebird30` | `firebirdsql/firebird:3` | **default** |
+| 4 | `Firebird.4` | `firebird40.cmd` | `firebird40` | `firebirdsql/firebird:4` | **default** |
+| 5 | `Firebird.5` | `firebird50.cmd` | `firebird50` | `firebirdsql/firebird:5` | **default** |
 
 **Picking a version.** Run all four by default — the images are slim and each maps to a distinct dialect we emit (2.5 / 3 / 4 / 5), so full-matrix coverage is cheap. Drop to a single version only when the user explicitly narrows the scope.
+
+**The database path differs per container *age*, not per version.** `firebirdsql/firebird` relocated its data directory between image builds: older pulls hold the database at `/var/lib/firebird/data/` (which is what the repo's `DataProviders.json` base defaults still say for 3/4/5), newer pulls at `/firebird/data/`. 2.5 is the `jacobalberty` image and has always used `/firebird/data/`. So recreating *one* container makes the connection string right for it and wrong for its siblings — on 6.5.0, `firebird50` was recreated and `Firebird.3`/`.4` then failed `I/O error during "open" operation for file …`. **`docker ps` tells them apart without `inspect`:** the newer images declare a healthcheck, so a recreated container shows `Up … (healthy)` and an older one shows a bare `Up …`. Fix per container — repoint that connection at the path its image actually uses, or recreate the container to match the connection.
 
 ## ClickHouse
 
 | Provider | Provider IDs | Setup script | Container | Image | Pref |
 |---|---|---|---|---|---|
-| ClickHouse | `ClickHouse.Client`, `ClickHouse.MySql`, `ClickHouse.Octonica` | `clickhouse.cmd` | `clickhouse` | `clickhouse/clickhouse-server:latest` | **default (all 3 test providers)** |
+| ClickHouse | `ClickHouse.Octonica`, `ClickHouse.Driver`, `ClickHouse.MySql` | `clickhouse.cmd` | `clickhouse` | `clickhouse/clickhouse-server:latest` | **default (all 3 test providers)** |
 
-**Picking a version.** Single container exposes all three linq2db ClickHouse test providers (`Client` / `MySql` / `Octonica`). Run all three by default — they share one container, so the cost is the same as running one.
+**Picking a version.** Single container exposes all three linq2db ClickHouse test providers. Run all three by default — they share one container, so the cost is the same as running one.
+
+**The HTTP provider is `ClickHouse.Driver`, not `ClickHouse.Client`** — this doc said `Client` until 6.5.0, presumably left over from the package rename. The id is not a synonym: passing `--provider ClickHouse.Client` resolves nothing, so the run reports success while the database it was meant to seed stays empty.
+
+**One container, three *databases*** — `ClickHouse.Octonica` → `testdb1` (port 9000), `ClickHouse.Driver` → `testdb2` (8123, HTTP), `ClickHouse.MySql` → `testdb3` (9004, MySQL protocol). Seeding one does **not** seed the others, and an unseeded one scaffolds with every entity file deleted, which reads as a product regression.
 
 **Synchronous mutations in the test env.** ClickHouse `UPDATE`/`DELETE` compile to asynchronous `ALTER TABLE … UPDATE`/`DELETE` **mutations** (default `mutations_sync=0`), and ClickHouse does **not** report affected-row counts (hence `SqlProviderFlags.IsAffectedRowsCountSupported=false`). Both the CI (`Build/Azure/scripts/clickhouse.sh`) and local (`Data/Setup Scripts/clickhouse.cmd`) setup patch `<mutations_sync>1</mutations_sync>` into the server config, so in the test env a mutation completes before the statement returns — **write-then-read tests are deterministic**. A real-world caller on the default config can still read pre-mutation state, so any read-after-write feature (e.g. `UpdateOptimisticWithRefresh`'s no-rowcount verify path, #5643) is best-effort on ClickHouse outside the tuned test config.
 

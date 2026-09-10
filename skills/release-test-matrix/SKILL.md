@@ -81,7 +81,15 @@ Release testing reads connection strings from settings — **no `UserDataProvide
 > | SQL Server | 2019 | 2017, 2019, 2025 (+Northwind) | 2017, 2019, 2025 (+Northwind) |
 > | MySQL family | MariaDB.11 | MySql.8.0, MySqlConnector.8.0, MariaDB.11 | MySqlConnector.8.0, MariaDB.11 |
 >
-> Note also that different connection names on the *same* engine can mean different **databases** that each need their own `CreateDatabase` seeding — `MySql.8.0` (`testdata`) vs `MySqlConnector.8.0` (`testdataconnector`), and `Informix` (native IDS, port 9088, `testdataids`) vs `Informix.DB2` (DRDA, port 9189, `testdatadb2`). Seeding one does not seed the other.
+> Note also that different connection names on the *same* engine can mean different **databases** that each need their own `CreateDatabase` seeding — `MySql.8.0` (`testdata`) vs `MySqlConnector.8.0` (`testdataconnector`), and `Informix` (native IDS, port 9088, `testdataids`) vs `Informix.DB2` (DRDA, port 9189, `testdatadb2`). Seeding one does not seed the other. Same for ClickHouse's three ids over one container ([`test-databases.md`](../../docs/test-databases.md) → *ClickHouse*).
+
+> **Copy `UserDataProviders.json` into the prep worktree before any track runs — and do it first, because nothing warns.**
+> Release prep happens in a worktree, the file is gitignored (`**/UserDataProviders.json`), and `git worktree add` therefore does not bring it. Every consumer resolves it from the tree it runs in and **silently falls back to the base `DataProviders.json` defaults** when it is absent:
+>
+> - `release-test-cli-scaffold.ps1` reads it from `-RepoRoot` (track 4.7).
+> - `Tests/Tests.T4/ConnectionStrings.ttinclude` walks *up* from the template's own directory (tracks 4.5 / 4.6), so Visual Studio picks up the worktree's copy — or the base defaults if there is none.
+>
+> The failure never looks like a missing file. On 6.5.0 it surfaced as Firebird `I/O error during "open" operation` (base default path vs. the override's) and 106 diff lines of `Schema = "MANAGED"` → `"TEST"` on Oracle (base default `User Id=test`; the override is a different user on a different host) — i.e. as *scaffold diffs that read like product regressions*. A maintainer's copy can carry ~84 overrides, so this touches every provider; it only *shows* where a base default differs. The file cannot be committed by accident, so copying it in is safe.
 
 **Steps:**
 
@@ -173,10 +181,15 @@ Tests.T4.Nugets validates T4 templates that consume linq2db.t4models from a publ
 
 2a. **Do not clear `.build/bin` before this track.** `Tests.T4.Nugets`'s templates load `linq2db.Tests.Base.dll` from `.build/bin/Tests/Debug/net462/` for the config-driven connection-string resolver, so track 4.0's Debug output must still be present. If it was cleared, rebuild with `dotnet build Tests\Linq\Tests.csproj -c Debug -f net462` — the `Tests` folder is `Tests/Linq/Tests.csproj`'s output, *not* `Tests/Base`'s.
 3. Ask user to open the test solution in Visual Studio and run all T4 templates from the `Tests.T4.Nugets` project **except `t4model`**.
-4. After those complete, ask user to reload the solution (to drop the T4 cache) and run the `t4model` template.
-5. Check generated-file diff in `Tests/Tests.T4.Nugets` working tree. Expected: small or zero diff. Unexpected diff → investigate (likely a code change that broke scaffold output; surfaces a release-blocker).
+4. **Check the generated-file diff now, before `t4model` runs.**
+5. Ask user to reload the solution (to drop the T4 cache) and run the `t4model` template.
+6. **Check the diff again.**
 
-Tick `4.5` on a clean diff or user-confirmed-expected diff.
+**Two runs and two checks, not one of each.** `t4model` writes to the *same output location* as the other templates, so a single check after both runs cannot attribute a diff to either — and a `t4model` failure that leaves the earlier batch's output in place reads as a pass. Confirmed by the maintainer on 6.5.0, whose words were that the instructions were "a bit wrong and need to be updated". Expected at each check: small or zero diff. Unexpected diff → investigate (likely a code change that broke scaffold output; surfaces a release-blocker).
+
+**Judge coverage by file mtimes, not by the user saying "done".** A template that silently failed to run leaves its previous output on disk, which is indistinguishable from a template that regenerated identical output — and it is the *unchanged* files that carry that ambiguity, so the diff cannot detect it. Group the generated files by `LastWriteTime` after the run: every file should carry a timestamp inside the run's window, and each one that doesn't needs a named reason (on 6.5.0's track 4.6 exactly three lagged — the two Azure templates, which have no local instance, and `Unlock.tt`, which is a T4-host-shutdown utility rather than a scaffold).
+
+Tick `4.5` on a clean diff or user-confirmed-expected diff at **both** checks.
 
 ## Track 4.6 — T4 templates (Tests.T4)
 
@@ -185,8 +198,10 @@ Same idea as 4.5 but using the in-repo linq2db source (not from nuget). Excludes
 **Steps:**
 
 1. Ask user to open the test solution in Visual Studio.
-2. Run every T4 template under `Tests/Tests.T4/` **except templates under `Tests/Tests.T4/Cli/`**.
-3. Check generated-file diff. Expected: zero or small. Unexpected → investigate (often points at the DB init step in 4.1 being stale).
+2. Run every T4 template under `Tests/Tests.T4/` **except templates under `Tests/Tests.T4/Cli/`**. Two of them cannot run outside a maintainer's Azure subscription — `SqlServerAzure.tt` and `SqlServerAzureMI.tt` resolve `SqlServer.Azure` / `SqlServer.Azure.MI`, which exist only in the base `DataProviders.json` pointing at a dead host with an empty password. Agree up front whether to skip them. `Unlock.tt` is not a scaffold either; it shuts the T4 host down to release assembly locks, and is the lever to reach for when Visual Studio holds `linq2db.Tests.Base.dll`.
+3. Check generated-file diff, and apply track 4.5's **mtime coverage check** — a template that failed to run leaves its old output in place and the diff cannot see it. Expected: zero or small. Unexpected → investigate (often points at the DB init step in 4.1 being stale).
+
+Two diff shapes recur here and are **not** regressions, because they are per-database artifacts rather than scaffolder output: system-generated constraint names in XML doc comments (Oracle `SYS_C#######`, Firebird `INTEG_nn` — per-database counters that move whenever a container is recreated), and the `FK_TestSchemaY_OtherID` ↔ `FK_TestSchemaY_TestSchemaX` association-name swap on SQL Server. The latter is pinned as `[ActiveIssue("Unstable, depends on metadata selection order")]` on `ForeignKeyMemberNameTest1` in `Tests/Linq/SchemaProvider/SchemaProviderTests.cs`, whose comment block records the exact delta; the two FKs are indistinguishable in shape, so whichever the schema provider yields first wins the un-mangled member name. The tell that it is environmental rather than a scaffolder change: it appears only in the templates bound to *one* connection, while every other SQL Server scaffold regenerates byte-identical.
 
 If an unexpected diff is from a provider whose DB init steps look correct: prompt user to teach the init details — update `provider-db-init.md`, prompt session-reload, retry 4.1 → 4.6 for that provider.
 
