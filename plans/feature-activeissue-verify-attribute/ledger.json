@@ -2020,5 +2020,93 @@
     "verdict": "matches",
     "issue": "3360",
     "providers": "TestProvName.AllSqlServer"
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::TestSubTreeSelectionWithoutDefaultDiscriminator": {
+    "observed": "LinqToDBException : Inheritance mapping is not defined for discriminator value '2' on 111 cases; YDB instead gives InvalidOperationException : Connection is closed",
+    "note": "The YDB case was one failure against 111 and looked like a flake. Declared rather than dismissed: a closed connection is consistent with YDB's one-statement-per-connection behaviour, so it is the same gate reaching a different failure mode, and a blanket declaration would have reported it as a regression.",
+    "attributionSource": "search",
+    "verdict": "no-issue",
+    "quote": "the gate's own prose - 'Partial mapping is not supported for now'",
+    "issue": null,
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/SubQueryTests.cs::Issue3295Test2": {
+    "observed": "Assert.That(actual, Is.EqualTo(expected)) on 110 cases; Sybase instead refuses with LinqToDBException : The LINQ expression could not be converted to SQL",
+    "note": "Split: everywhere else the query runs and answers wrongly, on Sybase it is refused outright. The closed-issue-with-a-still-failing-variant shape is the same as Issue2743Tests, and the number is kept because the test names it.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "quote": "#3295 'PostgreSQL Test Problem Where filter using let var FirstOrDefault()' is closed, and its own repro is the Test1 sibling, which passes",
+    "issue": "3295",
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/ArrayTests.cs::CreateTable": {
+    "observed": "LinqToDBException : Database column type cannot be determined automatically ... for system type System.Int32[] on 43 cases; on the 13 PostgreSQL ones the type named is Tests.Model.Gender[]",
+    "note": "Split cleanly along the provider axis - PostgreSQL maps the int array natively and only reaches the enum one, so the refusal names a different type there. The two groups are exactly PostgreSQL and everything else.",
+    "attributionSource": "search",
+    "verdict": "no-issue",
+    "quote": "no prose: the attribute was bare",
+    "issue": null,
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/TphInheritanceTests.cs::TPH_Intermediate_InsertConcreteTypes": {
+    "providers": "(all - SQLite by data source)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0",
+    "verdict": "matches",
+    "issue": "4364",
+    "observed": "no such table: CreateTable1",
+    "quote": "#4364 'Referencing intermediate child classes of an abstract class using Linq2Db single table inheritance.' - open",
+    "attributionSource": "test-description"
+  },
+  "Tests/Linq/Linq/AbstractionTests.cs::InsertUsingRuntimeType": {
+    "observed": "no such table: EntityBase - Microsoft.Data.Sqlite inlines it in the first line, System.Data.SQLite puts 'SQL logic error' there and the detail on the next",
+    "note": "Message-only rather than split: the detail text appears in BOTH driver messages, just at different line positions, which a first-line reading would have missed.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "quote": "#848 'ITable<T> considers only declared, not runtime type' - open, and the table named is the declared base",
+    "issue": "848",
+    "providers": "(all - SQLite by data source)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::Issue2362Test": {
+    "observed": "value=false: Assert.That(res, Has.Length.EqualTo(2)) on 112 cases. value=true: Assert.That(res[0].Value, Is.True) on 6 cases, ClickHouse only.",
+    "note": "A second instance of the A-28 class, and the first where the arms differ in PROVIDER COVERAGE rather than only in message: filtering on false fails everywhere, filtering on true fails only on ClickHouse. One gate over both marked about fifty working cases as failing. Split per the option-b precedent into Issue2362Test (false, blanket) and Issue2362TestMatchingValue (true, ClickHouse-scoped) over a shared Issue2362Core; the new method verified passing ungated on SQLite and SQL Server.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "quote": "#2362 'Query skips rows with empty string' - open, and the converter writes an empty string for false",
+    "issue": "2362",
+    "providers": "(all)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::Issue2362TestMatchingValue": {
+    "observed": "Assert.That(res[0].Value, Is.True); 6 cases, ClickHouse only",
+    "note": "New method carrying the true arm. Ungated everywhere but ClickHouse, and confirmed passing there.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "quote": "as Issue2362Test",
+    "issue": "2362",
+    "providers": "TestProvName.AllClickHouse",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0"
+  },
+  "Tests/Linq/Linq/TphInheritanceTests.cs::TPH_Intermediate_CreateTableNullableFields": {
+    "providers": "(all - SQLite by data source)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS, net10.0",
+    "verdict": "matches",
+    "issue": "4364",
+    "observed": "NOT NULL constraint failed: CreateTableBase.Field2",
+    "quote": "as TPH_Intermediate_InsertConcreteTypes",
+    "attributionSource": "test-description"
+  },
+  "Tests/Linq/DataProvider/FirebirdTests.cs::TestBinaryMapping_Binary": {
+    "observed": "Firebird 3/4/5: LinqToDBConvertException : Mapping of column 'AsBinary' value failed. Firebird 2.5: InvalidCastException : Unable to cast object of type 'System.String' to type 'System.Byte[]'.",
+    "note": "Split by Firebird version: 2.5 fails one layer earlier, throwing the cast directly instead of having it wrapped by the mapper. AllFirebird3Plus and AllFirebirdLess3 partition the data source exactly.",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "quote": "#755 'Firebird queries do not work with CHAR(x) CHARACTER SET OCTETS type' - open",
+    "issue": "755",
+    "providers": "(all - Firebird by data source)",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)"
   }
 }
