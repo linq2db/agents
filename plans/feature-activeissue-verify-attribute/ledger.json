@@ -2108,5 +2108,35 @@
     "issue": "755",
     "providers": "(all - Firebird by data source)",
     "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ConcatMixesTwoDurationsPerRow": {
+    "verdict": "matches",
+    "observed": "DuckDB, DB2 and YDB fail as in the sibling; all five MySQL configurations PASS",
+    "quote": "#5796 - open",
+    "issue": "5796",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); DuckDB half verified locally 2026-09-10",
+    "attributionSource": "int",
+    "note": "OVER-BROAD gate, narrowed. It carried the sibling's Configurations list verbatim, but MySQL only trips when a difference sits beside ordinary columns - which the sibling does and this shape does not - so the sibling is the control that makes the distinction real rather than assumed. Narrowing to the failing set is safe here only because MySQL demonstrably ran (Lin_p_MySQL); a provider absent from the sweep for lack of a leg must not be dropped the same way.",
+    "providers": "AllDB2, AllYdb, AllDuckDB (AllMySql removed)"
+  },
+  "Tests/Linq/DataProvider/Types/PostgreSQLTypeTests.cs::TestJsonPocoType": {
+    "verdict": "no-issue",
+    "observed": "PostgreSQL 10+: LinqToDBConvertException converting the JSON back to the POCO, 22 cases. PostgreSQL 9.2/9.3: Npgsql 42704 type \"jsonb\" does not exist, 4 cases.",
+    "quote": "the gate's own prose - 'Lack of reader support, see comment in TestJSONTypes'",
+    "issue": "no-issue",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); DuckDB half verified locally 2026-09-10",
+    "attributionSource": "search",
+    "note": "Split by server version: the old servers never reach the reader the prose is about. The convert fragment spans the serialized JSON with a placeholder because the Json and BinaryJson arms escape and order the keys differently; only the target POCO type is common. Both [Values] arms fail on every version, so the gate is not partly stale.",
+    "providers": "(all - PostgreSQL by data source)"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ConcatSurroundsADifferenceWithColumns": {
+    "verdict": "matches",
+    "observed": "four distinct refusals: DuckDB BIGINT->INTERVAL cast, YDB Uncompatible member Duration_1, DB2 SQL0415N, MySQL OverflowException parsing 36000000000 as a TimeSpan",
+    "quote": "#5796 - open",
+    "issue": "5796",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); DuckDB half verified locally 2026-09-10",
+    "attributionSource": "int",
+    "note": "One attribute per provider family. The four reject the mixed set operation at four different stages, and MySQL is the only one that fails after the value comes back rather than while typing or matching the query.",
+    "providers": "AllDB2, AllYdb, AllDuckDB, AllMySql"
   }
 }
