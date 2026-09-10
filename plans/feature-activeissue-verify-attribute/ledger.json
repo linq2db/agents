@@ -2498,5 +2498,25 @@
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB",
     "issue": null,
     "verdict": "no-issue"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopyAutoOnly": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "14 families",
+    "observed": "22 wordings over two overlapping failure modes; RowByRow passes on every provider",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "Fifth instance of the A-28 class: RowByRow never builds the empty column list and passes everywhere, so the gate was marking working cases as failing. Split per the option-b precedent; the new RowByRow methods are verified passing ungated. The remainder declares nothing because the failure modes OVERLAP on the provider axis - almost everyone reports a syntax error at the closing parenthesis in its own words, while SQL Server, ClickHouse and MySqlConnector also produce \"Sequence contains no elements\" or \"SourceOrdinal is an invalid value\" over the same providers. No Configuration separates them and no fragment covers both.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS + DuckDB"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopySkipOnly": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "14 families",
+    "observed": "22 wordings over two overlapping failure modes; RowByRow passes on every provider",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "Fifth instance of the A-28 class: RowByRow never builds the empty column list and passes everywhere, so the gate was marking working cases as failing. Split per the option-b precedent; the new RowByRow methods are verified passing ungated. The remainder declares nothing because the failure modes OVERLAP on the provider axis - almost everyone reports a syntax error at the closing parenthesis in its own words, while SQL Server, ClickHouse and MySqlConnector also produce \"Sequence contains no elements\" or \"SourceOrdinal is an invalid value\" over the same providers. No Configuration separates them and no fragment covers both.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS + DuckDB"
   }
 }
