@@ -1444,5 +1444,123 @@
     "verdict": "test-defect",
     "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); Storage probe measured locally 2026-09-09 on SQLite.Classic, net10.0",
     "observed": "Assert.That(record.TestAccess, Is.EqualTo(5)) - expected 5, got 0, on every provider; 112 cases over 15 legs"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::AggregatesOverADifference": {
+    "issue": "5787",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "quote": "the gate's own prose - 'verified on Access, on Informix and on SQL Server 2014-minus, all three giving the same no method AggregateExecute failure' - and the CI failures say exactly that",
+    "observed": "System.InvalidOperationException : There is no method 'AggregateExecute' on type 'LinqToDB.LinqExtensions' that matches the specified arguments; 9 failures across Access Jet/ACE OleDb+ODBC and Informix",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "NoTickTotalProviders, UnsupportedDifferenceProviders (Access + Informix + SqlServer2014Minus)",
+    "note": "The joined spec reported this site as having NO CI evidence, which was an artefact rather than a fact: its Configurations are two fixture-local const composites, the join is keyed on provider, and an UNRESOLVED provider list matches nothing. Going to the raw failure index directly found nine failures. The same join runs over every remaining site, so an UNRESOLVED list must be read as 'not joined', never as 'not failing'. SqlServer2014Minus has no CI leg; the cause is a client-side translation fallback, so one attribute covers all three sets."
+  },
+  "Tests/Linq/Linq/CteTests.cs::TestDelete": {
+    "issue": "3015",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); SapHana.Native measured locally 2026-09-10 against the hana2 container, net10.0",
+    "quote": "as TestInsert",
+    "observed": "HANA: sql syntax error: incorrect syntax near \"DELETE\". Informix: CURSOR not on SELECT statement.",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllSapHana, ProviderName.InformixDB2",
+    "note": "Split per provider, HANA type-less for the same reason. Informix answers with a different message than it gives the INSERT cases."
+  },
+  "Tests/Linq/UserTests/Issue3089Tests.cs::TestUnion4": {
+    "issue": "3360",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "quote": "as TestUnion3, with the operands reversed because the typed branch is last here",
+    "observed": "Npgsql.PostgresException : 42804: UNION types timestamp without time zone and interval cannot be matched; 13 cases over 2 legs",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllPostgreSQL",
+    "note": "The operand order is part of the declaration: TestUnion3 and TestUnion4 differ only in which branch carries the typed column, and PostgreSQL names the two types in the order it met them."
+  },
+  "Tests/Linq/Linq/CteTests.cs::TestInsert": {
+    "issue": "3015",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); SapHana.Native measured locally 2026-09-10 against the hana2 container, net10.0",
+    "quote": "#3015 - CTE-driven DML is unsupported on both providers, for different reasons",
+    "observed": "HANA: sql syntax error: incorrect syntax near \"INSERT\". Informix: Cursor must be declared on an INSERT statement with a VALUES clause.",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllSapHana, ProviderName.InformixDB2",
+    "note": "Split per provider. The HANA half declares no type: SapHana.Odbc raises System.Data.Odbc.OdbcException and SapHana.Native raises Sap.Data.Hana.HanaException, and only the server text is shared - measured on both, the native half against the hana2 container, since SapHana.Native never runs on CI (zero mentions across the whole HANA leg)."
+  },
+  "Tests/Linq/UserTests/Issue3089Tests.cs::TestUnion3": {
+    "providers": "TestProvName.AllPostgreSQL",
+    "quote": "#3360 - the untyped NULL branches are emitted first, so the union column settles on the wrong type",
+    "issue": "3360",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "observed": "Npgsql.PostgresException : 42804: UNION types interval and timestamp without time zone cannot be matched; 13 cases over 2 legs"
+  },
+  "Tests/Linq/DataProvider/Types/YdbTypeTests.cs::TestDyNumber": {
+    "providers": "(all - YdbDataSources)",
+    "quote": "ydb-dotnet-sdk#331 - the SDK has no DyNumber parameter type, so it sends Decimal(22,9) and the server refuses the comparison",
+    "issue": "https://github.com/ydb-platform/ydb-dotnet-sdk/issues/331",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "verdict": "matches",
+    "attributionSource": "external-url",
+    "observed": "Ydb.Sdk.Ado.YdbException : Uncompatible types in compare: DyNumber '==' Decimal(22,9); 1 case"
+  },
+  "Tests/Linq/Linq/CteTests.cs::TestUpdate": {
+    "issue": "3015",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); SapHana.Native measured locally 2026-09-10 against the hana2 container, net10.0",
+    "quote": "as TestInsert",
+    "observed": "HANA: sql syntax error: incorrect syntax near \"UPDATE\". Informix: CURSOR not on SELECT statement.",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllSapHana, ProviderName.InformixDB2 (AllOracle removed)",
+    "note": "Split per provider, and one dead half removed: the gate named TestProvName.AllOracle and its Details explained Oracle's CTE+UPDATE syntax, but the data source is [CteContextSource(..., TestProvName.AllOracle, ...)] - an EXCLUSION list - so no Oracle case is ever built. A provider named in both a gate and its test's exclusion list is dead weight worth checking for elsewhere."
+  },
+  "Tests/Linq/Linq/CteTests.cs::RecursiveInsertInto": {
+    "issue": "3015",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "quote": "#3015 - CTE-driven DML is unsupported on this provider",
+    "observed": "IBM.Data.Db2.DB2Exception : Cursor must be declared on an INSERT statement with a VALUES clause.; direct and remote",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "ProviderName.InformixDB2",
+    "note": "One attribute covers direct and remote: the Grpc wrapper carries the inner type name in its message, and Matches uses Contains for a remote case."
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::InsertShadowedMemberThroughBaseTable": {
+    "issue": "5852",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "quote": "#5852 - the shadowing member is not mapped onto the base table, so the column the insert should write is never created",
+    "observed": "System.Data.SQLite.SQLiteException / Microsoft.Data.Sqlite.SqliteException : no such column: GrandchildValue; 4 cases",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "(all - the test is SQLite-only by its data source)",
+    "note": "Declared message-only: the two SQLite drivers raise their own exception types and share only the server text."
+  },
+  "Tests/Linq/DataProvider/SQLiteTests.cs::TestDoubleRoundTrip": {
+    "issue": "https://system.data.sqlite.org/index.html/tktview/fb9e4b30874d83042e09c2f791d6065fc5e73a4b",
+    "quote": "SQLite's own ticket fb9e4b30 - the CAST to real does not round-trip the last two digits",
+    "observed": "CI (Linux): Assert.That(valueFromDB, Is.EqualTo(value)) - expected -1.7900000000000002E+308d, got -1.79E+308d, on SQLite.Classic, .MPM, .MPU and SQLite.MS. LOCAL (Windows): the same four providers PASS.",
+    "attributionSource": "external-url",
+    "providers": "(all - the test is SQLite-only by its data source)",
+    "verdict": "matches",
+    "note": "Platform-dependent, not provider-dependent: identical provider list (SQLite.Classic, .MPM, .MPU, SQLite.MS), fails on Linux CI and passes on Windows locally, because the bundled SQLite native binary differs per RID and only the Linux one loses the last two digits of CAST(... as real). Resolved by giving ActiveIssueNew a Platforms dimension (user's call, option b) rather than restructuring the test: the gate now carries Platforms = TestPlatform.Linux, so nothing governs the Windows cases and they simply pass. Verified: both providers green on Windows after the change. MacOS is deliberately NOT included - unmeasured, and no CI leg runs it.",
+    "sweptOn": "2026-09-09 CI sweep; refuted locally 2026-09-10 on SQLite.Classic + SQLite.MS, Windows, net10.0; re-verified after the Platforms change"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3945": {
+    "issue": "3015",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); SapHana.Native measured locally 2026-09-10 against the hana2 container, net10.0",
+    "quote": "as TestInsert",
+    "observed": "HANA: sql syntax error: incorrect syntax near \"INSERT\". Informix: Cursor must be declared on an INSERT statement with a VALUES clause.",
+    "verdict": "matches",
+    "attributionSource": "int",
+    "providers": "TestProvName.AllSapHana, ProviderName.InformixDB2",
+    "note": "Split per provider, HANA type-less for the same reason."
+  },
+  "Tests/Linq/DataProvider/OracleTests.cs::Issue399Test": {
+    "observed": "Assert.That(schema.Procedures, Has.Count.EqualTo(11)) - expected 11, got 31, on Oracle.11.Managed. No CI evidence exists: Oracle has no GitHub-CI leg.",
+    "providers": "(all - the test is Oracle-only by its data source)",
+    "quote": "#399 'Oracle T4 templates missing packages and certain stored procedures' - closed; the test now gets nearly three times what it expects, which is the opposite complaint",
+    "issue": "399",
+    "attributionSource": "int",
+    "verdict": "remove",
+    "note": "PROBED by dumping the 31 rows: seven are package members (ISSUE2132.TEST, and TEST_PACKAGE1 and TEST_PACKAGE2 each contributing a procedure, a function and a table function), so the packages #399 asked for ARE loaded. The six rows with no schema (ALLOUTPUTPARAMETERS, ARRAYTEST, PERSON_INSERT_OUTPUTPARAMETER, SCALAR_OUTPUTPARAMETER, SCALARARRAY, ISSUE2132.TEST) are present carrying a ResultException rather than missing, and the T4 filter in the second assertion excludes them by design. So the defect is fixed and both hard-coded 11s were counts of whatever the Oracle test schema held when the test was written. Resolved as \remove (user's call, option b): the gate is gone and the counts are replaced by assertions on what #399 asked for - TEST_PACKAGE1 and TEST_PACKAGE2 each describing their three members, and the T4 filter keeping exactly the procedures whose result schema could be read (proven equivalent to ResultException == null across all 31 rows). Green ungated on Oracle.11.Managed. Data/Create Scripts/Oracle.sql is shared by every Oracle version, so the package assertions do not depend on which one runs.",
+    "sweptOn": "2026-09-10 local, net10.0, Oracle.11.Managed - probe dump, then re-verified ungated"
   }
 }
