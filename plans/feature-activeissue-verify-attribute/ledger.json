@@ -2438,5 +2438,25 @@
     "quote": "#4585 - open; a fluently-mapped nested association",
     "note": "The cause index reported 112 distinct causes and there is one. The message opens with a TableContext identifier that changes every run, so keying a count on the message text makes every case unique. The declaration starts after the varying part. Worth generalising: a high cause count is evidence of a varying VALUE in the message at least as often as it is evidence of many failures.",
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic"
+  },
+  "Tests/Linq/Linq/SqlRowTests.cs::Issue3631Test2": {
+    "providers": "(all)",
+    "attributionSource": "test-description",
+    "quote": "#3631 - open",
+    "note": "Seven attributes, one per MECHANISM. This is the shape the wide tail takes under the by-kind rule: each declaration names a different place the query dies, and MySql.Data is the only provider that reaches the server at all.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS",
+    "issue": "3631",
+    "verdict": "matches",
+    "observed": "eight normalised causes: linq2db refusal (blanket), Npgsql and YDB writer gaps, ClickHouse parameter refusal, MySqlConnector parameter-type refusal, MySql.Data server operand arity, Informix driver cast"
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeOffsetAddTimeSpan": {
+    "providers": "AllClickHouse, AllMySql, AllOracle, AllSqlServer",
+    "attributionSource": "search",
+    "quote": "no prose: the attribute carried only a provider list",
+    "note": "ClickHouse and MySQL declared; SQL Server left no-declaration because two unrelated failures share one provider set and no Configuration separates them - the honest limit of what the attribute can express. Oracle no-declaration for lack of a leg.",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS",
+    "issue": null,
+    "verdict": "no-issue",
+    "observed": "SQL Server: two unrelated failures over the same providers (server rejecting datetimeoffset arithmetic; client refusing an out-of-bounds TIME). ClickHouse: cannot infer the parameter type. MySQL: the read back fails. Oracle: not measured."
   }
 }
