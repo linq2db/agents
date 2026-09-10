@@ -1898,9 +1898,9 @@
     "note": "A flaky gate cannot be expressed by an asserting attribute at all: it goes red on every run where the test happens to pass. Root cause found in the DDL rather than the code - TestSchemaY has three foreign keys to TestSchemaX and two of them (FK_TestSchemaY_TestSchemaX and FK_TestSchemaY_OtherID) are on the SAME column, TestSchemaXID. Both derive the member name TestSchemaX, one wins and the loser falls back to its constraint name, and which one wins depends on metadata order. The test baked in a winner. Repaired to pin the collision contract instead - three keys, ParentTestSchemaX present, TestSchemaX present, and exactly one of the two colliding constraint names - which is stronger than the original assertion, not weaker.",
     "verdict": "test-defect",
     "issue": null,
-    "sweptOn": "pending: needs a SQL Server instance to confirm the repair",
     "attributionSource": "none",
-    "providers": "(all - SQL Server by data source)"
+    "providers": "(all - SQL Server by data source)",
+    "sweptOn": "2026-09-10 local, net10.0, SqlServer.2022.MS - repair verified green"
   },
   "Tests/Linq/DataProvider/OracleTests.cs::TestDataTypes": {
     "quote": "no prose: the original attribute carried a Configuration and nothing else",
