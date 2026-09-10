@@ -1270,12 +1270,14 @@
     "attributionSource": "int"
   },
   "Tests/Linq/Linq/ConvertTests.cs::ConvertFromOneToAnother": {
-    "quote": "driver, not server: the message text is the CLI driver's stand-in for one it could not encode",
-    "verdict": "needs-investigation",
-    "note": "Quarantined for CI under A-15, same root cause as the eight Informix sites in A-13: this workstation runs with the UTF-8 ACP (65001) and the IBM CLI driver cannot convert it to UTF-16, so it fails while rendering the server's own error text. The real error is masked, which means D-16's test-logic check cannot be run on it here at all - the local result is inadmissible rather than merely inconvenient.",
-    "sweptOn": "2026-09-08 local, net10.0, DB2 - inadmissible",
-    "observed": "IBM.Data.Db2.DB2Exception : ERROR [4xxxx] A codepage conversion problem occurred creating this message",
-    "providers": "DB2"
+    "note": "Declared with a placeholder over the two spaces DB2 pads after the code, as the DB2 gates before it.",
+    "attributionSource": "search",
+    "quote": "the gate's own prose, which already quoted the SQL0245N text",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); local re-run 2026-09-10 INADMISSIBLE - the IBM CLI driver replaced the server text with 'A codepage conversion problem occurred creating this message' under this workstation's UTF-8 ACP, exactly as A-13/A-15 describe. The SQL state matched, so the failure class is confirmed; only the renderable text is lost, and DB2CODEPAGE=1208 did not help.",
+    "observed": "IBM.Data.Db2.DB2Exception : SQL0245N  The invocation of routine \"DECIMAL\" is ambiguous",
+    "verdict": "no-issue",
+    "issue": null,
+    "providers": "ProviderName.DB2"
   },
   "Tests/Linq/Linq/MappingTests.cs::MappingTypingByConstant_FromEnumerable_Int64": {
     "issue": "4955",
@@ -1941,5 +1943,82 @@
     "quote": "the gate's own note - 'needs FSharp.Core 10.1, but we use v9 for netfx builds now' - and Directory.Packages.props now pins FSharp.Core at 10.1.302, unconditionally",
     "note": "A fourth reason a gate can have no CI evidence: it exists only on a TFM no leg builds. The sweep runs net10.0, where the #if excludes the attribute entirely, so the tests were ungated and green there and the gate could be neither harvested nor declared blind. Measuring it meant building and running net462, which is the only way this class can be settled. Gates and their #if wrappers removed; re-verified ungated.",
     "sweptOn": "2026-09-10 local, net462 Debug, SQLite.MS"
+  },
+  "Tests/Linq/Linq/SelectQueryTests.cs::UnionTest": {
+    "quote": "the gate's own prose - 'Informix interval cannot be created from non-literal value'",
+    "providers": "TestProvName.AllInformix",
+    "observed": "IBM.Data.Db2.DB2Exception : Non-numeric character in datetime or interval.",
+    "attributionSource": "search",
+    "verdict": "no-issue",
+    "issue": null,
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); local re-run 2026-09-10 INADMISSIBLE - the IBM CLI driver replaced the server text with 'A codepage conversion problem occurred creating this message' under this workstation's UTF-8 ACP, exactly as A-13/A-15 describe. The SQL state matched, so the failure class is confirmed; only the renderable text is lost, and DB2CODEPAGE=1208 did not help."
+  },
+  "Tests/Linq/DataProvider/PostgreSQLTests.cs::Issue2796Test2": {
+    "note": "One attribute covers both transports: the remote message carries the inner type name, which is what Matches looks for on a remote case.",
+    "attributionSource": "test-description",
+    "quote": "#2796 'Mapping Postgres tstzrange to NpgsqlRange with linq2db' - open, and the value the conversion chokes on is an NpgsqlRange",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on PostgreSQL.18",
+    "observed": "LinqToDB.Common.LinqToDBConvertException : Cannot convert value '...' NpgsqlTypes.NpgsqlRange; 26 cases, direct and remote",
+    "verdict": "matches",
+    "issue": "2796",
+    "providers": "(all - PostgreSQL by data source)"
+  },
+  "Tests/Linq/Linq/SelectQueryTests.cs::SubQueryTest": {
+    "note": "Co-sited with a ThrowsForProvider for Sybase, which governs that provider instead and is left alone.",
+    "attributionSource": "search",
+    "quote": "as UnionTest",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); local re-run 2026-09-10 INADMISSIBLE - the IBM CLI driver replaced the server text with 'A codepage conversion problem occurred creating this message' under this workstation's UTF-8 ACP, exactly as A-13/A-15 describe. The SQL state matched, so the failure class is confirmed; only the renderable text is lost, and DB2CODEPAGE=1208 did not help.",
+    "observed": "as UnionTest",
+    "verdict": "no-issue",
+    "issue": null,
+    "providers": "TestProvName.AllInformix"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_NullEnumInAnchor": {
+    "quote": "as Issue3360_NullGuidInAnchor",
+    "providers": "TestProvName.AllSqlServer",
+    "observed": "as Issue3360_NullGuidInAnchor, on column \"Enum1\"",
+    "attributionSource": "name",
+    "verdict": "matches",
+    "issue": "3360",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SqlServer.2022.MS"
+  },
+  "Tests/Linq/UserTests/Issue3305Tests.cs::TestComplexQueryWms": {
+    "quote": "#3305 'complex query from #1875 does not work.' - open, and this fixture is its repro",
+    "providers": "TestProvName.AllSqlServer",
+    "observed": "SqlException : Invalid object name 'InventoryResourceDTO'.; 12 cases across both SqlClient packages",
+    "attributionSource": "name",
+    "verdict": "matches",
+    "issue": "3305",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SqlServer.2022.MS"
+  },
+  "Tests/Linq/DataProvider/SqlServerTypesTests.TVP.cs::TableValuedParameterInQueryUsingTableMethodTest": {
+    "note": "Message-only: Microsoft.Data.SqlClient and System.Data.SqlClient each raise their own SqlException and share only the text.",
+    "attributionSource": "search",
+    "quote": "the gate's own prose - 'DataParameter not supported by TableExpressionAttribute'",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SqlServer.2022.MS",
+    "observed": "SqlException : Incorrect syntax near the keyword 'select'.; 48 cases across both SqlClient packages",
+    "verdict": "no-issue",
+    "issue": null,
+    "providers": "(all - SqlServer2008Plus by data source)"
+  },
+  "Tests/Linq/DataProvider/SqlCeTests.cs::Issue4581Test": {
+    "note": "The remote arm is the clearest demonstration that one attribute suffices for both transports: the type name appears only inside System.ServiceModel.FaultException, and Contains finds it.",
+    "attributionSource": "test-description",
+    "quote": "#4581 'SQL Server Compact 4.0: InvalidOperationException when trying to insert a string larger than 4000 chars into ntext field' - open, and the observed message is that truncation",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SqlCe",
+    "observed": "System.InvalidOperationException : Value : String truncation: max=4000, len=5000; direct, and the same wrapped in a FaultException over the remote transport",
+    "verdict": "matches",
+    "issue": "4581",
+    "providers": "(all - SqlCe by data source)"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue3360_NullGuidInAnchor": {
+    "note": "Message-only for the two-driver reason. The column name is part of the fragment and differs from the Enum sibling, so the two declarations are not interchangeable.",
+    "attributionSource": "name",
+    "quote": "#3360 'Constant/parameter column in union query should be typed by column from other unioned query...' - open; a recursive CTE anchor is the same typing question",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SqlServer.2022.MS",
+    "observed": "SqlException : Types don't match between the anchor and the recursive part in column \"Guid\" of recursive query \"cte\".; 12 cases across both SqlClient packages",
+    "verdict": "matches",
+    "issue": "3360",
+    "providers": "TestProvName.AllSqlServer"
   }
 }
