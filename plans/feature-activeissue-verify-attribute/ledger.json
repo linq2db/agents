@@ -1562,5 +1562,85 @@
     "verdict": "remove",
     "note": "PROBED by dumping the 31 rows: seven are package members (ISSUE2132.TEST, and TEST_PACKAGE1 and TEST_PACKAGE2 each contributing a procedure, a function and a table function), so the packages #399 asked for ARE loaded. The six rows with no schema (ALLOUTPUTPARAMETERS, ARRAYTEST, PERSON_INSERT_OUTPUTPARAMETER, SCALAR_OUTPUTPARAMETER, SCALARARRAY, ISSUE2132.TEST) are present carrying a ResultException rather than missing, and the T4 filter in the second assertion excludes them by design. So the defect is fixed and both hard-coded 11s were counts of whatever the Oracle test schema held when the test was written. Resolved as \remove (user's call, option b): the gate is gone and the counts are replaced by assertions on what #399 asked for - TEST_PACKAGE1 and TEST_PACKAGE2 each describing their three members, and the T4 filter keeping exactly the procedures whose result schema could be read (proven equivalent to ResultException == null across all 31 rows). Green ungated on Oracle.11.Managed. Data/Create Scripts/Oracle.sql is shared by every Oracle version, so the package assertions do not depend on which one runs.",
     "sweptOn": "2026-09-10 local, net10.0, Oracle.11.Managed - probe dump, then re-verified ungated"
+  },
+  "Tests/Linq/DataProvider/MySqlTests.cs::TinyInt1IsByte": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "attributionSource": "test-description",
+    "note": "The bare [ActiveIssue] carried no number; taken from the test Description.",
+    "observed": "Multiple failures; the first is Assert.That(byteColumn!.SystemType, Is.EqualTo(typeof(byte))) - expected Byte, got Boolean; 5 cases",
+    "verdict": "matches",
+    "providers": "(all - the test is MySQL-only by its data source)",
+    "quote": "#86 'Recognise bit(1) as Bool' - open; tinyint(1) coming back as bool where byte is expected is the same reading",
+    "issue": "86"
+  },
+  "Tests/Linq/DataProvider/FirebirdTests.cs::TestProcedureNonLatinParameters2": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "attributionSource": "search",
+    "note": "Searched the tracker for a Firebird output-parameter issue and found none. The observed failure is downstream of the prose: with no output parameter set the call yields no row, and reading it throws.",
+    "observed": "System.InvalidOperationException : Sequence contains no elements; 4 cases across Firebird 2.5, 3, 4, 5",
+    "verdict": "no-issue",
+    "providers": "(all - the test is Firebird-only by its data source)",
+    "quote": "the gate's own prose - 'Output parameter not set'",
+    "issue": null
+  },
+  "Tests/Linq/UserTests/Issue3475Tests.cs::NumberLikeTests": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "attributionSource": "external-url",
+    "note": "The defect is in the third-party library, not linq2db - the fixture's own #3475 is closed and was about nullable numeric conversion. #934 is closed upstream but the failure persists at the version pinned here, which is worth knowing before anyone reads the closure as a fix.",
+    "observed": "System.Linq.Dynamic.Core.Exceptions.ParseException : Method 'ToString' on type 'Object' is not accessible.; 7 cases",
+    "verdict": "matches",
+    "providers": "(all - SQLite and ClickHouse by data source)",
+    "quote": "System.Linq.Dynamic.Core#934 '.ToString in select stop working' quotes the identical message and the identical parser frame; its sibling #891 is titled 'Broken after upgrade from 1.5.1 to 1.6.0.1', which is the gate's own 'Broken in 1.6.0'",
+    "issue": "https://github.com/zzzprojects/System.Linq.Dynamic.Core/issues/934"
+  },
+  "Tests/Linq/Update/MergeTests.Operations.Insert.cs::InsertFromCrossJoinedSourceQuery2": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "attributionSource": "search",
+    "note": "The expectation is inherited from the ...Workaround sibling immediately above, which omits Fake and so projects six members; this one projects seven. So ShouldBe(6) cannot be right - and neither is ten for a seven-member projection, which is a second, separate question. Nothing on the tracker covers either, and #5896 (the cross-joined-source merge issue filed this session) is Sybase-only while this fails on 26 cases. Declared with the environment-independent Shouldly shape per A-29; verified on DuckDB.",
+    "observed": "Shouldly.ShouldAssertException : the column count is 10 where the test expects 6; 26 cases",
+    "verdict": "bad-test-data",
+    "providers": "(all)",
+    "quote": "the code's own comment, now folded into Details - 'Probably wrong test'",
+    "issue": null
+  },
+  "Tests/Linq/UserTests/Issue2743Tests.cs::IssueTestDeleteViaSelect": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "attributionSource": "search",
+    "note": "The fixture name is not the attribution here: this delete variant is an adjacent shape added beside #2743 and has no tracker of its own. Read as a caution about recoverable-from-name - the name identifies the fixture, not necessarily the test.",
+    "observed": "LinqToDB.LinqToDBException : Table 'Queryable1' does not have primary key.; 112 cases",
+    "verdict": "no-issue",
+    "providers": "(all)",
+    "quote": "#2743 'Update Builder -> InvalidOperationException when Selecting property from Complex Object for insert' is closed, and its own repro is the sibling IssueTestInsertViaSelect, which passes",
+    "issue": null
+  },
+  "Tests/Linq/DataProvider/DB2Tests.cs::TestTimespanAndTimeValues": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument)",
+    "attributionSource": "search",
+    "note": "Searched the tracker for a remote/provider-specific-type-mapping issue and found none, so the prose keeps its own words behind a no-issue marker. Carries a [Values] parameter, so it was checked against A-28: both values fail, the gate is not partly stale.",
+    "observed": "Assert.That(TestTimeTypes.Comparer(record, TestTimeTypes.Data[0]), Is.True); 2 cases, both [Values] values of useParameters",
+    "verdict": "no-issue",
+    "providers": "ProviderName.DB2, remote only (SkipForNonLinqService)",
+    "quote": "the gate's own prose - 'RemoteContext miss provider-specific types mappings'",
+    "issue": null
+  },
+  "Tests/Linq/Update/MergeTests.Operations.Insert.cs::SortedMergeResultsIssue": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "attributionSource": "search",
+    "note": "Searched the tracker for a merge source-ordering issue and found none. Verified on DuckDB.",
+    "observed": "Multiple failures; the first is Assert.That(result[0].Id, Is.Zero) - expected 0, got 11; 7 cases",
+    "verdict": "no-issue",
+    "providers": "ProviderName.DB2, TestProvName.AllOracle, TestProvName.AllSybase, TestProvName.AllPostgreSQL15Plus, TestProvName.AllDuckDB",
+    "quote": "the gate's own comment - 'it returns incorrectly ordered data for DB2, PostgreSQL and Oracle for some reason'",
+    "issue": null
+  },
+  "Tests/Linq/Linq/ParameterTests.cs::Issue_NRE_InAccessor": {
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "attributionSource": "search",
+    "note": "A null first argument to Sql.PadLeft throws while the accessor is built, before any SQL is produced.",
+    "observed": "System.NullReferenceException : Object reference not set to an instance of an object.; 4 cases",
+    "verdict": "no-issue",
+    "providers": "(all - the test is SQLite-only by its data source)",
+    "quote": "nothing on the tracker; #4799 is the only PadLeft issue and reports trimming, a different defect",
+    "issue": null
   }
 }
