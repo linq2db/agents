@@ -2388,5 +2388,35 @@
     "attributionSource": "test-description",
     "note": "Six apparent causes collapse to two: Access's ODBC and OleDb drivers word it differently but share the phrase, and the WCF wrapper carries it, so one message-only attribute covers all sixteen Access cases.",
     "issue": "3691"
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::TestInsertIssue2": {
+    "issue": null,
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "observed": "104 cases share Assert.That(result, Has.Length.EqualTo(3)); MariaDB, SapHana, Sybase and YDB reject the NULL at the server first",
+    "quote": "no prose: the attribute was bare",
+    "providers": "(all)",
+    "note": "Blanket assertion declared; the four providers that never reach it share one no-declaration attribute rather than four wordings.",
+    "verdict": "no-issue",
+    "attributionSource": "none"
+  },
+  "Tests/Linq/Update/InsertTests.cs::Issue4702Test": {
+    "issue": "4702",
+    "sweptOn": "2026-09-09 CI sweep",
+    "observed": "two groups: Access/Firebird/HANA refused up front by linq2db (KeepIdentity + RowByRow); PostgreSQL, DuckDB, DB2, SqlCe and YDB reach the server and collide on the identity value",
+    "quote": "the gate's own prose - Update test to test different RetrieveIdentity modes for all providers with sequences",
+    "providers": "AllFirebird, AllAccess, AllDB2, AllPostgreSQL, SqlCe, AllSapHana, AllYdb, AllDuckDB",
+    "note": "Six attributes. Checked for over-broadness: every named provider fails, including SapHana which the truncated first view had hidden.",
+    "verdict": "no-issue",
+    "attributionSource": "test-description"
+  },
+  "Tests/Linq/Linq/InheritanceTests.cs::TestInsertIssue1": {
+    "issue": null,
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "observed": "one cause, about twenty wordings - every server rejects the NULL Code discriminator differently; ClickHouse instead fails a stage earlier with a linq2db mapping refusal",
+    "quote": "no prose: the attribute was bare",
+    "providers": "(all)",
+    "note": "The one site where per-provider declaration would be wrong rather than merely tedious: the messages differ only in vendor phrasing, so pinning them would pin prose rather than a contract. Blanket half takes no-declaration; ClickHouse is declared because it differs in KIND, not just in wording.",
+    "verdict": "no-issue",
+    "attributionSource": "none"
   }
 }
