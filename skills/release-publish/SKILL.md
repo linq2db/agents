@@ -42,6 +42,8 @@ The publish phase has 7 ordered steps with no implicit transitions. Each step re
 
 **Note on ordering.** Steps 6 + 7 (baselines flow) run **after** step 5 (release PR merge) so the baselines work proceeds in parallel with `/release-postpublish` (nuget publish, docs PR, GitHub release). Earlier versions of this skill put baselines merge + tag between the master reset and the team-test gate, which serialized the publish unnecessarily — the CI-generated baselines PR doesn't gate prerelease nugets or the release merge.
 
+**Every step closes in two places — the state file *and* the release PR's checklist.** The block between `<!-- release-state:checklist:start -->` and `:end` on the release PR is the only view of this phase anyone but you has, and **nothing syncs it**: `release-state.ps1 -Action sync-to-pr` renders `state.tasks`, which is the *prep* checklist, and has no publish-phase equivalent. So a step that updates only the JSON leaves the PR advertising work as outstanding that finished hours earlier. Tick the box in the **same turn** you record the status, with [`pr-body-edit.ps1`](../../scripts/pr-body-edit.ps1) and one `replacements` entry per line (pass `-ManifestFile <path>` — piping the manifest on stdin does not bind from the PowerShell tool, see [`script-authoring.md`](../../docs/script-authoring.md)). Carry the evidence into the tick the way [#5742](https://github.com/linq2db/linq2db/pull/5742) did — anchor sha, counts, what was verified — since that annotation is what a reviewer reads *instead of* the state file they cannot see. (6.5.0: steps 2 and 3 were recorded in state and the PR still showed them unchecked until the maintainer asked.)
+
 Skill never auto-advances. Each step prints the next action + waits.
 
 ## Procedure
