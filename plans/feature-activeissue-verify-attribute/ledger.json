@@ -1921,5 +1921,25 @@
     "sweptOn": "not swept: Devart needs a licence key this workstation lacks, and Oracle has no GitHub-CI leg",
     "attributionSource": "none",
     "providers": "Devart (Oracle21DevartDirect, or AllOracleDevartOCI for the two BulkCopy21 sites)"
+  },
+  "Tests/Linq/Linq/FSharpTests.cs::RecordProjectionColumnsOnly": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "(all, but the gate compiled only under #if NETFRAMEWORK)",
+    "observed": "passes - all four cases on net462, direct and remote",
+    "verdict": "remove",
+    "quote": "the gate's own note - 'needs FSharp.Core 10.1, but we use v9 for netfx builds now' - and Directory.Packages.props now pins FSharp.Core at 10.1.302, unconditionally",
+    "note": "A fourth reason a gate can have no CI evidence: it exists only on a TFM no leg builds. The sweep runs net10.0, where the #if excludes the attribute entirely, so the tests were ungated and green there and the gate could be neither harvested nor declared blind. Measuring it meant building and running net462, which is the only way this class can be settled. Gates and their #if wrappers removed; re-verified ungated.",
+    "sweptOn": "2026-09-10 local, net462 Debug, SQLite.MS"
+  },
+  "Tests/Linq/Linq/FSharpTests.cs::RecordComplexProjection": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "(all, but the gate compiled only under #if NETFRAMEWORK)",
+    "observed": "passes - all four cases on net462, direct and remote",
+    "verdict": "remove",
+    "quote": "the gate's own note - 'needs FSharp.Core 10.1, but we use v9 for netfx builds now' - and Directory.Packages.props now pins FSharp.Core at 10.1.302, unconditionally",
+    "note": "A fourth reason a gate can have no CI evidence: it exists only on a TFM no leg builds. The sweep runs net10.0, where the #if excludes the attribute entirely, so the tests were ungated and green there and the gate could be neither harvested nor declared blind. Measuring it meant building and running net462, which is the only way this class can be settled. Gates and their #if wrappers removed; re-verified ungated.",
+    "sweptOn": "2026-09-10 local, net462 Debug, SQLite.MS"
   }
 }
