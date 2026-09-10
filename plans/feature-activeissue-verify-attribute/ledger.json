@@ -2138,5 +2138,55 @@
     "attributionSource": "int",
     "note": "One attribute per provider family. The four reject the mixed set operation at four different stages, and MySQL is the only one that fails after the value comes back rather than while typing or matching the query.",
     "providers": "AllDB2, AllYdb, AllDuckDB, AllMySql"
+  },
+  "Tests/Linq/Update/MergeTests.Issues.cs::Issue4584Test": {
+    "attributionSource": "test-description",
+    "issue": "4584",
+    "note": "Gate scope is exact once read against MergeDataContextSource, which already excludes Access, SqlCe, YDB, SQLite, ClickHouse, PostgreSQL14Minus and MySQL. Every runnable provider fails; the only absentees are Oracle and HANA native, which have no leg.",
+    "providers": "(all merge sources)",
+    "observed": "24 providers fail the parameter-count assertion; Firebird 2.5 and Informix reject the statement first",
+    "verdict": "matches",
+    "quote": "#4584 - open",
+    "sweptOn": "2026-09-09 CI sweep"
+  },
+  "Tests/Linq/Linq/CteTests.cs::Issue2451_ComplexColumn_All": {
+    "attributionSource": "name",
+    "issue": "2451",
+    "note": "Gate scope is exact. The SQL Server half is message-only because the two client packages raise their own SqlException.",
+    "providers": "AllPostgreSQL, AllSqlServer",
+    "observed": "PostgreSQL: 42804 recursive query column has type character varying(50) in non-recursive term but character varying overall, 13 cases. SQL Server: Types don't match between the anchor and the recursive part in column \"FirstName\", 12 cases across both client packages.",
+    "verdict": "matches",
+    "quote": "#2451 - the test names it",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::Issue3117Test1": {
+    "attributionSource": "test-description",
+    "issue": "3117",
+    "note": "OVER-BROAD gate, narrowed: AllSQLite named three providers of which only SQLite.MS refuses; the Classic variants are now confirmed passing ungated, which is the measurement rather than an inference from their absence. AllOracle keeps a no-declaration marker - no CI leg, nothing harvested.",
+    "providers": "AllDB2, AllInformix, AllMySqlConnector, AllOracle, AllPostgreSQL, SQLiteMS (was AllSQLite), AllYdb",
+    "observed": "five distinct refusals: DB2/Informix \"Specified cast is not valid\", MySqlConnector naming the types, Npgsql unsupported write for DataTypeName integer, SQLite.MS no mapping to a native type, YDB unsupported YdbDbType",
+    "verdict": "matches",
+    "quote": "#3117 - open",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+  },
+  "Tests/Linq/Linq/MappingTests.cs::Issue3117Test2": {
+    "attributionSource": "test-description",
+    "issue": "3117",
+    "note": "Same five-way split and the same AllSQLite narrowing.",
+    "providers": "as Issue3117Test1",
+    "observed": "as Issue3117Test1",
+    "verdict": "matches",
+    "quote": "#3117 - open",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+  },
+  "Tests/Linq/Linq/DateTimeOffsetTests.cs::Issue1855Test": {
+    "attributionSource": "test-description",
+    "issue": "1855",
+    "note": "Not over-broad despite a prov=0 census reading: the count comes from the multi-line Configurations array the census cannot parse. SQLite.MS and SQL Server confirmed passing ungated. Only Firebird 4+ reaches the gate at all - the data source excludes the older ones - and one attribute covers both transports there.",
+    "providers": "AllSQLiteClassic, AllFirebird",
+    "observed": "SQLite Classic: wrong row count, 24 cases. Firebird 4/5: InvalidOperationException Incorrect time zone value, 16 cases direct and remote.",
+    "verdict": "matches",
+    "quote": "#1855 - open",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
   }
 }
