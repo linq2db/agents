@@ -80,4 +80,15 @@ The session's testing patterns, in order of what they prove:
 2. **Cache HIT across invocations via local-function parameter.** Build the query inside a local function with the cache-keyed value as a parameter; invoke the function twice with semantically-equivalent values (e.g. reordered chars for a sorted-key); assert miss counter unchanged. Catches Invariant 2 + verifies the key's equivalence relation.
 3. **Cache MISS on captured-var mutation.** Mutate the captured value in place between two `ToArray()` calls so the cache key changes; assert miss counter increased. Confirms cache invalidation actually happens on content change.
 
-`GetCacheMissCount()` is a static counter on `Query<T>` — global across the AppDomain. Within one test method, sequential invocations are deterministic; across tests, cache state leaks but the delta-from-prior-capture assertion stays sound.
+`GetCacheMissCount()` is a static counter on `Query<T>` — global across the AppDomain. Within one test method, sequential invocations are deterministic; across tests, cache state leaks but the delta-from-prior-capture assertion stays sound — **only while nothing evicts the entry between the two captures**, which on netfx is not the common case. See the next section.
+
+## A cache-dependent test needs `[QueryCacheTest]`
+
+`QueryCache.Default` is process-wide, so a test asserting anything about *hits* — an exact `GetCacheMissCount()` delta, query-object identity across two executions, or a per-build cost that only holds while an entry survives — asserts against state every other test perturbs. Two independent pressures evict the entry it expects to hit:
+
+- **The netfx cap.** `Tests/Linq/TestsInitialization.cs` caps the cache at **100 entries** on every netfx leg and on any 32-bit process, while a full run produces ~1700 distinct queries — so trimming is continuous. 64-bit non-netfx legs keep the 10000 default and never trim, which is why a flake here reproduces on netfx only.
+- **Parallel lanes.** Tests run concurrently via `ResourceLaneDispatcher`, so another test can add entries mid-loop.
+
+`[QueryCacheTest]` (`Tests/Base/Attributes/QueryCacheTestAttribute.cs`) fixes both: it derives from `ParallelizableAttribute(ParallelScope.None)` for the globally-exclusive lane, and nulls `MaxEntriesOverride` for the test's duration. It *lifts the cap* rather than clearing the cache, because clearing breaks tests parameterised by iteration where case 1 warms and case 2 asserts the hit.
+
+**The symptom is a count mismatch on netfx legs only** — an evicted entry reads as one extra compilation, so the assertion sees miss-cost where it expected hit-cost. Measured for `ParameterReuse_ImpureExpression_CostDoesNotGrowPerBuild`: a miss costs **5** accessor evaluations, a hit **2**, so the profile is `5,2,2,2`, and an entry lost before the last build gives `5,2,2,5`. It shipped in [#5733](https://github.com/linq2db/linq2db/pull/5733) without the attribute and flaked on build 23575's SQL Server 2005 + 2008 netfx legs; [#5912](https://github.com/linq2db/linq2db/pull/5912) added it.
