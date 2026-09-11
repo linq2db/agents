@@ -3320,5 +3320,45 @@
     "quote": "gate: 'Wrong Date manipulations'",
     "note": "SECOND DEAD TEST FOUND THIS SESSION. The bool inlineParams parameter had no value source, so NUnit generated no test cases and the method was absent from discovery entirely - confirmed by listing tests for Oracle.11.Managed, where sibling CteTests methods appear and this one does not. The gate was dead with it. Repaired with [Values], which costs nothing: every non-Oracle case passes. Declared by ErrorTypeName rather than ErrorMessage because the two arms fail with different ORA codes and no attribute can target a test-case argument (A-28); the driver exception type is the strongest statement true of all four cases. Gate prose 'Wrong Date manipulations' matches only the ORA-01841 arm, so it was describing half the failure.",
     "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 7 providers"
+  },
+  "Tests/Linq/DataProvider/AccessTests.cs::Issue3893Test": {
+    "issue": 3893,
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllAccess; bare gate replaced by a three-way method split",
+    "observed": "Swept across all 33 identifiers on both ACE drivers: 44 of 66 cases PASS. Failing on BOTH drivers (10): ' leading_space', 'char `', 'char !', 'char .', 'char ]', 'char [', and the four control characters \\r \\t \\b \\n. Failing on ODBC ONLY (2): 'char ?' (rejected by name) and 'char {' (created, then read back under a different name, so it fails the assertion instead of throwing). The other 21 pass on both. After the split: 44 passed, 22 Inconclusive, 0 failed.",
+    "verdict": "test-defect",
+    "quote": "#3893, Description URL on the test; gate was a bare [ActiveIssue] with no prose",
+    "note": "Sixth instance of the [Values] class and the first needing THREE methods rather than two: ActiveIssueNew can target a provider but not a ValueSource argument, and here the split is not clean because two identifiers divide the drivers. Resolution (user's choice, option a): _identifiers keeps the 21 that work and is ungated, _identifiersRejected carries the 10 gated on AllAccess, _identifiersRejectedByOdbc carries the 2 gated on ProviderName.AccessAceOdbc, and all three call Issue3893TestCore. Both gated groups take no-declaration:: the 10 are mostly \"'<name>' is not a valid name\" but the control characters give 'Syntax error in field definition' and one an ODBC 'COUNT field incorrect', and the ODBC pair mixes a driver rejection with an assertion failure.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 33 identifiers x 2 drivers"
+  },
+  "Tests/Linq/DataProvider/AccessTests.cs::Issue3893Test_Rejected": {
+    "issue": 3893,
+    "attributionSource": "test-description",
+    "providers": "TestProvName.AllAccess",
+    "observed": "All 10 identifiers fail on both ACE drivers: ' leading_space', 'char `', 'char !', 'char .', 'char ]', 'char [', and \\r \\t \\b \\n. Most give \"'<name>' is not a valid name. Make sure that it does not include invalid characters\" through both OleDb and ODBC; the control characters give 'Syntax error in field definition' and one an ODBC 'COUNT field incorrect'.",
+    "verdict": "matches",
+    "quote": "#3893, via the Description URL on the split's parent test",
+    "note": "Sibling created by the three-way split of Issue3893Test - see that row for why. Carries no-declaration: because the group spans three distinct server messages, not one wording.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 10 identifiers x 2 drivers"
+  },
+  "Tests/Linq/DataProvider/AccessTests.cs::Issue3893Test_RejectedByOdbc": {
+    "issue": 3893,
+    "attributionSource": "test-description",
+    "providers": "ProviderName.AccessAceOdbc",
+    "observed": "'char ?' and 'char {' pass on Access.Ace.OleDb and fail on Access.Ace.Odbc. 'char ?' is rejected by name; 'char {' is created and then read back under a different name, so it fails Assert.That(column.ColumnName, Is.EqualTo(columName)) rather than throwing.",
+    "verdict": "matches",
+    "quote": "#3893, via the Description URL on the split's parent test",
+    "note": "The reason Issue3893Test needed three methods rather than two: these two identifiers divide the drivers, so neither the ungated nor the AllAccess-gated sibling could hold them. Gated on the ODBC provider alone. no-declaration: because one arm is a driver rejection and the other an assertion failure - no fragment covers both, and no attribute can target a ValueSource argument to separate them.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 2 identifiers x 2 drivers"
+  },
+  "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs::ContainsOverADifference": {
+    "issue": 5776,
+    "attributionSource": "int",
+    "providers": "was a bare gate over every provider; now 5 measured + 7 unmeasured, with PostgreSQL and Access removed",
+    "observed": "PostgreSQL.16 PASSES. Five fail, each differently: SQLite 'Unable to cast object of type System.TimeSpan to type System.IConvertible', SqlServer.2022 'Operand type clash: time is incompatible with bigint', DuckDB 'Cannot compare values of type INTERVAL and BIGINT in IN/ANY/ALL clause', Sybase 'Implicit conversion from datatype VARCHAR to BIGINT is not allowed', SqlCe 'No mapping exists from DbType Time to a known SqlDbType'. Access fails with 'The LINQ expression could not be converted to SQL.' After the fix: 3 passed, 5 Inconclusive, 0 failed.",
+    "verdict": "matches",
+    "quote": "#5776, via the int ctor already on the attribute",
+    "note": "TWO DEFECTS FIXED HERE, not one. (1) The gate was bare and marked PostgreSQL - which passes - as failing; it is now scoped to the five measured failures plus seven unmeasured sets. (2) The co-sited ThrowsForProvider(LinqToDBException, NoTickTotalProviders, ErrorMessage = Error_Interval_Member) was WRONG: Error_Interval_Member is 'This TimeSpan member is not supported by current provider.', but Access actually fails this test with 'The LINQ expression could not be converted to SQL.' - it never reaches the member because the conversion refuses first, unlike the sibling tests where that declaration is correct. Replaced with ThrowsCannotBeConverted(NoTickTotalProviders), whose fragment is exactly that text; both Access cases now pass. The mismatch was invisible while the bare ActiveIssue kept the test Explicit. The UnsupportedDifferenceProviders declaration (Informix, SqlServer2014Minus) is left alone - neither is reachable here, so there is no evidence to change it on.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 8 providers"
   }
 }

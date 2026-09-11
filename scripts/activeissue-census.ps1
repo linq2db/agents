@@ -125,9 +125,15 @@ function Resolve-Token {
 		if ($consts.ContainsKey("$owner.$Token")) { return (Resolve-Const "$owner.$Token") }
 	}
 
-	# A constant declared in the test file itself - several fixtures build their own provider sets.
-	if ($localConsts -and $localConsts.ContainsKey($Token)) {
-		$expr  = $localConsts[$Token]
+	# A constant declared in the test file itself - several fixtures build their own provider sets - or in any
+	# other file under Tests/, which is what a partial class split across files needs.
+	$constExpr =
+		if ($localConsts -and $localConsts.ContainsKey($Token))        { $localConsts[$Token] }
+		elseif ($sharedConsts -and $sharedConsts.ContainsKey($Token))  { $sharedConsts[$Token] }
+		else                                                           { $null }
+
+	if ($constExpr) {
+		$expr  = $constExpr
 		$parts = @()
 
 		foreach ($piece in ($expr -split '[+,]')) {
@@ -201,6 +207,24 @@ function Split-TopLevel {
 
 $files = Get-ChildItem -Path (Join-Path $RepoRoot 'Tests') -Recurse -Include '*.cs', '*.fs' -File |
 	Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+
+# Provider constants declared anywhere under Tests/, so a token used in one half of a partial class resolves
+# against the half that declares it. IntervalTranslationTests.Queries.cs uses UnsupportedDifferenceProviders,
+# which lives in IntervalTranslationTests.cs; a file-local map alone reports that as UNRESOLVED and the
+# overlap check then has to flag it conservatively. File-local still wins on a name collision.
+$sharedConsts = @{}
+
+foreach ($f in $files) {
+	$t = Get-Content -Raw -LiteralPath $f.FullName
+
+	if (-not $t) { continue }
+
+	foreach ($lm in [regex]::Matches($t, '(?:const|static\s+readonly)\s+string\s+(\w+)\s*=\s*([^;]+);')) {
+		if (-not $sharedConsts.ContainsKey($lm.Groups[1].Value)) {
+			$sharedConsts[$lm.Groups[1].Value] = $lm.Groups[2].Value.Trim()
+		}
+	}
+}
 
 $rows = @()
 
@@ -413,7 +437,10 @@ foreach ($file in $files) {
 		}
 
 		if ($throwsAttrs.Count -gt 0) {
-			foreach ($pm in [regex]::Matches($block, '(?:TestProvName|ProviderName)\.\w+')) {
+			# Qualified tokens, plus bare identifiers: a Throws* target is as often a named constant
+			# (UnsupportedDifferenceProviders) as it is a TestProvName member, and only the former needs the
+			# shared const map to resolve.
+			foreach ($pm in [regex]::Matches($block, '(?:TestProvName|ProviderName)\.\w+|\b[A-Z]\w*Providers\b')) {
 				# tokens inside the ActiveIssue attribute itself are not the Throws targeting
 				$abs = $pm.Index + $blockStart
 
@@ -421,6 +448,19 @@ foreach ($file in $files) {
 
 				$r = Resolve-Token $pm.Value
 				if ($r) { $throwsProvs += ($r -split ',' | ForEach-Object { $_.Trim() }) }
+			}
+
+			# Subclasses that compute their target set in the constructor rather than taking it as an argument.
+			# ThrowsRequiresCorrelatedSubquery is the only one so far: AllYdb on its own when simple: true,
+			# plus AllClickHouse otherwise. Without this the set reads as empty and every use is flagged.
+			if ($throwsAttrs -contains 'ThrowsRequiresCorrelatedSubquery') {
+				$simple = $block -match 'ThrowsRequiresCorrelatedSubquery\s*\(\s*simple\s*:\s*true'
+				$set    = if ($simple) { 'TestProvName.AllYdb' } else { 'TestProvName.AllYdb,TestProvName.AllClickHouse' }
+
+				foreach ($tok in ($set -split ',')) {
+					$r = Resolve-Token $tok
+					if ($r) { $throwsProvs += ($r -split ',' | ForEach-Object { $_.Trim() }) }
+				}
 			}
 		}
 
