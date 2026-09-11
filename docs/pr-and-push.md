@@ -92,6 +92,21 @@ The same applies when a follow-up commit changes a test's projection shape / SQL
 
 **Also covers the case where the baselines PR became `CONFLICTING` because *other* source PRs landed on master first.** The baselines PR is keyed against a specific source-PR commit; once master moves, the baselines diff often no longer applies cleanly even if the source PR's tests didn't change. Same close+delete-branch action — the next CI run on the now-merged source PR (or its squashed master commit) regenerates fresh baselines under master's current state. Don't try to merge-resolve a baselines PR; the cost of regenerating is much lower than the cost of getting the resolution wrong.
 
+**A branch cut from *another open branch* goes `CONFLICTING` the moment that parent squash-merges — rebase it, don't merge-resolve.** Squashing rewrites the parent's commits into one new commit, so your branch still carries the originals and git sees two unrelated commits touching the same files. The conflict is therefore in content **neither side meaningfully changed**, which is the tell: a hand-resolution is all risk and no information. Diagnose by comparing trees rather than diffs —
+
+```
+git rev-parse <old-base>^{tree} <squashed-commit-on-master>^{tree}
+```
+
+— and when they are **equal**, the parent's work is already on master byte-for-byte, so dropping your copy of it is provably lossless:
+
+```
+git rebase --onto origin/master <old-base>
+git push --force-with-lease origin <branch>
+```
+
+Confirm afterwards that `git diff --stat origin/master..HEAD` shows only *your* commits' files; if the parent's content reappears there, the trees were not equal and the rebase needs a second look. (6.5.0: docs #67 — base `6fb19e4` had squash-merged as `0229f0f` via #66, both at tree `309bde278`; the rebase replayed two commits with zero conflicts.) Distinct from the baselines case above, where regenerating beats rebasing.
+
 **Do a review-requested rename immediately, not at the end of the walk.** Every CI run between the request and the rename regenerates baselines under the doomed names, so batching the rename with the rest of the review fixes multiplies the stale set for no benefit — and a rename is usually a one-line mechanical change that needs no discussion. Push it on its own, then continue the walk. (Surfaced 2026-09-01 on #5840: a reviewer asked for an `Issue<N>_` prefix to be dropped from six tests, and the user's follow-up was *"I don't want polluted baselines"* — the rename went out as its own commit within the same turn.) This is about not *creating* stale baselines; it does not conflict with [`agent-rules.md`](agent-rules.md) → orphaned baselines, which says existing orphans from a superseded run need no cleanup and are never a review finding.
 
 Both `/review-pr` (in interactive-mode `fix`-path post-walk) and `/verify-review` (when a partial-fix follow-up renames a test) trigger this cleanup. Make it part of the publish bundle that pushes the follow-up commits — push, body update, Copilot re-request, baselines close+delete-branch, `/azp run test-all`.

@@ -129,6 +129,7 @@ To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`):
 2. `dotnet publish src/docfx/docfx.csproj -c Release -f <tfm> -o <staging>` — take `<tfm>` from the vendored `docfx/docfx.runtimeconfig.json` (**`net10.0`** as of 6.5.0; was `net9.0` for 6.4.0 — read it, don't assume), not from the csproj's `TargetFrameworks`.
 3. **Overlay** the staging output onto `<docs-path>/docfx/`; do **not** delete the directory first.
 4. Rebuild the docs locally to verify *before* committing either repo.
+5. **Commit the pin bump somewhere before the binaries ship.** The refreshed `docfx/` gets committed into `linq2db/docs`, so if the pins it was built from stay uncommitted, the shipped binaries correspond to **no commit anywhere** and nobody — including you, next release — can reproduce or bisect them. When the base branch is one you must not touch (an in-flight upstream PR branch, say), the resolution is a **sub-branch off it** carrying just the pin commit, named into the existing `custom/linq2db*` family that marks docfx builds used for these docs. Record in the commit message which docs commit it was published from. (6.5.0: `custom/linq2db-assembly-uids` off `fix/8966-assembly-uid-prefixes`, after the pins were first left uncommitted.)
 
 > **Overlay, never replace.** Wiping and copying silently destroys vendored-only files; docs PR **#62 ("Restore docfx/templates…")** exists because that already happened once. After copying, assert: `templates/` must still hold 388 files, and `git status` should show **zero deletions**.
 >
@@ -189,6 +190,7 @@ Action:
    - Registry publication is **not** a release blocker. If it stays broken, park it, note it, and
      carry on — the nugets are already live.
 6. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
+7. **→ Go check step 5 (close the milestone) now.** Publishing the release satisfies both of its preconditions — packages live, release published — and nothing later in this skill gates it. Step 5's own "don't let it slip" warning has now failed **twice** (6.4.0 and 6.5.0, both times the maintainer had to ask), so treat this line as the trigger rather than relying on remembering at the end: the numbering puts milestone-close last because that is usually when it comes up clean, not because steps 2 and 4 block it.
 
 **The pipeline already created a draft — fill it, don't create a second one.** The release build's *Create Release Draft* step (`build-job.yml`) opens the draft as soon as the release branch builds, with only a one-line body (`[Release notes](…) [Nugets](…)`) plus `--generate-notes` output. This step's job is to replace that body with the authored one, so the flow is a **PATCH of the existing draft**, not a `gh release create`.
 
