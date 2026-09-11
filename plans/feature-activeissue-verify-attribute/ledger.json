@@ -3260,5 +3260,65 @@
     "quote": "#5886 - the bare UserId beside the column is never unwrapped because ColumnDescriptor.ApplyConversions only bridges FSharpOption<T> to T for Nullable<>, which the comment above the test already states",
     "note": "First site to use the untargeted-catch-all shape. SelectGoverning puts every attribute with HasExplicitTargeting into a preferred pool and only reports ambiguity within it, so a bare attribute is a safe lowest-precedence fallback beneath a Configuration- or SkipFor-targeted one. Read the selector before relying on that rather than inferring it from behaviour; the verification run confirms it - zero 'more than one equally specific' failures across 16 cases. Eight direct wordings for one mechanism is the by-kind rule's no-declaration case; ClickHouse and remote each had a single shared message and so are declared.",
     "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, 8 providers x 2 transports"
+  },
+  "Tests/Linq/Mapping/FluentMappingExpressionMethodTests.cs::ExpressionMethodOnProperty": {
+    "issue": 4987,
+    "attributionSource": "details-url",
+    "providers": "9 sets: AllSQLite, AllSapHana, AllPostgreSQL, AllOracle, AllDB2, AllInformix, AllClickHouse, AllAccess, AllMySql - with SkipForLinqService",
+    "observed": "PASSES on all 7 reachable governed cases - SQLite.Classic, SQLite.MS, PostgreSQL.16, Oracle.11.Managed, ClickHouse.Octonica, MySql.8.0, MySqlConnector.8.0. The remote cases were never gated (SkipForLinqService) and pass too. After deletion: 14/14 green.",
+    "verdict": "remove",
+    "quote": "#4987 'Translate operator+(string, object) object operand using existing object.ToString translator' - CLOSED as COMPLETED 2026-05-15",
+    "note": "Stale gate: the fix landed and the attribute was never removed. Deleted rather than migrated. Four sets stay unmeasured (SapHana, DB2, Informix, Access - the ACE driver is absent here so Access produces no cases at all), but deletion is well-supported anyway: #4987's fix is in core translation rather than any provider, and 7 passes span five provider families and four SQL dialects. If a provider still fails, CI names it. First site swept with L2DB_ACTIVEISSUE_SWEEP=1 - the gate has SkipForLinqService, so its remote cases are ungated and the mixed run defeats the by-name reachability boundary; converting to ActiveIssueNew with a placeholder and sweeping reports every governed case's real outcome instead.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 7 governed cases"
+  },
+  "Tests/Linq/Linq/AnalyticTests.cs::EmptySequenceTest": {
+    "issue": 4626,
+    "attributionSource": "test-description",
+    "providers": "was 5 sets; SqlCe, AllSybase and AllAccess dropped, 2 kept",
+    "observed": "SqlCe, Sybase.Managed, Access.Ace.OleDb and Access.Ace.Odbc all PASS, direct and remote. AllSqlServer2016Minus and AllInformix not reachable here.",
+    "verdict": "limitation",
+    "quote": "#4626 'Extension Aggregate Functions work in flat queries, but don't work in nested query' - CLOSED",
+    "note": "Mostly stale: three of the five gated sets pass and are dropped. The two left keep the gate with no-declaration: unvalidated: - there is no SQL Server 2016-or-older container here, and Informix evidence is inadmissible because the IBM CLI driver replaces the server text with a codepage message. CORRECTION: an earlier pass recorded Access as unreachable. That was wrong - the ACE driver is installed; the provider names in TestProvName.AllAccess are Access.Ace.OleDb / Access.Ace.Odbc / Access.Jet.*, not the connection-string names Access / Access.Odbc that were tried first. Only the Jet pair is genuinely unavailable (32-bit).",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 3 of 5 sets reachable"
+  },
+  "Tests/Linq/Linq/JoinTests.cs::FullJoinCondition_Regression": {
+    "issue": 1224,
+    "attributionSource": "int",
+    "providers": "4 sets, all measured, one no-declaration group",
+    "observed": "MySql.8.0, SqlCe, Sybase.Managed, Access.Ace.OleDb and Access.Ace.Odbc all FAIL, direct and remote. SqlCe 'Token in error = FULL', Sybase \"Incorrect syntax near 'FULL'\", MySQL its generic syntax-error paragraph, Access ODBC 'Reserved error (-1001); there is no message for this error.', Access OleDb 'Unspecified error: E_FAIL(0x80004005)'.",
+    "verdict": "matches",
+    "quote": "#1224 'Emulate FULL OUTER JOIN for databases without it' - OPEN; gate prose 'FULL OUTER JOIN support'",
+    "note": "Gate live and correctly attributed - #1224 verified rather than trusted. One mechanism, five wordings, so a single no-declaration: covers all four sets. The Access split-off from the first pass was merged back once ACE was measured; the two Access drivers give no usable text at all, which is itself the argument against declaring.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 4 of 4 sets"
+  },
+  "Tests/Linq/Update/UpdateFromTests.cs::Issue2815Test1": {
+    "issue": 2815,
+    "attributionSource": "test-description",
+    "providers": "9 sets; ClickHouse declared + 8 no-declaration",
+    "observed": "All 9 sets FAIL. ClickHouse is refused by linq2db itself: 'Feature not supported by database: Correlated UPDATE'. The other eight are server-side and each phrased differently: SqlServer 'The multi-part identifier \"u.Id\" could not be bound', SQLite 'no such column: Issue2815Table1.Id', MySQL 'Unknown column u.Id in on clause', Oracle11 ORA-00904, PostgreSQL 42P01, SqlCe a parse error, DuckDB a binder error, Access an ODBC 42000 / OleDb 'Syntax error in JOIN operation'.",
+    "verdict": "matches",
+    "quote": "gate had no prose; Description points at https://github.com/linq2db/linq2db/issues/2815",
+    "note": "One mechanism - the generated UPDATE references a table not in scope - with ClickHouse failing earlier and differently, so it is declared and the rest take no-declaration:. Checked the co-sited ThrowsRequiresCorrelatedSubquery(simple: true) for collision: with simple:true it covers YDB only, and YDB is not in this gate, so no overlap. Test is [DataSources(false)] so there is no remote arm. Access was measured once the ACE provider names were right and merged into the no-declaration group.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 9 of 9 sets"
+  },
+  "Tests/Linq/UserTests/Issue1363Tests.cs::TestInsert": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "was 3 sets; SqlCe dropped, Sybase and Access declared separately",
+    "observed": "SqlCe PASSES (direct and remote). Sybase.Managed FAILS: AseException 'The name required_field is illegal in this context. Only constants, constant expressions, or variables allowed here.' Access FAILS on both ACE drivers with the same sentence: 'Query input must contain at least one table or query.'",
+    "verdict": "no-issue",
+    "quote": "gate: 'Unsupported INSERT syntax'",
+    "note": "ATTRIBUTION TRAP AVOIDED: the fixture is Issue1363Tests, so the name-based guess is 1363 - but #1363 is 'Use of null value for parameter of subquery makes it ignore non-null values on next calls', unrelated to the INSERT syntax this gate is about. The fixture number describes what the fixture tests, not why the gate exists, so the gate takes no-issue: and a comment records why. Both remaining sets are DECLARED rather than waived: Sybase has one message, and Access shares one sentence across OleDb and ODBC.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 3 of 3 sets"
+  },
+  "Tests/Linq/Linq/CteTests.cs::SelectQueryTest": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "TestProvName.AllOracle11",
+    "observed": "BEFORE the repair the test generated ZERO cases on every provider and never ran. After adding [Values] it produces 28 cases over 7 providers x 2 transports x 2 arms; 24 pass and only the 4 Oracle.11.Managed ones fail, with ORA-01841 on the inlined arm and ORA-01790 on the parameterised one.",
+    "verdict": "test-defect",
+    "quote": "gate: 'Wrong Date manipulations'",
+    "note": "SECOND DEAD TEST FOUND THIS SESSION. The bool inlineParams parameter had no value source, so NUnit generated no test cases and the method was absent from discovery entirely - confirmed by listing tests for Oracle.11.Managed, where sibling CteTests methods appear and this one does not. The gate was dead with it. Repaired with [Values], which costs nothing: every non-Oracle case passes. Declared by ErrorTypeName rather than ErrorMessage because the two arms fail with different ORA codes and no attribute can target a test-case argument (A-28); the driver exception type is the strongest statement true of all four cases. Gate prose 'Wrong Date manipulations' matches only the ORA-01841 arm, so it was describing half the failure.",
+    "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 7 providers"
   }
 }
