@@ -619,8 +619,19 @@ $payload = [pscustomobject]@{
 # point of SC-14 is that a reference sitting in a test name or a Description is not yet *in the attribute*,
 # where a reader and /enable-disabled-test can act on it.
 
-$migrated = @($rows | Where-Object { $_.attrName -eq 'ActiveIssueNew' })
-$oldAttr  = @($rows | Where-Object { $_.attrName -eq 'ActiveIssue' -and $_.file -notmatch 'Tests/Base/Attributes/' })
+# After the cutover the migrated attribute IS named ActiveIssue, so a name-based split inverts: every site
+# reads as "still on the old attribute" and SC-9/SC-14/TO-15 stop evaluating entirely - the gate reports 425
+# violations and checks nothing. Decide by what the attribute *is* rather than what it is called: only the
+# run-and-verify one implements IWrapSetUpTearDown. SC-8 is vacuous once the old attribute is gone; the other
+# three keep their value indefinitely, because they are what stops a new gate being added without a declared
+# failure or a reference.
+$attrFile  = Join-Path $RepoRoot 'Tests/Base/Attributes/ActiveIssueAttribute.cs'
+$cutoverDone = (Test-Path $attrFile) -and ((Get-Content -Raw -LiteralPath $attrFile) -match 'IWrapSetUpTearDown')
+
+$migratedNames = if ($cutoverDone) { @('ActiveIssueNew', 'ActiveIssue') } else { @('ActiveIssueNew') }
+
+$migrated = @($rows | Where-Object { $migratedNames -contains $_.attrName -and $_.file -notmatch 'Tests/Base/Attributes/' })
+$oldAttr  = if ($cutoverDone) { @() } else { @($rows | Where-Object { $_.attrName -eq 'ActiveIssue' -and $_.file -notmatch 'Tests/Base/Attributes/' }) }
 
 $violations = @()
 
