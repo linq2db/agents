@@ -137,7 +137,14 @@ To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`):
 The refresh may add files as well as modify them (Roslyn 5.6 brought 15 new `Microsoft.Extensions.*` / `System.*` dependencies; 5.9 added none). 66–79 changed files with 0 deletions is the healthy shape.
 
 **A Roslyn bump can expose latent bugs in the custom patch.** The custom `VisitorHelper.GetGlobalId` had a null-dereference on symbols whose `ContainingAssembly` is null (reached via `XmlComment.ResolveCrefLink`) that had never fired, because the build always died at CS8795 first. Fixed in `MaceWindu/docfx` `591d070e7`. If the refreshed build fails somewhere inside `Docfx.Dotnet`, check the custom patch (`git show <custom-commit>`) before assuming an upstream docfx bug.
-6. After merge, verify a known new API doc URL resolves on the published site. **First run:** ask the user for a known-good URL pattern (e.g. `https://linq2db.github.io/api/LinqToDB.<new-type>.html`); record in `external-repos.md` → docs-site verification.
+6. **Merge → deploy → verify published.** These are three distinct waits; the PR going green is *not* the site going live.
+
+   1. **The PR's Azure Pipelines checks (`build`, `deploy`) start as `ACTION_REQUIRED`.** They do not run until someone clicks *Approve and run* on the PR — an agent cannot do it. When `gh pr checks <n> --repo linq2db/docs` reports `ACTION_REQUIRED`, that is not a queued run and not a failure; say so and ask the user to approve, rather than waiting on a run that will never start.
+   2. Once approved and green, squash-merge: `gh pr merge <n> --repo linq2db/docs --squash --delete-branch` (`delete_branch_on_merge` is false there, so pass `--delete-branch` explicitly).
+   3. **Then wait for the `deploy` run on `master`.** Merging only starts it. `build.ps1 -deploy $true` clones `linq2db.github.io`, copies `_site` over it and pushes — so the published site lags the merge by the length of that run.
+   4. **Then verify the live site**, by fetching a page for a type *introduced in this release* (an existing page proves nothing — it was already deployed). Pick one from the locally generated `source/api/linq2db/` output before merging, so you have a known-good target.
+
+   **URL pattern** (confirmed 6.5.0): `https://linq2db.github.io/api/<assembly>/<assembly>--<FullTypeName>.html` — e.g. `https://linq2db.github.io/api/linq2db/linq2db--LinqToDB.Mapping.DurationAttribute.html`. The assembly segment is the docfx assembly id (`linq2db`, `linq2db.efcore.10`, …), and the filename repeats it before a `--` separator. It is **not** the flat `api/LinqToDB.<Type>.html` shape this step used to suggest.
 7. Mark step `done`.
 
 ### 3. GitHub release
