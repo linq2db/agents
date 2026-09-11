@@ -63,6 +63,20 @@ Action:
 3. **Missing rows:** ask user: `re-run` (after waiting, packages may now be live) / `wait` (postpublish stays open) / `escalate` (something's broken — CI may have failed publishing; investigate before continuing).
 4. Mark `done` only when **every** expected package is `✓ published`. Don't tick step 1 with missing rows.
 
+> ### ⚠ The script's package list is a guess — take the authoritative one from the push log
+>
+> `release-nuget-verify.ps1` alone **cannot** answer "did everything publish". Three independent ways it reports a false green, all hit on 6.5.0:
+>
+> - **Discovery is incomplete.** Its csproj scan found 29 ids; the build pushed **40**. Missing were `linq2db.FSharp` and the seven per-RID `linq2db.cli.<rid>` pointer packages (`linux-arm64`, `linux-x64`, `osx-arm64`, `osx-x64`, `win-arm64`, `win-x64`, `win-x86`) that `dnx` resolves — none of which comes from an ordinary `<PackageId>`. A clean "no missing rows" would have left 8 packages unverified.
+> - **One `-Version` does not fit every package.** `linq2db.EntityFrameworkCore` tracks the **EF major**, not the product version — 6.5.0 shipped it as `3.34.0` / `8.8.0` / `9.7.0` / `10.6.0` (from `Directory.Build.props`'s `EFxVersion` properties). Asking it for `6.5.0` matched a real-but-ancient EF6-line release and reported `published: true` for something this release never shipped.
+> - **The top-level `ok` field is not a verdict.** It returned `ok: true` alongside `published: 1, missing: 28`; it reports fetch health, not publication.
+>
+> **Get the real list from the build**, then check each id against *its own* expected version:
+> ```
+> pwsh -NoProfile -File .claude/scripts/azp-step-log.ps1 -BuildId <n> -StepName 'Publish to Nuget.org'
+> ```
+> Grep the log for `Pushing <id>.<ver>.nupkg` and for `Your package was pushed.` — the two counts must match, with no `error` / `409` / `413`. That list is what to wait on. nuget.org indexing lags the push by minutes, so re-poll rather than reading a miss as a failed publish.
+
 **If the discovery list looks wrong** (a package the user expects is missing from the table, or an unpackable project is included): the script's heuristic (csproj `<IsPackable>` + `<PackageId>` element) can be off for niche cases. Add the missing id via `-ExtraIds linq2db.foo` and re-run; or fix the csproj heuristic detection in the script if the case is general.
 
 ### 2. Docs PR (linq2db.docs)
@@ -103,18 +117,24 @@ error: ExpressionBuilder.cs(38,44): error CS8795: Partial method
        'ExpressionBuilder.FindBuilderImpl' must have an implementation part
 ```
 
-The generated half of the partial never exists, so metadata extraction yields nothing and the run ends with `warning: No .NET API detected for .`. **This recurs on every linq2db Roslyn bump** — 6.3.0 needed 5.0 → 5.3, 6.4.0 needed 5.3 → 5.6. Check it up front: compare `Microsoft.CodeAnalysis.CSharp` in linq2db's `Directory.Packages.props` against `(Get-Item <docs-path>/docfx/Microsoft.CodeAnalysis.CSharp.dll).VersionInfo.ProductVersion`.
+The generated half of the partial never exists, so metadata extraction yields nothing and the run ends with `warning: No .NET API detected for .`. **This recurs on every linq2db Roslyn bump** — 6.3.0 needed 5.0 → 5.3, 6.4.0 needed 5.3 → 5.6, 6.5.0 needed 5.6 → 5.9. Check it up front: compare `Microsoft.CodeAnalysis.CSharp` in linq2db's `Directory.Packages.props` against `(Get-Item <docs-path>/docfx/Microsoft.CodeAnalysis.CSharp.dll).VersionInfo.ProductVersion`.
 
-To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`, branch `custom/linq2db`):
+> **Read the pin that applies to `CodeGenerators`' TFM, not the first one you find.** Since 6.5.0 the `Microsoft.CodeAnalysis.CSharp` pin is **conditional** — one version for `net8.0`/`net9.0`, another for everything else. `Source/CodeGenerators/CodeGenerators.csproj` is `netstandard2.0`, so it takes the *else* branch: on 6.5.0 that is **5.9.0**, while the net8/9 pin still reads 5.6.0. Grepping for the first `Microsoft.CodeAnalysis.CSharp` line gives the wrong answer and the refresh then lands a docfx that is still too old.
 
-1. Bump all eight `Microsoft.CodeAnalysis*` pins in its `Directory.Packages.props` to linq2db's version.
-2. `dotnet publish src/docfx/docfx.csproj -c Release -f <tfm> -o <staging>` — take `<tfm>` from the vendored `docfx/docfx.runtimeconfig.json` (`net9.0` as of 6.4.0), not from the csproj's `TargetFrameworks`.
+**Establish which docfx branch the docs repo is currently built from before you build anything.** The refresh normally starts from `custom/linq2db`, but that is an assumption, not a fact — the docs repo may be mid-work on a feature branch whose vendored docfx came from a *different* docfx line. On 6.5.0 `linq2db.docs` was on `docs/assembly-qualified-uids`, whose HEAD commit was itself a docfx refresh built from `custom/linq2db-uidprefix` (6 UID-prefix commits ahead of `custom/linq2db`). Overlaying a `custom/linq2db` build there silently reverted that work — and **the zero-deletions guard does not catch it**, because every affected file is a modification, not a deletion. Check `git -C <docs-path> status --short --branch` and `git -C <docs-path> log --oneline -3` first, and if the branch is not master, ask which docfx line to build from.
+
+To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`):
+
+1. Confirm the branch per the note above, then bump all eight `Microsoft.CodeAnalysis*` pins in its `Directory.Packages.props` to linq2db's version.
+2. `dotnet publish src/docfx/docfx.csproj -c Release -f <tfm> -o <staging>` — take `<tfm>` from the vendored `docfx/docfx.runtimeconfig.json` (**`net10.0`** as of 6.5.0; was `net9.0` for 6.4.0 — read it, don't assume), not from the csproj's `TargetFrameworks`.
 3. **Overlay** the staging output onto `<docs-path>/docfx/`; do **not** delete the directory first.
 4. Rebuild the docs locally to verify *before* committing either repo.
 
-> **Overlay, never replace.** `dotnet publish` emits ~487 files; the vendored directory holds ~875. The difference is a `templates/` tree (388 files) that publish never produces — docfx packs templates in its `PackTool` target — plus a committed `.playwright/` folder. Wiping and copying silently destroys them; docs PR **#62 ("Restore docfx/templates…")** exists because that already happened once. After copying, assert the count: `templates/` must still hold 388 files, and `git status` should show **zero deletions**.
+> **Overlay, never replace.** Wiping and copying silently destroys vendored-only files; docs PR **#62 ("Restore docfx/templates…")** exists because that already happened once. After copying, assert: `templates/` must still hold 388 files, and `git status` should show **zero deletions**.
+>
+> The *reason* the counts differ has changed, so don't use it as the test. Publish used to emit ~487 files and no `templates/` at all (docfx packed templates in its `PackTool` target). As of 6.5.0 publish emits **863 files including all 388 templates and `.playwright/`**, against 881 vendored. The 18 vendored-only files are stale-by-rename leftovers — `README.md`, `Spectre.Console.Ansi.dll`, two `BuildHost-*/System.Collections.Immutable.dll`, and 14 content-hashed `.playwright` bundle assets whose hashes changed between versions. Overlay keeps them, which is what zero-deletions means here. The assertion is the test; the file-count arithmetic is not.
 
-Expect the refresh to add files as well as modify them (Roslyn 5.6 brought 15 new `Microsoft.Extensions.*` / `System.*` dependencies). A commit of ~79 changed files with 0 deletions is the healthy shape.
+The refresh may add files as well as modify them (Roslyn 5.6 brought 15 new `Microsoft.Extensions.*` / `System.*` dependencies; 5.9 added none). 66–79 changed files with 0 deletions is the healthy shape.
 
 **A Roslyn bump can expose latent bugs in the custom patch.** The custom `VisitorHelper.GetGlobalId` had a null-dereference on symbols whose `ContainingAssembly` is null (reached via `XmlComment.ResolveCrefLink`) that had never fired, because the build always died at CS8795 first. Fixed in `MaceWindu/docfx` `591d070e7`. If the refreshed build fails somewhere inside `Docfx.Dotnet`, check the custom patch (`git show <custom-commit>`) before assuming an upstream docfx bug.
 6. After merge, verify a known new API doc URL resolves on the published site. **First run:** ask the user for a known-good URL pattern (e.g. `https://linq2db.github.io/api/LinqToDB.<new-type>.html`); record in `external-repos.md` → docs-site verification.
@@ -234,8 +254,12 @@ Action:
 1. Verify the milestone has no open issues/PRs left:
    ```
    gh issue list --repo linq2db/linq2db --milestone <ver> --state open --limit 50 --json number,title,state,url
-   gh pr list    --repo linq2db/linq2db --milestone <ver> --state open --limit 50 --json number,title,state,url
+   gh pr list    --repo linq2db/linq2db --search 'milestone:<ver> state:open' --limit 50 --json number,title,state,url
    ```
+
+   **`gh pr list` has no `--milestone` flag** — only `gh issue list` does. The symmetrical-looking form exits 1 with `unknown flag: --milestone` and dumps the help text, so the PR half of the check silently never runs if you don't read the exit code. Use `--search 'milestone:<ver> state:open'`, as above. (6.5.0.)
+
+   A milestone's `open_issues` count from `gh api repos/linq2db/linq2db/milestones` includes **both** issues and PRs, so `open_issues: 0` is an independent cross-check on the two lists.
 2. **Open items must clear or move first.** Two valid outcomes per item:
    - **Clear** — issue/PR is done but accidentally still open. Close it (issue: `gh issue close`; PR: only if it should have been merged or is no longer relevant).
    - **Move to next milestone** — work continues on `<next-ver>`. `gh issue edit <n> --milestone <next-ver>` / `gh pr edit <n> --milestone <next-ver>`.
