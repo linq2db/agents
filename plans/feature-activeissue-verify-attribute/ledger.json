@@ -3360,5 +3360,45 @@
     "quote": "#5776, via the int ctor already on the attribute",
     "note": "TWO DEFECTS FIXED HERE, not one. (1) The gate was bare and marked PostgreSQL - which passes - as failing; it is now scoped to the five measured failures plus seven unmeasured sets. (2) The co-sited ThrowsForProvider(LinqToDBException, NoTickTotalProviders, ErrorMessage = Error_Interval_Member) was WRONG: Error_Interval_Member is 'This TimeSpan member is not supported by current provider.', but Access actually fails this test with 'The LINQ expression could not be converted to SQL.' - it never reaches the member because the conversion refuses first, unlike the sibling tests where that declaration is correct. Replaced with ThrowsCannotBeConverted(NoTickTotalProviders), whose fragment is exactly that text; both Access cases now pass. The mismatch was invisible while the bare ActiveIssue kept the test Explicit. The UnsupportedDifferenceProviders declaration (Informix, SqlServer2014Minus) is left alone - neither is reachable here, so there is no evidence to change it on.",
     "sweptOn": "2026-09-10 local, net10.0, Configuration=Azure, sweep mode, 8 providers"
+  },
+  "Tests/Linq/DataProvider/SqlCeTests.cs::Issue4574Test": {
+    "issue": 4574,
+    "attributionSource": "test-description",
+    "providers": "ProviderName.SqlCe, inside #if NETFRAMEWORK",
+    "observed": "All four BulkCopyType arms PASS on net462 - Default, RowByRow, MultipleRows, ProviderSpecific. 4/4 green once ungated.",
+    "verdict": "remove",
+    "quote": "#4574 'SQL Server Compact 4.0 BulkCopy throws System.StackOverflowException for 900 items (inserting one by one is working correctly)' - still OPEN",
+    "note": "Stale gate DELETED, and the evidence is unusually strong for this class: a StackOverflowException is uncatchable and kills the host process, so if it still happened the run would abort rather than report a failure. The run completed and all four arms passed, with the test inserting 1000 rows - more than the 900 the issue names. Checked the bitness question before deleting, because stack limits differ and a 32-bit leg could still overflow: .github/workflows/tests.yml states 'Only the three Access legs are x86', so SqlCe runs x64 only and the net462 x64 measurement is representative. Required a cold net462 build - the only TFM this migration needed beyond net10.0, because the gate sits inside #if NETFRAMEWORK. NOTE the issue is still open while the test no longer reproduces it; filing is the user's call and has not been done.",
+    "sweptOn": "2026-09-11 local, net462, Configuration=Azure, sweep mode, 4 arms"
+  },
+  "Tests/Linq/Linq/InterfaceTests.cs::Issue4031_Case04": {
+    "issue": null,
+    "attributionSource": "none",
+    "providers": "ProviderName.SQLiteClassic",
+    "observed": "LinqToDB.LinqToDBException : The LINQ expression 'c.Id' could not be converted to SQL.",
+    "verdict": "limitation",
+    "quote": "site comment: 'unsuported case: we prefer member declared with \"new\" over interface implementation member for backward compatibility (see #4113)'",
+    "note": "FOUND ONLY AFTER FIXING THE CENSUS - the gate was written [Test, ActiveIssue], and the scanner anchored on '[' so every combined attribute list was invisible. Attribution deliberately left at no-issue: #4113 is cited by the comment as the justification for the trade-off, not as a defect to fix, and it is closed; attributing the gate to it would claim a tracked bug that does not exist. Declared on the stable half of the message rather than the expression text.",
+    "sweptOn": "2026-09-11 local, net10.0, Configuration=Azure, sweep mode"
+  },
+  "Tests/Linq/OrmBattle/OrmBattleTests.cs::ComplexTest4": {
+    "issue": 573,
+    "attributionSource": "int",
+    "providers": "[NorthwindDataContext] - measured on Northwind.SQLite",
+    "observed": "System.ArgumentException : must be reducible node",
+    "verdict": "matches",
+    "quote": "#573 '10 Not working Tests from ORM Battle' - CLOSED, and this is one of those tests",
+    "note": "Found only after fixing the census - the gate was written [Test, ActiveIssue(573)]. The int reference was already correct and is kept, but #573 is closed while the test still fails, so it documents the shape rather than tracking live work. Same situation as #2779 earlier in this migration.",
+    "sweptOn": "2026-09-11 local, net10.0, Configuration=Azure, sweep mode"
+  },
+  "Tests/Linq/UserTests/Issue133Tests.cs::PositiveWindowFunctionsWhereTest": {
+    "issue": 133,
+    "attributionSource": "name",
+    "providers": "[SupportsAnalyticFunctionsContext] - measured on SQLite.Classic, SqlServer.2022, PostgreSQL.16, direct and remote",
+    "observed": "Assertion failure, identical on all six cases: 'Expected: 100.0d +/- 0.001d / But was: 64.705882352941188d'. The percentages sum to 65 rather than 100 because the window runs over the filtered rows.",
+    "verdict": "matches",
+    "quote": "#133 'Generation of subquery instead of HAVING returns wrong results' - CLOSED; gate prose 'Wrong Having detection'",
+    "note": "Found only after fixing the census - the gate was written [Test, ActiveIssue(\"Wrong Having detection\")]. The fixture-name attribution is CORRECT here, unlike Issue1363Tests.TestInsert earlier in this migration where the same guess was wrong: #133's title is about HAVING detection and the gate's prose says the same thing. Checking both ways is what separated them. Declared on 'Expected: 100.0d +/- 0.001d', which comes from the constraint rather than the caller expression NUnit prints above it, so it does not depend on the environment (A-29).",
+    "sweptOn": "2026-09-11 local, net10.0, Configuration=Azure, sweep mode, 3 providers x 2 transports"
   }
 }

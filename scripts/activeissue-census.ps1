@@ -244,7 +244,10 @@ foreach ($file in $files) {
 
 	# Both attribute names, because the census has to keep working across the cutover rename - and because the
 	# EF pilot's already-migrated sites are otherwise invisible to the SC-14 attribution gate.
-	foreach ($m in [regex]::Matches($text, '\[<?ActiveIssue(New)?(?=[(\]\s>])')) {
+	# `[Test, ActiveIssue]` is the same gate as `[ActiveIssue]` on its own line, and anchoring on '[' alone made
+	# every combined attribute list invisible - three real sites hid there for the whole migration. Accept a
+	# comma as well; the lookahead still keeps ActiveIssueSentinel and friends out.
+	foreach ($m in [regex]::Matches($text, '[\[,]\s*<?ActiveIssue(New)?(?=[(\]\s>])')) {
 		$start    = $m.Index
 		$attrName = if ($m.Groups[1].Success) { 'ActiveIssueNew' } else { 'ActiveIssue' }
 
@@ -265,9 +268,11 @@ foreach ($file in $files) {
 
 		if ($quotes % 2 -eq 1) { continue }
 
-		# walk to the matching close bracket of the attribute
+		# walk to the matching close bracket of the attribute. A comma-form match starts *inside* the list, so
+		# its opening bracket was already consumed - start at depth 1 or the closing ']' drives depth to -1,
+		# $end is never set, and the site is dropped without a trace. That is how three real sites hid.
 		$i     = $start
-		$depth = 0
+		$depth = if ($text[$start] -eq ',') { 1 } else { 0 }
 		$inStr = $false
 		$end   = -1
 
