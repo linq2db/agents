@@ -103,6 +103,7 @@ A baseline's path carries the **provider and nothing else** — no TFM, no OS, n
 - E-3 `Tests/Linq/DataProvider/DB2Tests.cs:Issue2763Test` — replace the live `SYSCAT.SCHEMATA` result with `["SYSCAT", "SYSSTAT"]`; drop the now-dead `Assert.Inconclusive` guard and assert instead that both schemas contributed tables.
 - E-4 `Tests/Base/BaselinesManager.cs:LogQuery` — take a static lock across the get-or-create **and** the append, closing both the lost-builder and torn-append races.
 - E-5 `Tests/Linq/**` — add the N-thread `LogQuery` hammer that discharges TO-5. Added by amendment A-1; see P11.
+- E-6 `Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:TestJSONParameterTypeName` — assert the declared parameter type name for both adapter arms, giving TO-1 a committed carrier. Added by amendment A-2; see P11.
 
 ## P7 Impact map (M/L)
 
@@ -166,6 +167,8 @@ Derived from P6 via `work-plan.ps1 -Action gates`.
 
 ## P11 Amendments (M/L)
 
+- A-2 (2026-09-13, user-approved, from review finding MIN001) — **adds E-6.** TO-1 was discharged by a *manual* red→green run, so nothing committed reproduced it: E-1's only standing guard was `TestJSONType`'s captured baseline, and a baseline is not an assertion (`BaselinesPath` is CI-only, and on CI a changed baseline is a review signal, not a red test). E-1's failure mode is also the hardest of the four to notice — invisible on the PR pipeline, visible only on the release-only netfx leg — so a regression would resurface as precisely the artifact this branch removes. The new test covers both adapter arms, which also gives D-1's stated failure mode (an unguarded comparison printing `Json` for every `NVarChar`) a standing control. Verified red on net8.0 with E-1 reverted (`DECLARE @p 35(16)`) and green with it.
+  Two process notes from producing that red, both worth carrying: the first attempt asserted on `LastQuery`, which holds the command text **without** the parameter declarations — the declarations are in the captured trace, which `GetCurrentBaselines()` exposes. And the first "red" arm was a false negative: `git stash push -- <path>` silently did nothing because the change was already **committed**, so the arm ran against fixed code and passed. Reverting a committed edit-point needs `git checkout <commit>^ -- <path>`, and a red that passes is the signal to check the revert, not the test.
 - A-1 (2026-09-12, user-approved) — **adds E-5.** TO-5 was authored as an obligation without a carrier: every other TO-n rides an existing test, but the N-thread `LogQuery` hammer does not exist, so discharging TO-5 requires a new test and therefore a fifth edit-point the original P6 did not authorize. Raised before writing it rather than after. E-4's own subject — the lost-builder race — is otherwise proven only indirectly, through TO-4's timing-dependent ClickHouse run, so the alternative was shipping a lock whose deterministic proof was missing. The approval of the E-1…E-4 surface is unaffected; this adds to it rather than changing it.
 
 ## P12 Critic verdict (M/L)
