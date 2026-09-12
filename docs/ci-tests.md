@@ -117,6 +117,8 @@ Keep the body to the `/azp …` line alone — Azure Pipelines only parses that 
 
 Posting is publicly visible and incurs CI cost, so follow the standard confirmation rules in [`agent-rules.md`](agent-rules.md): propose the comment, wait for explicit user approval, then post. For new PRs, the approval can come bundled with the `gh pr create` approval — e.g. "create the PR and run test-all".
 
+**One `/azp run <pipeline>` comment starts *both* CI systems — there is no separate GitHub trigger to issue.** `.github/workflows/tests-comment.yml` fires on `startsWith(github.event.comment.body, '/azp run')` and resolves the Azure pipeline name against a `surfaces` map, so the same comment Azure consumes also launches the GitHub `tests` workflow's legs. Offering "re-run `/azp run test-all` **and** the GitHub tests workflow" as two actions is wrong, and the second one has no command behind it. Verify both started the same way you verify anything else: `gh pr checks <n>` for the Azure legs, and the workflow-runs query below for the GitHub half.
+
 ## Waiting for a run to finish
 
 Launching a wait is only worth it when it converts into a completion notification; otherwise it is the polling the don't-poll rule in [`agent-rules.md`](agent-rules.md) → *Batching and user interaction* forbids.
@@ -166,6 +168,35 @@ Output: JSON `{ buildId, stepName, logsDir, steps: [{ name, state, result, logPa
 Anonymously that endpoint does not fail either — it answers with an **HTML sign-in page**, which parses as a plausible empty result (`count: 1`, from the string's length; `value` empty). So the reading is "this build has no test runs" rather than "you are not authenticated", and the next instinct is to doubt the build instead of the call.
 
 **"Did test X run?" is answered by the same step log, by absence.** Only skipped and failed tests are printed by name; a passing test appears nowhere, so grepping for its name proves nothing on its own. The proof is the summary block showing a full suite — `total: 26975, failed: 0` for build 23338's ClickHouse leg — plus X missing from the `skipped` / `failed` lines, plus the leg's main step filtering on nothing but `TestCategory != SkipCI` (`test-matrix.yml` gives a leg providers, never fixtures). **A baselines commit is not evidence here in either direction**: a leg commits only what differs from its clone's base, so a test that ran and reproduced the base content leaves no trace — see [`baselines-repo-layout.md`](baselines-repo-layout.md). (Surfaced on #5725, where four ClickHouse baselines looked stale-or-never-run and only the step log separated the two.)
+
+### The GitHub half — its failures are invisible to every PR-scoped query
+
+**A linq2db PR is tested by two CI systems, and `gh pr checks` only proves one of them.** Most provider legs moved to GitHub Actions' `tests` workflow, which on a PR is started by the `/azp run` comment above via `tests-comment.yml`. Because that dispatcher runs on `issue_comment`, **its run is attributed to the default branch's commit, not the PR head** — the workflow says so in its own header. Every PR-scoped lookup therefore misses it:
+
+```
+gh run list --branch <pr-branch>                     # only the `build` workflow
+gh api "repos/linq2db/linq2db/actions/runs?head_sha=<pr-head-sha>"   # only the `build` workflow
+gh pr view <n> --json statusCheckRollup              # `build` jobs green, Azure legs listed
+```
+
+All three can come back clean while hundreds of GitHub test cases are failing. Find the run by workflow instead, and match on title and time:
+
+```
+gh api "repos/linq2db/linq2db/actions/workflows/350529502/runs?per_page=10" \
+  --jq '.workflow_runs[]|[.id,.status,.conclusion,.created_at,.display_title]|@tsv'
+```
+
+then `gh run view <id> --repo linq2db/linq2db --json jobs` for the per-leg verdicts. (Surfaced on #5882: the PR's rollup showed six green `build` jobs and eight red Azure legs, and was reported as "GitHub is green" — sixteen GitHub legs with 361 failing cases were sitting in a comment-triggered run that no PR-scoped query returned.)
+
+**Per-test failures come out of a different place on each system.** A GitHub leg's last step runs `scripts/report-trx.ps1`, which prints a `#### Failed (N)` block and one line per failure carrying the test, its provider and the message — the reliable extraction point, and one `Grep` away:
+
+```
+- `BulkCopyAutoOnlyRowByRow("SapHana.Odbc")` - [Failed] System.Data.Odbc.OdbcException : …
+```
+
+Azure legs publish their TRX to the Azure test tab and print no such block, so there the runner's own `failed <Test>("provider")` lines are what you parse (or `azp-build-failures.ps1`, above). Don't expect one extraction to serve both.
+
+**Fetch GitHub job logs per job, not per run.** `gh run view <id> --log-failed` fails with `failed to get run log: stream error … CANCEL` on a run this size. Enumerate the failed jobs (`gh api repos/linq2db/linq2db/actions/runs/<id>/jobs --paginate`) and fetch each with `gh api repos/linq2db/linq2db/actions/jobs/<jobId>/logs --allow-escape-sequences`. The escape-sequence flag is the same one the Azure endpoints need (above) — without it `gh` refuses the whole response and the empty output reads like an auth error.
 
 ### A job that "hung" with no test failures — read the abandonment marker first
 
