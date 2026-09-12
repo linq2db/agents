@@ -15,8 +15,14 @@ one call:
 
     Bash(pwsh -NoProfile -File .claude/scripts/diff-baselines.ps1 *)
 
-Input (stdin, JSON)
--------------------
+Input (-ManifestFile <path>, or JSON on stdin)
+----------------------------------------------
+Prefer `-ManifestFile`, exactly as for `snap-baselines.ps1`: write the JSON to
+`.build/.agents/<name>.json` and pass the path. Stdin still works from a Bash
+pipe/heredoc, but the *PowerShell tool* cannot feed it — it has no console stdin
+to read, so a stdin-only call from there dies with "no manifest on stdin". The
+two scripts are used as a pair, so they take the same input shapes.
+
   {
     "preFile":  ".build/.agents/baselines-pre-<run>.json",  // required — produced by snap-baselines.ps1
     "paths":    ["<baselines-clone>/Firebird.4", ...]   // required — same shape as snap-baselines paths[]
@@ -39,12 +45,25 @@ snapshot go into `added`. Hash mismatches go into `changed`. Everything
 else is counted in `counts.unchanged` but not listed.
 #>
 
+param(
+    [string] $ManifestFile
+)
+
 . "$PSScriptRoot/_shared.ps1"
 $global:ScriptBaseName = 'diff-baselines'
 
-$manifest = [Console]::In.ReadToEnd()
+if ($ManifestFile) {
+    if (-not (Test-Path -LiteralPath $ManifestFile)) {
+        Exit-WithError "manifest file does not exist: $ManifestFile"
+    }
+
+    $manifest = Get-Content -LiteralPath $ManifestFile -Raw
+} else {
+    $manifest = [Console]::In.ReadToEnd()
+}
+
 if ([string]::IsNullOrWhiteSpace($manifest)) {
-    Exit-WithError 'no manifest on stdin (expected JSON object with preFile and paths[])'
+    Exit-WithError 'no manifest (expected -ManifestFile <path>, or a JSON object with preFile and paths[] on stdin)'
 }
 
 try {
