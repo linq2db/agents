@@ -316,7 +316,10 @@ $body = $body -replace "\n{3,}", "`n`n"
 
 $applied = $false
 if (-not $isDryRun) {
-    $editResult = Invoke-Gh -ArgumentList @('pr', 'edit', "$pr", '--repo', $repoFull, '--body-file', $bodyAfterPath)
+    # Absolute, not $bodyAfterPath: gh resolves --body-file against its own working
+    # directory, which is not necessarily the one this script was invoked from, and the
+    # failure is a bare "cannot find the file specified" after the body was already built.
+    $editResult = Invoke-Gh -ArgumentList @('pr', 'edit', "$pr", '--repo', $repoFull, '--body-file', $bodyAfterAbs)
     if (-not $editResult.ok) { Exit-WithError "gh pr edit $pr failed: $($editResult.error)" }
     $applied = $true
 }

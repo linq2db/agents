@@ -502,6 +502,12 @@ When a test asserts a method translates to a server-side function, wrap the call
 
 A non-`ServerSideOnly` `Sql.*` method with a CLR body (e.g. `Sql.NewGuid` / `Sql.NewGuid7`) falls back to client-side evaluation wherever no server translation is registered. So one `[DataSources]` test covers the whole matrix: providers with the translation exercise the SQL function, the rest the client fallback. Assert the observable property (e.g. the GUID version nibble), and wrap in `DisableBaseline` when the generated value is non-deterministic (the value, not the SQL shape, varies per run). Don't infer "can't client-evaluate" from another test's provider-exclusion list — those exclusions are often roundtrip-specific, not translation-capability statements.
 
+### Asserting on a parameter's declared type — `LastQuery` does not carry it
+
+`DataConnection.LastQuery` holds the **command text alone**. The `DECLARE @p <Type>` block that precedes it — the only place a parameter's *declared* type is visible — belongs to the captured trace, not to the command, so an assertion on `LastQuery` for a `DECLARE` line can never match and fails with `But was: "SELECT …"`. Use `GetCurrentBaselines()` (`Tests/Base/TestBase.Utils.cs`), which exposes the accumulated trace and is already the accessor for ~70 assertion sites. `LastQuery` is the right tool for the statement itself — the shape of the SQL, an alias, a hint — and the wrong one for anything the provider renders *around* it.
+
+Worth an assertion rather than leaving it to the baseline: a parameter type name can vary with the **runtime**, not just the provider (`System.Data.SqlDbType` gained `Json` only in .NET 9, so `(SqlDbType)35` renders as a bare `35` on net462/net8). A divergence like that is invisible on the PR pipeline when the newest TFM is the only one running the main suite, and surfaces as an unexplained baseline diff after a release instead — see [`baselines-repo-layout.md`](baselines-repo-layout.md) → *A baseline file's path carries the provider and nothing else*. (Surfaced on [#5917](https://github.com/linq2db/linq2db/pull/5917).)
+
 ### Test-proofing a gated provider capability
 
 To empirically determine whether a database actually supports a feature gated off by a capability flag (`Is…Supported` on a translator, a `SqlProviderFlags` bool, etc.) — rather than trusting docs:
