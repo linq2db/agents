@@ -32,6 +32,16 @@ A BCL method mapped via `Expressions.MapMember` / a `[Sql.Extension]` method has
 
 A body that diverges passes for years while only the SQL path runs, then breaks the moment expose expands it into local evaluation. Concrete case (#5577): `ConvertToCaseCompareTo` returned `null` when an operand was null, which `string.Compare` never does; once the always-expand expose change made `AssertQuery` evaluate it in-memory, the `null` collapsed to `0` via null-propagation and flipped comparisons. Verify both paths: SQL correctness **and** in-memory equivalence.
 
+### A `MapMember` entry shadows a member-translator registration for the same member
+
+`Expressions.MapMember` and the member-translator registry (`TranslationRegistration` / `*MemberTranslatorBase`) are **not** alternatives that coexist — the map wins. `ExposeExpressionVisitor.VisitMethodCall` calls `ConvertMethod(node)` (`ExposeExpressionVisitor.cs:154`) and re-visits the rewritten node during the **expose** pass, which runs before `ExpressionBuildVisitor.VisitMethodCall` ever reaches its `TranslateMember` gate. So a member present in both places never reaches the registry, and its registration is dead code that reads as live.
+
+**When you add a translator registration for a member, remove that member from the `MapMember` table** (or don't add the registration). Leaving both is silently inert: it costs nothing until something makes the two paths behave *differently*, at which point the member follows the map and the difference is invisible in the registration you were reading.
+
+Distinguish a shadow from a **cooperative chain**, which is intended and must not be "cleaned up": the tell is whether the map's *target* is the registered member. `string.Compare` → `s1.CompareTo(s2)` → the `CompareTo` registration, `Sql.ConvertTo<string>.From(Guid)` → `p.ToString()` → `GuidMemberTranslatorBase`, and `T.Parse` → `Sql.ConvertTo<T>.From` are all chains — the map expands *into* something the registry handles. A shadow maps the same member the registry already claims.
+
+Measured 2026-09-14 at `7577b4bfb`: exactly one shadow in the common table (`Expressions.cs:493-661`) — `Math.Pow` (`:626` → `Sql.Power`) makes `MathMemberTranslatorBase.cs:103` dead, so `Math.Pow` translates via the `Sql.Power` registration at `:104` while `Math.Abs` goes through the registry directly. The `string`, `ConvertTo`, `Parse` and `ToString` regions are disjoint from their translators. The **12 provider-specific `MapMember` sections** (`Expressions.cs:670-1001`) have *not* been swept for the same overlap.
+
 ### `DbType` carries the column type and nothing else
 
 `ColumnAttribute.DbType` is emitted **verbatim** by `BasicSqlBuilder.BuildCreateTableStatement` in place of the built type, which makes it tempting to smuggle other column-definition syntax through it — an identity clause, a default, a constraint. That is **not supported**: the value must be the type alone. Anything else works only for as long as nothing else in the builder writes to the same slot, and silently produces unparseable DDL the moment something does.
