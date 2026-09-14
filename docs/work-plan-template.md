@@ -59,7 +59,7 @@ Everything between the markers below is the template body.
 
 ## P8 Test obligations (M/L)
 
-<!-- fill: one TO-n per P2 criterion. Each names what it asserts and a proof mode: `red→green` (fails against unfixed code for the right reason, then passes — proven by running it, never by reading it) | `control` (same input accepted under the lenient path, rejected under the enforced one) | `characterization` (behaviour-preserving; say plainly it proves no new behaviour). Where an E-n touches a helper reachable from more than one path, one obligation must be a symmetry guard on the UNCHANGED path. -->
+<!-- fill: one TO-n per P2 criterion. Each names what it asserts and a proof mode: `red→green` (fails against unfixed code for the right reason, then passes — proven by running it, never by reading it) | `control` (same input accepted under the lenient path, rejected under the enforced one) | `characterization` (behaviour-preserving; say plainly it proves no new behaviour). Where an E-n touches a helper reachable from more than one path, one obligation must be a symmetry guard on the UNCHANGED path. Before approval, check every row against work-plan.md → P8: a TO-n naming a SET expands to one row per element · a list or table inside a D-n is a checklist — one TO-n per member, or a line naming which members stay unexercised and why · each element names its DISCRIMINATING INPUT, one the two arms answer differently (a fixture both arms answer identically cannot fail) · a `control` records the MUTATION that turned it red · an exact expected value comes from P1/D-n, never from the first run, and a residual risk P12 names becomes a TO-n before the verdict. -->
 
 - TO-1 … — proof: red→green
 

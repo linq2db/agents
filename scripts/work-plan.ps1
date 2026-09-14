@@ -2,7 +2,8 @@
 # Work-plan scaffolding and validation.
 #
 #   -Action init       scaffold .claude/plans/<key>/plan.md from the template
-#   -Action validate   schema completeness; ok=false with per-block errors
+#   -Action validate   schema completeness; ok=false with per-block errors (-Done: the exit check —
+#                      a still-pending gate and a TO-n with no test named in G-01 become errors)
 #   -Action gates      derive the applicable definition-of-done gate subset from P6
 #   -Action reconcile  report changed files that no P6 edit-point authorizes
 #   -Action gap-report render .claude/plans/<key>/gaps.md as counts + dominant class
@@ -32,7 +33,11 @@ param(
     # and reports a clean zero.
     [string] $RepoRoot,
 
-    [switch] $Force
+    [switch] $Force,
+
+    # validate only: the exit check run before the diff's adversarial read (definition-of-done G-09). An amend
+    # mid-implementation legitimately has pending gates, so without it they stay warnings.
+    [switch] $Done
 )
 
 Set-StrictMode -Version Latest
@@ -334,7 +339,12 @@ function Invoke-Validate {
     $p9 = Get-Block -Blocks $blocks -Id 'P9'
     foreach ($row in (Get-BlockRows -Block $p9)) {
         if ($row -notmatch 'G-\d+') { continue }
-        if ($row -match '\(pending\)') { $warnings += "P9 : gate still pending -- $row"; continue }
+        if ($row -match '\(pending\)') {
+            # work-plan.md -> P9: a gate left with no result is a fail, not an omission.
+            if ($Done) { $errors += "P9 : gate still pending at the exit check -- $row" }
+            else       { $warnings += "P9 : gate still pending -- $row" }
+            continue
+        }
         if ($row -notmatch '(pass|fail|n/a|skipped|blocked)') {
             $errors += "P9 : gate carries no result -- $row"
         }
@@ -345,6 +355,27 @@ function Invoke-Validate {
             $tail = $Matches[2].Trim().TrimStart('-', [char]0x2014, ':').Trim()
             if ($tail.Length -lt 10) {
                 $errors += "P9 : a $($Matches[1]) gate must name what is therefore unverified -- $row"
+            }
+        }
+    }
+
+    # G-01 names a test per TO-n: a run total counts tests, so an obligation with no test reads as covered
+    # (work-plan.md -> P9). The entry is the G-01 row plus its continuation lines up to the next gate, since
+    # per-obligation results are usually nested bullets. Only a pass/fail claim is checked.
+    $g01Rows = @()
+    $inG01   = $false
+    foreach ($row in (Get-BlockRows -Block $p9)) {
+        if ($row -match '^-\s*[*_]{0,2}G-(\d+)') { $inG01 = ($Matches[1] -eq '01') }
+        if ($inG01) { $g01Rows += $row }
+    }
+    $g01 = $g01Rows -join "`n"
+    if ($g01 -match '\b(pass|fail)\b' -and $g01 -notmatch '\(pending\)') {
+        foreach ($row in (Get-BlockRows -Block $p8)) {
+            if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
+            $to = $Matches[1]
+            if ($g01 -notmatch "(?<![\w-])$([regex]::Escape($to))(?!\w)") {
+                $msg = "P9 : G-01 names no test for $to -- record one row per TO-n with its test method"
+                if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
         }
     }
