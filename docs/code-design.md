@@ -32,6 +32,23 @@ A BCL method mapped via `Expressions.MapMember` / a `[Sql.Extension]` method has
 
 A body that diverges passes for years while only the SQL path runs, then breaks the moment expose expands it into local evaluation. Concrete case (#5577): `ConvertToCaseCompareTo` returned `null` when an operand was null, which `string.Compare` never does; once the always-expand expose change made `AssertQuery` evaluate it in-memory, the `null` collapsed to `0` via null-propagation and flipped comparisons. Verify both paths: SQL correctness **and** in-memory equivalence.
 
+### No visitor build-flag state crosses the translator → builder boundary
+
+A member translator translates its own arguments by calling `ITranslationContext.Translate`, which re-enters the
+builder — and that re-entry passes a **hardcoded `BuildFlags.None`** (`ExpressionBuildVisitor.cs`,
+`TranslationContext.Translate`). Only the `TranslationFlags` argument and the resulting `BuildPurpose` survive;
+every `BuildFlags` bit the outer visitor held is dropped.
+
+So a scoped `using (CombineBuildFlags(...))` in the visitor is invisible to anything a translator does, and any
+state that must reach a nested translation has to be passed at that call explicitly. The failure mode is quiet:
+the outer frame is configured correctly, the nested frame re-derives its own answer from the node, and the two
+disagree. `BuildFlags.ResetPrevious` is a second, separate flag-clearing shape (`CombineFlags`), and
+`UsingBuildFlags(BuildFlags.None)` a third — a bit that must survive must be handled at all of them.
+
+(Established 2026-09-14 on the `PreferClientCalculation` nesting fix: the option re-armed inside
+`Sql.ToNullable`'s argument translation, making the widener decline and collapsing a SQL `NULL` to `default(T)` —
+linq2db#5923. A guard held in the visitor could not reach the nested frame; it had to be passed at the re-entry.)
+
 ### A `MapMember` entry shadows a member-translator registration for the same member
 
 `Expressions.MapMember` and the member-translator registry (`TranslationRegistration` / `*MemberTranslatorBase`) are **not** alternatives that coexist — the map wins. `ExposeExpressionVisitor.VisitMethodCall` calls `ConvertMethod(node)` (`ExposeExpressionVisitor.cs:154`) and re-visits the rewritten node during the **expose** pass, which runs before `ExpressionBuildVisitor.VisitMethodCall` ever reaches its `TranslateMember` gate. So a member present in both places never reaches the registry, and its registration is dead code that reads as live.
