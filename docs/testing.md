@@ -502,6 +502,30 @@ When a test asserts a method translates to a server-side function, wrap the call
 
 A non-`ServerSideOnly` `Sql.*` method with a CLR body (e.g. `Sql.NewGuid` / `Sql.NewGuid7`) falls back to client-side evaluation wherever no server translation is registered. So one `[DataSources]` test covers the whole matrix: providers with the translation exercise the SQL function, the rest the client fallback. Assert the observable property (e.g. the GUID version nibble), and wrap in `DisableBaseline` when the generated value is non-deterministic (the value, not the SQL shape, varies per run). Don't infer "can't client-evaluate" from another test's provider-exclusion list — those exclusions are often roundtrip-specific, not translation-capability statements.
 
+### A new member-translator registration owes a `PreferClientCalculation` decision and a batched test
+
+Every `Registration.RegisterMethod` in a `*MemberTranslatorBase` is implicitly a decision about
+`LinqOptions.PreferClientCalculation`: a registration inside a `TranslationRegistration.OptionalScope()` declines when
+the caller prefers client calculation, so the expression is computed client-side; one outside stays server-side always.
+Adding a registration without choosing picks "mandatory" silently, which is safe but leaves the option under-delivering.
+
+**A registration may be optional only when re-evaluating it on the client, over the materialized values of its
+arguments, gives the same answer.** It must stay mandatory when it is SQL-only (aggregates, window functions, anything
+whose delegate can reach `AggregateFunctionBuilder`), marks intent (`Sql.*`), is non-deterministic or ambient
+(`NewGuid`, current timestamp), carries nullability semantics (`Sql.ToNullable` / `Sql.AsNullable`), or has no client
+body / throws unconditionally (`SqlMethods.Like`, `string.CompareTo(object)`).
+
+**Test it in a batch, not one test per member.** `PreferClientCalculationTests` projects many members in a *single*
+projection and asserts `Select.Columns.All(c => c.Expression is SqlField).ShouldBe(preferClient)` — which fails if *any*
+member in the batch stayed server-side, so a new registration joins an existing test by adding one line to its
+projection rather than adding a test. Keep one batch per translator family, plus a mirrored batch of the members that
+must stay server-side. Reviewing a PR that adds a translator: ask which batch the new member was added to, and if the
+answer is "neither", the optional-vs-mandatory decision was never made.
+
+The blanket safety net is a full `Tests.Linq` run with the option forced on globally — the only thing covering the
+registrations no batch names. Treat its failures as correctness findings; SQL-baseline diffs from such a run are
+expected noise and must not be committed.
+
 ### Asserting on a parameter's declared type — `LastQuery` does not carry it
 
 `DataConnection.LastQuery` holds the **command text alone**. The `DECLARE @p <Type>` block that precedes it — the only place a parameter's *declared* type is visible — belongs to the captured trace, not to the command, so an assertion on `LastQuery` for a `DECLARE` line can never match and fails with `But was: "SELECT …"`. Use `GetCurrentBaselines()` (`Tests/Base/TestBase.Utils.cs`), which exposes the accumulated trace and is already the accessor for ~70 assertion sites. `LastQuery` is the right tool for the statement itself — the shape of the SQL, an alias, a hint — and the wrong one for anything the provider renders *around* it.
