@@ -48,16 +48,18 @@
     "observed": "Shouldly.ShouldAssertException : db.GetTable<CollatedTable>().Count(r => r.CaseSensitive.Contains(\"stst\", StringComparison.Ordinal)) should be 0 but was 1, on SqlCe and SqlCe.LinqService",
     "verdict": "matches",
     "quote": "#3444 'Case-sensitive search doesn't work for SQL CE' names the failing tests outright: 'Failing tests: Explicit_Contains and ExplicitOrdinal_Contains'",
-    "sweptOn": "2026-09-08 local, net10.0"
+    "note": "Declaration shortened to end at 'but was', matching Explicit_Contains - this half happened to render the direct shape remotely too, but the tail is transport-dependent and nothing pins it.",
+    "sweptOn": "2026-09-08 local, net10.0; declaration relaxed 2026-09-16 alongside Explicit_Contains"
   },
   "Tests/Linq/Linq/StringFunctionTests.cs::Explicit_Contains": {
     "issue": 3444,
     "attributionSource": "int",
     "providers": "ProviderName.SqlCe",
-    "observed": "Shouldly.ShouldAssertException : db.Patient.Count(r => r.Diagnosis.Contains(\"paranoid\", StringComparison.Ordinal)) should be 0 but was 1, on SqlCe and SqlCe.LinqService",
+    "observed": "Shouldly.ShouldAssertException, 'should be 0 but was 1' on SqlCe; on SqlCe.LinqService the remote transport loses the source expression and Shouldly renders '1 / should be / 0 / but was not' instead",
     "verdict": "matches",
     "quote": "#3444 names this test by name; the SQL shows why - CHARINDEX over a VARBINARY cast, which is the case-sensitivity emulation the issue is about",
-    "sweptOn": "2026-09-08 local, net10.0"
+    "note": "The single-message declaration was refuted by GH run 35018401682 (Win g_SqlCE): the local sweep only saw the direct rendering, and 'but was{2}1' does not match the remote one. Declaration now stops at 'but was', which both shapes carry.",
+    "sweptOn": "2026-09-08 local, net10.0; remote shape from GH run 35018401682, 2026-09-15"
   },
   "Tests/Linq/OrmBattle/OrmBattleTests.cs::OrderByDistinctTest": {
     "issue": null,
@@ -73,9 +75,10 @@
     "issue": "4669",
     "attributionSource": "int",
     "providers": "TestProvName.AllMySql",
-    "observed": "System.Diagnostics.UnreachableException",
+    "observed": "System.Diagnostics.UnreachableException on EF8 and EF9; on EF10 the test's own provider switch excluded MySQL behind #if !NET10_0, so it threw 'ProviderSetup is not implemented' instead (GH run 35018401682)",
     "verdict": "see _families.ef-pilot-phase2",
     "quote": null,
+    "note": "The test was written 2026-09-06, a day before #5885 restored MySQL on the EF10 leg via the Microting fork and dropped the five other #if !NET10_0 gates. This sixth one arrived too late for that sweep; removed 2026-09-16 so the gate is exercised on EF10 rather than masked by an unimplemented switch arm.",
     "sweptOn": null,
     "family": "ef-pilot-phase2"
   },
@@ -245,46 +248,6 @@
     "attributionSource": "int",
     "providers": "TestProvName.AllPostgreSQL",
     "observed": "Npgsql.PostgresException : 23502: null value in column \\\"Id\\\" of relation \\\"Identities\\\" violates not-null constraint",
-    "verdict": "see _families.ef-pilot-phase2",
-    "quote": null,
-    "sweptOn": null,
-    "family": "ef-pilot-phase2"
-  },
-  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestNamedQueryFilter_AppliesAll": {
-    "issue": "4669",
-    "attributionSource": "int",
-    "providers": "TestProvName.AllMySql",
-    "observed": "System.Diagnostics.UnreachableException",
-    "verdict": "see _families.ef-pilot-phase2",
-    "quote": null,
-    "sweptOn": null,
-    "family": "ef-pilot-phase2"
-  },
-  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_ByKey": {
-    "issue": "4669",
-    "attributionSource": "int",
-    "providers": "TestProvName.AllMySql",
-    "observed": "System.Diagnostics.UnreachableException",
-    "verdict": "see _families.ef-pilot-phase2",
-    "quote": null,
-    "sweptOn": null,
-    "family": "ef-pilot-phase2"
-  },
-  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_All_StillWorks": {
-    "issue": "4669",
-    "attributionSource": "int",
-    "providers": "TestProvName.AllMySql",
-    "observed": "System.Diagnostics.UnreachableException",
-    "verdict": "see _families.ef-pilot-phase2",
-    "quote": null,
-    "sweptOn": null,
-    "family": "ef-pilot-phase2"
-  },
-  "Tests/EntityFrameworkCore/Tests/ToolsTests.cs::TestIgnoreQueryFilters_Empty_IsNoOp": {
-    "issue": "4669",
-    "attributionSource": "int",
-    "providers": "TestProvName.AllMySql",
-    "observed": "System.Diagnostics.UnreachableException",
     "verdict": "see _families.ef-pilot-phase2",
     "quote": null,
     "sweptOn": null,
@@ -920,7 +883,7 @@
       "verdict": "matches",
       "observed": "per row - each declaration was harvested from a real EF run in phase 2",
       "quote": "each cited issue's title describes the observed failure: 4627 \"Association key not found for type\" vs the exception's own words; 4641 \"Duplicate key violation since 5.3.0\" vs 23505 duplicate key; 4669 \"System.Diagnostics.UnreachableException\" vs that exact type; 3174 \"efcore shadow property with Temp table\" vs \"column p.IsDeleted does not exist\"; 4653 \"Using transaction with already assigned linq2db Queryable\" vs \"not the connection's active transaction\".",
-      "note": "The 24-gate phase-2 pilot, converted 1:1 from pre-existing [ActiveIssue] gates and green on the EF legs since. The D-16 V1 title check was run over the whole family on 2026-09-08 and every row's declared failure matches its issue's subject. One caveat worth carrying: #4603 is CLOSED while its gate still fails with 'Unexpected expression type', so either the closure was partial or the gate needs re-attributing - it is not a blocker for this branch and is left as recorded.",
+      "note": "The 24-gate phase-2 pilot, converted 1:1 from pre-existing [ActiveIssue] gates and green on the EF legs since. The D-16 V1 title check was run over the whole family on 2026-09-08 and every row's declared failure matches its issue's subject. One caveat worth carrying: #4603 is CLOSED while its gate still fails with 'Unexpected expression type', so either the closure was partial or the gate needs re-attributing - it is not a blocker for this branch and is left as recorded. Four ToolsTests rows (TestNamedQueryFilter_AppliesAll, TestIgnoreQueryFilters_ByKey / _All_StillWorks / _Empty_IsNoOp) were dropped on 2026-09-16: they carried sweptOn:null, their gates were added on the belief that MySQL was absent from the EF10 leg, and GH run 35018401682 showed all four passing on MySqlConnector 5.7/8.0 and MariaDB 11. A null sweptOn in this family means the declaration was inherited, not measured.",
       "sweptOn": "2026-09-06 EF legs (declarations); 2026-09-08 issue-title check"
     }
   },
@@ -1628,10 +1591,10 @@
   "Tests/Linq/Update/MergeTests.Operations.Insert.cs::SortedMergeResultsIssue": {
     "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
     "attributionSource": "search",
-    "note": "Searched the tracker for a merge source-ordering issue and found none. Verified on DuckDB.",
-    "observed": "Multiple failures; the first is Assert.That(result[0].Id, Is.Zero) - expected 0, got 11; 7 cases",
+    "note": "Searched the tracker for a merge source-ordering issue and found none. Verified on DuckDB. Split on 2026-09-16: GH run 35018401682 showed Sybase.Managed never reaching the ordering assertion - AssertRowCount's Sybase branch asserts expected <= actual, and the merge reported 2 affected rows for the 4-row insert, so it fails one assertion earlier and with an unrelated message. Sybase now carries its own declaration; the ordering half keeps DB2/Oracle/PostgreSQL15+/DuckDB. Whether the 2-row report is its own defect is not settled here.",
+    "observed": "ordering half: multiple failures, the first being Assert.That(result[0].Id, Is.Zero) - expected 0, got 11; 7 cases. Sybase half: Assert.That(expected, Is.LessThanOrEqualTo(actual)) - expected less than or equal to 2, but was 4",
     "verdict": "no-issue",
-    "providers": "ProviderName.DB2, TestProvName.AllOracle, TestProvName.AllSybase, TestProvName.AllPostgreSQL15Plus, TestProvName.AllDuckDB",
+    "providers": "ProviderName.DB2, TestProvName.AllOracle, TestProvName.AllPostgreSQL15Plus, TestProvName.AllDuckDB (ordering); TestProvName.AllSybase (row count)",
     "quote": "the gate's own comment - 'it returns incorrectly ordered data for DB2, PostgreSQL and Oracle for some reason'",
     "issue": null
   },
@@ -2162,22 +2125,22 @@
   "Tests/Linq/Linq/MappingTests.cs::Issue3117Test1": {
     "attributionSource": "test-description",
     "issue": "3117",
-    "note": "OVER-BROAD gate, narrowed: AllSQLite named three providers of which only SQLite.MS refuses; the Classic variants are now confirmed passing ungated, which is the measurement rather than an inference from their absence. AllOracle keeps a no-declaration marker - no CI leg, nothing harvested.",
-    "providers": "AllDB2, AllInformix, AllMySqlConnector, AllOracle, AllPostgreSQL, SQLiteMS (was AllSQLite), AllYdb",
-    "observed": "seven distinct refusals: DB2/Informix \"Specified cast is not valid\", MySqlConnector naming the types, Npgsql unsupported write for DataTypeName integer, SQLite.MS no mapping to a native type, YDB unsupported YdbDbType, MiniProfiler-wrapped SQLite Classic NotImplementedException from the wrapper, Oracle LinqToDBConvertException off a decimal identity",
+    "note": "OVER-BROAD gate, narrowed to SQLiteMS: of the SQLite providers only the MS one refuses the type, bare Classic passes. The MiniProfiler half added 2026-09-15 turned out to be ungateable rather than merely wrong - the failure is non-deterministic. SQLiteMiniprofilerProvider hands MiniProfiler.Current (an ambient AsyncLocal started once in Init()) to ProfiledDbConnection, so the profiler formats the SQL only when it happens to be profiling, and that path calls Id<T>.ToString, a stub that throws. Three runs of the same binaries: GH run 35018401682 full matrix PASSES on MPM and MPU; a narrow 22-case local filter FAILS on MPM with the declared NotImplementedException; the whole MappingTests fixture (976 cases) PASSES on MPM again. Neither disposition is stable, so on 2026-09-16 AllSQLiteMP was excluded at the data-source level instead of gated, giving up wrapped-provider coverage for #3117. AllOracle keeps a no-declaration marker - no CI leg, nothing harvested.",
+    "providers": "AllDB2, AllInformix, AllMySqlConnector, AllOracle, AllPostgreSQL, SQLiteMS (was AllSQLite), AllYdb; AllSQLiteMP excluded from the test's DataSources",
+    "observed": "six distinct refusals: DB2/Informix \"Specified cast is not valid\", MySqlConnector naming the types, Npgsql unsupported write for DataTypeName integer, SQLite.MS no mapping to a native type, YDB unsupported YdbDbType, Oracle LinqToDBConvertException off a decimal identity. Bare SQLite.Classic passes; the MiniProfiler-wrapped variants pass or throw NotImplementedException depending on suite composition, which is why they no longer run.",
     "verdict": "matches",
     "quote": "#3117 - open",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; MiniProfiler and Oracle halves measured 2026-09-15 from build 23608 and GHA run 34723541379"
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; Oracle half measured 2026-09-15 from build 23608; MiniProfiler half shown non-deterministic 2026-09-16 across GH run 35018401682 and two local runs"
   },
   "Tests/Linq/Linq/MappingTests.cs::Issue3117Test2": {
     "attributionSource": "test-description",
     "issue": "3117",
-    "note": "Same five-way split and the same AllSQLite narrowing.",
+    "note": "Same split and the same AllSQLite narrowing, including the 2026-09-16 exclusion of AllSQLiteMP at the data-source level.",
     "providers": "as Issue3117Test1",
-    "observed": "as Issue3117Test1, MiniProfiler and Oracle halves included",
+    "observed": "as Issue3117Test1, Oracle half included; the MiniProfiler variants were non-deterministic here too and no longer run",
     "verdict": "matches",
     "quote": "#3117 - open",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; MiniProfiler and Oracle halves measured 2026-09-15 from build 23608 and GHA run 34723541379"
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; Oracle half measured 2026-09-15 from build 23608; MiniProfiler half shown non-deterministic 2026-09-16 across GH run 35018401682 and two local runs"
   },
   "Tests/Linq/Linq/DateTimeOffsetTests.cs::Issue1855Test": {
     "attributionSource": "test-description",
@@ -2803,20 +2766,20 @@
     "attributionSource": "int",
     "issue": "5810",
     "quote": "5810, open",
-    "observed": "rendered SQL contains CONVERT(varchar(4), 123, 1)",
-    "note": "As ConvertTest3, with the style argument.",
+    "observed": "rendered SQL contains CONVERT(varchar(4), 123, 1); build 23636 saw it hold on SqlServer.2016 and pass on SqlServer.2016.MS, which is the evidence the outcome is a race",
+    "note": "As ConvertTest3, with the style argument. The three-argument overload keys separately, so this gate is pinned by making ConvertWithStyleTest1 and this test [NonParallelizable]; ConvertWithStyleTest3 converts a DateTime and keys separately again, which is why it passes ungated.",
     "providers": "TestProvName.AllSqlServer",
-    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs; race diagnosed 2026-09-15 from build 23636 + GH run 35018401682",
     "verdict": "matches"
   },
   "Tests/Linq/DataProvider/SqlServerFunctionsTests.cs::ConvertTest4": {
     "attributionSource": "int",
     "issue": "5810",
     "quote": "5810, open",
-    "observed": "as ConvertTest3",
-    "note": "As ConvertTest3.",
+    "observed": "as ConvertTest3; build 23636 saw the leaked nvarchar(10) here on SqlServer.2016 and a pass on SqlServer.2016.MS",
+    "note": "As ConvertTest3, including the [NonParallelizable] that pins ConvertTest1 as the cache-entry winner.",
     "providers": "TestProvName.AllSqlServer",
-    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs; race diagnosed 2026-09-15 from build 23636",
     "verdict": "matches"
   },
   "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesProviderSpecific": {
@@ -2833,10 +2796,10 @@
     "attributionSource": "int",
     "issue": "5810",
     "quote": "5810 \"SQL Server: SqlFn.Convert emits another call's target type when call shapes match\", open",
-    "observed": "Shouldly.ShouldAssertException - the rendered SQL contains CONVERT(varchar(4), 123) where another type was due",
-    "note": "Declared on the wrongly emitted CONVERT, which is a complete line of the message. The first line is only the opening quote of the rendered SQL, so a fragment taken from it would match nothing - the A-16 trap in a new shape, since here the useful text is on line 1 rather than line 0.",
+    "observed": "Shouldly.ShouldAssertException - the rendered SQL contains CONVERT(varchar(4), 123) where another type was due. Which type leaks is not fixed: build 23636 saw CONVERT(nvarchar(10), 123) on SqlServer.2016, and ConvertTest3 itself passed on 2016 / 2016.MS while holding on 2017 / 2019.",
+    "note": "Declared on the wrongly emitted CONVERT, which is a complete line of the message. The first line is only the opening quote of the rendered SQL, so a fragment taken from it would match nothing - the A-16 trap in a new shape, since here the useful text is on line 1 rather than line 0. The declaration is only stable because ConvertTest1, ConvertTest3 and ConvertTest4 were made [NonParallelizable] on 2026-09-16: under [assembly: Parallelizable(ParallelScope.All)] the three race for one query-cache entry per provider config, and whichever wins defines the emitted type. Build 23636 proved the race inside one process - ConvertWithStyleTest4 held for SqlServer.2016 and passed for SqlServer.2016.MS, same TFM, same server. Serialising them pins ConvertTest1 as the winner. Removing the NonParallelizable makes both gates flaky again, not merely mis-declared.",
     "providers": "TestProvName.AllSqlServer",
-    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs",
+    "sweptOn": "2026-09-09 CI run 34347288135, SqlServer legs; race diagnosed 2026-09-15 from build 23636 + GH run 35018401682",
     "verdict": "matches"
   },
   "Tests/Linq/DataProvider/SQLiteTests.cs::CrossApplyJoin": {
