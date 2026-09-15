@@ -355,30 +355,30 @@
     "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
     "attributionSource": "none",
     "providers": "TestProvName.AllClickHouse",
-    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "observed": "as AllNullsCEnumLikeSql - same family, same widened wording",
     "verdict": "see _families.ch-null-in-list-38439",
     "quote": null,
-    "sweptOn": null,
+    "sweptOn": "2026-09-09 CI sweep; wording widened 2026-09-15 alongside AllNullsCEnumLikeSql",
     "family": "ch-null-in-list-38439"
   },
   "Tests/Linq/Linq/ContainsTests.cs::AllNullsEnumLikeSql": {
     "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
     "attributionSource": "none",
     "providers": "TestProvName.AllClickHouse",
-    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "observed": "as AllNullsCEnumLikeSql - same family, same widened wording",
     "verdict": "see _families.ch-null-in-list-38439",
     "quote": null,
-    "sweptOn": null,
+    "sweptOn": "2026-09-09 CI sweep; wording widened 2026-09-15 alongside AllNullsCEnumLikeSql",
     "family": "ch-null-in-list-38439"
   },
   "Tests/Linq/Linq/ContainsTests.cs::AllNullsCEnumLikeSql": {
     "issue": "\"https://github.com/ClickHouse/ClickHouse/issues/38439\"",
     "attributionSource": "none",
     "providers": "TestProvName.AllClickHouse",
-    "observed": "Shouldly.ShouldAssertException : should be{0}0{1}but was{2}1",
+    "observed": "Shouldly.ShouldAssertException, \"should be 0 but was 1\" - except where Shouldly cannot resolve the asserted expression's source text and writes \"but was not\" instead, which it did non-deterministically for ClickHouse.MySql.LinqService, so the declaration stops at \"but was\"",
     "verdict": "see _families.ch-null-in-list-38439",
     "quote": null,
-    "sweptOn": null,
+    "sweptOn": "2026-09-09 CI sweep; wording widened 2026-09-15 from GHA run 34723541379",
     "family": "ch-null-in-list-38439"
   },
   "Tests/Linq/Linq/ConvertTests.cs::ToDefaultDecimal": {
@@ -1686,11 +1686,11 @@
   },
   "Tests/Linq/Linq/CteTests.cs::AggressiveCteOptimization": {
     "issue": null,
-    "observed": "DuckDB: Conversion Error: invalid timestamp field format. Oracle 11: not measured - no CI leg and no container was running.",
+    "observed": "DuckDB: Conversion Error: invalid timestamp field format. Oracle 11: ORA-01841 (full) year must be between -4713 and +9999, and not be 0.",
     "note": "Split per provider because the single gate covered two providers failing for unrelated reasons and only one of them has a CI leg. The DuckDB half is measured and declares the driver's conversion error; the Oracle 11 half carries 'no-issue: unvalidated:' and keeps the prose's ORA-01841 as its fragment.",
     "verdict": "no-issue",
     "quote": "the gate's own prose, which names two unrelated causes in one sentence",
-    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0; Oracle 11 measured 2026-09-15 from build 23608",
     "providers": "TestProvName.AllOracle11, TestProvName.AllDuckDB",
     "attributionSource": "search"
   },
@@ -1716,11 +1716,11 @@
   },
   "Tests/Linq/Linq/CteTests.cs::AggressiveCteOptimizationTwoColumns": {
     "issue": null,
-    "observed": "as AggressiveCteOptimization",
+    "observed": "as AggressiveCteOptimization, Oracle 11 included",
     "note": "Split the same way and for the same reason.",
     "verdict": "no-issue",
     "quote": "as AggressiveCteOptimization",
-    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0",
+    "sweptOn": "2026-09-09 CI sweep (GitHub Actions tests.yml, force-fail instrument); verified locally 2026-09-10 on SQLite.Classic + DuckDB, net10.0; Oracle 11 measured 2026-09-15 from build 23608",
     "providers": "TestProvName.AllOracle11, TestProvName.AllDuckDB",
     "attributionSource": "search"
   },
@@ -2164,20 +2164,20 @@
     "issue": "3117",
     "note": "OVER-BROAD gate, narrowed: AllSQLite named three providers of which only SQLite.MS refuses; the Classic variants are now confirmed passing ungated, which is the measurement rather than an inference from their absence. AllOracle keeps a no-declaration marker - no CI leg, nothing harvested.",
     "providers": "AllDB2, AllInformix, AllMySqlConnector, AllOracle, AllPostgreSQL, SQLiteMS (was AllSQLite), AllYdb",
-    "observed": "five distinct refusals: DB2/Informix \"Specified cast is not valid\", MySqlConnector naming the types, Npgsql unsupported write for DataTypeName integer, SQLite.MS no mapping to a native type, YDB unsupported YdbDbType",
+    "observed": "seven distinct refusals: DB2/Informix \"Specified cast is not valid\", MySqlConnector naming the types, Npgsql unsupported write for DataTypeName integer, SQLite.MS no mapping to a native type, YDB unsupported YdbDbType, MiniProfiler-wrapped SQLite Classic NotImplementedException from the wrapper, Oracle LinqToDBConvertException off a decimal identity",
     "verdict": "matches",
     "quote": "#3117 - open",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; MiniProfiler and Oracle halves measured 2026-09-15 from build 23608 and GHA run 34723541379"
   },
   "Tests/Linq/Linq/MappingTests.cs::Issue3117Test2": {
     "attributionSource": "test-description",
     "issue": "3117",
     "note": "Same five-way split and the same AllSQLite narrowing.",
     "providers": "as Issue3117Test1",
-    "observed": "as Issue3117Test1",
+    "observed": "as Issue3117Test1, MiniProfiler and Oracle halves included",
     "verdict": "matches",
     "quote": "#3117 - open",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS"
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS; MiniProfiler and Oracle halves measured 2026-09-15 from build 23608 and GHA run 34723541379"
   },
   "Tests/Linq/Linq/DateTimeOffsetTests.cs::Issue1855Test": {
     "attributionSource": "test-description",
@@ -2272,9 +2272,9 @@
   "Tests/Linq/Linq/StringFunctionTests.cs::IndexOf3": {
     "verdict": "no-issue",
     "note": "Three-way split. SQLite is message-only because the two drivers put the detail on different lines. Oracle keeps no-declaration: unvalidated - no CI leg. Not over-broad: every other named family does fail.",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS; Oracle measured 2026-09-15 from build 23608",
     "quote": "the gate's own prose - Sql.CharIndex(string, string, int) have incorrect SQL logic for all providers (except HANA)",
-    "observed": "seven families: InvalidOperationException Sequence contains no elements. SQLite: no such function: CharIndex. Oracle: not measured.",
+    "observed": "seven families: InvalidOperationException Sequence contains no elements. SQLite: no such function: CharIndex. Oracle: the same empty sequence, over both transports.",
     "issue": null,
     "attributionSource": "search",
     "providers": "9 families (Oracle now carries its own no-declaration attribute)"
@@ -2282,9 +2282,9 @@
   "Tests/Linq/Linq/ArrayTests.cs::TestDateOnly": {
     "verdict": "matches",
     "note": "Two attributes: PostgreSQL types the array and then emits SQL its own parser rejects, so it fails one stage later than everything else.",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite + SqlServer.2022.MS; Access measured 2026-09-15 from GHA run 34723541379",
     "quote": "#3929 - the test names it",
-    "observed": "LinqToDBException for System.DateOnly[] on most providers; PostgreSQL instead reaches Npgsql 42601 syntax error at or near \"Array\"",
+    "observed": "LinqToDBException for System.DateOnly[] on most providers; PostgreSQL instead reaches Npgsql 42601 syntax error at or near \"Array\"; Access never reaches the column at all - the generic type's table name ArrayTTable`1 carries a backtick its parser rejects, so CreateLocalTable's drop dies first",
     "issue": "3929",
     "attributionSource": "test-description",
     "providers": "(all)"
@@ -2362,8 +2362,8 @@
   "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeUsingCteWhere": {
     "quote": "#3015 - open",
     "providers": "DB2, AllFirebird, AllInformix, AllOracle, AllSapHana",
-    "observed": "as MergeUsingCteJoin",
-    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally)",
+    "observed": "as MergeUsingCteJoin, Oracle included",
+    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally); Oracle measured 2026-09-15 from build 23608",
     "verdict": "matches",
     "attributionSource": "int",
     "note": "Split identically.",
@@ -2372,8 +2372,8 @@
   "Tests/Linq/Update/MergeTests.IQueryableSource.cs::MergeUsingCteJoin": {
     "quote": "#3015 - open",
     "providers": "DB2, AllFirebird, AllInformix, AllOracle, AllSapHana",
-    "observed": "four distinct refusals plus Oracle unmeasured",
-    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally)",
+    "observed": "five distinct refusals; Oracle gives ORA-00928, worded \"missing SELECT keyword\" on 11-21 and \"SELECT keyword missing\" on 23, so only the code is declared",
+    "sweptOn": "2026-09-09 CI sweep (declared from CI; none of these providers is running locally); Oracle measured 2026-09-15 from build 23608",
     "verdict": "matches",
     "attributionSource": "int",
     "note": "One attribute per provider. All five reject the CTE-driven merge, each in its own words - Firebird a dynamic SQL error, Informix a syntax error, DB2 an unexpected token where the WITH clause lands ahead of the MERGE, HANA an incorrect-syntax error. The HANA half is type-less because the ODBC and native drivers raise their own exception; Oracle declares nothing, having no CI leg.",
@@ -2450,14 +2450,24 @@
     "observed": "eight normalised causes: linq2db refusal (blanket), Npgsql and YDB writer gaps, ClickHouse parameter refusal, MySqlConnector parameter-type refusal, MySql.Data server operand arity, Informix driver cast"
   },
   "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeOffsetAddTimeSpan": {
-    "providers": "AllClickHouse, AllMySql, AllOracle, AllSqlServer",
+    "providers": "AllClickHouse, AllMySqlConnector, AllSqlServer",
     "attributionSource": "search",
     "quote": "no prose: the attribute carried only a provider list",
-    "note": "ClickHouse and MySQL declared; SQL Server left no-declaration because two unrelated failures share one provider set and no Configuration separates them - the honest limit of what the attribute can express. Oracle no-declaration for lack of a leg.",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS",
+    "note": "Split on the null interval at the third pass, after the first two got it wrong in opposite directions. The 2026-09-09 sweep gated AllMySql and AllOracle over all seven values; build 23600 then reported the Oracle half gate-too-wide on the six non-null ones, and 73aceeb read that as \"Oracle passes\" and deleted the gate rather than splitting - which turned the null case red in build 23608. The MySQL half went the same way in reverse: narrowed to AllMySqlData, which the test's own [DataSources] excludes, leaving MySqlConnector and MariaDB ungated and failing all six non-null values. This arm keeps the non-null values: MySqlConnector/MariaDB fail the read back, ClickHouse cannot infer the parameter type, Oracle passes, and SQL Server stays no-declaration because its two failures divide on the interval VALUE (the two 24h ones fail client-side) and not on a provider.",
+    "sweptOn": "2026-09-09 CI sweep; re-derived 2026-09-15 from build 23608 (Oracle, MySQL legs) and builds 23600/23608 SQL Server 2008-2016 netfx + 2022 GHA legs",
     "issue": null,
     "verdict": "no-issue",
-    "observed": "SQL Server: two unrelated failures over the same providers (server rejecting datetimeoffset arithmetic; client refusing an out-of-bounds TIME). ClickHouse: cannot infer the parameter type. MySQL: the read back fails. Oracle: not measured."
+    "observed": "SQL Server, every version and both SqlClient packages: \"Operand data type datetimeoffset is invalid for add operator.\" for the four sub-day intervals and null, \"TIME value is out-of-bounds\" for 1.00:00:00 and 1.00:00:01. ClickHouse: cannot infer the parameter type, all seven. MySqlConnector + MariaDB: LinqToDBConvertException reading the result back, six non-null only. Oracle: ORA-30087, null only."
+  },
+  "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeOffsetAddTimeSpanNull": {
+    "providers": "AllClickHouse, AllOracle, AllSqlServer",
+    "attributionSource": "search",
+    "quote": "no prose: the attribute carried only a provider list",
+    "note": "The null half of the split described in the sibling entry. MySQL is absent because it passes with no interval; Oracle is present because it fails ONLY here - given an interval the addition is a datetime plus an interval, which the server takes, and without one it is datetime plus datetime, which it refuses. SQL Server can declare here where the non-null arm cannot: the client-side TIME check never fires without an interval, so the single server message covers all four versions, both SqlClient packages and the WCF transport.",
+    "sweptOn": "2026-09-15, from build 23608's three Oracle legs and builds 23600/23608 SQL Server 2008/2012/2014/2016 netfx + the 2022 GHA leg",
+    "issue": null,
+    "verdict": "no-issue",
+    "observed": "Oracle 11-23 Managed, direct and remote: ORA-30087 Adding two datetime values is not allowed. SQL Server: Operand data type datetimeoffset is invalid for add operator. ClickHouse: cannot infer type name from (System.DateTimeOffset, DateTimeOffset)."
   },
   "Tests/Linq/Linq/SelectTests.cs::Issue4199Test1": {
     "issue": "4199",
@@ -2481,21 +2491,21 @@
   },
   "Tests/Linq/Update/DeleteTests.cs::DeleteFromWithTake_NoSort": {
     "providers": "as DeleteFromWithTake, plus Sybase",
-    "observed": "as DeleteFromWithTake; Sybase rejects the derived table by name",
+    "observed": "as DeleteFromWithTake; Sybase rejects the derived table by name, Oracle with ORA-01732",
     "quote": "as DeleteFromWithTake",
     "attributionSource": "search",
     "note": "Split identically, with Sybase declared here because this variant carries no ThrowsForProvider.",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB; Oracle measured 2026-09-15 from build 23608",
     "issue": null,
     "verdict": "no-issue"
   },
   "Tests/Linq/Update/DeleteTests.cs::DeleteFromWithTake": {
     "providers": "11 families, minus Sybase which the co-sited ThrowsForProvider governs",
-    "observed": "six distinct mechanisms across 34 providers",
+    "observed": "six distinct mechanisms across 34 providers; Oracle refuses the derived table as a DML target with ORA-01732",
     "quote": "the gate's own comment - based on TestDeleteFrom in the EFCore tests, to be reenabled after fix",
     "attributionSource": "search",
     "note": "Sixteen apparent causes, six real. linq2db refuses the shape outright on providers that cannot express a derived table (Informix, MySQL, SqlCe, SQLite, YDB - all \"Unexpected table type SqlQuery\"); PostgreSQL, Firebird, DuckDB and HANA emit SQL their server rejects. ClickHouse takes no-declaration (two modes across three drivers, no common text), Oracle likewise for lack of a leg. METHOD NOTE: a first pass dropped AllSQLite and SqlCe as passing - they do fail, and were simply past the fourth entry of a provider list the summary display had truncated. The verification run caught it; the corrected grouping comes from the full failing set. Absence from a SAMPLE is not absence from the sweep, which is a sharper form of the rule already recorded for absence from the sweep itself.",
-    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB",
+    "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SQLite.MS + SqlServer.2022.MS + DuckDB; Oracle measured 2026-09-15 from build 23608",
     "issue": null,
     "verdict": "no-issue"
   },
@@ -2516,8 +2526,68 @@
     "observed": "22 wordings over two overlapping failure modes; RowByRow passes on every provider",
     "verdict": "matches",
     "quote": "#4615 - the test names it",
-    "note": "Fifth instance of the A-28 class: RowByRow never builds the empty column list and passes everywhere, so the gate was marking working cases as failing. Split per the option-b precedent; the new RowByRow methods are verified passing ungated. The remainder declares nothing because the failure modes OVERLAP on the provider axis - almost everyone reports a syntax error at the closing parenthesis in its own words, while SQL Server, ClickHouse and MySqlConnector also produce \"Sequence contains no elements\" or \"SourceOrdinal is an invalid value\" over the same providers. No Configuration separates them and no fragment covers both.",
+    "note": "Fifth instance of the A-28 class: RowByRow never builds the empty column list and passes everywhere, so the gate was marking working cases as failing. Split per the option-b precedent; the new RowByRow methods are verified passing ungated. The remainder declares nothing because the failure modes OVERLAP on the provider axis - almost everyone reports a syntax error at the closing parenthesis in its own words, while SQL Server, ClickHouse and MySqlConnector also produce \"Sequence contains no elements\" or \"SourceOrdinal is an invalid value\" over the same providers. No Configuration separates them and no fragment covers both. Now carries only Default + MultipleRows: 73aceeb re-split the other two copy modes into their own methods.",
     "sweptOn": "2026-09-09 CI sweep; verified locally 2026-09-10 on SQLite.Classic + SqlServer.2022.MS + DuckDB"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopyAutoOnlyDefault": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "13 families (Informix absent)",
+    "observed": "22 wordings over two overlapping failure modes; Informix inserts the row on the default path",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "One of the four methods BulkCopyAutoOnly was split into by 73aceeb, after build 23600 refuted the premise the 2026-09-09 split rested on: RowByRow does NOT avoid the empty column list, it emits DEFAULT VALUES instead, which some providers take and others reject. The copy mode is a [Values] argument and a gate cannot target one, so each mode became its own method. Declares nothing, for the same overlapping-failure-modes reason as the parent entry.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopyAutoOnlyMultipleRows": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "14 families",
+    "observed": "as BulkCopyAutoOnlyDefault; the batched mode is the one every named provider still gets wrong, Informix included",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "As BulkCopyAutoOnlyDefault. Informix is present here and absent from the default arm, which is the whole reason the modes had to become separate methods.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopyAutoOnlyProviderSpecific": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "12 families (DB2 and Informix absent)",
+    "observed": "as BulkCopyAutoOnlyDefault; DB2 and Informix answer their native bulk-copy path and insert the row",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "As BulkCopyAutoOnlyDefault. The native paths do not build the statement at all, so two providers drop out of the gate here.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopyAutoOnlyRowByRow": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "AllClickHouse, AllSapHana, AllYdb, AllInformix, SqlCe",
+    "observed": "DEFAULT VALUES is emitted and five provider families reject it; everyone else takes it and passes",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "The arm that corrects the 2026-09-09 sweep's mistake outright. RowByRow was carved out then on the premise that it avoids the empty column list; build 23600 showed it emits DEFAULT VALUES, so the gap is the same one in a different spelling. Four families get a declaration; ClickHouse gets none because its three drivers split two ways - a server syntax error on MySql and Driver, a dropped connection on Octonica.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopySkipOnlyProviderSpecific": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "13 families (DB2 absent)",
+    "observed": "as BulkCopySkipOnly; DB2's native path inserts the row rather than building the empty column list",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "The BulkCopySkipOnly counterpart of BulkCopyAutoOnlyProviderSpecific, split for the same reason and on the same evidence.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
+  },
+  "Tests/Linq/Update/BulkCopyTests.cs::BulkCopySkipOnlyRowByRow": {
+    "issue": "4615",
+    "attributionSource": "test-description",
+    "providers": "AllClickHouse, AllSapHana, AllYdb, AllInformix, SqlCe",
+    "observed": "as BulkCopyAutoOnlyRowByRow - the same DEFAULT VALUES statement and the same five rejecting families",
+    "verdict": "matches",
+    "quote": "#4615 - the test names it",
+    "note": "The BulkCopySkipOnly counterpart of BulkCopyAutoOnlyRowByRow; every declaration is the same text, deliberately, because it is the same emitted statement.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
   },
   "Tests/Linq/Linq/DateTimeFunctionsTests.cs::DateTimeAddTimeSpan": {
     "issue": null,
@@ -2533,11 +2603,11 @@
     "issue": null,
     "attributionSource": "search",
     "providers": "12 families",
-    "observed": "510 cases, 14 distinct mechanisms; the null arm passes on Access, MySQL and SQLite",
+    "observed": "510 cases, 14 distinct mechanisms; the null arm passes on Access, MySQL and SQLite; Oracle refuses it with ORA-30087, the same refusal DateTimeOffsetAddTimeSpanNull gets",
     "verdict": "no-issue",
     "quote": "the test's Description points at PR #2718, not an open defect",
     "note": "First site done under the run-first rule, and it justified it: with a null interval Access, MySQL and SQLite all PASS, so declaring from the harvest alone would have marked those cases as failing. The arms also differ in KIND on SQL Server - the null one gives only the server type mismatch, the non-null one adds a client-side out-of-bounds TIME - so only the non-null arm leaves SQL Server undeclared. Twelve declarations on the non-null arm, nine on the null one. Access OleDb and SQL Server declare nothing (two unrelated failures apiece over one provider set); Oracle likewise for lack of a leg. The SQLite Classic half needs SkipForLinqService because the test body returns early for remote SQLite - caught by the verification run, which reported those cases passed-but-marked.",
-    "sweptOn": "2026-09-09 CI sweep; run BEFORE declaring, 2026-09-10, on SqlServer.2022.MS + SQLite.Classic + SQLite.MS + DuckDB"
+    "sweptOn": "2026-09-09 CI sweep; run BEFORE declaring, 2026-09-10, on SqlServer.2022.MS + SQLite.Classic + SQLite.MS + DuckDB; Oracle measured 2026-09-15 from build 23608"
   },
   "Tests/Linq/DataProvider/InformixTests.cs::BulkCopyAllTypesMultipleRows": {
     "note": "BulkCopy MultipleRows. Harvested from the CI sweep, not locally: on this workstation the IBM CLI driver fails while rendering the server's own error text (A-13/A-15), so the local result was inadmissible. CI shows the server's real message. The gate's prose turns out to be correct - it is a locale/code-set gap - and it holds on CI too, so it is not a property of one machine. Attributed with a no-issue: marker rather than to the fixture's issue number: 1307 is only what the fixture is named after, and attributing an environment gap to it would repeat the #5663 error.",
@@ -2932,8 +3002,17 @@
     "issue": "4469",
     "attributionSource": "test-description",
     "verdict": "matches",
-    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line.",
-    "sweptOn": "2026-09-09 CI run 34347288135"
+    "note": "One of six gates whose CI message begins \"Multiple failures or warnings in test:\" - NUnit's multi-assert wrapper. Grouping on the first line made them look like one cohort; they are six unrelated causes, and each declaration is taken from the assertion on the following line. Narrowed to AllSQLiteClassic by 73aceeb: Microsoft.Data.Sqlite keeps the scale when the divisor travels as a parameter, so only the inlined arm still fails on it.",
+    "sweptOn": "2026-09-09 CI run 34347288135; narrowed 2026-09-12 from build 23600"
+  },
+  "Tests/Linq/Linq/TypesTests.cs::Issue4469Test2Inlined": {
+    "quote": "4469 \"Firebird different number datatype between constant or variable usage\", open",
+    "observed": "Math.Round(result.Integer, 5) gave 3 where 3.0303 was due, on every SQLite driver",
+    "issue": "4469",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "Split off Issue4469Test2 by the inline argument, because the two arms are not equally broken: inlined, the division loses its scale on all four SQLite drivers; as a parameter, only the Classic ones still get it wrong. A gate cannot target a [Values] argument, so the single gate over both was marking the Microsoft.Data.Sqlite parameter cases as failing.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
   },
   "Tests/Linq/Linq/StringFunctionTests.cs::String_PadRight_Translation": {
     "quote": "4799 \"PadLeft implementation trims input\", closed - this is the PadRight residue",
@@ -3139,8 +3218,17 @@
     "issue": "4354",
     "attributionSource": "test-description",
     "verdict": "matches",
-    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits.",
-    "sweptOn": "2026-09-09 CI run 34347288135"
+    "note": "Issue title checked against the observed failure; all twelve are open and describe what the test hits. 73aceeb split it by copy type and by the inline argument: 60 of the 112 cases were gated while passing, and [ActiveIssue] cannot target a [Values] argument.",
+    "sweptOn": "2026-09-09 CI run 34347288135; split 2026-09-12 from build 23600"
+  },
+  "Tests/Linq/DataProvider/MySqlTests.cs::Issue4354TestRowByRowInlined": {
+    "quote": "4354 \"MySql's BulkCopy doesn't support custom GuidFormat\", open",
+    "observed": "MySqlConnector.MySqlException : Data too long for column 'Value' at row 1",
+    "issue": "4354",
+    "attributionSource": "test-description",
+    "verdict": "matches",
+    "note": "The one row-by-row arm that still fails: inlined, the value is written into the statement at the default width instead of being handed to the driver, so the custom GuidFormat is lost exactly as #4354 describes. The parameterised row-by-row sibling passes and is ungated.",
+    "sweptOn": "2026-09-12 CI build 23600; re-confirmed green in build 23608"
   },
   "Tests/Linq/Data/RetryPolicyTest.cs::Issue3431Test1": {
     "quote": "3431 \"RetryingDataConnection Problem: Connection already open\", open",
