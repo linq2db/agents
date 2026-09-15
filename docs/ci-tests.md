@@ -196,7 +196,14 @@ then `gh run view <id> --repo linq2db/linq2db --json jobs` for the per-leg verdi
 
 Azure legs publish their TRX to the Azure test tab and print no such block, so there the runner's own `failed <Test>("provider")` lines are what you parse (or `azp-build-failures.ps1`, above). Don't expect one extraction to serve both.
 
-**Fetch GitHub job logs per job, not per run.** `gh run view <id> --log-failed` fails with `failed to get run log: stream error … CANCEL` on a run this size. Enumerate the failed jobs (`gh api repos/linq2db/linq2db/actions/runs/<id>/jobs --paginate`) and fetch each with `gh api repos/linq2db/linq2db/actions/jobs/<jobId>/logs --allow-escape-sequences`. The escape-sequence flag is the same one the Azure endpoints need (above) — without it `gh` refuses the whole response and the empty output reads like an auth error.
+**Fetch GitHub job logs per job, not per run — with [`.claude/scripts/gh-run-logs.ps1`](../scripts/gh-run-logs.ps1).** `gh run view <id> --log-failed` fails with `failed to get run log: stream error … CANCEL` on a run this size, so the working flow enumerates the jobs (`gh api repos/linq2db/linq2db/actions/runs/<id>/jobs --paginate`) and fetches each with `gh api repos/linq2db/linq2db/actions/jobs/<jobId>/logs --allow-escape-sequences`. The escape-sequence flag is the same one the Azure endpoints need (above) — without it `gh` refuses the whole response and the empty output reads like an auth error. The script is that flow in one allowlisted call, and it persists under `.build/.agents/gh-<runid>/` ready for `ci-test-verdicts.ps1 -Dir`:
+
+```
+.claude/scripts/gh-run-logs.ps1 -RunId 35018401682
+.claude/scripts/ci-test-verdicts.ps1 -Dir .build/.agents/gh-35018401682 -Format table
+```
+
+It is the GitHub counterpart to `azp-build-failures.ps1` but deliberately **fetch-only** — parsing belongs to `ci-test-verdicts.ps1`, which reads both systems' logs with one grammar. Pass `-Conclusion all` when harvesting what a *holding* gate hides, since that message is quoted only in a green leg's log.
 
 ### A job that "hung" with no test failures — read the abandonment marker first
 
