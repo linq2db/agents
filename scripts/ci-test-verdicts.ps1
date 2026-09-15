@@ -21,17 +21,24 @@ and, for a case the ActiveIssue attribute rewrote, the message line is one of:
 
     [ActiveIssue] Test passed but is marked with [ActiveIssue] (<details>).      -> gate-too-wide
     [ActiveIssue] Expected <T> with message matching '<pat>' for <d>, but found: -> signature-mismatch
+    [ActiveIssue] Expected <T> for <d>, but found:                               -> signature-mismatch
+    [ActiveIssue] Expected any failure for <d>, but found:                       -> signature-mismatch
     [ActiveIssue] More than one equally specific [ActiveIssue] applies to '<p>'  -> gate-collision
     [ActiveIssue] Known issue (<details>), still failing as expected:            -> gate-holds
+
+The message clause is optional because `ErrorMessage` is: a gate declaring only `ErrorTypeName`, or
+neither, still mismatches its signature and must not be read as an ordinary regression.
 
 Anything else on a `failed` line is an ordinary `failure`.
 
 Getting the logs
 ----------------
 Azure : .claude/scripts/azp-build-failures.ps1 -BuildId <n>   (persists to .build/.agents/azp-<n>/)
-GitHub: gh api repos/linq2db/linq2db/actions/runs/<id>/jobs --paginate
-        gh api repos/linq2db/linq2db/actions/jobs/<jobId>/logs --allow-escape-sequences
-        (per job — `gh run view --log-failed` stream-errors on a large run)
+GitHub: .claude/scripts/gh-run-logs.ps1 -RunId <id>           (persists to .build/.agents/gh-<id>/)
+        Fetch-only by design; it wraps the per-job `gh api …/jobs` + `…/logs
+        --allow-escape-sequences` pair, because `gh run view --log-failed`
+        stream-errors on a run this size. Pass -Conclusion all to include green
+        legs (see "Harvesting what a holding gate hides" below).
 
 See `.claude/docs/ci-tests.md` -> *Reading failed CI test runs*.
 
@@ -64,6 +71,16 @@ verdicts for `DateTimeOffsetAddTimeSpan` — holding for the null interval, too-
 non-null ones — the too-wide half was read as "Oracle passes", the gate was deleted, and the null
 case came back red in 23608. The MySQL half of the same site failed symmetrically, narrowed onto a
 driver the test's own `[DataSources]` excludes.
+
+A second, independent reason, so don't stop at the per-case check: the verdict is also **per
+environment**. A green case on one matrix leg is not evidence the test passes anywhere else — it is
+evidence about the process that ran it. `Issue3117Test1/2` came back `gate-too-wide` on
+`SQLite.Classic.MPM` from a full GitHub run, and the declared `NotImplementedException` reproduced
+locally on demand; the failure turns on whether `MiniProfiler.Current` happens to be ambient when
+the connection is created, so a narrow local filter fails where the whole fixture passes. **Reproduce
+locally before deleting a declaration.** When a gate's outcome turns out to depend on ambient
+process-global state at all, no declaration is stable — serialise the bucket (`[NonParallelizable]`)
+or exclude the provider, rather than declaring around it.
 
 Harvesting what a holding gate hides
 ------------------------------------
@@ -150,11 +167,16 @@ foreach ($d in $Dir) {
                     if ($candidate) { $actual = $candidate; break }
                 }
             }
-            elseif ($message -match '^\s*\[ActiveIssue\] Expected (?:<([^>]+)>|(a failure)) with message matching ''(.*)''(?: for (.*?))?, but found:\s*$') {
+            # The message clause is OPTIONAL: ActiveIssueAttribute.Expectation emits four shapes, and a gate
+            # declaring only a type (ErrorTypeName with no ErrorMessage) or nothing at all produces
+            # "Expected <T> for <d>, but found:" / "Expected any failure for <d>, but found:". Requiring
+            # "with message matching" silently dropped both into the `failure` bucket, where they read as
+            # ordinary regressions - #5882's Issue4669QueryFilterTest surfaced that way.
+            elseif ($message -match '^\s*\[ActiveIssue\] Expected (?:<(?<type>[^>]+)>|(?<anyfail>any failure|a failure))(?: with message matching ''(?<text>.*)'')?(?: for (?<details>.*?))?, but found:\s*$') {
                 $kind         = 'signature-mismatch'
-                $expectedType = if ($Matches[1]) { $Matches[1] } else { '(any failure)' }
-                $expectedText = $Matches[3]
-                $details      = $Matches[4]
+                $expectedType = if ($Matches['type']) { $Matches['type'] } else { '(any failure)' }
+                $expectedText = $Matches['text']
+                $details      = $Matches['details']
 
                 # first non-blank line after "but found:" is what actually happened
                 for ($j = $i + 2; $j -lt [Math]::Min($i + 12, $lines.Length); $j++) {
@@ -207,7 +229,11 @@ foreach ($verdictGroup in $deduped | Group-Object verdict | Sort-Object Name) {
         if ($verdictGroup.Name -eq 'signature-mismatch') {
             foreach ($shape in $site.Group | Group-Object expectedType, expected, actual) {
                 $first = $shape.Group[0]
-                "      expected <$($first.expectedType)> matching: $($first.expected)"
+                if ($first.expected) {
+                    "      expected <$($first.expectedType)> matching: $($first.expected)"
+                } else {
+                    "      expected <$($first.expectedType)>, any message"
+                }
                 "      actual                                   : $($first.actual)"
             }
         }
