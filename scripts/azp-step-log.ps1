@@ -83,9 +83,28 @@ if ($withLog.Count -eq 0) {
     exit 0
 }
 
-$results = @()
+# A build can carry several steps with the SAME name - a matrix leg skipped on one TFM and run on
+# another shows up twice. Writing both to one path made the last one win, and the loser was usually the
+# one with the output: on #5882 a `skipped` duplicate overwrote the `succeeded` log for
+# "Tests (NETFX): SQL Server 2008", leaving an empty file that reads as "this leg never ran the test".
+# Counted up front so that when a name collides, EVERY copy is suffixed - leaving one of them on the
+# bare path would just move the trap to whoever guesses that path.
+$slugCount = @{}
 foreach ($rec in $withLog) {
-    $slug    = ConvertTo-Slug -Name $rec.name
+    $s = ConvertTo-Slug -Name $rec.name
+    $slugCount[$s] = 1 + ($slugCount[$s] ?? 0)
+}
+
+$results = @()
+$slugIndex = @{}
+foreach ($rec in $withLog) {
+    $slug = ConvertTo-Slug -Name $rec.name
+
+    if ($slugCount[$slug] -gt 1) {
+        $slugIndex[$slug] = 1 + ($slugIndex[$slug] ?? 0)
+        $slug             = "$slug-$($rec.result ?? 'unknown')-$($slugIndex[$slug])"
+    }
+
     $logPath = Join-Path $WriteDir "$slug.log"
     try {
         Invoke-WebRequest -Uri $rec.log.url -OutFile $logPath -UseBasicParsing | Out-Null

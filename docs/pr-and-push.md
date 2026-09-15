@@ -11,6 +11,8 @@ Two checks, both cheap, both before `git push`:
 
 Do the same before opening the PR when the branch was pushed earlier in the session — master moves. (Surfaced 2026-09-01 on #5840, at the user's prompting: *"first check if there were no other user commits to branch and sync with master"* — the branch turned out clean and three commits behind, and the sync was a fast-forward.)
 
+**And again before every full `test-all` round on a long-lived branch, not just the first push.** The rule above reads as a first-push ritual, which is why a long-running PR slips past it: the branch was synced weeks ago, the round being asked for is the third or fourth, and the sync never comes up. But `test-all` is the expensive signal — two CI systems, ~2 hours — and a round run on a stale base measures a tree nobody will ever merge. Merge `origin/master` first, re-run whatever static gate the branch has, then trigger. Two things are worth confirming after the merge rather than assuming, because a clean auto-merge hides both: whether master added anything the branch's own invariant must cover (on #5882, a new `[ActiveIssue]` site arriving from master would have landed un-migrated and gone unnoticed — `git diff <base>..origin/master -- Tests/` settles it in one call), and whether a file both sides touched really had disjoint edits. (Surfaced 2026-09-15 on #5882, at the user's prompting: the answer to "push and trigger a round?" was *"1 + sync with master"*.)
+
 ### After every successful push: PR body check
 
 Check for a PR on the branch (`gh pr list --head <branch> --json number,title,body,url`):

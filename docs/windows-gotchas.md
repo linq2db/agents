@@ -24,6 +24,19 @@ Glob is fine for discovery patterns (`Source/**/*.cs`) in the primary clone; the
 
 The tell is that the mangled line is in **context** output (`-A`/`-B`/`-C`), not on a matched line, and that the project builds. `Read` the line before treating it as broken — the file content is correct and only the context rendering dropped a character. (Surfaced 2026-08-26 in `LinqExtensions.Update.cs`, one wasted `Read` to disprove.)
 
+## A `$` anchor matches nothing on a CRLF file — and the miss looks like absence
+
+Most tracked sources here are CRLF, and every CI log downloaded from Azure or GitHub Actions is too. `$` sits before the `\n`, so the `\r` is *inside* the match region and any pattern ending in a literal-plus-`$` fails:
+
+```
+Grep 'Person t1$'     -> No matches found
+Grep '\tPerson t1'    -> 1 match, same file
+```
+
+That is the dangerous shape: an empty result indistinguishable from the string genuinely not being there, the same trap `agent-rules.md` records for `git ls-tree` pathspecs and for searching a stale checkout. On #5882 it briefly read as "no other query in this leg selects from Person", which would have changed the diagnosis.
+
+Drop the anchor, or anchor on something that isn't the line end. The same applies to .NET regex in a `.claude/scripts/` helper reading a CRLF file with `(?m)`: `^(?<lead>…)(?<tail>,?)$` found **zero** matches until the tail became `(?=\r?$)`. Use `\r?$` whenever the pattern must anchor.
+
 ## Permission-friendly Bash patterns
 
 Patterns that triggered prompts in real sessions and the equivalents that don't. The summary in [`agent-rules.md`](agent-rules.md) → *Bash command rules* names the most-hit ones; this is the full table.

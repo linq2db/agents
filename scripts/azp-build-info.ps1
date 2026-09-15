@@ -46,6 +46,14 @@ happened on #5880: 23448 and 23451 disappeared once a push cancelled them, and 2
 absent from `-Top 1` for two hours while queued. Query it by `-BuildId` before concluding
 anything - that path reports it regardless of state.
 
+That advice needs the id, which is the thing you do not have right after triggering a run. GitHub
+has it already: the PR's check rollup carries the Azure build URL the moment the trigger registers,
+so take it from there rather than raising `-Top` until the queued build appears.
+
+    gh pr view <n> --repo linq2db/linq2db --json statusCheckRollup \
+      --jq '[.statusCheckRollup[] | select((.name // .context) == "test-all") | .detailsUrl] | unique'
+    -> https://dev.azure.com/.../_build/results?buildId=23636
+
 Output is JSON on stdout. Non-zero exit on an API failure.
 #>
 

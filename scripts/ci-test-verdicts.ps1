@@ -47,6 +47,31 @@ Output: JSON on stdout by default (one object per deduped case), plus the full r
 Deduping: a leg that retries prints the same case once per attempt, and a case appears in every
 leg that ran it. Rows are deduped on test+args+provider+verdict+actual, so a count here is a
 count of distinct outcomes, not of executions.
+
+A provider can appear under two verdicts at once — read before narrowing a gate
+-------------------------------------------------------------------------------
+The verdict is per test *case*, and `[ActiveIssue]` cannot target a `[Values]` / `[ValueSource]`
+argument. So one provider routinely lands under `gate-too-wide` for some argument values and
+`gate-holds` for others, and a `gate-too-wide` row on its own does **not** mean the provider passes.
+
+Before narrowing a Configuration or deleting a gate on the strength of a `gate-too-wide` row, group
+that test's rows by provider and check whether the same provider also appears under `gate-holds`. If
+it does, the fix is to **split the test on the argument that divides them**, not to touch the gate's
+provider list.
+
+On #5882 this cost a whole CI round: build 23600 put the same twelve Oracle configs under both
+verdicts for `DateTimeOffsetAddTimeSpan` — holding for the null interval, too-wide for the six
+non-null ones — the too-wide half was read as "Oracle passes", the gate was deleted, and the null
+case came back red in 23608. The MySQL half of the same site failed symmetrically, narrowed onto a
+driver the test's own `[DataSources]` excludes.
+
+Harvesting what a holding gate hides
+------------------------------------
+`-Verdict gate-holds -Format table` prints, per test, the failure each gate is actually holding
+against and the providers sharing it. That message is quoted only in the runner output of a leg that
+**passed**, so it is invisible to `azp-build-failures.ps1` (failures-only) — pull the green leg's log
+with `azp-step-log.ps1` first. This is the evidence source for re-declaring a gate that was migrated
+bare, or for validating one whose declaration was carried over from prose.
 #>
 
 [CmdletBinding()]
@@ -116,6 +141,14 @@ foreach ($d in $Dir) {
             }
             elseif ($message -match '^\s*\[ActiveIssue\] Known issue \((.*)\), still failing as expected') {
                 $kind = 'gate-holds'; $details = $Matches[1]
+
+                # The failure the gate is hiding, quoted right after the marker. This is the only place a
+                # gate that already holds says what it holds against, and it appears in a *green* leg - so
+                # it is the harvest source for re-declaring a gate that was migrated bare.
+                for ($j = $i + 2; $j -lt [Math]::Min($i + 12, $lines.Length); $j++) {
+                    $candidate = (Clear-Decoration $lines[$j]).Trim()
+                    if ($candidate) { $actual = $candidate; break }
+                }
             }
             elseif ($message -match '^\s*\[ActiveIssue\] Expected (?:<([^>]+)>|(a failure)) with message matching ''(.*)''(?: for (.*?))?, but found:\s*$') {
                 $kind         = 'signature-mismatch'
@@ -176,6 +209,16 @@ foreach ($verdictGroup in $deduped | Group-Object verdict | Sort-Object Name) {
                 $first = $shape.Group[0]
                 "      expected <$($first.expectedType)> matching: $($first.expected)"
                 "      actual                                   : $($first.actual)"
+            }
+        }
+
+        # Only when the caller asked for holding gates: printing the hidden failure for every one of the
+        # thousands that hold in a normal run would bury everything else. Asking for it is asking to harvest.
+        if ($verdictGroup.Name -eq 'gate-holds' -and $Verdict -contains 'gate-holds') {
+            foreach ($shape in $site.Group | Group-Object actual | Sort-Object Name) {
+                $shapeProviders = ($shape.Group.provider | Sort-Object -Unique)
+                "      holds against ($($shapeProviders.Count)): $($shape.Group[0].actual)"
+                "          " + ($shapeProviders -join ', ')
             }
         }
     }
