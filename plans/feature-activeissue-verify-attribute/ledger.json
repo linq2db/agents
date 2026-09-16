@@ -275,7 +275,7 @@
     "family": "ch-mysql-datetime64"
   },
   "Tests/Linq/DataProvider/Types/ClickHouseTypeTests.cs::TestJSONType": {
-    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
+    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/113\"",
     "attributionSource": "none",
     "providers": "ProviderName.ClickHouseOctonica",
     "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
@@ -826,12 +826,12 @@
       "sweptOn": "2026-09-08 local, net10.0, ClickHouse.MySql"
     },
     "octonica-connection-closed": {
-      "issue": "https://github.com/Octonica/ClickHouseClient/issues/58",
+      "issue": "https://github.com/Octonica/ClickHouseClient/issues/113",
       "verdict": "limitation",
       "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
-      "quote": "Octonica/ClickHouseClient#58: 'The connection is closed.' exception on next command after failed command",
-      "note": "The driver does not recover its connection state after a command fails, so the *next* command reports a closed connection rather than the real error. The gated tests all issue a command that is expected to fail (a DROP of a table that is not there, a type the server rejects) and then continue on the same connection. Upstream and open; nothing on our side to fix. Local ClickHouse is a different build from CI's, and the user accepted that divergence: 'clickhouse could show different behavior on ci due to version diff, but this is fine'.",
-      "sweptOn": "2026-09-08 local, net10.0, ClickHouse.Octonica"
+      "quote": "Octonica/ClickHouseClient#113: #58 is still reproducible in 4.1.6 when the failure is raised client-side",
+      "note": "The driver does not recover its connection state after a command fails, so the *next* command reports a closed connection rather than the real error. 4.1.6 fixed the half where *the server* returns the error (Octonica e5f80155, closing #58); a client-side refusal - Octonica declining to materialise a column type it does not support - still poisons the connection, which is #113. Only TestJSONType is left in this family: the three CreateTableTests gates provoked a server-side error and now pass, and were removed. Reproduced standalone on 4.1.6 under both BusyConnectionMode values.",
+      "sweptOn": "2026-09-16 local, net10.0, ClickHouse.Octonica, Octonica 4.1.6"
     },
     "ch-null-in-list-38439": {
       "issue": "https://github.com/ClickHouse/ClickHouse/issues/38439",
