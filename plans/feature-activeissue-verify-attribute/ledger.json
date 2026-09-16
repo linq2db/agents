@@ -664,36 +664,6 @@
     "sweptOn": null,
     "family": "ydb-attributable"
   },
-  "Tests/Linq/Update/CreateTableTests.cs::CreateLocalTempTable1Async": {
-    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
-    "attributionSource": "none",
-    "providers": "ProviderName.ClickHouseOctonica",
-    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
-    "verdict": "see _families.octonica-connection-closed",
-    "quote": null,
-    "sweptOn": null,
-    "family": "octonica-connection-closed"
-  },
-  "Tests/Linq/Update/CreateTableTests.cs::CreateLocalTempTable2Async": {
-    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
-    "attributionSource": "none",
-    "providers": "ProviderName.ClickHouseOctonica",
-    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
-    "verdict": "see _families.octonica-connection-closed",
-    "quote": null,
-    "sweptOn": null,
-    "family": "octonica-connection-closed"
-  },
-  "Tests/Linq/Update/CreateTableTests.cs::CreateTableWithEnum": {
-    "issue": "\"https://github.com/Octonica/ClickHouseClient/issues/58\"",
-    "attributionSource": "none",
-    "providers": "ProviderName.ClickHouseOctonica",
-    "observed": "Octonica.ClickHouseClient.Exceptions.ClickHouseException : The connection is closed.",
-    "verdict": "see _families.octonica-connection-closed",
-    "quote": null,
-    "sweptOn": null,
-    "family": "octonica-connection-closed"
-  },
   "Tests/Linq/Update/CreateTableTests.cs::Issue4671Test": {
     "issue": null,
     "attributionSource": "none",

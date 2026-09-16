@@ -246,7 +246,7 @@ foreach ($file in $files) {
 	# EF pilot's already-migrated sites are otherwise invisible to the SC-14 attribution gate.
 	# `[Test, ActiveIssue]` is the same gate as `[ActiveIssue]` on its own line, and anchoring on '[' alone made
 	# every combined attribute list invisible - three real sites hid there for the whole migration. Accept a
-	# comma as well; the lookahead still keeps ActiveIssueSentinel and friends out.
+	# comma as well; the lookahead still keeps ActiveIssueAttribute and friends out.
 	foreach ($m in [regex]::Matches($text, '[\[,]\s*<?ActiveIssue(New)?(?=[(\]\s>])')) {
 		$start    = $m.Index
 		$attrName = if ($m.Groups[1].Success) { 'ActiveIssueNew' } else { 'ActiveIssue' }

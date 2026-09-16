@@ -614,6 +614,17 @@ reversed, and `P3`'s first constraint with it.
   included. The original reasoning (committing `E-2` reddens every gate) still holds and is why `E-2` is still
   never committed and `D-11` replaces it with an off-by-default mode. Reviewers of #5882 should expect the
   attribute, the EF pilot, 302 migrated `Tests/Linq` gates and the rename in one PR.
+- ~~**`D-11` sweep mode and the `ActiveIssueSentinel` wire format ship with the branch.**~~ **Removed
+  2026-09-16** by user decision, once the cutover made them dead weight. They were migration instruments:
+  sweep mode exists to see the failure a gate hides *while the gate has no declaration yet*, and all 445
+  sites now carry one. Post-cutover the shipped attribute already prints the whole correction payload on an
+  ordinary run — `Decide` emits the real `innerMessage` on both the `gate-holds` and `signature-mismatch`
+  paths — and `ci-test-verdicts.ps1` parses all four verdicts out of both CI systems' logs, so a sweep only
+  bought a class-qualified name at the price of an extra full CI round (tried 2026-09-12, abandoned).
+  Removed: `TestEnvironment`'s `L2DB_ACTIVEISSUE_SWEEP` pair, the sweep branch in `ActiveIssueCommand`, all
+  of `Tests/Base/ActiveIssueSentinel.cs`, the `Sweep mode` and `Sentinel` regions of `ActiveIssueTests.cs`,
+  and `.claude/scripts/active-issue-triage.ps1`. `SC-7`, `SC-12`, `TO-7`, `TO-13`, `E-9`, `E-15` and `E-32`
+  are void; `E-2` was never committed, so `SC-12`'s underlying guarantee holds by construction.
 - **Both `ActiveIssueAttribute` and `ActiveIssueNewAttribute` exist simultaneously after this branch,** with duplicated targeting logic. The rename/delete is the final cutover and needs all 340 sites migrated first.
 - **`ActiveIssueNew` is a deliberately ugly name** — the user specified it, to be renamed at cutover.
 - **The 12 self-test fixtures keep their `[ActiveIssue]`** (D-8) — they are the tripwire for a missed force-fail revert, not oversight.
