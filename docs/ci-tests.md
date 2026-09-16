@@ -327,6 +327,53 @@ The `details_url` ends in `buildId=<n>`.
 
 **These `gh api … --jq` recipes are the build-metadata interface — don't hand-roll `Invoke-RestMethod` against the Azure builds API.** The `azp-*.ps1` scripts each answer a narrower question (`azp-build-failures` = per-test failures, `azp-job-durations` = timing/ordering, `azp-step-log` = one step's log, `azp-run` = trigger), so "which commit did build N build?", "what has this branch run lately?" and "is this definition red across other PRs too?" have no script — but they *are* covered here, by the two recipes above plus `/_apis/build/builds/<id>`'s `sourceVersion` + `triggerInfo`. (Surfaced on #5828: three hand-rolled `Invoke-RestMethod` calls re-derived exactly these, because the recipes live under a heading about failure *attribution* and don't read as the general build-query entry point.)
 
+## A leg that went red with no matching code change — check the container image
+
+A third cause, beside PR-introduced and pre-existing: **the environment moved.** The provider
+containers are created by setup scripts that pull *floating* tags — `Build/Azure/scripts/*.sh` and
+their `Data/Setup Scripts/*.cmd` counterparts — and CI pulls fresh on every run, so a registry tag
+republish swaps the server out mid-round with nothing in the diff to account for it. The shape to
+recognise: a capability-probing test flips between two rounds whose only new commits cannot explain
+it, and every code-side theory you write turns out to be wrong.
+
+**Compare the image digests the two rounds pulled, before theorising.** Each setup script's output
+carries `Digest: sha256:…` immediately followed by `Status: Downloaded newer image for <img>:<tag>`,
+so both values are already in the job logs `gh-run-logs.ps1` fetched — no extra call:
+
+```
+Grep  pattern: "Digest: sha256|Status: Downloaded"  path: <logsDir>/<job>.log
+```
+
+Different digests across a green and a red round means the code is not the variable. On #5882 this
+settled in one pass what two code-side write-ups had got wrong: `mariadb:latest` moved from
+`ab1c3dd3…` to `349b4262…` at 2026-09-16 08:36 UTC, four hours before the failing round, and
+`ConcurrencyRefreshTests.OutputSupportSurface` went red because MariaDB **13.0** adds
+`UPDATE … RETURNING` where 12.x rejects it — a real flag divergence the guard test was right to
+report, surfaced by an image bump rather than by a commit.
+
+**Turning a digest into a version: compare per-platform manifests, not tag digests.** Docker Hub
+publishes a distinct digest for `latest` and for the version tag it currently points at, even when
+the images are byte-identical, so comparing the digests the way `docker pull` prints them gives a
+false negative. Resolve through the anonymous registry API and compare the **amd64** entry:
+
+```powershell
+$tok = (Invoke-RestMethod "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/mariadb:pull").token
+$h   = @{ Authorization = "Bearer $tok"; Accept = "application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json" }
+$m   = Invoke-RestMethod -Headers $h "https://registry-1.docker.io/v2/library/mariadb/manifests/13.0.2"
+($m.manifests | Where-Object { $_.platform.architecture -eq 'amd64' -and -not $_.platform.'os.version' }).digest
+```
+
+An *official* image lives under `library/<name>` in both the token scope and the manifest path; a
+vendor image (`saplabs/hanaexpress`, `ydbplatform/local-ydb`, `icr.io/...`) uses its own namespace,
+and a non-Docker-Hub registry needs that registry's token endpoint instead. Hub's tag list
+(`https://hub.docker.com/v2/repositories/<ns>/<name>/tags/?page_size=100&ordering=last_updated`)
+maps digests back to tag names and carries `last_updated`, which is how you date the republish.
+
+**A pin goes in both files.** The Azure script and the `Data/Setup Scripts/` counterpart are
+separate copies of the same `docker run`; editing one leaves local runs on a different server from
+CI. Pin the *major* rather than a patch version so security rebuilds still land, and comment the pin
+with the issue that lets it be lifted — otherwise the stopgap silently becomes the policy.
+
 ## A build failure with no code cause — check restore before the diff
 
 A red `build` leg is not always about the code. The repo sets `TreatWarningsAsErrors`, and NuGet restore warnings are warnings, so an infrastructure hiccup during restore becomes a hard build break that names your project files and looks like a compile failure.
