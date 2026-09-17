@@ -536,6 +536,23 @@ expected noise and must not be committed.
 
 Worth an assertion rather than leaving it to the baseline: a parameter type name can vary with the **runtime**, not just the provider (`System.Data.SqlDbType` gained `Json` only in .NET 9, so `(SqlDbType)35` renders as a bare `35` on net462/net8). A divergence like that is invisible on the PR pipeline when the newest TFM is the only one running the main suite, and surfaces as an unexplained baseline diff after a release instead — see [`baselines-repo-layout.md`](baselines-repo-layout.md) → *A baseline file's path carries the provider and nothing else*. (Surfaced on [#5917](https://github.com/linq2db/linq2db/pull/5917).)
 
+### Excluding a provider from one *combination*, not from the whole test
+
+`[DataSources(TestProvName.AllX)]` removes the provider from **every** case the method generates, including each arm of a `[Values]` parameter it is crossed with — the filter runs before the parameter exists, so the attribute cannot express "this provider, only on that arm". Reaching for it when a single arm is unsupported silently throws away the coverage the other arms still had.
+
+Guard the combination inside the test instead:
+
+```cs
+if (strategy == EagerLoadingStrategy.KeyedQuery && context.IsAnyOf(TestProvName.AllAccess))
+	Assert.Ignore("KeyedQuery emits its key set as a FROM-less UNION ALL derived table, which Access rejects.");
+```
+
+Two properties of `IsAnyOf` (`Tests/Base/ProviderNameHelpers.cs`) make the one-liner cover a whole family: it calls `StripRemote()` first, so a `.LinqService` context matches its base provider name, and it splits comma-joined constants, so `TestProvName.AllAccess` covers all four Jet/Ace × OleDb/Odbc configs.
+
+Precedent: `Tests/Linq/Linq/StringConcatTests.cs` does this in five places for Sybase ASE's empty-string padding, which diverges only when a `[Values] bool …Nullable` arm is true — a whole-test `[DataSources(TestProvName.AllSybase)]` would have dropped Sybase from the non-nullable arms as well.
+
+The cost is that the skipped arm now hides in the run's `skipped` count rather than simply not existing, so cross-check `summary.skipped` after any run you cite as verification — see *A skipped test is "not tested"* above. (#5938: two new eager-load tests failed on all four Access configs under `KeyedQuery` only, while the `Default` arm passed and was worth keeping.)
+
 ### Test-proofing a gated provider capability
 
 To empirically determine whether a database actually supports a feature gated off by a capability flag (`Is…Supported` on a translator, a `SqlProviderFlags` bool, etc.) — rather than trusting docs:
