@@ -171,8 +171,9 @@ foreach ($rep in @(if ($hasReplacements) { $m.replacements })) {
         Exit-WithError "replacements[$ridx].matchCount must be 'one', 'first', 'last', or 'all'"
     }
     $replacements += [pscustomobject]@{
-        old        = [string]$rep.old
-        new        = [string]$rep.new
+        # normalised like the body below: an `old` copied out of `gh pr view --json body` carries CRLF
+        old        = ([string]$rep.old).Replace("`r`n", "`n")
+        new        = ([string]$rep.new).Replace("`r`n", "`n")
         matchCount = $rMatchCount
     }
 }
@@ -183,7 +184,7 @@ $idx = 0
 foreach ($ins in @(if ($hasInsertions) { $m.insertions })) {
     $idx++
     if (-not $ins.anchor -or -not ([string]$ins.anchor)) { Exit-WithError "insertions[$idx].anchor is required" }
-    $anchor = [string]$ins.anchor
+    $anchor = ([string]$ins.anchor).Replace("`r`n", "`n")
     if ($anchor -cmatch '[^\x00-\x7F]') {
         Exit-WithError "insertions[$idx].anchor contains non-ASCII characters; anchors must be ASCII to survive round-tripping through native-command stdout"
     }
@@ -192,7 +193,7 @@ foreach ($ins in @(if ($hasInsertions) { $m.insertions })) {
         Exit-WithError "insertions[$idx].position must be 'before' or 'after'"
     }
     if ($null -eq $ins.text) { Exit-WithError "insertions[$idx].text is required" }
-    $text = [string]$ins.text
+    $text = ([string]$ins.text).Replace("`r`n", "`n")
     $matchCount = if ($ins.matchCount) { [string]$ins.matchCount } else { 'one' }
     if ($matchCount -notin @('one','first','last')) {
         Exit-WithError "insertions[$idx].matchCount must be 'one', 'first', or 'last'"
