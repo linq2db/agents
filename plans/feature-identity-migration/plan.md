@@ -223,6 +223,29 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   *your checkout*).
 - **A-4** — scope widened from F-1 only to F-1/F-2/F-3, adding `E-2` and `E-3`. This voids the (never
   granted) approval of the narrower edit set.
+- **A-5** — **`U-6` realized, and wider than it was written.** The critic's objection was that the
+  *parameter* path was unprobed; CI's run on `77a981e38` confirmed it on Sybase and SAP HANA, whose drivers
+  reject a `DateTimeOffset` value outright. Measuring locally then showed the defect is not confined to those
+  two: **every** pinned configuration round-trips the value through the *machine's local offset* — Firebird 3
+  wrote `13:52:49Z` and read back `13:52:49+02:00`. `P10`'s adjudication ("round-trips with offset zero") was
+  therefore wrong, and wrong in a way CI structurally cannot see, because CI runs in UTC. `E-1` now pairs each
+  `DataTypeAttribute` with a configuration-scoped `ValueConverterAttribute` storing UTC. **The general lesson
+  for this plan's successors: a success criterion phrased over DDL text cannot fail on a value defect, and a
+  UTC-only CI cannot fail on an offset defect — `SC-1` and `TO-2` were both blind to this by construction.**
+- **A-6** — **new edit-point: dropping a per-provider primary key.** Access, Informix and Firebird 2.5 cannot
+  index the keys the EF-compatible schema declares (1024-byte `CredentialId` on all three; the three-column
+  `AspNetUserTokens` key on FB 2.5). Those tables now emit without the constraint. Two findings worth carrying
+  forward: a configuration-scoped `ColumnAttribute` that merely **omits** `IsPrimaryKey` does *not* drop the
+  key — fluent `.IsPrimaryKey()` registers a separate `PrimaryKeyAttribute` that `ColumnDescriptor.cs:112-123`
+  consults whenever the column attribute leaves the flag unset, so it must be `IsPrimaryKey = false`. And
+  `Context.UpdateAsync(entity)` on a keyless entity is **not** safe: `GetKeys(true)` returns every field
+  (`SqlTable.cs:374`), leaving nothing to SET, so it throws — or silently no-ops under `IgnoreEmptyUpdate`.
+  `Context.DeleteAsync(entity)` degrades safely by the same mechanism (over-specified `WHERE`), which is why
+  only the passkey update needed reworking and the token table needed no store change at all.
+- **A-7** — **anti-goal "ClickHouse and YDB" discharged as gates, plus Informix passkeys.** Per the
+  maintainer: `[ActiveIssue]`, no issues filed. Gated per test, not per provider — both engines host the
+  schema and pass the read-only and claim tests. Verified against all three ClickHouse drivers and YDB: 85
+  cases held, none over-firing.
 
 ## P12 Critic verdict
 
