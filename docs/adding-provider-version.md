@@ -2,6 +2,8 @@
 
 How to add a new version anchor to a versioned provider (PostgreSQL, SQL Server, Firebird, MySQL, Oracle, DB2, …) without leaving silently-broken paths. Written from the PG19 work on #5644, where the core wiring was complete but four **version-keyed lists** were missed and only surfaced at CI.
 
+> For a **new provider** — a new database, or a new ADO.NET transport under one linq2db already supports — see [`adding-provider.md`](adding-provider.md) instead. Different failure modes: what the driver must implement for linq2db (not just for ADO.NET), reader registrations keyed on driver type-name strings, TFM availability, the type-coverage fixture, and the upstream-defect register.
+
 ## The trap
 
 Adding a version is two layers of work:

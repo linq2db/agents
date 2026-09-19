@@ -47,6 +47,8 @@ Tier sets which blocks are mandatory and whether the critic runs.
 
 Blocks marked (M/L) are omitted entirely on a Tier S plan — delete the heading rather than leaving it empty.
 
+**Write each row on one line — `work-plan.ps1 -Action validate` parses line by line, not bullet by bullet.** A row's load-bearing token has to sit on the *same physical line* as the `- ` that opens it: the `SC-n` id in `P2`, the closing `resolved-by …` or `OPEN` in `P4`, the verdict (`covered by E-n` / `deferred: …` / `out-of-scope` / `Localized — searched …`) in `P7`, and the proof mode (`red→green` / `control` / `characterization`) in `P8`. Wrapping a long row across lines the way the rest of the corpus is wrapped makes the validator read every continuation line as its own malformed row, so one over-long bullet reports as four or five errors — each quoting a fragment of prose and none naming the real problem, which reads like missing content rather than a formatting rule. Long single lines are the intended shape for these four blocks; `P5`, `P6` and the prose blocks wrap normally. (2026-09-20, `feature-access-libred`: three validate-and-fix cycles spent on this before the pattern was obvious.)
+
 ### P1 Problem
 
 The observed failure or absent capability, stated **falsifiably**: a reproduction, a stack trace, the wrong SQL beside the right SQL. "It's broken" and "improve robustness" are not `P1` statements because they cannot be shown to be fixed.
