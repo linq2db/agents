@@ -1,0 +1,23 @@
+CREATE TABLE Person
+(
+	PersonID   COUNTER      NOT NULL CONSTRAINT PK_Person PRIMARY KEY,
+	FirstName  VARCHAR(50)  NOT NULL
+)
+GO
+
+CREATE TABLE Doctor
+(
+	PersonID   INT          NOT NULL CONSTRAINT PK_Doctor PRIMARY KEY,
+	Taxonomy   VARCHAR(50)  NOT NULL
+)
+GO
+
+ALTER TABLE Doctor
+	ADD CONSTRAINT PersonDoctor FOREIGN KEY (PersonID) REFERENCES Person (PersonID) ON UPDATE CASCADE ON DELETE CASCADE;
+GO
+
+SELECT * FROM [INFORMATION_SCHEMA.RELATIONS]
+GO
+
+SELECT szRelationship, szObject, szColumn, szReferencedObject, szReferencedColumn FROM MSysRelationships
+GO
