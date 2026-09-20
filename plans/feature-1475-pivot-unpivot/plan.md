@@ -182,17 +182,47 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 
 ## P9 Verification gates
 
-All nine derived from P6 by `work-plan.ps1 -Action gates`. **Implementation has not started**, so every gate is `skipped` and names what is therefore unverified; each is re-recorded with its command and result as the work lands.
+All nine derived from P6 by `work-plan.ps1 -Action gates`. Re-recorded 2026-09-21 as E-1…E-21 landed; the
+work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
 
-- G-01: skipped — not started; every TO-1…TO-10 assertion is unverified, and TO-3/TO-7/TO-9/TO-10 are the four that must be observed red before they are observed green.
-- G-02: skipped — not started; the emitted-SQL diff is unverified. Expected to be wide, since D-3 moves every cell and E-21 moves PostgreSQL; read for shape per P10.
-- G-03: skipped — not started; `PivotCell.Custom`, `PivotCellFactory.Custom` and E-21's nested translator + override are not yet in `PublicAPI.Unshipped.txt`.
-- G-04: skipped — not started; `Unshipped` only per E-17, with no `Shipped` edit and no `CompatibilitySuppressions.xml` entry, so the usual release-task caveat does not apply here.
-- G-05: skipped — not started; net462 and netstandard2.0 are unverified, and net462 is where this branch has already broken once.
-- G-06: skipped — not started; no diff exists to read for incidental reformatting.
-- G-07: skipped — not started; the three scratch files E-23 removes are still on disk and would otherwise be compiled by the SDK glob.
-- G-08: skipped — not started; D-5's gate is the cross-cutting change and TO-7/TO-8 are its proof. PostgreSQL 9.2/9.3 execution is unverified and may stay that way — U-11 records both containers as likely dead, in which case CI's PostgreSQL legs are the covering run.
-- G-09: skipped — not started; Tier L requires an adversarial read of the diff before the PR opens, which is separate from the two critic rounds already spent on the design.
+- G-01: **pass** — TO-1 green on SQLite + DuckDB + SQL Server 2017 + Oracle 19, direct and `LinqService` (101 pivot/
+  `SelectDynamic` tests; 39 each on SQL Server and Oracle). All four red→green obligations were observed
+  red first: TO-3 (the distinct-count cell is inexpressible before D-3), TO-7 (`42601: syntax error at or near "("`
+  on `COUNT(*) FILTER` against a real 9.2 server), TO-9 (both arms, each failing at its own assertion — `0` for the
+  selector lift, `0001-01-01` for the result lift), TO-10 (native `UNPIVOT … EXCLUDE NULLS` returns 1 row where the
+  lowering returns 2, proven in a detached probe worktree at the branch head). TO-2 and TO-6 pass in their strongest
+  form: `git diff origin/master` over `Internal/SqlQuery`, `LinqServiceSerializer.cs`, `SqlProviderFlags.cs`,
+  `BasicSqlBuilder.cs` and the three provider files is **empty** — byte-identical to master, so there is nothing to
+  count.
+  **Local env note:** `Oracle.23.Managed` is an `AzureConnectionStrings` name; `LocalConnectionStrings` carries only
+  Oracle 11 and 19, and a worktree under `C:\Worktrees\` resolves no `UserDataProviders.json` by walk-up, so a local
+  Oracle run there must use `Oracle.19.Managed`.
+- G-02: **not run** — no local baselines diff; the `.sql` churn lands on the baselines PR at CI push. Expected wide
+  per P10; read for shape.
+- G-03: **pass** — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=true`
+  exits 0 with no RS0016/RS0017. The first run reported 58 RS0016 and 0 RS0017, which also established that the
+  branch had **never** declared the dynamic API's surface (`PivotCell`, `PivotCellFactory`, `PivotRow`,
+  `SelectDynamic`, all four `Pivot` overloads) nor two `Unpivot(…, params string[])` overloads — a pre-existing gap,
+  not one E-17 created. `Unshipped` is now 42 lines and matches the code.
+- G-04: **pass** — `git status` over 34 changed files shows no `PublicAPI.Shipped.txt` and no
+  `CompatibilitySuppressions.xml` entry.
+- G-05: **pass** — `Tests/Linq` builds clean for net462 and for Release net10.0 (the leg that validates XML doc
+  `cref`s repo-wide), and `Source/LinqToDB` builds clean for netstandard2.0.
+- G-06: **pass, after two repairs — both self-inflicted by whole-file writes, neither visible in a compile.**
+  (1) The TO-8 sweep script wrote with `Set-Content -Encoding utf8NoBOM` and stripped the UTF-8 BOM from all three
+  swept files, turning a 34-line change into a whole-file diff; fixed with `utf8BOM`. (2) `PivotTests.cs`,
+  `PivotCell.cs` and `UnpivotBuilder.cs` — the three files rewritten wholesale — came out with bare **LF** endings in
+  a CRLF repo; converted. The two repairs pull in opposite directions, so the convention is worth stating: the
+  branch's own files (`PivotDynamicTests.cs`, `PivotRow.cs`, `SelectDynamicBuilder.cs`) are **CRLF, no BOM**, while
+  older files like `GroupByTests.cs` / `BooleanTests.cs` are **CRLF with BOM** — match the file you are editing, not
+  a repo-wide rule. `git diff --check origin/master` is now silent.
+- G-07: **n/a** — the three scratch files E-23 names are not present in this worktree; they were session scratch in
+  the worktree that produced the measurements, which no longer exists.
+- G-08: **pass, and stronger than planned** — U-11 was wrong: `pgsql92` and `pgsql93` both start. The gate is verified
+  in *both* directions: 9.2/9.3 take the `CASE WHEN` emulation and pass all **777** tests across `GroupByTests` +
+  `CountTests` + `BooleanTests`, while PostgreSQL 19 still emits real `COUNT(*) FILTER (WHERE …)` and
+  `COUNT(DISTINCT …) FILTER (WHERE …)`. So the tier split is correct, not merely conservative.
+- G-09: **not started** — Tier L adversarial read of the diff, before the PR opens.
 
 ## P10 Adjudicated (M/L)
 
@@ -207,7 +237,20 @@ All nine derived from P6 by `work-plan.ps1 -Action gates`. **Implementation has 
 
 ## P11 Amendments (M/L)
 
-_None._
+- **A-1 (2026-09-21) — the `StringMemberTranslator` hole is 3 sites, not 2.** TO-8 counted
+  `Issue1564Tests.CteTest1564` among the 35 sweepable rows because it carries the `// PostgreSQL 9.4+ (FILTER clause)`
+  annotation. It is not sweepable: widening it to `AllPostgreSQL` fails on 9.2/9.3 with `42601`, because the query
+  emits `STRING_AGG(…) FILTER (WHERE …)` through `TranslateStringJoin` — the ungated nested class D-3's narrowing
+  already records. It belongs with the two `StringJoinTests` rows, so the follow-up PR that extends the 9.5 tier split
+  to `StringMemberTranslator` un-excludes **three** tests. The site keeps its 9.5+ restriction with a comment naming
+  the real mechanism. Swept total is therefore **34**, not 35.
+- **A-2 (2026-09-21) — E-16's "delete `MakeNullable`" is superseded by D-4.** E-16 predates D-4; the lift is
+  load-bearing on both arms (TO-9 proved each separately). `MakeNullable` stays, moved into `PivotCell` alongside the
+  wrappers that use it.
+- **A-3 (2026-09-21) — `Count` loses its value selector.** With the filter moved into `g.Where(…)`, the old
+  `Count<TCell>(Expression<Func<TSource,TCell>> value, …)` selector is unused. The wrapper is now
+  `Count(Func<TFor,string>? name = null)` on both `PivotCell` and `PivotCellFactory`. No call site outside the deleted
+  static API used it.
 
 ## P12 Critic verdict (M/L)
 
