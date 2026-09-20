@@ -222,7 +222,8 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   in *both* directions: 9.2/9.3 take the `CASE WHEN` emulation and pass all **777** tests across `GroupByTests` +
   `CountTests` + `BooleanTests`, while PostgreSQL 19 still emits real `COUNT(*) FILTER (WHERE …)` and
   `COUNT(DISTINCT …) FILTER (WHERE …)`. So the tier split is correct, not merely conservative.
-- G-09: **not started** — Tier L adversarial read of the diff, before the PR opens.
+- G-09: **pass** — independent `code-reviewer` read on a different model, over the committed diff. `checked-clean` on
+  all four priority areas with cited evidence; seven findings, none above MIN, all applied. See A-7.
 
 ## P10 Adjudicated (M/L)
 
@@ -251,6 +252,34 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   `Count<TCell>(Expression<Func<TSource,TCell>> value, …)` selector is unused. The wrapper is now
   `Count(Func<TFor,string>? name = null)` on both `PivotCell` and `PivotCellFactory`. No call site outside the deleted
   static API used it.
+- **A-4 (2026-09-21) — D-5's conservative arm catches more than "a genuine 9.4 server".**
+  `PostgreSQLProviderDetector.cs:10` passes `PostgreSQLVersion.v92` as `DefaultVersion`, used when auto-detection is
+  off (`:98`), when `DetectServerVersion` returns null (`:108`), and as the fallback arm (`:133`). Any such context
+  emitted `FILTER` before this change — valid on whatever server it was actually talking to, which in practice is
+  modern — and now takes the `CASE WHEN` emulation. Results identical, direction safe, but it is a SQL-shape change
+  for a population D-5 describes only as a 9.4 server. Carry one sentence into #5948's description. Whether
+  `DefaultVersion` should stay pinned at the oldest dialect is a separate decision, out of scope here.
+- **A-5 (2026-09-21) — the two `Unpivot` families now have opposite NULL defaults, and only one has a knob.**
+  The selector overloads exclude NULL cells with `UnpivotNulls` to opt in (`LinqExtensions.Unpivot.cs:21-23`); the
+  tuple-group overloads keep them and take no `nulls` parameter (`:164`, `:188`). Both are documented and P3 freezes
+  the surface, so this is not a defect — but the asymmetry existed because the native multi-value path forced
+  `includeNulls: false`, and that path is gone. A follow-up adding `nulls` to the multi-value overloads would make
+  the family symmetric.
+- **A-6 (2026-09-21) — the pivot/unpivot tests run on every provider.** The `[IncludeDataSources(…)]` lists were an
+  artifact of the native-versus-lowered split: tests were pinned to the providers with a native keyword so the
+  SQL-text assertions meant something. Everything is translated SQL now, so the result-asserting tests are bare
+  `[DataSources]` with **no exclusions** — a provider that cannot do it must surface as a real failure, not a
+  pre-emptive gate. Nine stay narrow for non-provider reasons: two assert SQL text, five are call-site guards that
+  throw before any SQL is built, and the rest are query-cache tests plus one embedding literal `FromSql` text.
+  Supersedes the reviewer's narrower suggestion to add PostgreSQL only.
+- **A-7 (2026-09-21) — G-09 ran and found nothing material.** An independent `code-reviewer` pass on a different
+  model returned `checked-clean` on all four priority areas: the reflection-based `Enumerable` overload picks are
+  unique on net462..net10.0 and identical to the pre-change bindings; the nullability lift cannot double-apply or
+  miss, and both SQL-side paths that could re-inject a default are `!IsGroupBy`-gated; the deletions left no dangling
+  reference anywhere under `Source/` or `Tests/`; and `PostgreSQL95AggregateFunctionsMemberTranslator` is reached by
+  every `>= v95` dialect with no leaf re-overriding it. Seven findings, all MIN or below, all applied: a wrong type
+  name in an exception, a missing `Custom`-over-`Sum` pin, two hand-rolled reflection scans replaced by
+  `Methods.Enumerable`, and three prose corrections. The review is the source of A-4 and A-5.
 
 ## P12 Critic verdict (M/L)
 
