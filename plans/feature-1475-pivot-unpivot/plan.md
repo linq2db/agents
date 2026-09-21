@@ -318,6 +318,22 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   `[ThrowsForProvider(typeof(InvalidOperationException), ProviderName.AccessJetOleDb, …)]`, which goes red the day
   it starts working. No linq2db issue exists for it and none was filed.
 
+- **A-12 (2026-09-21) — A-11's failure is unpinnable; the test is split and the `AVG` case excluded.** Two
+  successive `ThrowsForProvider` pins went red, because the Jet OLE DB failure is not stable. With byte-identical
+  generated SQL in both logs, run
+  [35587574130](https://github.com/linq2db/linq2db/actions/runs/35587574130/job/106297881756) raised
+  `InvalidCastException` *"The numerical value is too large to fit into a 96 bit decimal"* and run
+  [35612267776](https://github.com/linq2db/linq2db/actions/runs/35612267776/job/106385883561) raised
+  `ArgumentException` out of `Decimal.SetBits` — both from `System.Data.OleDb`'s `DbBuffer.ReadNumeric`, so there is
+  no stable type or message to assert. `PivotsAvgMinMaxCells` is split into `PivotsMinMaxCells` (bare
+  `[DataSources]`) and `PivotsAvgCell` (`[DataSources(ProviderName.AccessJetOleDb)]`), keeping `MIN`/`MAX` covered
+  on that provider; the driver defect is filed as [#5954](https://github.com/linq2db/linq2db/issues/5954) (Bug,
+  6.6.0) and cited in the test comment. Two corrections to A-11: **ACE OLE DB was never evidence** — the
+  `Win r_Access_MDB` leg runs only `Access.Jet.OleDb` and `Access.Jet.Odbc`, so A-11's "Access.Ace.OleDb reads the
+  same query" was an unverified claim; and the differing exception *shape* (wrapped `LinqToDBConvertException` vs.
+  raw `ArgumentException`) is linq2db's, not the driver's — the fast→slow mapper fallback at
+  `Source/LinqToDB/Internal/Linq/QueryRunner.cs:98` catches `InvalidCastException` but not `ArgumentException`.
+
 ## P12 Critic verdict (M/L)
 
 **Round 1 — `refuted`** (Fable, dispatched with the measurements forwarded verbatim and the unprobed claims labelled).
