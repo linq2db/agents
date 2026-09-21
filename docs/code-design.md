@@ -198,6 +198,10 @@ When **matching** a method-call node's identity (rather than constructing a call
 
 **In `Source/LinqToDB.FSharp`, a `GetMethod` on an F#-declared type needs `BindingFlags.NonPublic`.** The F# project reflects directly rather than through `MemberHelper`, and F# compiles the members of a `type private` / `type internal` as **assembly**-visible in IL even when the member itself is declared public — so the default `GetMethod(name)` binding (Public | Instance | Static) returns `null`. Pass `BindingFlags.Static ||| BindingFlags.Public ||| BindingFlags.NonPublic` explicitly. The failure is loud but badly misattributed: in a `static let` the resulting `nonNull` throws inside the type initializer, so *every* test that touches the assembly fails with `TypeInitializationException` pointing at an unrelated entry point (`FSharpQueryExpressionInterceptor.Instance`), which reads as a broken assembly rather than a null lookup. (Cost a full red cycle on #5701's `FreeVarMarker.Get`.)
 
+### Check `Internal/Extensions` before writing a private type-shape helper
+
+`LinqToDB.Internal.Extensions.NullableTypeExtensions` already carries `MakeNullable()`, `AsNullable()`, `UnwrapNullableType()`, `UnwrappedNullableType`, `IsNullableType` and `IsNullableOrReferenceType`, so a local `static Type MakeNullable(Type)` or `static bool IsNonNullableValueType(Type)` is a re-derivation of one of them — often as its negation, which is what makes the duplicate hard to spot by name. Same instinct as the `MemberHelper.MethodOf*` rule above: the reuse candidate is in `Internal/`, and a file outside that namespace reaches it with a `using`, not a reimplementation. (#5708 shipped both of those before review caught them.)
+
 ### A reference-identity set over `Expression` needs the comparer spelled out
 
 `new HashSet<Expression>()` / `new Dictionary<Expression, …>()` does **not** give you reference identity. `EqualityComparer<Expression>.Default` defers to the node's own `Equals`, and thirteen types under `Source/LinqToDB/Internal/Expressions/` override it — `ChangeTypeExpression`, `ConstantPlaceholderExpression`, `ContextRefExpression`, `DefaultValueExpression`, `SqlAdjustTypeExpression`, `SqlAggregateLifterExpression`, `SqlEagerLoadExpression`, `SqlGenericConstructorExpression`, `SqlGenericParamAccessExpression`, `SqlPathExpression`, `SqlPlaceholderExpression`, `SqlQueryRootExpression`, `SqlReaderIsNullExpression`. For those, membership is **structural**, and some are aggressively so: `ConstantPlaceholderExpression.Equals` compares only `ConstantType`, so any two placeholders of the same type are equal.
@@ -253,6 +257,10 @@ linq2db is a library a developer debugs at 2 a.m. through a stack trace, so a th
 ### Interpolate exception messages with a plain `$"…"`
 
 The house form is `throw new LinqToDBException($"…{symbol}…")` — used across `DataExtensions`, `DataContext`, `Sql.TableFunctionAttribute` and elsewhere. Do **not** reach for `FormattableString.Invariant($"…")`: it appears nowhere in `Source/LinqToDB`, so introducing it makes the site look like it has a culture concern the neighbours don't. Message interpolation here is type names, member names and SQL fragments, none of which format culture-sensitively, and the Release-only analyzer set does not require an `IFormatProvider` for them.
+
+### A code identifier inside a message string goes through `nameof`
+
+Exception and diagnostic text that names a method, type or attribute spells it `$"{nameof(LinqExtensions.SelectDynamic)} …"` / `{nameof(DynamicColumnsStoreAttribute)}`, never as a bare literal — a rename or a removal then breaks the build instead of silently leaving a message that points at something no longer there. `TableBuilder.TableContext.cs:129` is the established shape. Applies equally to the query-marker *"… is a query marker and must not be invoked directly"* messages, which name their own method. English prose that happens to coincide with a feature name (*"a pivot needs at least one cell template"*) is not an identifier and stays plain. Rendered text is unchanged either way, so a test pinning the message does not move. (#5708.)
 
 ### Prefer `??` over `Nullable<T>.GetValueOrDefault(fallback)`
 
