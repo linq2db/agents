@@ -362,6 +362,28 @@ dotnet build Tests/Linq/Tests.csproj -c Debug -f net462
 
 `--provider` supplies the connection string from `DataProviders.json` without editing the enabled-providers list; the net462 exe runs x86. This is the runtime sibling of the compile-time `agent-rules.md` → *TFM API availability* rule.
 
+## A narrowed provider set is a claim — re-derive it when the feature stops being provider-conditional
+
+`[DataSources]` is the default for a reason: it runs everything configured, so a provider that cannot do the thing
+says so. Every narrowing away from it — `[IncludeDataSources(a, b, c)]`, or an exclusion list — encodes a *reason*,
+and that reason has a lifetime. The common one is a feature with two code paths, where the tests were pinned to the
+providers exercising the interesting path so an SQL-text assertion meant something. When the branch later collapses
+those paths into one, the pin stops being a statement about the feature and becomes an inherited artifact: the tests
+still pass, the list still looks deliberate, and the coverage is quietly narrower than the code's reach.
+
+So when a change **removes** a provider-conditional path, revisit the provider sets of every test that touched it
+rather than carrying them forward. Widen to bare `[DataSources]` with **no** exclusions first, and let a real failure
+justify each exclusion you then add — a pre-emptive gate on a provider you never ran is a guess that outlives the
+person who made it (`agent-rules.md` → *Keep digging to the root*). Tests that legitimately stay narrow are the ones
+narrow for a non-provider reason: SQL-text assertions, call-site guards that throw before any SQL is built,
+query-cache tests, and anything embedding literal `FromSql` text.
+
+(2026-09-21, #5708: the pivot/unpivot tests were pinned to SQLite + DuckDB + SQL Server + Oracle because those were
+the providers with a native `PIVOT`/`UNPIVOT` keyword and the tests asserted native-vs-lowered SQL. When native
+emission was deleted and everything became translated SQL, the pins had no remaining justification — and PostgreSQL,
+the one provider whose emitted SQL the change actually altered and the only one gaining a version gate, was not in
+any of them. *"as we moved from native to translated sql - those should execute all providers as [DataSources]"*.)
+
 ## Test Patterns
 
 ```csharp

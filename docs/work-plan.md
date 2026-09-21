@@ -25,6 +25,18 @@ Deterministic, derivable before a PR number exists, and never needs renaming.
 - It is **invisible to GitHub-side reviewers** (Copilot, humans reading the diff). Accepted trade-off: our own review pipeline is the consumer.
 - The plan is committed **on its own**, separately from any linq2db work, per the corpus commit rules.
 
+**Resuming work on a branch starts by resolving this path — not by reading a memory about the branch.** The key is
+derivable from the branch name, so `.claude/plans/<branch-with-slashes-replaced>/plan.md` can be checked in one call
+before anything else happens. An auto-memory entry summarising the same work is a *point-in-time* record: it can
+predate the plan's latest decisions, and it can cite a plan path that a later session superseded. Where they
+disagree, the plan wins, and the memory is what needs updating. The failure is silent and expensive — nothing in a
+stale memory announces that it is stale, so the session proceeds confidently in the wrong direction and only a human
+stops it. (2026-09-21, #5708: a session resumed from a memory written four hours before the decision it described
+was reversed, and which pointed at a superseded plan file. It spent fifteen tool calls repairing native `PIVOT`
+emission — a defect it found, reproduced and fixed correctly — inside the code path the live plan's `D-1` deletes
+outright, and the live plan's `P3` named "do not re-plumb the dynamic API onto native PIVOT" as an explicit
+anti-goal. The user's *"why you write plan if you cannot follow it?"* was the first signal.)
+
 ## Tiers
 
 Tier sets which blocks are mandatory and whether the critic runs.
