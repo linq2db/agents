@@ -205,6 +205,10 @@ Azure legs publish their TRX to the Azure test tab and print no such block, so t
 
 It is the GitHub counterpart to `azp-build-failures.ps1` but deliberately **fetch-only** — parsing belongs to `ci-test-verdicts.ps1`, which reads both systems' logs with one grammar. Pass `-Conclusion all` when harvesting what a *holding* gate hides, since that message is quoted only in a green leg's log.
 
+**For "did this leg test anything, and what went wrong", use [`summarize-leg-logs.ps1`](../scripts/summarize-leg-logs.ps1) over the fetched directory** rather than hand-rolling the grep chain. It emits per-suite `{tfm, kind, verdict, total, failed}`, the whole-suite **retry count** (a leg that went green only on attempt 3 looks identical to a first-try pass in the checks list), and a census of provider error codes. Two things it exists to prevent: the **Grep tool cannot read these logs at all** — ANSI escapes and NUL bytes make ripgrep classify them as binary, so it reports `Found 0 total occurrences across 0 files`, a zero that means *searched nothing* and is indistinguishable from a clean result; and a raw code count is not a failure count, since the Oracle create script's idempotent `DROP TABLE` cleanup leaves a constant ORA-00942 baseline in every green leg. (#5950: both mistakes were made, and the first reached a PR body.)
+
+**Its `conclusion` output field is the `-Conclusion` *filter* echoed back, not the run's result.** The default filter is `failure`, so a perfectly green run prints `"conclusion": "failure"` beside `"jobsMatched": 0` — which reads as "the run failed and I could not find out why", when it means the opposite: *nothing matched the failure filter, so no job failed.* Take the run's actual verdict from `gh api repos/linq2db/linq2db/actions/runs/<id> --jq .conclusion`, never from this field. (#5950: a green run was briefly reported as red off this line.)
+
 ### A job that "hung" with no test failures — read the abandonment marker first
 
 A failed task whose `reportedFailedTotal` is `0`, on a job that ran far past its usual duration, is usually
