@@ -239,6 +239,10 @@ is the assembly's PE machine type, not the process architecture, and it has now 
 bitness-based analysis on #5614 twice. The step's own invocation (`net462\main\x64\linq2db.Tests.exe …`) is
 authoritative.
 
+### A green leg's log lists only skipped and failed tests
+
+The runner prints a line per **skipped** or **failed** test and nothing at all for a passing one, so a test name's absence from a green job's log is not evidence it did not run — and *"did provider X actually run this test?"* is exactly the question a mis-attributed failure raises. The `Test run summary` block's `total:` is what answers it; cross-check against a leg you know ran the same assembly. (#5708: `PivotsWithACustomAggregate` appeared nowhere in the SQL CE log, which read as "SQL CE is excluded from it". `total: 8716` said otherwise — and SQL CE passing is what refuted the provider flag the Access failure had been attributed to. See [`evidence-discipline.md`](evidence-discipline.md) → *A capability flag that explains a provider failure is a claim too*.)
+
 ### A red leg reporting `failed: 0` — read the exit code, not the summary
 
 The section above covers a task with no failures because the agent died. The sibling case is a task that

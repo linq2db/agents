@@ -464,7 +464,22 @@ Framework note: there is **no property-testing dependency in the repo today**. O
 
 ### YDB requires a primary key on every table
 
-YDB rejects `CREATE TABLE` without a primary key, so `db.CreateLocalTable<T>()` of a keyless type fails at setup with `Primary key is required for ydb tables` (wrapped in a `Pre type annotation` error). YDB isn't on CI yet, so this surfaces only when running YDB locally. Fix the test's table type by adding `[PrimaryKey]` to a suitable existing column (a non-nullable key such as `Id`, or the single natural-key column); if none fits, add a dedicated PK column. It's a test-data fix, not a provider change.
+YDB rejects `CREATE TABLE` without a primary key, so `db.CreateLocalTable<T>()` of a keyless type fails at setup with `Primary key is required for ydb tables` (wrapped in a `Pre type annotation` error). It's a test-data fix, not a provider change.
+
+**It is on CI** — the GitHub Actions `Lin u_YdbSybase` leg runs it, so a keyless fixture in a `[DataSources]` test fails there and not only locally. The error arrives as a `YdbException`/`GenericError` naming neither the table nor the column, and over `LinqService` it is wrapped in a `Grpc.Core.RpcException`, so a fixture problem presents as the *feature* not working on YDB. Read the message before assuming the query is at fault. (#5708: 24 pivot/unpivot tests × direct and `LinqService` failed this way, none of them for a pivot reason.)
+
+Two details the obvious fix gets wrong:
+
+- **Scope the key to YDB** — `[PrimaryKey(Configuration = ProviderName.Ydb)]`, or `[PrimaryKey(ProviderName.Ydb, n)]` for a composite, per the `Tests/Model/ParentChild.cs:23` precedent. An unconditional `[PrimaryKey]` changes the DDL on *every* provider, and a `string` column in a key is rejected by several of them once it maps to a long-text type.
+- **YDB enforces PK uniqueness on insert**, so a natural key is not always available. Where fixture rows are deliberately non-unique — duplicate rows that make a `Distinct()` count differ from a row count, several rows per group so `AVG`/`MIN`/`MAX` differ from `SUM` — a natural key silently *merges* rows and voids exactly the discrimination the test was built for. Add a surrogate `Id` instead.
+
+### A runtime value set read from an unordered query moves the generated SQL
+
+A test that feeds a **runtime** set into the query it asserts — a pivot's value list, a dynamic column set — and reads that set from a query with no `ORDER BY` has made its *emitted SQL* depend on the row order the provider happened to return. The assertions still pass, because they are keyed by name; the recorded baseline does not, and the test fails in `TearDown` with *"Baselines for remote context doesn't match direct access baselines"*. That message points at the remote path, which is innocent — this is the nondeterministic-input-order case of [*The shape of the `.sql` vs `.sql.other` diff names the cause*](#the-shape-of-the-sql-vs-sqlother-diff-names-the-cause), reached through the projection rather than through a `UNION ALL`. Order the set (`.Distinct().OrderBy(x => x)`); it stays a query and still cannot fold to a constant. (#5708: `PivotsRuntimeValuesIntoPivotRow` passed CI on every provider and failed locally on `DuckDB.LinqService`, the two baselines differing only in whether the `2000` or the `2010` `CASE` came first.)
+
+### `[ThrowsForProvider]` covers the `.LinqService` context, and tolerates the remote wrapper
+
+`ThrowsForProviderAttribute` expands each provider it names to `<name>` **and** `<name>.LinqService`, so one attribute covers both contexts. The match is deliberately asymmetric (`ThrowsWhenAttribute.ExecuteInner`): the direct case requires the result message to **start with** the expected exception's full name, the remote case only to **contain** it. That is what makes the attribute usable for a failure the remote path re-wraps — an `InvalidOperationException` arriving as `FaultException : LinqToDBConvertException … ---> System.InvalidOperationException` still matches. `ErrorMessage` is a `Contains` on the message, or a pattern when it carries `{0}` placeholders, so an `ErrorHelper` constant can be named rather than copied with its arguments filled in.
 
 ### `Except` / `Intersect` in a `[DataSources]` test need the YDB correlated-subquery gate
 
