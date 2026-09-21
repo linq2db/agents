@@ -110,6 +110,13 @@ Output (stdout, JSON):
     "pr":          5479,
     "url":         "https://github.com/linq2db/linq2db/pull/5479",
     "applied":     true,                   // false when dryRun
+    "verified":    true,                   // null when dryRun; otherwise the result of re-fetching
+                                           // the stored body and comparing the WHOLE of it, Ordinal,
+                                           // against what was sent. pr-and-push.md requires that
+                                           // check because a tail-only one passes while the head is
+                                           // silently collapsed onto a single line — so the script
+                                           // does it rather than leaving every caller to hand-roll a
+                                           // fetch-and-compare after each edit. false exits 1.
     "bodyBefore":  ".build/.agents/pr5479-body-before.txt",
     "bodyAfter":   ".build/.agents/pr5479-body-after.txt",
     "insertions": [
@@ -120,8 +127,8 @@ Output (stdout, JSON):
   }
 
 Exit codes:
-  0 = success (all insertions applied, optional `gh pr edit` succeeded)
-  1 = hard failure (bad input, anchor not found, gh error, etc.)
+  0 = success (all insertions applied, optional `gh pr edit` succeeded and verified)
+  1 = hard failure (bad input, anchor not found, gh error, stored body failed verification)
 #>
 
 # CmdletBinding so an unknown argument is a hard error. Without it PowerShell drops unrecognised
@@ -315,7 +322,8 @@ $body = $body -replace "\n{3,}", "`n`n"
 
 [System.IO.File]::WriteAllText($bodyAfterAbs, $body, $utf8NoBom)
 
-$applied = $false
+$applied  = $false
+$verified = $null
 if (-not $isDryRun) {
     # Absolute, not $bodyAfterPath: gh resolves --body-file against its own working
     # directory, which is not necessarily the one this script was invoked from, and the
@@ -323,12 +331,28 @@ if (-not $isDryRun) {
     $editResult = Invoke-Gh -ArgumentList @('pr', 'edit', "$pr", '--repo', $repoFull, '--body-file', $bodyAfterAbs)
     if (-not $editResult.ok) { Exit-WithError "gh pr edit $pr failed: $($editResult.error)" }
     $applied = $true
+
+    # Verify the WHOLE stored body, not the edited region: pr-and-push.md requires it because a
+    # tail-only check passes while the head is silently collapsed onto one line. Done here rather
+    # than by the caller, who otherwise hand-rolls fetch-and-compare after every single edit.
+    # Ordinal compare on \n-normalised text - GitHub returns CRLF regardless of what was sent.
+    $storedResult = Invoke-Gh -ArgumentList @('api', "repos/$repoFull/pulls/$pr", '--jq', '.body')
+    if (-not $storedResult.ok) { Exit-WithError "re-fetching pr $pr for verification failed: $($storedResult.error)" }
+
+    # Same normalisation the fetch above applies, so the comparison is against what was sent:
+    # strip the single newline `--jq` appends, then CRLF -> LF.
+    $stored = $storedResult.stdout
+    if ($stored.EndsWith("`n")) { $stored = $stored.Substring(0, $stored.Length - 1) }
+    $stored = $stored.Replace("`r`n", "`n")
+
+    $verified = [string]::Equals($stored, $body, [System.StringComparison]::Ordinal)
 }
 
 Write-JsonOutput ([pscustomobject]@{
     pr         = $pr
     url        = "https://github.com/$repoFull/pull/$pr"
     applied    = $applied
+    verified   = $verified
     dryRun     = $isDryRun
     bodyBefore   = $bodyBeforePath
     bodyAfter    = $bodyAfterPath
@@ -339,3 +363,7 @@ Write-JsonOutput ([pscustomobject]@{
         charsAfter  = $body.Length
     }
 })
+
+# A stored body that differs from what was sent is the failure this verification exists to catch,
+# so it must not read as success - the JSON above is still emitted so the caller keeps the paths.
+if ($applied -and -not $verified) { exit 1 }
