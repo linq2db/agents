@@ -280,6 +280,43 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   every `>= v95` dialect with no leaf re-overriding it. Seven findings, all MIN or below, all applied: a wrong type
   name in an exception, a missing `Custom`-over-`Sum` pin, two hand-rolled reflection scans replaced by
   `Methods.Enumerable`, and three prose corrections. The review is the source of A-4 and A-5.
+- **A-8 (2026-09-21) — TO-3's Access attribution was wrong, and the real mechanism is the lateral join.** TO-3
+  said to mirror `IsCountDistinctSupported => false` on Access *and SQL CE*. CI refutes both halves:
+  `PivotsWithACustomAggregate` fails on all four Access configs with `LinqToDBException` /
+  *"Provider does not support CROSS/OUTER/LATERAL joins"* — the distinct-count cell lowers to a lateral subquery —
+  while SQL CE, which carries the same `IsCountDistinctSupported => false`
+  (`SqlCeMemberTranslator.cs:366`, `AccessMemberTranslator.cs:452`), passes all 8716 of its tests. P7 had the
+  answer and TO-3 did not use it: the existing filtered-group tests fail on Access with `Error_OUTER_Joins`, which
+  is what the repo's `[ThrowsRequiredOuterJoins]` attribute exists for. The test now carries
+  `[ThrowsRequiredOuterJoins(TestProvName.AllAccess)]`, which asserts the error rather than excluding the provider.
+- **A-9 (2026-09-21) — A-6's "every provider" surfaced a YDB fixture requirement, not a pivot defect.** Every
+  pivot/unpivot/`SelectDynamic` test failed on YDB — 24 tests × direct and `LinqService` — with
+  *"Primary key is required for ydb tables"*, at `CreateLocalTable`'s DDL and before any pivot SQL ran. Seventeen
+  fixtures across the three files gained `[PrimaryKey(Configuration = ProviderName.Ydb)]` (composite
+  `[PrimaryKey(ProviderName.Ydb, n)]` where the natural key is more than one column), following the
+  `Tests/Model/ParentChild.cs:23` precedent so no other provider's DDL moves. `CategorySales` needed a **surrogate
+  `Id`**: `MultiRowData` and `DuplicateData` are deliberately non-unique — `DuplicateData` carries two
+  byte-identical rows — so any natural key would have silently merged rows on insert and voided the very
+  discrimination TO-3 relies on. Verified locally: 50/50 green on YDB.
+- **A-10 (2026-09-21) — `PivotsRuntimeValuesIntoPivotRow` was a latent baseline flake, and CI had not caught it.**
+  Its value set came from `t.Select(x => x.Year).Distinct().ToList()`, and the value set decides the generated cell
+  order — so the emitted SQL, and the baseline recorded from it, differed with the row order the provider happened
+  to return. It failed locally on `DuckDB.LinqService` with *"Baselines for remote context doesn't match direct
+  access baselines"*, the two sides differing only in whether the `2000` or the `2010` `CASE` came first. Now
+  `.OrderBy(y => y)`, which keeps the point of the test — the set is still built by a query and cannot fold to a
+  constant — while making the SQL deterministic. Generalises: any runtime-valued pivot test that reads its set from
+  an unordered query is baseline-nondeterministic by construction.
+- **A-11 (2026-09-21) — Access.Jet.OleDb cannot read `AVG` over a `DECIMAL` column; pinned, not fixed.**
+  `PivotsAvgMinMaxCells` fails only on `Access.Jet.OleDb`, inside `System.Data.OleDb.ColumnBinding.ValueDecimal()`.
+  The SQL is correct, `MIN`/`MAX` over the same column in the same query succeed, and `SUM` over it succeeds in
+  sibling tests — only the computed `AVG` fails. Access.Jet.**Odbc** and Access.**Ace**.OleDb both read the same
+  query, so it is the Jet 4.0 OLE DB driver's DECIMAL binding, not linq2db's SQL. A workaround would be idiomatic —
+  `AccessDataProvider.cs:69-83` already carries provider-split reader expressions keyed by OLE DB type name — but it
+  would be keyed on the decimal type name and so would change **every** decimal read on Access OleDb, including ACE
+  where reads work today; and the 32-bit `Jet.*` pair does not run on the development machine, so each attempt costs
+  a full CI round-trip on a Windows-only leg. Pinned with
+  `[ThrowsForProvider(typeof(InvalidOperationException), ProviderName.AccessJetOleDb, …)]`, which goes red the day
+  it starts working. No linq2db issue exists for it and none was filed.
 
 ## P12 Critic verdict (M/L)
 
