@@ -94,17 +94,31 @@ returns a `DateTime` · date parts return `Int32` · a multi-column `SET` is eva
 row · `cdbl(-9223372036854775808)` evaluates. The full ADO metadata surface (20 collections) is present and
 is a superset of `[INFORMATION_SCHEMA.*]` on every fact a schema reader needs except `CreateFormat`.
 
-## Still open on alpha.3
+## Still open on alpha.3 — the consolidated list
 
-Unchanged from the alpha.2 tables below: `CVar` is a no-op · an indexed `GUID` column cannot be compared to
-a string literal, *or* have one inserted (`Cannot encode GUID index key from String`) — alpha.2 refused
-these identically, so the scope did not widen · `DATETIME` keeps sub-second precision that Access truncates
-· `IS TRUE` / `IS FALSE` / `IS [NOT] DISTINCT FROM` do not parse · `WITH OWNERACCESS OPTION`, `CAST`,
-`LIKE … ESCAPE`, `TOP n WITH TIES`, `VALUES` as a table source, `{ts …}` / `{guid …}` escapes and `NZ()`
-do not parse · no database-qualified table name in any form · a parameterised stored SELECT still cannot be
-used as a table source (the error moved from `SqlParseException` to `InvalidOperationException: No value
-was supplied for parameter '@id'`) · missing-object errors are still `SqlBindException` for `SELECT` and a
-bare `InvalidOperationException` for `DROP TABLE` / `DROP PROCEDURE`, with no `Number`.
+Everything below reproduces on 11.0.0-alpha.3 and is ordered by how much it costs a consumer, not by when
+it was found. The three at the top are the ones a caller cannot route around; the rest are dialect gaps
+where an ORM can at least tell what happened. Where a row also existed on alpha.2 it is unchanged unless
+the "changed" column says otherwise.
+
+| # | Behaviour | Minimal repro | Why it costs | Changed on alpha.3 |
+|---|---|---|---|---|
+| R1 | A computed column is **declared one type and returned as another**: `GetFieldType` and `GetSchemaTable` say `Int32`/`Long`, `GetValue` hands back a `Decimal` | `SELECT [t].[x] + [t].[x] FROM (SELECT IIF(… IS NULL, 0, …) AS [x] FROM (SELECT (SELECT SUM([MoneyValue]) FROM [LinqDataTypes]) AS [x] FROM [LinqDataTypes]) [t2]) [t]` | every ORM compiles its materializer from the declared type; the read then throws `Unable to cast object of type 'System.Decimal' to type 'System.Int32'`. Silent until materialization | **regression** — alpha.2 said `Decimal` and was consistent |
+| R2 | A **text column compared to a numeric literal** throws instead of evaluating | `SELECT COUNT(*) FROM t WHERE [S] NOT IN (11, 18)` where `S` is `VARCHAR` holding `''` or `'abc'` → `InvalidCastException: Type mismatch: '' cannot be read as a number` | ACE evaluates it; a `NOT IN` list of numbers against a string column is ordinary generated SQL | **regression** — alpha.2 returned rows |
+| R3 | A `PARAMETERS` clause **Access wrote** comes back quoted and is then re-emitted double-quoted, after which it no longer parses | see the dedicated section above — `PARAMETER_NAME` = `[@firstName]`, `PROCEDURE_DEFINITION` = `PARAMETERS [[@firstName]] TEXT(50); …` | a parameterised stored query in an ACE-written file can be neither described nor executed; scaffolding degrades it to a non-query | new — procedures could not be created at all on alpha.2 |
+| R4 | An **indexed `GUID` column** cannot be compared to a string literal, nor have one inserted | `CREATE INDEX … ON t([G]); SELECT … WHERE [G] = '{…}'` → `NotSupportedException: Cannot encode GUID index key from String` | an internal encoder failure rather than a dialect refusal; both brace forms and `INSERT` are affected | no — alpha.2 refused these identically |
+| R5 | `DATETIME` keeps **sub-second precision** Access truncates | parameter round-trip of `09:44:34.653` reads back with the milliseconds | round-trips through LibRed disagree with round-trips through the Microsoft drivers on the same file | no |
+| R6 | `GetDateTime` returns `DateTime.MinValue` for the **Jet zero date** while `GetValue` returns it correctly | the `DateSerial(1899, 12, 30)` row; `IsDBNull` is `False` and `AllowDBNull` is `False`, so nothing else flags it | the two accessors disagree on the same cell | **re-scoped** — the recorded "reads back as MinValue" was measured at the wrong layer |
+| R7 | `CVar` is a **no-op** | `SELECT CVar(1)` → typed `Int32` `1`, not a Variant reading back as `"1"` | the function exists to produce a Variant | no |
+| R8 | Missing-object errors are **untyped and inconsistent** | `SELECT` → `SqlBindException "… does not exist."`; `DROP TABLE`/`DROP PROCEDURE` → bare `InvalidOperationException "… no such table."`; no `Number` on either | every caller must match on message text, and a bare `InvalidOperationException` is indistinguishable from a client-side bug | no |
+| R9 | No **database-qualified table name** in any form | `[<file>].[T]`, `[<file-no-ext>].[T]`, `[<file>]..[T]`, `FROM [T] IN '<file>'` all fail | cross-database queries are unreachable | no |
+| R10 | A **parameterised stored SELECT** cannot be a table source | `SELECT * FROM [Person_SelectByKey]` | Access permits it | error moved from `SqlParseException` to `InvalidOperationException: No value was supplied for parameter '@id'` |
+| R11 | `IS TRUE` / `IS FALSE` / `IS [NOT] DISTINCT FROM` do not parse | `WHERE ([Id] = 1) IS TRUE` → `mismatched input 'TRUE' expecting {NOT, NULL}` | ordinary dialect gap | no |
+| R12 | `WITH OWNERACCESS OPTION`, `CAST(x AS t)`, `LIKE … ESCAPE`, `TOP n WITH TIES`, `VALUES` as a table source, `{ts …}` / `{guid …}` escapes, `NZ()` do not parse | each is a one-line `SELECT` | lowest priority — linq2db emits none of them for Access except the hint | no |
+
+**Not defects, recorded so they are not re-reported:** an unterminated `LIKE` bracket (`LIKE '[0'`) raises
+`ArgumentException: Invalid pattern string` — Access rejects it too, through its own drivers, so LibRed
+agrees; and `CLng` being 32-bit is VBA's `Long`, not a narrowing bug.
 
 ## Two corrections to the alpha.2 report below
 
