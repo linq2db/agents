@@ -4,6 +4,11 @@ All facts below were **measured** on 2026-09-19 with `.build/.agents/libred-prob
 11.0.100-rc.1.26425.128) against real `.accdb` files created by LibRed itself. Raw logs:
 `smoke-accdb.txt`, `battery-accdb.txt`, `schema-accdb.txt`, `access-sql-accdb.txt`, `sig.txt`.
 
+**Second round, 2026-09-22.** The sections below dated *(2026-09-22)* were measured after the first full
+test-suite run, against the suite's own populated `TestData.LibRed.mdb` (copied first — a probe never
+mutates the suite's database). They are the ones the raw-ADO rounds could not have found, because they are
+not capability questions: the construct parses, executes, and returns the wrong answer.
+
 Packages: `LibRed.Ado` 11.0.0-alpha.2 → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`,
 `Antlr4.Runtime.Standard`. `net11.0` only. alpha.3 exists **only** in the open PR
 CirrusRedOrg/EntityFrameworkCore.Jet#301; nuget.org has alpha.1 and alpha.2.
@@ -106,6 +111,21 @@ above) and 5 `CREATE Procedure` statements (`Person_Insert`, `Person_Update`, `P
 | `VALUES (…)` as a table source | `SqlParseException` | `IsValuesSyntaxSupported` is already `false` for Access |
 | `NZ()` | `NotSupportedException: Function NZ is not supported` | not emitted by linq2db |
 | Jet 3 (Access 97) file creation | throws | documented upstream limitation |
+| `-9223372036854775808` as a **literal** (2026-09-22) | `OverflowException: Value was either too large or too small for an Int64.` — raised before evaluation, for `cdbl`/`csng`/`clng` alike | 2 failures in `AccessTests.TestNumerics`. **The control is the same value as a parameter**, which round-trips exactly (`cdbl(@p)` → `-9.223372036854776E+18` → `Int64 -9223372036854775808`), so the value is representable and only the literal path is not: the digits are consumed as a positive `Int64` before the unary minus is applied. Also measured: `clng(9223372036854775807)` overflows **Int32**, i.e. `CLng` is 32-bit here. |
+
+## SQL — accepted, but semantically divergent (2026-09-22)
+
+The dangerous class, and the one five rounds of raw-ADO probing missed: these constructs **parse and
+execute** and return the wrong answer. Nothing in the emitted SQL is non-standard, so no caller can route
+around them, and there is no exception to notice. Each row carries the control that could have disagreed.
+
+| Construct | Access / standard SQL | LibRed | Control |
+|---|---|---|---|
+| `CStr(<guid>)` | braced `{xxxxxxxx-…}`, length 38 | **unbraced**, length 36 | `Mid('ABCDEF', 2, 3)` = `BCD`, so `Mid` is 1-based as in VBA and the divergence is `CStr`'s. Without this control the symptom is equally explained by a 0-based `Mid`, and the two produce byte-identical output. |
+| `UPDATE t SET [A] = [B], [B] = [A]` on `(A=100, B=200)` | `(200, 100)` — every right-hand side is evaluated against the pre-update row | **`(200, 200)`** — assignments apply in order and later ones read what earlier ones wrote | a swap is its own control: the result is asymmetric only under simultaneous evaluation |
+| `ORDER BY 1, [LastName]` | ordinal — sorts by the first select column | **inert constant** — identical to `ORDER BY [LastName]` alone | `ORDER BY 2` returns natural order, where the ordinal reading predicts `[LastName]` order. This is the arm that rules out "resolves the ordinal, resolves it wrongly". |
+| `CVar(1)` | a Variant, read back as the string `"1"` | typed `Int32` `1` — the function is a no-op | `Execute<int>` returns `1` on both, so only the untyped read distinguishes them |
+| `CHAR(n)` read into `string` | trimmed by the driver | padded to `n` | `[INFORMATION_SCHEMA.COLUMNS].DATA_TYPE` knows the store type at schema time; `GetDataTypeName` returns CLR names at read time, so no reader-level key can select the fixed-width column (D-13) |
 
 ## Schema discovery
 

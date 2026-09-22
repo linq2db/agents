@@ -27,7 +27,116 @@ static class Program
 			case "qname"     : QName(args[1]); break;
 			case "ver"       : foreach (var f in args[1..]) Ver(f); break;
 			case "script"    : Script(args[1], args[2]); break;
+			case "divergence": Divergence(args[1]); break;
 			default          : Console.WriteLine("unknown mode " + mode); break;
+		}
+	}
+
+	// `divergence <path-to-a-populated-TestData.LibRed.mdb>` - the constructs that parse, execute and
+	// return the wrong answer. Each check is paired with the control that could have disagreed with it;
+	// without the controls the CStr and ORDER BY rows are each explained equally well by a second theory.
+	// Operates on a COPY: a probe never mutates the suite's own database.
+	static void Divergence(string sourceFile)
+	{
+		var file = Path.Combine(Path.GetTempPath(), "libred-divergence-probe.mdb");
+		File.Copy(sourceFile, file, true);
+
+		using var cn = new LibRedConnection("Data Source=" + file);
+		cn.Open();
+
+		Console.WriteLine("-- Mid is 1-based (control), CStr renders a GUID unbraced");
+		Scalar(cn, "SELECT Mid('ABCDEF', 2, 3)");                                                          // BCD
+		Scalar(cn, "SELECT TOP 1 CStr([GuidValue]) FROM [LinqDataTypes] WHERE [GuidValue] IS NOT NULL");    // 36 chars, no braces
+		Scalar(cn, "SELECT TOP 1 Len(CStr([GuidValue])) FROM [LinqDataTypes] WHERE [GuidValue] IS NOT NULL");
+
+		Console.WriteLine("-- a multi-column SET is applied in order, so a swap collapses");
+		RunSql(cn, "DROP TABLE [SetOrderProbe]", ignore: true);
+		RunSql(cn, "CREATE TABLE [SetOrderProbe] ([Id] INTEGER NOT NULL, [A] INTEGER, [B] INTEGER)");
+		RunSql(cn, "INSERT INTO [SetOrderProbe] ([Id], [A], [B]) VALUES (1, 100, 200)");
+		RunSql(cn, "UPDATE [SetOrderProbe] SET [A] = [B], [B] = [A] WHERE [Id] = 1");
+		Scalar(cn, "SELECT [A] FROM [SetOrderProbe] WHERE [Id] = 1");                                       // 200
+		Scalar(cn, "SELECT [B] FROM [SetOrderProbe] WHERE [Id] = 1");                                       // 200, Access gives 100
+		RunSql(cn, "DROP TABLE [SetOrderProbe]", ignore: true);
+
+		Console.WriteLine("-- a bare integer in ORDER BY is inert; ORDER BY 2 is the discriminating arm");
+		Rows(cn, "SELECT [PersonID], [LastName] FROM [Person] WHERE [PersonID] IN (1, 3) ORDER BY 1, [LastName]");
+		Rows(cn, "SELECT [PersonID], [LastName] FROM [Person] WHERE [PersonID] IN (1, 3) ORDER BY [LastName]");
+		Rows(cn, "SELECT [PersonID], [LastName] FROM [Person] WHERE [PersonID] IN (1, 3) ORDER BY 2");
+
+		Console.WriteLine("-- CVar is a no-op");
+		Scalar(cn, "SELECT CVar(1)");                                                                        // Int32 1, not "1"
+
+		Console.WriteLine("-- a 64-bit minimum cannot be written as a literal, but binds fine as a parameter");
+		Scalar(cn, "SELECT cdbl(-9223372036854775808)");
+		ScalarP(cn, "SELECT cdbl(@p)", long.MinValue);
+	}
+
+	static void RunSql(LibRedConnection cn, string sql, bool ignore = false)
+	{
+		try
+		{
+			using var cmd = cn.CreateCommand();
+			cmd.CommandText = sql;
+			cmd.ExecuteNonQuery();
+		}
+		catch (Exception ex) when (ignore)
+		{
+			Console.WriteLine($"   (ignored) {ex.GetType().Name}: {ex.Message}");
+		}
+	}
+
+	static void Scalar(LibRedConnection cn, string sql)
+	{
+		try
+		{
+			using var cmd = cn.CreateCommand();
+			cmd.CommandText = sql;
+			var v = cmd.ExecuteScalar();
+			Console.WriteLine($"   {sql}\n     = [{v}] ({v?.GetType().Name ?? "null"})");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"   {sql}\n     ! {ex.GetType().Name}: {ex.Message}");
+		}
+	}
+
+	static void ScalarP(LibRedConnection cn, string sql, object value)
+	{
+		try
+		{
+			using var cmd = cn.CreateCommand();
+			cmd.CommandText = sql;
+			var p = cmd.CreateParameter();
+			p.ParameterName = "@p";
+			p.Value         = value;
+			cmd.Parameters.Add(p);
+
+			var v = cmd.ExecuteScalar();
+			Console.WriteLine($"   {sql}  (@p = {value})\n     = [{v}] ({v?.GetType().Name ?? "null"}) -> Int64 {Convert.ToInt64(v)}");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"   {sql}\n     ! {ex.GetType().Name}: {ex.Message}");
+		}
+	}
+
+	static void Rows(LibRedConnection cn, string sql)
+	{
+		try
+		{
+			using var cmd = cn.CreateCommand();
+			cmd.CommandText = sql;
+			using var rd = cmd.ExecuteReader();
+
+			var parts = new List<string>();
+			while (rd.Read())
+				parts.Add($"({rd.GetValue(0)}, {rd.GetValue(1)})");
+
+			Console.WriteLine($"   {sql}\n     = {string.Join("  ", parts)}");
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"   {sql}\n     ! {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 
