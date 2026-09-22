@@ -22,6 +22,10 @@ static class Program
 			case "schema"    : Schema(args.Length > 1 ? args[1] : ".accdb"); break;
 			case "access-sql": AccessSql(args.Length > 1 ? args[1] : ".accdb"); break;
 			case "ms-file"   : MsFile(args[1]); break;
+			case "meta"      : Meta(args[1]); break;
+			case "views"     : Views(args[1]); break;
+			case "qname"     : QName(args[1]); break;
+			case "ver"       : foreach (var f in args[1..]) Ver(f); break;
 			case "script"    : Script(args[1], args[2]); break;
 			default          : Console.WriteLine("unknown mode " + mode); break;
 		}
@@ -774,6 +778,136 @@ static class Program
 	}
 
 	static string Trim(string s) => s.Length <= 70 ? s : s.Substring(0, 70) + "…";
+
+	// metadata shapes the linq2db schema provider will read, against a Microsoft-created file
+	static void Meta(string file)
+	{
+		Console.WriteLine("=== meta over " + file);
+
+		using var cn = new LibRedConnection("Data Source=" + file);
+		cn.Open();
+
+		Query(cn, "TABLES"       , "SELECT * FROM [INFORMATION_SCHEMA.TABLES]"       , dumpRows: true, dumpAll: true);
+		Query(cn, "COLUMNS"      , "SELECT * FROM [INFORMATION_SCHEMA.COLUMNS]"      , dumpRows: true, dumpAll: true);
+		Query(cn, "INDEXES"      , "SELECT * FROM [INFORMATION_SCHEMA.INDEXES]"      , dumpRows: true, dumpAll: true);
+		Query(cn, "INDEX_COLUMNS", "SELECT * FROM [INFORMATION_SCHEMA.INDEX_COLUMNS]", dumpRows: true, dumpAll: true);
+		Query(cn, "RELATIONS"    , "SELECT * FROM [INFORMATION_SCHEMA.RELATIONS]"    , dumpRows: true, dumpAll: true);
+		Query(cn, "MSysRelationships", "SELECT * FROM MSysRelationships"             , dumpRows: true, dumpAll: true);
+		Query(cn, "MSysObjects"      , "SELECT Name, Type, Flags FROM MSysObjects"   , dumpRows: true, dumpAll: true);
+
+		// ordering/filtering forms the schema provider would use
+		Query(cn, "TABLES ordered"    , "SELECT TABLE_NAME, TABLE_TYPE FROM [INFORMATION_SCHEMA.TABLES] ORDER BY TABLE_NAME");
+		Query(cn, "COLUMNS filtered"  , "SELECT COLUMN_NAME FROM [INFORMATION_SCHEMA.COLUMNS] WHERE TABLE_NAME = 'Person'", dumpRows: true, dumpAll: true);
+		Query(cn, "COLUMNS param"     , "SELECT COLUMN_NAME FROM [INFORMATION_SCHEMA.COLUMNS] WHERE TABLE_NAME = @t", ("@t", "Person"), dumpRows: true, dumpAll: true);
+		Query(cn, "INDEXES join"      , "SELECT i.TABLE_NAME, i.INDEX_NAME, c.COLUMN_NAME FROM [INFORMATION_SCHEMA.INDEXES] i INNER JOIN [INFORMATION_SCHEMA.INDEX_COLUMNS] c ON (i.INDEX_NAME = c.INDEX_NAME) WHERE i.INDEX_TYPE = 'PRIMARY'", dumpRows: true, dumpAll: true);
+		Query(cn, "MSysObjects views" , "SELECT Name FROM MSysObjects WHERE Type = 5", dumpRows: true, dumpAll: true);
+
+		// the only Jet-vs-Ace behavioural split in linq2db's Access translators
+		Query(cn, "REPLACE"           , "SELECT REPLACE([FirstName], 'o', 'X') FROM [Person]", dumpRows: true);
+	}
+
+	// can stored Access queries be surfaced as views, and where does their column metadata come from?
+	static void Views(string file)
+	{
+		Console.WriteLine("=== views over " + file);
+
+		using var cn = new LibRedConnection("Data Source=" + file);
+		cn.Open();
+
+		// does INFORMATION_SCHEMA know anything about a query?
+		Query(cn, "COLUMNS for a query", "SELECT * FROM [INFORMATION_SCHEMA.COLUMNS] WHERE TABLE_NAME = 'Person_SelectAll'", dumpRows: true, dumpAll: true);
+		Query(cn, "TABLES for a query" , "SELECT * FROM [INFORMATION_SCHEMA.TABLES] WHERE TABLE_NAME = 'Person_SelectAll'", dumpRows: true, dumpAll: true);
+
+		// reading a query as a table source: parameterless SELECT, parameterised SELECT, name with a space
+		foreach (var q in new[] { "Person_SelectAll", "Patient_SelectAll", "Scalar_DataReader", "Person_SelectByKey", "Person_SelectByName", "LinqDataTypes Query" })
+		{
+			Query(cn, "empty-set read [" + q + "]", "SELECT * FROM [" + q + "] WHERE 1 = 0", dumpRows: true, dumpAll: true);
+			SchemaOnly(cn, q);
+		}
+
+		// MSysQueries: does it hold the output column list?
+		Query(cn, "MSysQueries", "SELECT * FROM MSysQueries", dumpRows: true);
+
+		// the algorithm the schema provider will run: Flags low byte selects row-returning query types,
+		// then an empty-set probe keeps only what LibRed can actually bind
+		var candidates = new List<(string Name, int Flags)>();
+
+		using (var cmd = cn.CreateCommand())
+		{
+			cmd.CommandText = "SELECT Name, Flags FROM MSysObjects WHERE Type = 5";
+			using var rd = cmd.ExecuteReader();
+			while (rd.Read())
+				candidates.Add((rd.GetString(0), rd.GetInt32(1)));
+		}
+
+		foreach (var (name, flags) in candidates)
+		{
+			var kind    = flags & 0xF0;
+			var returns = kind is 0x00 or 0x10 or 0x80;
+			var hidden  = name.StartsWith("~", StringComparison.Ordinal);
+			var verdict = !returns ? "SKIP action/ddl kind=0x" + kind.ToString("X2") : hidden ? "SKIP hidden" : null;
+
+			if (verdict != null)
+			{
+				Console.WriteLine("----  [" + name + "] flags=0x" + flags.ToString("X8") + " -> " + verdict);
+				continue;
+			}
+
+			try
+			{
+				using var cmd = cn.CreateCommand();
+				cmd.CommandText = "SELECT * FROM [" + name + "] WHERE 1 = 0";
+				using var rd = cmd.ExecuteReader();
+				Console.WriteLine("VIEW  [" + name + "] flags=0x" + flags.ToString("X8") + " -> cols=[" +
+					string.Join(",", Enumerable.Range(0, rd.FieldCount).Select(i => rd.GetName(i) + ":" + rd.GetFieldType(i).Name)) + "]");
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine("----  [" + name + "] flags=0x" + flags.ToString("X8") + " -> DROP " + ex.GetType().Name);
+			}
+		}
+	}
+
+	static void Ver(string file)
+	{
+		Report("open " + Path.GetFileName(file), () =>
+		{
+			using var cn = new LibRedConnection("Data Source=" + file);
+			cn.Open();
+			return "serverVersion=" + cn.ServerVersion + " hasUserTables=" + cn.HasUserTables() + " bytes=" + new FileInfo(file).Length;
+		});
+	}
+
+	// does a database-qualified table name work, as TestUtils.GetDatabaseName assumes for OLE DB?
+	static void QName(string file)
+	{
+		Console.WriteLine("=== qname over " + file);
+
+		using var cn = new LibRedConnection("Data Source=" + file);
+		cn.Open();
+
+		var noExt = Path.Combine(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file));
+
+		Query(cn, "unqualified"     , "SELECT COUNT(*) FROM [Person]"                     , dumpRows: true);
+		Query(cn, "db-qualified"    , "SELECT COUNT(*) FROM [" + file  + "].[Person]"     , dumpRows: true);
+		Query(cn, "db-qualified noext", "SELECT COUNT(*) FROM [" + noExt + "].[Person]"   , dumpRows: true);
+		Query(cn, "db.schema.table" , "SELECT COUNT(*) FROM [" + file  + "]..[Person]"    , dumpRows: true);
+		Query(cn, "IN clause"       , "SELECT COUNT(*) FROM [Person] IN '" + file + "'"   , dumpRows: true);
+	}
+
+	static void SchemaOnly(DbConnection cn, string q)
+	{
+		Report("SchemaOnly [" + q + "]", () =>
+		{
+			using var cmd = cn.CreateCommand();
+			cmd.CommandText = "SELECT * FROM [" + q + "]";
+			using var rd = cmd.ExecuteReader(CommandBehavior.SchemaOnly);
+			var cols = string.Join(",", Enumerable.Range(0, rd.FieldCount).Select(i => rd.GetName(i) + ":" + rd.GetFieldType(i).Name));
+			var n = 0;
+			while (rd.Read()) n++;
+			return "cols=[" + cols + "] rowsRead=" + n;
+		});
+	}
 
 	static void Query(DbConnection cn, string label, string sql, (string, object) param = default, bool dumpRows = false, bool dumpAll = false)
 	{
