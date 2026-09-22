@@ -71,6 +71,18 @@ When a `gh api` call returns HTTP 422 with body `{"errors":["An internal error o
 
 Surfaced 2026-05-06 during PR #5467 review posting against `POST /repos/{o}/{r}/pulls/{n}/reviews`.
 
+### A comment the user remembers and you cannot find — read its edit history
+
+A review, issue comment or body that has been edited keeps its history, and the REST/`--json` views show only the *current* text. When the user refers to a comment that isn't there, or a review's body is meaningless (`111`, `.`, a single word), fetch the revisions before concluding anything:
+
+```
+gh api graphql -f query='query { repository(owner:"linq2db", name:"linq2db") { pullRequest(number:5959) {
+  reviews(first:10) { nodes { author { login } body lastEditedAt
+    userContentEdits(first:10) { nodes { editedAt diff editor { login } } } } } } } }'
+```
+
+`userContentEdits` returns one node per revision, newest first. A revision whose `diff` is the literal string `"deleted"` means the original text was **redacted**, not merely replaced — it is unrecoverable through the API, and saying so is the answer. Reporting "no such comment exists" without this check is wrong in a way the user can see and you cannot. (Surfaced 2026-09-22 on #5959: the only non-bot review carried the body `111`, edited two minutes after posting, with the original redacted. The user's recollection was accurate; the account was simply a different person from the issue reporter.)
+
 ### Reading a file's content at a ref (avoid the base64 pipe trap)
 
 To read a file's content at a specific ref / PR, request the raw bytes: `gh api "repos/linq2db/linq2db/contents/<path>?ref=<ref>" -H "Accept: application/vnd.github.raw"` returns the file verbatim, no base64. Reaching for `--jq '.content'` and decoding is the trap — the `contents` API base64-wraps `content` every 60 chars, and piping that into `ForEach-Object` / a decode splits it per line so each fragment decodes to garbage (same pipe-splitting mechanism as the `.body` trap above). If you must decode `.content`, capture it to a variable and strip whitespace before a single decode (`[Convert]::FromBase64String($c -replace '\s','')`); never pipe it line-by-line. (For a ref containing `/` — e.g. `refs/pull/<n>/merge` — the `?ref=` query form works where `git show <ref>:<path>` fails on the slash; see [`agent-rules.md`](agent-rules.md) → *Windows Git Bash gotchas*.)
