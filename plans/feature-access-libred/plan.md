@@ -706,6 +706,10 @@ a LibRed-specific code path is a row.
 | 20 | `NotSupportedException: Cannot encode GUID index key from String` when a GUID column carries an index and is compared to a string | Internal engine failure rather than a dialect refusal; the message names an internal encoder | none yet |
 | 19 | `UPDATE` whose target is a **derived table** — `UPDATE ((SELECT …) [cross_1] INNER JOIN …) SET [cross_1].[col] = …` → `System.NotSupportedException: Cannot UPDATE/DELETE the derived table 'cross_1'.` at `LibRed.Engine.Execution.StatementExecutor.TargetTable`, 7 failures | Access supports updatable queries, and this is precisely how linq2db lowers a multi-table update for Access, so it is not an exotic shape. Same root as row 15 (both are multi-table update forms). **Note the exception is a bare `System.NotSupportedException`** — see row 6: by type alone it is indistinguishable from a client-side error, and it was mis-classified as a linq2db exception here until the stack was read | none yet |
 | 18 | `DATEADD` returns the raw OLE Automation serial as a **Double** instead of a `DATETIME` — `Cannot convert value '43890.7457653125: System.Double' to type 'System.DateTime'`, 6 failures in `DateTimeAddTimeSpan` | Access returns a Date/Time from `DATEADD`; returning the underlying serial makes every date-arithmetic projection unreadable without a client-side cast. Probably the same root as the `Mapping of column 'X' value failed` failures in `UnionGroupByTest1/2` | none yet |
+| 27 | A 64-bit **minimum as a literal** overflows the parser: `SELECT cdbl(-9223372036854775808)` raises `OverflowException: Value was either too large or too small for an Int64.` before evaluation — 2 failures in `AccessTests.TestNumerics`. **The control is the same value as a parameter**, which round-trips exactly (`cdbl(@p)` → `-9.223372036854776E+18` → `Int64 -9223372036854775808`), so the value is representable and only the literal path is not | The digits are evidently consumed as a positive `Int64` before the unary minus is applied, so the exact boundary value cannot be written in SQL at all. Also seen: `clng(9223372036854775807)` overflows *Int32*, i.e. `CLng` is 32-bit here | gated `[ActiveIssue]` on `TestNumerics` |
+| 25 | A bare integer in `ORDER BY` is an inert **constant expression**, not an **ordinal** column reference — 12 failures in `EnableConstantExpressionInOrderByTest{,2,3}`. **Measured**, with a discriminating control: `ORDER BY 1, [LastName]` returns rows in pure `[LastName]` order, and `ORDER BY 2` — which under the ordinal reading would give `[LastName]` order — returns natural order instead, so neither literal contributes anything | Access, and standard SQL, read the literal as the *n*-th select column. Silent wrong **row order**, no error. `SELECT` shape and `ORDER BY` are both unremarkable, so any caller emitting a computed ordinal gets a differently-ordered result set through this transport | LibRed excluded from the three tests, matching the `SqlCe` exclusion already there for the same gap |
+| 26 | `CVar(1)` returns a typed `Int32` `1` rather than a Variant that reads back as the string `"1"` — 2 failures in `AccessTests.TestSqlVariant` | `CVar` exists to *produce* a Variant; returning the unconverted argument makes the function a no-op | pending |
+| 24 | A multi-column `SET` is evaluated **sequentially**: each right-hand side reads what earlier assignments in the same `UPDATE` already wrote. **Measured directly** (not inferred from the failures): `UPDATE t SET [A] = [B], [B] = [A]` on `(A=100, B=200)` yields `(200, 200)`, where Access and standard SQL yield `(200, 100)` — 12 failures in `UpdateTestAssociationSimple`/`AsUpdatable` and `UpdateWithTypeConversion` | **Silent wrong results, no exception** — a column swap collapses and any `SET` whose right-hand side names a column assigned earlier in the same statement reads the new value. Access evaluates every right-hand side against the pre-update row, so identical SQL gives different data through the two transports. Nothing in the emitted SQL is non-standard, so no ORM can avoid it | gated `[ActiveIssue]` on the three tests; not fixable in linq2db — the correct SQL is what is already being emitted |
 | 13 | No database-qualified table name in any form — `[<file>].[T]`, `[<file-no-ext>].[T]`, `[<file>]..[T]` all give `mismatched input '.'`, and Access's own `SELECT … FROM [T] IN '<file>'` gives `mismatched input 'IN'` | Access supports both forms; this is how a query reaches a table in a second `.mdb`, so cross-database queries are unreachable | no database name is reported for LibRed (A-5) |
 
 **Rows 14-17 are from the first full-suite run** (2026-09-21, `Access.LibRed.Mdb`, 8 196 tests): 1 440
@@ -979,20 +983,61 @@ one edit earlier by applying to a single file and building.
 is exactly what E-6 asked for, and `LibRedParameter` exposes only `DbType` — there is no provider enum to
 read instead. The class is ctors + `CreateSqlBuilder`.
 
+### A-16 — The full-suite triage: 119 failures, nine causes, one of them ours (2026-09-22)
+
+A clean full run over **both** LibRed configurations (15 381 cases, direct + `LinqService`) reported **119
+failures**, and every one of them reconciles into nine causes. The OLE DB control run alongside it was
+**8 214 cases with exactly one failure** — `TestExpressionVisitorHops(10)`, provider-independent and
+pre-existing — so TO-5 holds and the LibRed list is interpretable.
+
+**Run the two flavours in separate hosts.** A first attempt with `Access.Ace.OleDb` in the same process
+died at 10 minutes with a native `0xC0000005` inside `UnsafeNativeMethods.ICommandText.Execute`, taking
+the LibRed lanes down with it. That is the access-violation hazard `AccessOleDbSchemaProvider.cs:52-55`
+already documents; run alone, the same control passed clean.
+
+**The largest cause was ours, not LibRed's — 40 of the 119.** `GuidMemberTranslator.TranslateGuildToString`
+emits `LCase(Mid(CStr(g), 2, 36))`, where the `Mid` strips the brace Access's `CStr` produces. Measured:
+LibRed's `CStr` renders a GUID **unbraced** (`Len` 36) and its `Mid` is 1-based like VBA's, so the `Mid`
+ate the first hex digit. The two hypotheses — unbraced `CStr` vs. a 0-based `Mid` — produce byte-identical
+output, and only a probe separates them; the control was `Mid('ABCDEF', 2, 3) = BCD`. → new
+`AccessLibRedMemberTranslator` (E-6a), selected in `CreateMemberTranslator` by `Provider`, not `Version`.
+
+Twelve more were **over-broad gates**: `TestIssue4261`, `ConcatInAny` and `FullJoinCondition_Regression`
+are keyed to `AllAccess` and *pass* on LibRed, which the run-and-verify attribute reports as a failure.
+Narrowed to `AllNativeAccess` — the same one-word fix `TestDateOnly`'s Access gate needed, there so that
+LibRed falls onto the unscoped `#3929` gate whose message it actually matches.
+
+Twenty were **test-side corrections rather than defects**: opening `"BAD"` as a file database throws
+`FileNotFoundException`, which the invalid-connection-string assertions did not list; LibRed *supports* a
+second reader on one command, so it moved into `MARS_…_Supported`; `nchar(20)` padding is asserted
+directly (D-13) instead of gated, following `AccessTypeTests`.
+
+The rest are gated or excluded against **rows 24-27**, all measured with a discriminating control rather
+than inferred from the assertion arithmetic. Two of those controls changed the answer: `ORDER BY 2` proved
+the `ORDER BY` literal is inert rather than a mis-resolved ordinal, and the parameter arm proved the 64-bit
+literal defect is in the *parser*, not in the value's representability.
+
+**A verified gate reports as `skipped`, not `succeeded`.** Its line reads `[ActiveIssue] Known issue (…),
+still failing as expected:` followed by the observed failure. So a bare `failed: 0` does not distinguish a
+correct gate from a test that never ran — read the skip reason, and for a non-gated change confirm
+execution from the baseline file's mtime.
+
 ### Resuming — open work as of 2026-09-22
 
-1. **~37 direct + 21 remote singleton failures** on `Access.LibRed.Mdb` (8 134 tests, 60 failures). No
-   cluster above 4: 8 `Concat_*` nullable-argument mismatches, 4 association-update `ThrowsNothing`
-   assertions, 3 `EnableConstantExpressionInOrderBy`, 2 procedure-count (a D-10 consequence), 2
-   `GuidToString`, and 3 `[ActiveIssue]`-passing **un-gating** candidates (`TestIssue4261`, `ConcatInAny`,
-   `FullJoinCondition_Regression`) where LibRed does what Access cannot. Each needs its own read.
-2. **P13 triage** — 23 rows, none filed. Check each against existing EntityFrameworkCore.Jet issues and the
-   unmerged PR #301 before reporting, and confirm the same SQL runs on a Microsoft flavour: that linq2db
-   emits it for Access is not by itself evidence Access accepts it. Then backfill the tracking links into
-   the `[ActiveIssue]` gates, which are deliberately linkless (user's call, 2026-09-22).
+1. **Failure triage — done** (A-16). All 119 dispositioned across commits `4e64debe2` and `5926952da`,
+   each category verified by its own filtered run. The only residue is `TestExpressionVisitorHops(10)`,
+   provider-independent and pre-existing on this branch stack. **The post-fix count is not measured**: a
+   full run has not been repeated since, so 119 − 119 is arithmetic, not an observation.
+2. **P13 triage** — now **27 rows**, none filed. Check each against existing EntityFrameworkCore.Jet issues
+   and the unmerged PR #301 before reporting, and confirm the same SQL runs on a Microsoft flavour: that
+   linq2db emits it for Access is not by itself evidence Access accepts it. Then backfill the tracking links
+   into the `[ActiveIssue]` gates, which are deliberately linkless (user's call, 2026-09-22).
 3. **Phase D** (CI leg, E-23..E-25) and **Phase E** (CLI scaffold, E-26..E-31) — not started.
-4. **TO-2 baselines** — never captured. A worktree run writes none, because `BaselinesPath` comes from a
-   `UserDataProviders.json` the worktree does not have. This is the last unexercised obligation.
+4. **TO-2 baselines** — capture now *works* and the mechanism is settled: seed a worktree-local
+   `UserDataProviders.json` carrying **only** the TFM bucket and an absolute `BaselinesPath` (per
+   `worktree.md`), which leaves `--provider` and every connection string resolving from the tracked
+   `DataProviders.json`. Sets were captured for `Access.LibRed.Mdb`, `.Accdb` and `Access.Ace.OleDb`, but
+   **pre-fix**, so they are stale for the GUID tests. The cross-comparison itself is still unrun.
 5. **Two Jet flavours unverified locally** — both Jet drivers are 32-bit only and the runner is x64, so
    `Access.Jet.OleDb` / `Access.Jet.Odbc` rest on CI's x86 legs.
 6. **Inherited, not ours**: `dotnet restore Tests/Linq -p:Configuration=Testing` fails `NU1510` on
