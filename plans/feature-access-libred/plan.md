@@ -3,9 +3,14 @@
 **Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-20  ·  **Branch:** feature/access-libred
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
-Branch 3 of the .NET 11 track. Cut off `feature/csharp15-runtime-async` (PR #5944) at `77800f967`;
-worktree `C:\Worktrees\linq2db\5942-access-libred`. Branch 1 is PR #5942, branch 2 is PR #5944; all
-three stay unmerged until .NET 11 RTM because `global.json` pins an exact prerelease SDK.
+Branch 3 of the .NET 11 track — **PR #5956**, draft, milestone `6.x`, base `feature/csharp15-runtime-async`.
+Cut off that branch (PR #5944) at `77800f967`; head `dbf09e571`, three commits (provider core / test
+environment / type coverage + gating). Branch 1 is PR #5942, branch 2 is PR #5944; all three stay unmerged
+until .NET 11 RTM because `global.json` pins an exact prerelease SDK.
+
+**Session of 2026-09-21/22 ended here.** Phases A, B and C are committed and pushed. Phase D (CI leg) and
+Phase E (CLI scaffold) are untouched. The worktree was removed at session end; recreate it from
+`origin/feature/access-libred` to resume. Open work is listed under *Resuming* at the end of P11.
 
 **Evidence, committed beside this plan so it outlives the worktree:** `findings.md` is the measured
 capability report for the dependency, and `probe/` holds the net11.0 console app that produced it
@@ -44,7 +49,7 @@ read 24/24 tables.
 
 ## P2 Success criteria
 
-- SC-1 `Access.LibRed.Mdb` and `Access.LibRed.Accdb` resolve to working `IDataProvider`s and the Access test suite executes against both, with the per-test outcome recorded and the create-data step green. → TO-1, TO-8
+- SC-1 The test configurations `Access.LibRed.Mdb` and `Access.LibRed.Accdb` both resolve to the single LibRed `IDataProvider` (D-1, amended A-1) and the Access test suite executes against both, with the per-test outcome recorded and the create-data step green. → TO-1, TO-8
 - SC-2 The SQL emitted for a LibRed provider is identical to the OLE DB flavour's except at the three divergences this plan names, proven by the baselines diff rather than by inspection. → TO-2
 - SC-3 The LibRed schema provider returns tables, columns (nullability, length, precision, scale, identity), primary-key columns and foreign-key **column pairs** for a database Microsoft's engine created. → TO-3
 - SC-4 A type-coverage fixture exists for Access and runs on **all six** Access providers, with every per-provider divergence either passing or carrying a named, justified exclusion. → TO-4
@@ -108,18 +113,35 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
 
 ### D-1 — LibRed is a third `AccessProvider` flavour, not a new provider family
 
-- **chosen:** add `AccessProvider.LibRed = 3` and two provider names, **`Access.LibRed.Mdb`** and
-  **`Access.LibRed.Accdb`**, plus the alias `Access.LibRed` mirroring the existing `Access` /
-  `Access.Odbc` alias pair. Six concrete data providers result from the same
-  `(AccessVersion, AccessProvider)` matrix — `Mdb` maps to `AccessVersion.Jet`, `Accdb` to `Ace`.
+**Amended 2026-09-21 (A-1) — one data provider, not two.** The original text is kept below the rule so
+the superseded reasoning stays readable; the paragraph immediately following is what the branch does.
+
+- **chosen:** add `AccessProvider.LibRed = 3` and **one** provider name, **`Access.LibRed`**, resolving
+  to a single `AccessLibRedDataProvider`. `Access.LibRed.Mdb` and `Access.LibRed.Accdb` are **test
+  configuration names** — two entries in `DataProviders.json` / `UserDataProviders.json` differing only
+  by connection string — not `ProviderName` constants and not distinct `IDataProvider`s. Five concrete
+  data providers result, not six.
+- **why:** `AccessVersion` selects exactly one thing for Access — the member translator — and its Jet
+  arm exists for exactly one reason: `AccessJetMemberTranslator` returns `null` for `Replace` because
+  *Microsoft's* JET driver has no `REPLACE`. **Measured** against this repo's own
+  `Data/TestData.mdb` through LibRed: `SELECT REPLACE([FirstName],'o','X') FROM [Person]` → `JXhn`. The
+  Jet/Ace split therefore says nothing about this transport, and a per-format provider would be a
+  distinction the engine does not make. The single provider carries `AccessVersion.Ace`.
+- **rejected:** two providers keyed `(AccessVersion, AccessProvider)` as the original D-1 specified —
+  the user's correction (2026-09-21): the two names were always meant as test providers. It also fails
+  on its own terms: with `REPLACE` working on an `.mdb`, the Jet arm would have mistranslated.
+- **consequence for detection:** `DetectServerVersion` is **not** on LibRed's path at all — there is no
+  version to detect. `AccessProviderDetector.DetectProvider(ConnectionOptions)` short-circuits to the
+  LibRed provider as soon as the flavour resolves, so no connection is opened to probe a version.
+
+~~**superseded:** add `AccessProvider.LibRed = 3` and two provider names, **`Access.LibRed.Mdb`** and
+**`Access.LibRed.Accdb`**, plus the alias `Access.LibRed` mirroring the existing `Access` /
+`Access.Odbc` alias pair. Six concrete data providers result from the same
+`(AccessVersion, AccessProvider)` matrix — `Mdb` maps to `AccessVersion.Jet`, `Accdb` to `Ace`.~~
 - **rejected:** `Access.Jet.LibRed` / `Access.Ace.LibRed`, which is what the existing four names would
   suggest — the user's call (2026-09-20): for this transport the **file format** is the axis a user
-  actually chooses, and the engine generation is an implementation detail of it. The consequence to
-  carry: `AccessProviderDetector`'s configuration-string sniffing looks for the substrings `"Jet"` and
-  `"Ace"` (`:53-56`), neither of which appears in the new names, so version detection for LibRed keys
-  on the name or on `LibRedConnection.ServerVersion` — measured to return `Version4` for an `.mdb` and
-  `Version12_2007` for an `.accdb`, which makes `DetectServerVersion` the natural route and a more
-  direct one than the string sniffing the other flavours rely on.
+  actually chooses, and the engine generation is an implementation detail of it. *(Still the reason the
+  test configuration names are format-shaped.)*
 - **rejected:** a standalone `ProviderName.LibRed` family with its own `LibRedDataProvider`,
   `LibRedSqlBuilder`, options record and detector — it duplicates `AccessSqlBuilderBase`,
   `AccessSqlOptimizer`, `AccessSqlExpressionConvertVisitor`, `AccessMappingSchema` and the whole
@@ -181,7 +203,8 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
 
 - **chosen:** `AccessLibRedSchemaProvider : AccessSchemaProviderBase`, issuing
   `dataConnection.Query<T>` against `[INFORMATION_SCHEMA.TABLES]` (+ `MSysObjects` `Type = 5` for
-  views), `[INFORMATION_SCHEMA.COLUMNS]`, `[INFORMATION_SCHEMA.INDEXES]` ⋈
+  views — see A-3 for how a *readable* view is separated from an action query),
+  `[INFORMATION_SCHEMA.COLUMNS]`, `[INFORMATION_SCHEMA.INDEXES]` ⋈
   `[INFORMATION_SCHEMA.INDEX_COLUMNS]` for primary keys, and `MSysRelationships` for foreign-key
   column pairs; `GetDataTypes` is overridden with a static list, because
   `SchemaProviderBase.GetDataTypes` (`:561-575`) calls `DbConnection.GetSchema("DataTypes")`, which
@@ -350,6 +373,13 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
   own `SKIP <config> BEGIN/END` markers for the two LibRed configs (`CreateData.RunScript` strips them,
   `CreateData.cs:39-56`), exclude `AccessProceduresTests` (13 Access-only tests) for LibRed, and have
   `AccessLibRedSchemaProvider` inherit `SchemaProviderBase`'s `GetProcedures` default (returns `null`).
+- **mechanic to get right:** `RunScript` matches `SKIP {configString} BEGIN` on the **exact** configuration
+  string, and each LibRed config runs the script twice — once as `Access.LibRed.Mdb` and once as
+  `Access.LibRed.Mdb.Data` — so every skipped region needs **four** stacked marker lines, not two. The
+  stacked form is the existing idiom (`Firebird.sql` stacks four versions the same way). Three regions
+  are needed, because `Scalar_DataReader` and `AddIssue792Record` are not adjacent to the
+  `Person_Insert`/`Update`/`Delete` run. `ThisProcedureNotVisibleFromODBC` is **not** skipped: it is a
+  parameterless append query, which LibRed does create.
 - **rejected:** keeping the statements and tolerating the failures — `RunScript` executes statements
   through `db.Execute` and a create-data failure fails the `CreateDatabase` test, which gates the whole
   provider's lane (`TestBase.AwaitDatabaseReady`, `:186-197`).
@@ -384,37 +414,42 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
 **Phase A — provider core**
 
 - E-1 `Source/LinqToDB/DataProvider/Access/AccessProvider.cs:6` — add `LibRed` member with XML doc.
-- E-2 `Source/LinqToDB/ProviderName.cs:29-59` — add `AccessLibRed` (`"Access.LibRed"`),
-  `AccessLibRedMdb` (`"Access.LibRed.Mdb"`), `AccessLibRedAccdb` (`"Access.LibRed.Accdb"`) consts + docs.
+- E-2 `Source/LinqToDB/ProviderName.cs:29-59` — add the single `AccessLibRed` (`"Access.LibRed"`) const
+  + docs (A-1: the `.Mdb`/`.Accdb` names are test configurations, not `ProviderName` constants).
 - E-3 `Source/LinqToDB/Internal/DataProvider/LibRedProviderAdapter.cs` (**new**) — `IDynamicProviderAdapter`
   over `LibRed.Ado` by reflection: connection/command/parameter/reader/transaction types, connection
-  factory, and the static `CreateDatabase`/`DatabaseExists`/`DropDatabase`/`ClearPool` helpers.
+  factory, and the static `DatabaseExists`/`DropDatabase`/`ClearPool` helpers (A-2: `CreateDatabase` is
+  not expressible through `TypeMapper` and has no consumer).
 - E-4 `Source/LinqToDB/Internal/DataProvider/Access/AccessProviderAdapter.cs:21-47,61-99` — third
   private ctor taking `LibRedProviderAdapter`, a third cached singleton, `GetInstance` arm.
 - E-5 `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs:23-26,37-88,95-130,142,174,209,290-308`
-  — two new `sealed` provider classes; three-way `CreateSqlBuilder` / `GetSchemaProvider` /
+  — **one** new `sealed` provider class (A-1); three-way `CreateSqlBuilder` / `GetSchemaProvider` /
   `GetQueryParameterNormalizer`; `IsParameterOrderDependent` per flavour (D-3); the reader-field arm per
   D-13 (and **not** the ODBC `SetToType<sbyte,int>("INTEGER")` family at `:79-82`, which is keyed the
   same way and equally unmatchable); `SetParameter`/`SetParameterType` arms;
-  `MappingSchemaInstance.Get` gains two tuple arms.
+  `MappingSchemaInstance.Get` gains one `(_, LibRed)` arm (A-1).
 - E-5a `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs` — **`IsDBNullAllowed`
   override returning `true` when `Provider == LibRed`** (U-19). Without it every materialized `SELECT`
   throws inside `DataProviderBase.cs:307-311`'s unguarded `GetSchemaTable()`. Shape follows
   `ClickHouseDataProvider.cs:169-173` (per-flavour) rather than Firebird's unconditional `true`.
 - E-6 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSqlBuilder.cs` (**new**) —
-  `AccessSqlBuilderBase` subclass; `GetProviderTypeName` via `DbParameter.DbType`.
-- E-7 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSchemaProvider.cs` (**new**) — D-4, plus
-  a `GetDataTypes` override (the base calls `GetSchema("DataTypes")`, which LibRed does not implement).
-  **No `GetDatabaseName` override** — see U-21.
+  `AccessSqlBuilderBase` subclass, ctors + `CreateSqlBuilder` only. **No `GetProviderTypeName`
+  override** (A-4): `BasicSqlBuilder.GetProviderTypeName:4873-4885` already maps from
+  `DbParameter.DbType`, and `LibRedParameter` exposes no provider-specific type enum to read instead.
+- E-7 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSchemaProvider.cs` (**new**) — D-4
+  (amended A-3 for views), plus a `GetDataTypes` override (the base calls `GetSchema("DataTypes")`,
+  which LibRed does not implement). **No `GetDatabaseName` override** — see U-21.
 - E-11a `Source/LinqToDB/Internal/DataProvider/Access/AccessDmlService.cs` — table-not-found for LibRed
   covers **both** measured shapes (U-22): `SqlBindException` "… does not exist." and a plain
   `InvalidOperationException` "… no such table." from `DROP TABLE`.
-- E-9 `Source/LinqToDB/Internal/DataProvider/Access/AccessMappingSchema.cs:104-126` — an
-  `AccessLibRedMappingSchema` intermediate overriding the `Guid` value-to-SQL converter to the unbraced
-  form (D-6) + two leaf schemas. *(No member translator is added — see D-5; there is no `E-8`.)*
-- E-10 `Source/LinqToDB/Internal/DataProvider/Access/AccessProviderDetector.cs:13-163` — two `Lazy`
-  fields, `GetDataProvider` tuple arms, `DetectProvider` provider-name arms, `CreateConnection` arm,
-  connection-string/configuration-string markers for LibRed.
+- E-9 `Source/LinqToDB/Internal/DataProvider/Access/AccessMappingSchema.cs:104-126` — **one** public
+  `LibRedMappingSchema` leaf rooted in the base `Instance`, overriding the `Guid` value-to-SQL converter
+  to the unbraced form (D-6). No intermediate layer is needed with a single leaf (A-1). *(No member
+  translator is added — see D-5; there is no `E-8`.)*
+- E-10 `Source/LinqToDB/Internal/DataProvider/Access/AccessProviderDetector.cs:13-163` — **one** `Lazy`
+  field, a `(LibRed, _)` `GetDataProvider` arm placed **before** the `AutoDetect` arm, `DetectProvider`
+  provider-name arms, an early return in the configuration-string block so no connection is opened to
+  probe a version, `CreateConnection` arm, and the bare `"LibRed"` configuration-string marker.
 - E-11 `Source/LinqToDB/Internal/DataProvider/Access/AccessDmlService.cs:12-23` — `LibRedException`
   table-not-found classification (reflection on `Number`, or message match).
 - E-12 `Source/LinqToDB/DataProvider/Access/AccessFactory.cs:15-20` — assembly-name → `AccessProvider.LibRed`.
@@ -547,12 +582,29 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 
 ## P9 Verification gates
 
-- G-01: — (pending) — TO-1/TO-4/TO-5 suite runs.
+- G-01: — (partial, 2026-09-21) — TO-8 green on both LibRed configs (3/3, `CreateData.CreateDatabase`),
+  and verified against an artifact rather than the runner's word: both containers grew and report
+  `hasUserTables=True`, the `.mdb` still `Version4`. TO-11 **red→green proven** — with E-5a removed,
+  `SelectTests.SimpleDirect("Access.LibRed.Mdb")` fails `System.NotSupportedException` at
+  `System.Data.Common.DbDataReader.GetSchemaTable()`; restored, it passes. TO-3's instrument
+  (`SchemaProviderTests`) is 14/14 green across both configs. TO-9 green on `Access.Ace.OleDb` and
+  `Access.Ace.Odbc`; the two Jet flavours need an x86 run (both Jet drivers are 32-bit only) and are
+  left to CI. **TO-4 green: 72/72** across the four locally reachable flavours (A-11, A-12).
+  TO-1/TO-5 still pending.
+- G-01a: — (done, 2026-09-21) — **TO-5 control: the full suite on `Access.Ace.OleDb` is 7 680 tests with
+  exactly 1 failure, `TestExpressionVisitorHops(10)`** — provider-independent (no provider in the case
+  name), present on the LibRed run too, therefore pre-existing on this branch stack and not ours. So none
+  of the shared-file edits regressed the reference flavour: `Access.sql`'s explicit FK columns and `SKIP`
+  markers, `TestBase.Identity.cs`, `TypeTestsBase`'s name hook, the `AllNativeAccess` narrowings, and the
+  `[ActiveIssue(3893)]` re-scoping. It is also what makes the LibRed failure list *interpretable*: every
+  cluster left there is LibRed's, because the same tests pass on Access through Microsoft's driver.
 - G-02: — (pending) — baselines (TO-2), reviewed via `baselines-reviewer`, not eyeballed.
-- G-03: — (pending) — new public surface: `PublicAPI.Unshipped.txt` (E-13) + XML docs on every new
-  public member (`AccessProvider.LibRed`, three `ProviderName` consts, the new public classes).
-- G-04: — (pending) — no `CompatibilitySuppressions.xml` change (P3).
-- G-05: — (pending) — TO-7 portable-TFM + Release builds.
+- G-03: — (done) — `PublicAPI.Unshipped.txt` carries every new public type and member (E-13), hand-written
+  per the no-local-RS0016-check rule; XML docs on `AccessProvider.LibRed` and `ProviderName.AccessLibRed`.
+- G-04: — (done) — no `CompatibilitySuppressions.xml` in the diff.
+- G-05: — (done) — TO-7: `Source/LinqToDB` builds clean in Release on `netstandard2.0`, `net462` and
+  `net11.0`. The portable arm earned its place: `Enumerable.ToHashSet()` does not exist on
+  netstandard2.0 (the polyfill's overload requires a comparer), caught only by that build.
 - G-06: — (pending) — provider-matrix coverage: the new configs run under `[access.all]` on CI (E-24)
   and the leg is green under both a filtered run and a `full_run` pass (TO-10).
 - G-07: — (pending) — no playground scratch on the linq2db branch; the probe lives in the **corpus**
@@ -606,6 +658,14 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   from `GetDataTypeName` — and is a follow-up issue, not a workaround on this branch.
 - **`WITH OWNERACCESS OPTION` raises at execution rather than being refused earlier.** The hint stays
   `ProviderName.Access`-keyed (D-5); a user who calls it against LibRed gets a `SqlParseException`.
+- **A LibRed schema reports fewer views than the OLE DB flavour, and their columns are approximate.**
+  Access "views" are stored queries; LibRed cannot bind a *parameterised* SELECT query as a table source
+  at all, so those are absent, and a view column's nullability and exact store type are unknowable from
+  the only metadata available (A-3). A review finding that view coverage or view column types diverge
+  from `Access.Ace.OleDb` is answered by this entry.
+- **No mutating stored query is ever executed during schema discovery.** The `MSysObjects.Flags` low-byte
+  gate runs before the column probe, not after it (A-3). This is the safety property to re-check if the
+  view-discovery code is ever reordered.
 
 ## P13 Upstream defect register — collected, not yet triaged
 
@@ -616,6 +676,13 @@ this branch applies. Nothing here is filed yet; check each against existing
 [CirrusRedOrg/EntityFrameworkCore.Jet](https://github.com/CirrusRedOrg/EntityFrameworkCore.Jet) issues
 and PR #301 (which is unmerged and moves this surface) before reporting.
 
+**Recording rule (added 2026-09-21, after rows 12 and 13 were nearly lost):** a limitation found while
+*implementing* gets a row here **as well as** its P11 amendment. The amendment records what this branch did
+about it; the row is what gets reported upstream. Rows 12 and 13 existed only as A-11 and A-5 for half a
+session — the amendment reads like a complete write-up, which is exactly why the register entry gets
+skipped. Every `SqlParseException`, `NotSupportedException` or bare `InvalidOperationException` that forces
+a LibRed-specific code path is a row.
+
 | # | Measured behaviour | Why it is a candidate | Workaround here |
 |---|---|---|---|
 | 1 | `DbDataReader.GetSchemaTable()` throws `NotSupportedException`; `IDbColumnSchemaGenerator` is not implemented | Every ORM that derives nullability from reader metadata breaks; linq2db's default `IsDBNullAllowed` is an unguarded call to it | `IsDBNullAllowed` override (E-5a) |
@@ -623,9 +690,32 @@ and PR #301 (which is unmerged and moves this surface) before reporting.
 | 3 | `GetDataTypeName` returns CLR type names (`String`, `Int32`), not Access store types, for every column | Callers cannot distinguish `CHAR` from `VARCHAR`/`MEMO` at read time, though `[INFORMATION_SCHEMA.COLUMNS]` knows; `CHAR(n)` also reads back space-padded | no trim registration; `char`-typed mapping only (D-13) |
 | 4 | `FOREIGN KEY … REFERENCES <table>` without a column list is rejected | Access accepts it and this repo's own scripts used it | explicit column lists (D-11, E-18, E-18a) |
 | 5 | `CREATE Procedure` with parameters on an action query, and `UPDATE`/`DELETE` procedure bodies, are unsupported; `Scalar_DataReader` raises `NullReferenceException` | A `NullReferenceException` out of a SQL engine is a defect regardless of the feature gap | procedures skipped for LibRed (D-10) |
-| 6 | `DROP TABLE` on a missing table raises a bare `System.InvalidOperationException`; `SELECT` raises `SqlBindException`; neither carries a `Number` | Inconsistent error typing, and `LibRedException.Number` exists but is unused for these | match both shapes (E-11a) |
+| 6 | `DROP TABLE` / `DROP PROCEDURE` on a missing object raises a bare `System.InvalidOperationException` (`no such table.` / `no such procedure.`); `SELECT` raises `SqlBindException`; none carries a `Number` | Inconsistent error typing, and `LibRedException.Number` exists but is unused for these. A bare `InvalidOperationException` is also indistinguishable from a client-side bug, so every caller has to match on message text | match all three shapes (E-11a) |
 | 7 | `WITH OWNERACCESS OPTION`, `CAST(x AS t)`, `LIKE … ESCAPE`, `TOP n WITH TIES`, `VALUES` as a table source, `{ts …}`/`{guid …}` escapes, `NZ()` are all rejected | Ordinary dialect gaps — lowest priority, and PR #301 may already move some | none needed (linq2db emits none of them except the hint) |
 | 8 | `Database` and `DataSource` both return the full file path | Probably fine on its own; listed because of the linq2db-side consequence in row 9 | none |
+| 10 | `CommandBehavior.SchemaOnly` is ignored — the query runs and returns rows (4 / 1 / 12 measured on three queries) | Every consumer that reads result-set shape without wanting the rows is silently executing the statement; for an action query that would be destructive | force the empty set in SQL with `WHERE 1 = 0` (A-3) |
+| 11 | A parameterised stored SELECT query cannot be used as a table source: `SELECT * FROM [Person_SelectByKey]` → `SqlParseException: token recognition error at: ']'` | Access permits it, and the parse-level failure suggests the definition is inlined rather than bound | such queries are not reported as views (A-3) |
+| 12 | `CONSTRAINT x PRIMARY KEY CLUSTERED (col)` → `SqlParseException: extraneous input 'CLUSTERED' expecting '('` | **Highest impact of the set.** Access accepts `CLUSTERED` and linq2db emits it for all four Microsoft flavours, so *every* `CREATE TABLE` carrying a primary key fails — which is what an ORM emits by default | `BuildCreateTablePrimaryKey` override dropping the keyword (A-11) |
+| 14 | `CREATE TABLE … (Id int IDENTITY, …)` → `extraneous input 'IDENTITY' expecting {')', ','}` — **58 direct failures, the largest single cluster** | Access accepts `IDENTITY` as a column attribute; LibRed requires the `COUNTER` type instead. Any ORM that models identity as an attribute rather than a type emits this | `BuildCreateTableFieldType` emits `COUNTER` for an identity field and `BuildCreateTableIdentityAttribute2` emits nothing — the form `Access.sql` already uses (A-13) |
+| 15 | `UPDATE a, b SET …` (comma-joined multi-table update) → `mismatched input ',' expecting SET` — 16 failures | Access supports both this and the `UPDATE a INNER JOIN b ON … SET …` form; LibRed only parses the latter (measured working in the probe phase) | pending |
+| 16 | `IS TRUE` / `IS FALSE` / `IS UNKNOWN` / `IS DISTINCT FROM` → `mismatched input '<token>' expecting {NOT, NULL}` — 5 failures | LibRed's `IS` predicate accepts only `NULL` / `NOT NULL` | pending |
+| 17 | Database/owner-qualified identifiers rejected in `SELECT`, `UPDATE` and `INSERT` alike — `mismatched input '.'`, 33 failures across four distinct parser states | The same root as row 13, but this is its real blast radius: it is not only cross-database queries, it is any qualified name | pending |
+| 21 | A date-part expression comes back as `Int16` where Access returns `Int32` — `InvalidCastException: Unable to cast object of type 'System.Int16' to type 'System.Int32'` on a `month_1` column, 2 failures in `UnionGroupByTest1/2` | Narrowing a scalar's return type to the smallest that fits makes the column's CLR type depend on its *values*, so a mapped `int` member breaks unpredictably | none yet |
+| 22 | The Access zero date reads back as `DateTime.MinValue` (`0001-01-01`) instead of the Jet epoch `1899-12-30`, 1 failure in `TestZeroDate` | Access stores date/time as a serial with 1899-12-30 as zero; returning the .NET minimum loses the distinction between "zero date" and "no value" | none yet |
+| 23 | A `DATETIME` retains sub-second precision that Access truncates — expected `09:44:34`, got `09:44:34.6530000`, 1 failure in `TestMergeTypes` | Access's DATETIME has no sub-second component, so a value read back with one did not come from Access semantics. Arguably *more* precise, but it makes round-trips through LibRed disagree with round-trips through the Microsoft drivers on the same file | none yet |
+| 20 | `NotSupportedException: Cannot encode GUID index key from String` when a GUID column carries an index and is compared to a string | Internal engine failure rather than a dialect refusal; the message names an internal encoder | none yet |
+| 19 | `UPDATE` whose target is a **derived table** — `UPDATE ((SELECT …) [cross_1] INNER JOIN …) SET [cross_1].[col] = …` → `System.NotSupportedException: Cannot UPDATE/DELETE the derived table 'cross_1'.` at `LibRed.Engine.Execution.StatementExecutor.TargetTable`, 7 failures | Access supports updatable queries, and this is precisely how linq2db lowers a multi-table update for Access, so it is not an exotic shape. Same root as row 15 (both are multi-table update forms). **Note the exception is a bare `System.NotSupportedException`** — see row 6: by type alone it is indistinguishable from a client-side error, and it was mis-classified as a linq2db exception here until the stack was read | none yet |
+| 18 | `DATEADD` returns the raw OLE Automation serial as a **Double** instead of a `DATETIME` — `Cannot convert value '43890.7457653125: System.Double' to type 'System.DateTime'`, 6 failures in `DateTimeAddTimeSpan` | Access returns a Date/Time from `DATEADD`; returning the underlying serial makes every date-arithmetic projection unreadable without a client-side cast. Probably the same root as the `Mapping of column 'X' value failed` failures in `UnionGroupByTest1/2` | none yet |
+| 13 | No database-qualified table name in any form — `[<file>].[T]`, `[<file-no-ext>].[T]`, `[<file>]..[T]` all give `mismatched input '.'`, and Access's own `SELECT … FROM [T] IN '<file>'` gives `mismatched input 'IN'` | Access supports both forms; this is how a query reaches a table in a second `.mdb`, so cross-database queries are unreachable | no database name is reported for LibRed (A-5) |
+
+**Rows 14-17 are from the first full-suite run** (2026-09-21, `Access.LibRed.Mdb`, 8 196 tests): 1 440
+failures first pass, 331 after fixing the `AccessDmlService` classification defect that the remote
+transport exposed, of which 178 are the direct context and ~117 of those are `SqlParseException`. Each row
+is a *cluster*, counted, not a single test. **Before reporting any of them upstream, confirm the same SQL
+executes on a Microsoft flavour** — the evidence that linq2db emits it for Access is not by itself evidence
+that Access accepts it, and some of these constructs may be reaching Access only through tests that are
+already provider-gated. The remaining direct failures (~60: conversion errors, assertion mismatches, and
+5 tests that *pass* on LibRed while carrying an `[ActiveIssue]` gate keyed to Access) are untriaged.
 
 One row is **linq2db-side, not upstream**:
 
@@ -635,7 +725,279 @@ One row is **linq2db-side, not upstream**:
 
 ## P11 Amendments (M/L)
 
-_None._
+### A-1 — One LibRed data provider, not two (2026-09-21, user correction)
+
+`Access.LibRed.Mdb` / `Access.LibRed.Accdb` were always meant as **test provider names** (`TestProvName`
++ two `DataProviders.json` entries), and D-1 promoted them into `ProviderName` constants and two
+`IDataProvider`s off the `(AccessVersion, AccessProvider)` matrix. Corrected: one `ProviderName.AccessLibRed`
+= `"Access.LibRed"`, one `AccessLibRedDataProvider` carrying `AccessVersion.Ace`, one mapping-schema leaf,
+one `Lazy` in the detector. The two test configuration names survive unchanged and both resolve through
+the detector's bare `"LibRed"` configuration-string marker.
+
+Grounded rather than merely conceded: `AccessVersion` selects only the member translator, and the Jet arm
+exists solely because Microsoft's JET driver has no `REPLACE`
+(`AccessJetMemberTranslator.TranslateReplace` returns `null`). Measured through LibRed against this
+repo's `Data/TestData.mdb`: `SELECT REPLACE([FirstName],'o','X') FROM [Person]` → `JXhn`. A per-format
+provider would have mistranslated `Replace` on the `.mdb` side. Touches D-1, SC-1, E-2, E-5, E-9, E-10.
+
+### A-2 — `LibRedProviderAdapter` omits `CreateDatabase` (E-3)
+
+Its signature is `CreateDatabase(string, Nullable<LibRed.Catalog.Collation>, JetVersion)` and
+`LibRed.Catalog.Collation` is a **struct** (`System.ValueType`, per the signature dump); `TypeMapper` has
+no wrapper precedent for a nullable value-type parameter, and D-7 (Microsoft-created containers) leaves
+the method with no consumer on this branch. `DatabaseExists`, `DropDatabase` and `ClearPool` are present.
+
+### A-3 — Views are surfaced, but only after a Flags gate and a bind probe (D-4, E-7)
+
+D-4 said "`MSysObjects` `Type = 5` for views" as if `Type = 5` were the whole test. Measured on
+`Data/TestData.mdb` it returns **14 rows** — every stored query, action queries included — and
+`[INFORMATION_SCHEMA.TABLES]`/`COLUMNS` return **zero** rows for any of them. Two measurements set the
+mechanism:
+
+- **`CommandBehavior.SchemaOnly` is not honoured** — LibRed executed the query and returned 4 / 1 / 12
+  rows on three different queries. The empty result set has to be forced in SQL (`WHERE 1 = 0`). This is
+  load-bearing: `SQLiteSchemaProvider` relies on `SchemaOnly` for the same job, so copying that shape
+  would have *run* every candidate during schema discovery.
+- **`MSysObjects.Flags` carries the DAO query type in its low byte** — `Person_Insert` /
+  `AddIssue792Record` `0x…40` (append), `Person_Update` `0x…30`, `Person_Delete` `0x…20`. Only `0x00`
+  (select), `0x10` (crosstab) and `0x80` (set operation) are probed, so no mutating query is ever
+  executed. The gate must precede the probe; the probe cannot be the only filter.
+
+A surviving candidate is read with `SELECT * FROM [q] WHERE 1 = 0`; anything that throws is not a view.
+That drops parameterised SELECT queries, which fail with `SqlParseException: token recognition error at:
+']'` (LibRed evidently inlines the definition), and `Scalar_DataReader`, which the binder refuses
+outright. `~`-prefixed hidden queries are skipped. Final result on this file: 5 views
+(`LinqDataTypes Query`/`Query1`/`Query2`, `Person_SelectAll`, `Patient_SelectAll`).
+
+**Accepted consequences:** a view column has only a name and a CLR type, so nullability is reported as
+`true` and the store type is reverse-mapped from the CLR type — `Decimal` cannot distinguish `CURRENCY`
+from `DECIMAL`, `String` cannot distinguish `VARCHAR` from `MEMO`, and no length is available. The probe
+catches broadly, so a genuine connection failure mid-discovery shrinks the view list instead of
+surfacing. One command per surviving candidate, run once in `GetTables` and cached for `GetColumns`.
+
+### A-5 — `TestUtils.GetDatabaseName` gets no LibRed arm (E-17)
+
+E-17 assumed a database name could be produced. **Measured**: LibRed accepts no database-qualified table
+name in any form — `[<file>].[Person]`, `[<file-without-extension>].[Person]` and `[<file>]..[Person]`
+all fail with `SqlParseException: mismatched input '.'`, and Access's `SELECT … FROM [Person] IN '<file>'`
+fails with `mismatched input 'IN'`. The correct result is therefore `NO_DATABASE_NAME`, which is what the
+existing `_ =>` arm already returns for a config matching neither `AllAccessOleDb` nor `AllAccessOdbc`, so
+**E-17 is a no-op**. `DropTableTests.cs:112` branches on `!= NO_DATABASE_NAME`, so the qualified-name
+half of that test simply does not run for LibRed.
+
+### A-6 — `TestProvName.AllNativeAccess`, not per-site LibRed exclusions (E-14, E-21b, E-22a, E-22b)
+
+The user's call (2026-09-21): rather than writing `AllAccess && !AllAccessLibRed` at each site that means
+"Microsoft's drivers", add a positive constant. `AllNativeAccess = AllAccessOleDb + AllAccessOdbc`, and
+`AllAccess = AllNativeAccess + AllAccessLibRed`. Every site that must exclude the managed engine names
+`AllNativeAccess` — `ProviderNameHelpers.IsUsePositionalParameters` (E-21b), and the narrowed
+`AccessProceduresTests` / `WithOwnerAccessOptionTest` parameters (E-22a, E-22b) — so a future Access
+transport joins the right set by construction instead of by remembering to add another exclusion.
+
+### A-7 — The Jet container must be created by the **32-bit** host (D-7, E-19)
+
+`Microsoft.Jet.OLEDB.4.0` is 32-bit only, and ADOX under 64-bit PowerShell falls back to
+`Microsoft.ACE.OLEDB.12.0`, which **ignores the `.mdb` extension** and writes an ACCDB-format file.
+Measured: the first attempt produced two byte-identical 172 032-byte files, both reporting
+`ServerVersion=Version12_2007`, so the `.mdb` config would have tested the ACCDB format under another
+name. Creating it through `C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe` gives a 65 536-byte
+file reporting `Version4`, matching this repo's own `Data/TestData.mdb`. The generator is
+`.build/.agents/make-libred-dbs.ps1` (scratch, not committed); **verify `ServerVersion` after regenerating**
+— the wrong-format failure is silent.
+
+### A-8 — The `LibRed.Ado` reference lives in `Tests/linq2db.Providers.props` (E-20)
+
+E-20 named `Tests/Linq/Tests.csproj`; every other test provider package is declared in the shared
+`linq2db.Providers.props` that project imports, so the `net11.0`-conditional `ItemGroup` goes there
+alongside them. `Directory.Packages.props` carries the version as E-20 said.
+
+### A-9 — A `SKIP` region must end **inside** the `GO` boundary, and carry no comment before `BEGIN` (E-18)
+
+`RunScript` removes the span from `SKIP <cfg> BEGIN` to `SKIP <cfg> END`, so a region whose `END` markers
+sit *after* the region's terminating `GO` deletes that `GO` too — and whatever precedes the `BEGIN` marker
+is then concatenated with the next statement. The first version of E-18 put an explanatory `--` comment
+above each `BEGIN` block, which made the following chunk read
+`-- LibRed raises NullReferenceException on this one\n\nDROP TABLE LinqDataTypes`. `CreateData.cs:102-106`
+decides whether a failure is tolerable with `command.TrimStart().StartsWith("DROP")`, which is now **false**,
+so the harmless fresh-database `DROP TABLE 'LinqDataTypes': no such table.` became the create-data
+failure — a test failure two hundred lines away from its cause. Measured: red, then green after moving
+every `END` block above its `GO` and deleting the two comments. Rule for the script: `BEGIN` directly
+after a `GO`, `END` directly before one, nothing else in between.
+
+### A-10 — E-22b covers both tests in `Tests/Linq/Extensions/AccessTests.cs`, not one
+
+E-22b named `WithOwnerAccessOptionTest` (`:32`). `QueryHintTest` (`:15`) emits the same construct through
+`QueryHint(AccessHints.Query.WithOwnerAccessOption)` and calls `ToList()`, so it executes against the
+database and fails on LibRed identically. Both are narrowed to `AllNativeAccess`.
+
+### A-11 — E-6 gains a `BuildCreateTablePrimaryKey` override; `TypeTestsBase` gains a table-name hook (E-22)
+
+Writing TO-4's fixture turned up two blockers neither the plan nor the probe had reached, both because
+every earlier measurement used hand-written DDL rather than the builder's:
+
+- **`AccessSqlBuilderBase.BuildCreateTablePrimaryKey:205` hardcodes `PRIMARY KEY CLUSTERED`**, and LibRed's
+  grammar has no `CLUSTERED`: `SqlParseException: extraneous input 'CLUSTERED' expecting '('`. Every
+  `CreateTable` with a primary key fails, which is why all 17 type tests failed identically on both LibRed
+  configs while passing on OLE DB. Fixed by an override in `AccessLibRedSqlBuilder` — additive, beside the
+  existing arm, no change to the shared base. Worth noting the create script never exposed this: it spells
+  its own `CONSTRAINT … PRIMARY KEY (…)` by hand.
+- **`TypeTable<TType, TNullableType>` maps to the CLR name `TypeTable`2`, and Access forbids a backtick in
+  an object name.** `TypeTestsBase` therefore cannot run on any Access flavour as written. Added
+  `protected virtual string? TypeTableName => null` and applied it to the **fluent mapping**, not to
+  `CreateLocalTable`: the three bulk-copy blocks call `db.BulkCopy(options, data)`, which resolves the
+  table from the mapping schema, so a name passed only to `CreateLocalTable` creates `[TypeTests]` and then
+  inserts into `[TypeTable`2]` — measured, as the second failure after the first fix. Default `null`
+  leaves all seven existing fixtures byte-identical; `DuckDBTypeTests` was run as the control and stayed
+  green.
+
+### A-12 — `TestGuid` excludes the ODBC flavours (E-22)
+
+Not a defect: `AccessODBCSqlBuilder.BuildValue:62-77` deliberately forces every GUID to a parameter, so
+`TypeTestsBase`'s literal block — which asserts `cmd.Parameters Is.Empty` unconditionally — can never pass
+there. The existing precedent is `DataTypesTests.cs:44`'s `supportLiterals: !Odbc`. GUID coverage stays on
+OLE DB and LibRed, which is where D-6's unbraced-literal decision needs an instrument anyway.
+
+**Result, measured on all four locally reachable flavours** (`Access.Ace.OleDb`, `Access.Ace.Odbc`,
+`Access.LibRed.Mdb`, `Access.LibRed.Accdb`): **72/72 green**. P10's prediction that the fixture would
+surface pre-existing defects in the Microsoft flavours did **not** materialise for this type set — the only
+two findings were the two above, one LibRed dialect gap and one deliberate ODBC behaviour. `TestChar`
+passing with its `padded` branch is also independent confirmation of D-13 through linq2db's own read path.
+The two Jet flavours need an x86 run and are left to CI.
+
+### A-13 — TO-1 first pass: 1 440 → 331 → 229 failures, and two of the three causes were ours
+
+Full suite on `Access.LibRed.Mdb`, 8 196 tests, three runs:
+
+| Run | Failed | What the fix was |
+|---|---|---|
+| 1 | 1 440 | — |
+| 2 | 331 | `AccessDmlService` matched `exception is InvalidOperationException`, a **concrete type test**. The remote (`LinqService`) transport wraps every exception in `Grpc.Core.RpcException`, so the arm never fired and ~1 100 `DROP TABLE`-on-missing-table errors escaped. `DmlServiceBase.TypeOrMessageContains` exists precisely for this — its sibling `HResultMatches` even documents "the remote-transport message wrapper". Using it is the fix; `no such procedure` was added at the same time. |
+| 3 | 229 | Register row 14 (`IDENTITY` → `COUNTER`), −102. |
+| 4 | 156 | Rows 13/17: `BuildObjectName` override dropping the database component, modelled on `SqlCeSqlBuilder:168-178` — a file database addresses one database and never names it. Implementing `TestUtils.GetDatabaseName` would not have worked: the gap is in LibRed's *grammar*, so a real path fails to parse exactly as the `UNUSED_DB` placeholder does. −37 direct. Plus narrowing the unscoped `[ActiveIssue(3893)]` on `Issue3893Test_Rejected` to `AllNativeAccess`, which its own `Details` text was already describing ("through both drivers", "an ODBC 'COUNT field incorrect'"). |
+
+**The methodological point is the second row.** 84 % of the first run's failures were a single defect of ours
+that only the *remote* context could expose, and the direct-context count never moved (178 → 178 → 126).
+Any triage that had started from the direct failures, or from a run that skipped the remote contexts, would
+have reported a provider in far worse shape than it is. Run the remote half before drawing conclusions.
+
+| 5 | 143 | Gating only, no product change: `[ThrowsForProvider("LibRed.Sql.Parsing.SqlParseException", AllAccessLibRed)]` on the 5 `PredicateTests` feature probes that actually throw (the other 4 Access-gated probes pass on LibRed, so gating them would assert a throw that never happens), and LibRed exclusions on the 4 remaining `WITH OWNERACCESS OPTION` sites. |
+
+| 6 | 125 | Gating only: the A-14 four-way `Issue3893` split, three more `[ThrowsForProvider]` probes, and the D-13 padding group (`StringTrimming`, `StartsWith`/`EndsWithTests`, `FullWhiteSpaceTest`) narrowed with citations — P10 had already adjudicated that divergence, so these needed a reference rather than a decision. |
+
+| 7 | 79 | Rows 15 and 19 gated with `[ActiveIssue(Configuration = AllAccessLibRed)]` across 23 tests — the user's call (2026-09-22), and the right one: `[ActiveIssue]` **asserts the failure still happens**, so when LibRed fixes either form the gate turns into a failure demanding its own removal, where a `[DataSources]` exclusion would drop the coverage silently and permanently. No gate reported "passed but marked", so all 23 match reality. |
+
+| 8 | 60 | Rows 18, 21, 22 and 23 gated (8 tests), plus a retrofit of all 23 run-7 gates to the repo's conventional form: `ErrorTypeName` set, `Details` prefixed `no-issue:` / `no-declaration:`. The retrofit is self-verifying — a wrong `ErrorTypeName` makes the gate fail — and nothing regressed. |
+
+**Run 8 leaves 60 = 21 remote + 37 direct**, and the direct set is now singletons: 8 `Concat_*`
+nullable-argument mismatches, 4 association-update `ThrowsNothing` assertions, 3
+`EnableConstantExpressionInOrderBy`, 2 procedure-count (D-10), 2 `GuidToString`, 3 `[ActiveIssue]`-passing
+un-gating candidates (`TestIssue4261`, `ConcatInAny`, `FullJoinCondition_Regression`), and ~15 others.
+No cluster larger than 4 remains.
+
+**Superseded — run 7 left 79 = 30 remote + 47 direct.** Direct: 6 `DateTimeAddTimeSpan` + 2 `UnionGroupByTest` (row
+18), 8 `Concat_*` nullable-argument mismatches, 4 association-update `ThrowsNothing` assertions, 2
+procedure-count assertions (a D-10 consequence — LibRed creates none of the skipped procedures and reports
+no procedures at all), and ~25 singletons.
+
+**Superseded — run 6 left 125 = 53 remote + 70 direct**, and the remaining direct set is now dominated by two
+register rows: 23 multi-table `UPDATE` failures (row 15's comma form ×16, row 19's derived-table form ×7)
+and 6 `DATEADD`→Double (row 18). The other ~41 are assertion-level singletons.
+
+**Superseded — run 5 left 143 = 57 remote + 80 direct.** Three register rows account for 29 of the 80 — row 15
+(comma-joined `UPDATE`, 16), row 19 (derived-table `UPDATE`, 7), row 18 (`DATEADD`→Double, 6). The other
+~51 are assertion-level and need individual adjudication. Because the control run failed exactly one
+provider-independent test, every one of these corresponds to a test that **passes** on Access through OLE
+DB — with the caveat that the two runs do not enumerate an identical case set (8 188 vs 7 680), so a
+per-test check is still owed for any row before it is reported upstream.
+
+Direct clusters after run 4 (superseded by run 5, kept for the shape): 16 comma-joined
+`UPDATE` (row 15 — `UpdateTestWhere`, `UpdateParentTableFromChild`, `Test1`), 8 value-assertion mismatches,
+7 `Cannot UPDATE/DELETE the derived table` (a **linq2db** exception, not LibRed — check against the
+Microsoft flavours before assuming it is ours), 6 `DATEADD`-returns-Double (row 18), 4 more
+`WITH OWNERACCESS OPTION` sites beyond the two E-22b narrowed, 3 `IS TRUE/FALSE/DISTINCT` (row 16), 2 more
+`[ActiveIssue]`-passing tests on a different issue, and a tail of singletons including a LibRed-internal
+`NotSupportedException: Cannot encode GUID index key from String`.
+
+**The one ambiguous cluster, and the reasoning error it exposed.** `Cannot UPDATE/DELETE the derived table`
+is a bare `System.NotSupportedException`, which I read as *linq2db* refusing to lower the update — making
+it look pre-existing rather than LibRed's. Two checks corrected that. The control run: `DeleteFromWithTake`
+(`[DataSources]`) and `UpdateWhenTableSecond` (`[DataSources(AllInformix, AllClickHouse)]`) both run on
+Access and both **pass** on `Access.Ace.OleDb`. Then the stack: `at
+LibRed.Engine.Execution.StatementExecutor.TargetTable` — it is LibRed's, thrown as a BCL type. Row 19.
+
+**Generalise that:** LibRed raises `System.NotSupportedException` and `System.InvalidOperationException`
+from its engine, so *exception type is not a layer boundary here*. Read the stack before attributing a BCL
+exception to linq2db. The same shape already cost a mis-implementation once (E-11a's concrete-type test,
+A-13 run 2) and a mis-classification here.
+
+### A-14 — Gate per engine *and* per case: split the `ValueSource`, don't scope one gate
+
+`Issue3893Test_Rejected` gates identifiers Access refuses. Scoping its `[ActiveIssue]` to
+`AllNativeAccess` was half a fix: LibRed accepts most of those identifiers but refuses five, so the test
+went from 5 wrongly-gated passes to 5 real failures. The user's correction (2026-09-22) — *"gate native and
+libred separately on cases where they fail"* — is what the fixture was already built for: its own comment
+says *"Split three ways by what Access actually does with each identifier: a gate cannot target a
+ValueSource argument"*. So the answer is a **fourth** `ValueSource`, not a cleverer `Configuration`:
+
+- `_identifiersRejected` (5) — refused by the Microsoft drivers only, gated `AllNativeAccess`.
+- `_identifiersRejectedByAll` (5: `` ` ``, `!`, `.`, `[`, `]`) — refused by every engine, gated unscoped.
+
+I had read the sibling test's prose note (*"neither can be targeted by argument"*) as a statement about the
+attribute's capability and concluded no clean split existed. It was a note about that test's two arms.
+
+**The same measure-per-engine rule applies to the `[ThrowsForProvider]` feature probes**, and the exception
+type differs per engine: `LibRed.Sql.Parsing.SqlParseException` for `IS TRUE/FALSE/UNKNOWN`, `IS DISTINCT
+FROM`, `IS`, and `<=>`; `System.InvalidOperationException` for `<>/= UNKNOWN` (LibRed parses `UNKNOWN` as
+an identifier — *"Column 'UNKNOWN' was not found"*); `System.NotSupportedException` for `DECODE`. Eight
+probes gated in total; the remaining Access-gated probes pass on LibRed and are deliberately left alone,
+because gating them would assert a throw that never happens.
+
+Verified across `Access.LibRed.Mdb`, `Access.LibRed.Accdb`, `Access.Ace.OleDb` and `Access.Ace.Odbc`
+together: **213 cases, 0 failures**. Gating one flavour at a time would not have caught the `char ]`
+mis-assignment.
+
+### A-15 — Bulk gating went through a script, and the script was wrong twice
+
+23 `[ActiveIssue]` insertions across 6 files is the "rule of three → codify" case, so it went through
+`.build/.agents/gate-libred-updates.ps1` (dry-run first, exact-declaration match, idempotency guard) rather
+than 23 hand-edits. Both of its bugs are worth recording because neither showed up in the dry run:
+
+- **The idempotency guard scanned the whole file prefix** for `AllAccessLibRed`, so the second and later
+  tests *in the same file* were reported `ALREADY` and silently skipped — 11 of 22. It has to inspect only
+  the attribute block immediately above the declaration.
+- **It emitted unescaped `"` into a C# string literal.** The `Details` text quotes the engine's own error
+  message, so it needs `\"`. 22 sites broke the build at once; recovery was `git restore` on the four files
+  the script owned (no hand edits in them) and a re-run.
+
+Generalising: a generator whose output is source needs a **compile** as its gate, not a dry run. The dry
+run proved the *targeting* was right and said nothing about the *text*. Both bugs would have been caught
+one edit earlier by applying to a single file and building.
+
+### A-4 — `AccessLibRedSqlBuilder` needs no `GetProviderTypeName` override (E-6)
+
+`BasicSqlBuilder.GetProviderTypeName:4873-4885` already maps `DbParameter.DbType` to a type name, which
+is exactly what E-6 asked for, and `LibRedParameter` exposes only `DbType` — there is no provider enum to
+read instead. The class is ctors + `CreateSqlBuilder`.
+
+### Resuming — open work as of 2026-09-22
+
+1. **~37 direct + 21 remote singleton failures** on `Access.LibRed.Mdb` (8 134 tests, 60 failures). No
+   cluster above 4: 8 `Concat_*` nullable-argument mismatches, 4 association-update `ThrowsNothing`
+   assertions, 3 `EnableConstantExpressionInOrderBy`, 2 procedure-count (a D-10 consequence), 2
+   `GuidToString`, and 3 `[ActiveIssue]`-passing **un-gating** candidates (`TestIssue4261`, `ConcatInAny`,
+   `FullJoinCondition_Regression`) where LibRed does what Access cannot. Each needs its own read.
+2. **P13 triage** — 23 rows, none filed. Check each against existing EntityFrameworkCore.Jet issues and the
+   unmerged PR #301 before reporting, and confirm the same SQL runs on a Microsoft flavour: that linq2db
+   emits it for Access is not by itself evidence Access accepts it. Then backfill the tracking links into
+   the `[ActiveIssue]` gates, which are deliberately linkless (user's call, 2026-09-22).
+3. **Phase D** (CI leg, E-23..E-25) and **Phase E** (CLI scaffold, E-26..E-31) — not started.
+4. **TO-2 baselines** — never captured. A worktree run writes none, because `BaselinesPath` comes from a
+   `UserDataProviders.json` the worktree does not have. This is the last unexercised obligation.
+5. **Two Jet flavours unverified locally** — both Jet drivers are 32-bit only and the runner is x64, so
+   `Access.Jet.OleDb` / `Access.Jet.Odbc` rest on CI's x86 legs.
+6. **Inherited, not ours**: `dotnet restore Tests/Linq -p:Configuration=Testing` fails `NU1510` on
+   `LinqToDB.Extensions`, reproduced with this branch's package edits reverted. `Debug` is fine, so
+   `test-runner` and CI are unaffected; only the `-c Testing` fast path is broken on this branch stack.
 
 ## P12 Critic verdict (M/L)
 
