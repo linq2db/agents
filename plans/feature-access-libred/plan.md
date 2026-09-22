@@ -1207,8 +1207,20 @@ asserts exactly this property, which is why un-gating it is the verification rat
      the CLI.
    - **D-9's "over the `.accdb`" cannot be taken literally**: the T4 scaffold path
      (`.build\bin\NuGet\Debug\net462\Database`) holds no `.accdb`, and the two committed LibRed containers
-     are empty until a test run fills them. Point the key at that path's `TestData.mdb` — the same file the
+     are empty until a test run fills them. The key points at that path's `TestData.mdb` — the same file the
      OLE DB key uses, which makes the two outputs directly comparable and needs no new artifact.
+   - **Phase E is done** (2026-09-22): the five `.tt` rows, the `CLI.ttinclude` connection string, the
+     `release-test-cli-scaffold.ps1` matrix row (corpus) and **89 committed files / ~4 585 lines**, which
+     lands inside U-13's ~89-file estimate. TO-6 holds — a second run regenerates them byte-identical, and
+     `Tests.T4` compiles with them.
+   - **Running the scaffolder found a schema-provider gap no test covers.** `GetSchema("Tables")` marks the
+     four catalog tables as `SYSTEM TABLE` but reports `MSysAccessStorage`, `MSysAccessXml` and the four
+     `MSysNavPane*` tables as ordinary tables, where OLE DB calls them `ACCESS TABLE` and the scaffolder
+     skips them — so the first generated model carried six `MSys` entities the other Access keys do not, 28
+     files against OLE DB's 22. `GetTables` now also treats Access's reserved `MSys` name prefix as
+     provider-specific, and the two models have the same 22 entities. Worth noting for the altitude of the
+     obligation set: TO-3's instrument (`SchemaProviderTests`) is green either way, and only generating real
+     scaffold output exposed it.
 4. **TO-2 baselines** — capture now *works* and the mechanism is settled: seed a worktree-local
    `UserDataProviders.json` carrying **only** the TFM bucket and an absolute `BaselinesPath` (per
    `worktree.md`), which leaves `--provider` and every connection string resolving from the tracked
