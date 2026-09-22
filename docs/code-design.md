@@ -95,6 +95,14 @@ When adding public API, propose the **minimal viable surface** — the one or tw
 
 Over-building costs review rounds and `PublicAPI.Unshipped.txt` churn, and the surplus gets cut: 16 proposed `ConcurrencyExtensions` overloads on #5642 were trimmed to 4 (update write-back only) over three rounds, each group questioned in turn. **Don't grow core builder API for a helper-only fix** above is the same preference applied to core surface.
 
+### A member that desugars to what the caller could already write is an alias — keep only what the language cannot express
+
+The rule above bounds how much surface to propose; this one names the surface that should never have been proposed. When an API member's implementation is "build the expression the user would have written by hand", it buys characters and costs a public contract. Keep the part that carries something C# genuinely cannot: type **erasure** (differently-typed generic lambdas in one `params` array), or **inference** the caller cannot recover (type arguments of a generic type reached through a static member — unnameable for an anonymous type, which is why a factory-lambda parameter exists at all). Delete the rest.
+
+Three costs that make an alias worse than neutral, all of them real on the case below: a convenience overload accepting a broader type than its body supports turns a **compile error into a runtime throw**; a wrapper that "helpfully" reshapes its argument becomes a *second* mechanism for one behaviour, which then needs its own tests and its own row in a design record; and every member is a `PublicAPI.Unshipped.txt` line plus a doc comment that has to stay true.
+
+(#1475 paid this twice. `IPivotBuilder` was deleted at design time once its SQL measured byte-identical to a hand-written `GroupBy` + ternary. The `PivotCell.Sum/Min/Max/Avg/Count` wrappers survived that pass as "one mechanism and five conveniences" and were deleted a milestone later on the same argument: ~50 lines of reflection re-deriving what the compiler resolves in `rows => rows.Sum(x => x.Amount)`, `Sum`/`Avg` throwing `LinqToDBException` where the lambda form is a compile error, a redundant nullability mechanism, and 18 `PublicAPI.Unshipped.txt` lines where 5 do. The erasure carrier and the factory lambda stayed — those are the two things the language cannot do.)
+
 ### New API parameters take the weakest useful type
 
 For a **new** public API parameter, prefer the weakest useful type — `IEnumerable<T>` over `T[]` — and fold an optional second dimension into `params` so two overloads collapse into one. Materialize to an array inside the method for query-cache stability.

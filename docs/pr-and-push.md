@@ -92,6 +92,15 @@ Run **`pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr <n>`*
 
 The same applies when a follow-up commit changes a test's projection shape / SQL output without renaming it — the old PR's files no longer match the new expected output. Out of scope: pure test *additions* that don't rename anything (the existing baselines PR is incremental — new files just get added on the next CI run), and bug-fix commits that update SQL but leave both names and structure untouched (the existing baselines PR's diff updates in-place).
 
+**The regenerated PR's own diff cannot tell you whether the SQL moved — fetch the closed one's head.** A branch recreated from the baselines anchor contributes every file as `added` against master, so `gh pr diff` / the files API show a uniform wall of additions with nothing to compare against; and for a *new* test fixture there is no predecessor on master either. The closed PR's head survives as `refs/pull/<m>/head` after the branch is deleted, which is the missing side:
+
+```
+git -C ../linq2db.baselines fetch origin refs/pull/<old>/head:refs/remotes/origin/pr/<old> refs/pull/<new>/head:refs/remotes/origin/pr/<new>
+git -C ../linq2db.baselines diff --name-status -M origin/pr/<old> origin/pr/<new> -- "*<Fixture>*"
+```
+
+`-M` is what makes it readable: a test rename shows as `R100` (byte-identical content) rather than as a delete plus an add, so "only the renames moved" is one glance instead of a file-by-file compare. Deletions in that diff are usually a **failed leg** whose *Commit test baselines* step was skipped, not a real removal — check the leg before reading them as loss. (#5708: 65 modified, 61 `R100`, 39 deleted, and the 39 were exactly the three ClickHouse providers from the one red leg.)
+
 **Also covers the case where the baselines PR became `CONFLICTING` because *other* source PRs landed on master first.** The baselines PR is keyed against a specific source-PR commit; once master moves, the baselines diff often no longer applies cleanly even if the source PR's tests didn't change. Same close+delete-branch action — the next CI run on the now-merged source PR (or its squashed master commit) regenerates fresh baselines under master's current state. Don't try to merge-resolve a baselines PR; the cost of regenerating is much lower than the cost of getting the resolution wrong.
 
 **A branch cut from *another open branch* goes `CONFLICTING` the moment that parent squash-merges — rebase it, don't merge-resolve.** Squashing rewrites the parent's commits into one new commit, so your branch still carries the originals and git sees two unrelated commits touching the same files. The conflict is therefore in content **neither side meaningfully changed**, which is the tell: a hand-resolution is all risk and no information. Diagnose by comparing trees rather than diffs —
