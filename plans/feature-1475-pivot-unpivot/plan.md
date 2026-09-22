@@ -370,6 +370,58 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   because "custom" stops being a category. `PivotsAvgCell` is kept deliberately: it is the only carrier of the
   #5954 Access-Jet exclusion.
 
+- **A-14 (2026-09-22) — the cells move *into* the projection; both placements ship.** sdanyliv re-proposed an
+  in-selector fluent cell API. Investigating it found the fluency is not what it buys: the cost of the `params`
+  shape is that `SelectDynamicBuilder` appends the generated columns to **`TResult`'s own**
+  `[DynamicColumnsStore]` member, so `TResult` must be a declared mutable class carrying the attribute — an
+  anonymous projection, the idiomatic LINQ shape, is impossible, and `PivotRow<TKey>` exists only to paper over
+  that. A second overload now takes `(g, p) => new { …, Cells = p.Cell(a, n).Cell(b, m) }` and nests the cells in
+  the member the chain is assigned to, so the result type needs no store of its own. The user's call was to keep
+  **both** families: the family-2 chain is read out of an expression tree, so its number of cell *templates* is
+  fixed at compile time, while family 1's `Func` can build templates in a loop — that asymmetry is the documented
+  reason both exist, not a transition state.
+  - **One carrier type.** `PivotCellFactory<TSource,TFor>` and `PivotCell<TSource,TFor>` are deleted;
+    `PivotCells<TSource,TFor>` is the lambda parameter, the chain result *and* the materialized store (`Values` /
+    indexer / `Get<T>` lifted verbatim from `PivotRow<TKey>`). All three overloads take a
+    `…PivotCells<TSource,TFor>…` lambda, so `params Func<…>[]` becomes a single chained
+    `Func<PivotCells<,>, PivotCells<,>>`. **Supersedes A-13's closing "the `params Func<PivotCellFactory<…>,
+    PivotCell<…>>[]` shape is kept verbatim"** — the erasure-carrier argument survives intact, but the chain
+    carries the erasure just as well with one type instead of two.
+  - **Deviation from the approved design: no `cellsMember` argument on `SelectDynamicCore`.** The design routed
+    the target member's *name* through the marker. The implementation instead leaves an
+    `Expression.Constant(null, typeof(PivotCells<,>))` where the chain was, and the builder finds it in the
+    constructor's `Assignments` (or `Parameters`). Same result, unchanged marker signature, and it reaches
+    projection shapes a member name cannot — a positional record's `NewExpression.Members` is null.
+  - **U1 resolved positive.** `Sql.Property<decimal?>(r.Cells, "Y2010")` after the pivot is a *server-side*
+    column: `ComposesOverANestedCell`'s baseline is a bare `GROUP BY` + `HAVING SUM(CASE WHEN … )`, with the
+    unused second cell pruned. The fallback in the plan (document that composition goes through family 1) is
+    not needed.
+  - **U2 resolved: the change is SQL-neutral.** Pre/post snapshot of the whole local baselines tree over
+    `PivotDynamicTests` on SQLite.Classic + DuckDB: **`changed: 0`, `unchanged: 10114`**, `added: 6` — the three
+    new `[DataSources]` tests × two providers. `PivotsIntoAnAnonymousType`'s SQL is byte-identical to
+    `PivotsMultipleCellsIntoUserType`'s, which is the nested form's whole claim.
+  - **`PivotRow<TKey>` is deleted too, on the user's call** (`q: remove`), and with it the no-result-type
+    `Pivot<TSource,TKey,TFor>` overload it existed to return: `(g, p) => new { g.Key, Cells = p.Cell(…) }` is the
+    same thing without a library type. **Supersedes A-14's own first draft**, which kept it. That drops a public
+    type with 5 members and removes the shadowing error mode's original subject — `CellNamedAfterARowMemberThrows`
+    is deleted as a duplicate of `NestedCellNamedAfterACellsMemberThrows`, which pins the same mechanism against
+    `PivotCells`. `SelectDynamicTests.ProjectsIntoBuiltInPivotRow` used `PivotRow<int>` as a convenient
+    `SelectDynamic` store type; it is deleted (its store-machinery coverage duplicates
+    `ProjectsRuntimeColumnSetIntoStore`) and its unique assertion — an ungenerated name reads absent rather than
+    throwing — is carried into `PivotsProductionShapeWithoutAResultType`.
+  - **The removal is byte-for-byte SQL-neutral, measured twice.** Converting all eleven no-result-type tests from
+    `PivotRow` to the nested anonymous form: `changed: 0`, `removed: 0` over the whole baselines tree. The two
+    renamed tests (`PivotsRuntimeValuesIntoPivotRow` → `PivotsRuntimeValues`, `PivotsProductionShapeIntoPivotRow`
+    → `PivotsProductionShapeWithoutAResultType`) hash **identical** to their predecessors
+    (`676C88F2…`, `E82F5A88…`), so the only baseline delta in the whole amendment is two file *names*.
+  - Test consequence: nine multi-cell call sites convert to the chain, eleven no-result-type sites to the nested
+    form, four tests deleted as duplicates, two renamed, four added (anonymous-type pivot plus three negatives — a
+    cell name shadowing a `PivotCells` member, two chains in one projection, a projection with no chain).
+    84/84 green on SQLite.Classic + DuckDB across `PivotDynamicTests` + `SelectDynamicTests`; Release net10.0,
+    Release netstandard2.0, Tests Release net10.0 and Tests Release net462 all clean.
+  - **Baselines-PR consequence:** the two renames make [#2139](https://github.com/linq2db/linq2db.baselines/pull/2139)'s
+    keys stale, so it wants `close-stale-baselines.ps1` and a fresh CI regeneration rather than a merge.
+
 ## P12 Critic verdict (M/L)
 
 **Round 1 — `refuted`** (Fable, dispatched with the measurements forwarded verbatim and the unprobed claims labelled).
