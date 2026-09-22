@@ -1,17 +1,138 @@
-# LibRed 11.0.0-alpha.2 — measured capability report
+# LibRed — measured capability report
 
-All facts below were **measured** on 2026-09-19 with `.build/.agents/libred-probe` (net11.0, SDK
-11.0.100-rc.1.26425.128) against real `.accdb` files created by LibRed itself. Raw logs:
-`smoke-accdb.txt`, `battery-accdb.txt`, `schema-accdb.txt`, `access-sql-accdb.txt`, `sig.txt`.
+All facts below were **measured** with `.build/.agents/libred-probe` (net11.0, SDK
+11.0.100-rc.1.26425.128) against real Access files, never inferred from release notes. A probe always
+operates on a **copy** of the database.
 
-**Second round, 2026-09-22.** The sections below dated *(2026-09-22)* were measured after the first full
-test-suite run, against the suite's own populated `TestData.LibRed.mdb` (copied first — a probe never
-mutates the suite's database). They are the ones the raw-ADO rounds could not have found, because they are
-not capability questions: the construct parses, executes, and returns the wrong answer.
+- **alpha.2**, 2026-09-19, against `.accdb` files LibRed created itself. Raw logs: `smoke-accdb.txt`,
+  `battery-accdb.txt`, `schema-accdb.txt`, `access-sql-accdb.txt`, `sig.txt`.
+- **alpha.2, second round**, 2026-09-22 — the sections dated *(2026-09-22)* below, measured after the first
+  full test-suite run against the suite's own populated `TestData.LibRed.mdb`. These are the ones five
+  rounds of raw-ADO probing could not have found, because they are not capability questions: the construct
+  parses, executes, and returns the wrong answer.
+- **alpha.3**, 2026-09-22, the section immediately below. Where a behaviour changed, the *same* battery was
+  run against both package versions rather than compared against notes, so every "regressed" verdict is a
+  diff of two measurements.
 
-Packages: `LibRed.Ado` 11.0.0-alpha.2 → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`,
-`Antlr4.Runtime.Standard`. `net11.0` only. alpha.3 exists **only** in the open PR
-CirrusRedOrg/EntityFrameworkCore.Jet#301; nuget.org has alpha.1 and alpha.2.
+Packages: `LibRed.Ado` → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`, `Antlr4.Runtime.Standard`.
+`net11.0` only.
+
+---
+
+# alpha.3 (2026-09-22)
+
+## Regressions against alpha.2
+
+### 1. The reader contradicts itself on a computed column
+
+The most consequential of the three, because nothing in the SQL is unusual and there is no error until
+materialization. For a projection over a `CURRENCY` aggregate:
+
+```sql
+SELECT IIF([t3].[x] < 0, 9, [t3].[x] + 8), [t3].[x] + [t3].[x]
+FROM (SELECT IIF([t2].[x] IS NULL, 0, [t2].[x]) AS [x]
+      FROM (SELECT (SELECT SUM([MoneyValue]) FROM [LinqDataTypes]) AS [x]
+            FROM [LinqDataTypes] [q]) [t2]) [t3]
+```
+
+```
+alpha.2   reader: Expr1 GetFieldType=Decimal   value: Expr1 [13] (Decimal)     <- consistent
+          reader: Expr2 GetFieldType=Decimal   value: Expr2 [10] (Decimal)
+alpha.3   reader: Expr1 GetFieldType=Int32     value: Expr1 [13] (Int32)
+          reader: Expr2 GetFieldType=Int32     value: Expr2 [10] (Decimal)     <- declared Int32, returns Decimal
+```
+
+`GetSchemaTable` agrees with `GetFieldType` (`DataType = Int32`, `DataTypeName = Long`), so **every**
+description of `Expr2` says `Int32` while the value handed back is a `Decimal`. A consumer that compiles a
+materializer from the declared type — which is what every ORM does — emits an `Int32` read and fails with
+`Unable to cast object of type 'System.Decimal' to type 'System.Int32'`. Note `Expr1` *does* honour the
+declared type in the same row set, so the "every value is returned in its column's declared type" change
+appears to have landed only partway.
+
+Nullability is **not** involved: `AllowDBNull` is reported correctly for every expression column (`True`
+for aggregates, arithmetic and `IIF`; `False` only for a stored `NOT NULL` column). That was the first
+hypothesis and the probe refuted it.
+
+Cost in the linq2db suite: 6 failures. A fourth cluster of 4 (`Byte array for Guid must be exactly 16 bytes
+long`, on a set operation carrying null literals) is plausibly the same family but is not proven here.
+
+### 2. A text column compared against a numeric literal now throws
+
+Measured on a `VARCHAR` column holding `''`, `'abc'`, `'11'`:
+
+| Query | alpha.2 | alpha.3 |
+|---|---|---|
+| `SELECT COUNT(*) FROM t WHERE [S] = 11` | `1` | `InvalidCastException: Type mismatch: '' cannot be read as a number` |
+| `… WHERE [S] IN (11, 18, 19)` | `1` | throws, same message |
+| `… WHERE [S] NOT IN (11, 18, 19)` | `2` | throws — and on a row holding `'abc'` too, so it is not only the empty string |
+| control: `… WHERE [S] NOT IN ('11', '18')` | `2` | `2` |
+
+ACE evaluates all three. A `NOT IN` list of numbers against a string column is ordinary generated SQL, so
+no caller can route around it. Cost in the linq2db suite: 4 failures.
+
+### 3. Breaking, but in the corrective direction
+
+| Behaviour | alpha.2 | alpha.3 |
+|---|---|---|
+| GUID literal vs a `GUID` column | unbraced `'xxxxxxxx-…'` matches; braced matches **0 rows** | braced `'{xxxxxxxx-…}'` matches; unbraced matches **0 rows** |
+| `CStr(<guid>)` | unbraced, `Len` 36 | braced, `Len` 38 |
+
+Both now agree with ACE, which is the right end state — but they silently invert results for code written
+against alpha.2, with no error. Two workarounds in the linq2db provider had to be **deleted** rather than
+merely retired, because on alpha.3 they produced wrong answers.
+
+## Fixed in alpha.3 (re-measured, not taken from the notes)
+
+`GetSchemaTable` / `IDbColumnSchemaGenerator` implemented, with correct `AllowDBNull` · `GetDataTypeName`
+returns the store type (`Char`, `VarChar`, `LongText`, `Long`) instead of CLR names · `PRIMARY KEY
+CLUSTERED` accepted · trailing `IDENTITY` accepted, and the column really is an identity · bare
+`REFERENCES <table>` resolves to the parent's primary key · all five previously-rejected `CREATE Procedure`
+shapes create, and `CommandType.StoredProcedure` executes them · `CommandBehavior.SchemaOnly` honoured —
+describing `Person_Insert` / `Person_Update` / `Person_Delete` / `AddIssue792Record` leaves the row counts
+untouched · `ORDER BY n` is an ordinal · comma-joined and derived-table `UPDATE`/`DELETE` parse · `DATEADD`
+returns a `DateTime` · date parts return `Int32` · a multi-column `SET` is evaluated against the pre-update
+row · `cdbl(-9223372036854775808)` evaluates. The full ADO metadata surface (20 collections) is present and
+is a superset of `[INFORMATION_SCHEMA.*]` on every fact a schema reader needs except `CreateFormat`.
+
+## Still open on alpha.3
+
+Unchanged from the alpha.2 tables below: `CVar` is a no-op · an indexed `GUID` column cannot be compared to
+a string literal, *or* have one inserted (`Cannot encode GUID index key from String`) — alpha.2 refused
+these identically, so the scope did not widen · `DATETIME` keeps sub-second precision that Access truncates
+· `IS TRUE` / `IS FALSE` / `IS [NOT] DISTINCT FROM` do not parse · `WITH OWNERACCESS OPTION`, `CAST`,
+`LIKE … ESCAPE`, `TOP n WITH TIES`, `VALUES` as a table source, `{ts …}` / `{guid …}` escapes and `NZ()`
+do not parse · no database-qualified table name in any form · a parameterised stored SELECT still cannot be
+used as a table source (the error moved from `SqlParseException` to `InvalidOperationException: No value
+was supplied for parameter '@id'`) · missing-object errors are still `SqlBindException` for `SELECT` and a
+bare `InvalidOperationException` for `DROP TABLE` / `DROP PROCEDURE`, with no `Number`.
+
+## Two corrections to the alpha.2 report below
+
+- **The Access zero date.** Recorded as "reads back as `DateTime.MinValue`". Measured on alpha.3 — and the
+  layer matters — 1899-12-30 round-trips correctly through a parameter, through a `#1899-12-30#` literal
+  *and* through `DateSerial(1899, 12, 30)`, which is what linq2db emits. The loss is in the typed read
+  alone: on the row whose serial is `0.0`, `GetValue` returns `12/30/1899` and **`GetDateTime` returns
+  `01/01/0001`**. `IsDBNull` is `False` and `AllowDBNull` is `False`, so nothing else flags it.
+- **`NZ()`** was reported as working in one alpha.3 round. It is not, on either version — that probe ran the
+  statement with `ExecuteNonQuery`, which never evaluates the projection. A false positive of the probe,
+  not a capability.
+
+## Stored-procedure parameters bind **by name**
+
+New on alpha.3, since procedures could not be created before. `CommandType.StoredProcedure` resolves
+arguments by parameter name and raises `InvalidOperationException: No value was supplied for parameter
+'@MiddleName'` when the caller's names differ from the declaration. Microsoft's OLE DB and ODBC providers
+bind Access stored-query parameters **positionally** and ignore the names entirely, so callers written
+against them commonly pass arbitrary names — the linq2db suite had three such helpers, one with a
+misspelling (`midleName` against a declared `[@MiddleName]`) that had never mattered. Not wrong of LibRed,
+but it is a portability trap worth documenting: the by-name contract is invisible until it fails.
+
+Also worth noting for consumers: a parameter declared **bracketed** (`[@id]`) keeps the `@` in
+`GetSchema("ProcedureParameters")`, while one declared bare (`@id`) comes back as `id`.
+
+---
+
+# alpha.2
 
 ## ADO.NET surface (`LibRed.Data`)
 

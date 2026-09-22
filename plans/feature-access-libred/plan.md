@@ -8,9 +8,12 @@ Cut off that branch (PR #5944) at `77800f967`; head `dbf09e571`, three commits (
 environment / type coverage + gating). Branch 1 is PR #5942, branch 2 is PR #5944; all three stay unmerged
 until .NET 11 RTM because `global.json` pins an exact prerelease SDK.
 
-**Session of 2026-09-21/22 ended here.** Phases A, B and C are committed and pushed. Phase D (CI leg) and
-Phase E (CLI scaffold) are untouched. The worktree was removed at session end; recreate it from
-`origin/feature/access-libred` to resume. Open work is listed under *Resuming* at the end of P11.
+**Session of 2026-09-22 (second) — the dependency moved.** `LibRed.Ado` **11.0.0-alpha.3** published that
+day, and it fixes most of what this branch worked around; the bump and the resulting revert set are
+**A-17**, which supersedes parts of D-4, D-6, D-10, D-11 and D-13 and empties much of P13. Read A-17 before
+any row below that names alpha.2. Phases A, B and C are committed and pushed at `5926952da`; Phase D (CI
+leg) and Phase E (CLI scaffold) were untouched as of the previous session. Open work is listed under
+*Resuming* at the end of P11.
 
 **Evidence, committed beside this plan so it outlives the worktree:** `findings.md` is the measured
 capability report for the dependency, and `probe/` holds the net11.0 console app that produced it
@@ -591,6 +594,14 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   `Access.Ace.Odbc`; the two Jet flavours need an x86 run (both Jet drivers are 32-bit only) and are
   left to CI. **TO-4 green: 72/72** across the four locally reachable flavours (A-11, A-12).
   TO-1/TO-5 still pending.
+- G-01b: — (done, 2026-09-22) — **TO-5 re-control after the alpha.3 bump, narrowed to the shared path this
+  session actually edits.** The branch's shared-file surface *shrank*: `Access.sql` and `TestBase.Identity.cs`
+  are byte-identical to the merge base again (`git diff <merge-base>` empty), so the only edit the Microsoft
+  flavours still execute is `AccessProceduresTests` — its parameter names, now matching the declarations, and
+  two per-flavour assertion arms. Control: create-data + `AccessProceduresTests` + `AccessTypeTests` +
+  `AccessTests` on **`Access.Ace.OleDb` (84 cases, 0 failures)** and **`Access.Ace.Odbc` (98 cases, 0
+  failures)**, each in its own host. That is narrower than G-01a's full run and deliberately so; the full
+  control at G-01a still stands for everything else.
 - G-01a: — (done, 2026-09-21) — **TO-5 control: the full suite on `Access.Ace.OleDb` is 7 680 tests with
   exactly 1 failure, `TestExpressionVisitorHops(10)`** — provider-independent (no provider in the case
   name), present on the LibRed run too, therefore pre-existing on this branch stack and not ours. So none
@@ -613,6 +624,14 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - G-09: — (pending) — Tier L; derive with `work-plan.ps1 -Action gates`.
 
 ## P10 Adjudicated (M/L)
+
+> **Four entries below were retired by the alpha.3 bump (A-17, A-18)** and no longer describe the branch:
+> *LibRed supports no stored procedures* (it does, and the schema provider reports them), *`CHAR(n)` comes
+> back space-padded* (`GetDataTypeName` now names the store type, so the trim is registered as for the
+> Microsoft flavours), *a LibRed schema reports fewer views and their columns are approximate* (the driver
+> classifies them and types their columns), and *no mutating stored query is ever executed* (still true, but
+> it is now the driver honouring `CommandBehavior.SchemaOnly` rather than our `Flags` gate). They are left
+> in place so a reviewer reading an older round still finds the reasoning.
 
 - **LibRed auto-detection from a connection string is not possible, and is not attempted.** A LibRed
   connection string is `Data Source=<file>` with no discriminating token (measured), so
@@ -668,6 +687,13 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   view-discovery code is ever reordered.
 
 ## P13 Upstream defect register — collected, not yet triaged
+
+> **Re-measured against `LibRed.Ado` 11.0.0-alpha.3 on 2026-09-22 (A-17).** Rows **1, 3, 4, 5, 10, 12, 14,
+> 15, 18, 19, 21, 24, 25, 27** are **fixed upstream** and are kept here only as history — do not report them.
+> Row **2 inverted** (the braced literal is now the correct one). Row **22** was recorded from the wrong
+> layer and is re-scoped: `GetValue` returns the zero date correctly while `GetDateTime` returns
+> `DateTime.MinValue`. Rows **6, 7, 11, 13, 16, 17, 20, 23, 26** are unchanged and are what remains to
+> report, together with the corrected 22. Per-row evidence: `findings-alpha3.md`.
 
 The user's direction (2026-09-20): a provider gap that forces a workaround here is a candidate
 **upstream** report, so collect them as they surface and triage the list in one pass rather than
@@ -1022,22 +1048,174 @@ still failing as expected:` followed by the observed failure. So a bare `failed:
 correct gate from a test that never ran — read the skip reason, and for a non-gated change confirm
 execution from the baseline file's mtime.
 
+### A-17 — `LibRed.Ado` 11.0.0-alpha.3 retires most of the workaround set (2026-09-22)
+
+alpha.3 published the same day this branch's first full triage finished, and it moves nearly every surface
+the branch had to work around. The bump is `Directory.Packages.props` alone (`Tests/linq2db.Providers.props`
+carries no version). **Nothing here was taken from the release notes**: each row is a re-measurement against
+the committed containers and, for the schema half, the suite's own populated database — the notes were the
+hypothesis, the probe was the evidence. `findings-alpha3.md` beside this plan is the measured report.
+
+**Reverted, because the behaviour is fixed:**
+
+| Was | Now | What went |
+|---|---|---|
+| `GetSchemaTable`/`IDbColumnSchemaGenerator` unimplemented (row 1) | both work, `AllowDBNull` correct | E-5a `IsDBNullAllowed` override |
+| `GetDataTypeName` returned CLR names (row 3) | returns the store type — `Char`, `VarChar`, `LongText` | the `char`-only registration; `SetCharField("Char", TrimEnd)` now matches the other flavours, so every CHAR-padding gate and the two `padded` flags go |
+| `PRIMARY KEY CLUSTERED` rejected (row 12) | accepted | `BuildCreateTablePrimaryKey` override |
+| trailing `IDENTITY` rejected (row 14) | accepted, and the column really is an identity | `BuildCreateTableFieldType` + `BuildCreateTableIdentityAttribute2` overrides |
+| bare `REFERENCES <table>` rejected (row 4) | resolves to the parent's primary key | D-11 entirely: `Access.sql` and `TestBase.Identity.cs` are back to base |
+| five `CREATE Procedure` shapes rejected (row 5) | all five create; `CommandType.StoredProcedure` executes | D-10's `SKIP` regions and the `AccessProceduresTests` narrowing |
+| `ORDER BY n` inert (row 25), comma-joined and derived-table `UPDATE`/`DELETE` unparseable (rows 15/19), sequential multi-column `SET` (row 24), `DATEADD` as a Double (row 18), date parts as `Int16` (row 21), 64-bit minimum literal (row 27) | all behave as Access does | ~35 `[ActiveIssue]` gates across 13 files, reverted whole-file to base |
+
+**Inverted — the workaround had become a wrong answer:**
+
+- **Row 2, the GUID literal.** On alpha.2 the braced form matched zero rows and the unbraced one matched;
+  on alpha.3 it is **the other way round** (measured `braced=1 unbraced=0`). D-6's override was therefore
+  producing silently empty results, so `LibRedMappingSchema` drops it and inherits the base braced form.
+  The failure shape D-6 existed to prevent had simply changed sides.
+- **A-16's `CStr`.** `CStr(guid)` now renders **braced** (`Len` 38), so `GuidMemberTranslator`'s
+  `LCase(Mid(CStr(g), 2, 36))` is correct again and `AccessLibRedMemberTranslator` (E-6a) is deleted.
+
+**Kept, re-measured and re-stamped to alpha.3:** `CVar` is still a no-op (row 26); an indexed `GUID`
+column still cannot be compared to a string literal (row 20) — the braced form and a literal `INSERT` fail
+too, but the A/B control shows alpha.2 refused those identically, so the scope did not widen;
+`DATETIME` still keeps sub-second precision (row 23);
+`IS TRUE`/`IS FALSE`/`IS DISTINCT FROM` (row 16), `WITH OWNERACCESS OPTION`, `CAST`, `LIKE … ESCAPE`,
+`TOP … WITH TIES`, `VALUES` as a table source and the `{ts}`/`{guid}` escapes (row 7) still do not parse;
+database-qualified names still do not (rows 13/17), so `BuildObjectName` and `NO_DATABASE_NAME` stay; the
+missing-object error shapes are unchanged (row 6), so `AccessDmlService` keeps all three arms.
+
+**alpha.3 also regressed two things, found by running the battery against both versions rather than by
+reading the new failure list.**
+
+- **The reader contradicts itself on a computed column.** For `[x] + [x]` where `x` comes from a `CURRENCY`
+  `SUM`, alpha.2 reported `GetFieldType = Decimal` and returned a `Decimal`; alpha.3 reports `Int32` /
+  `Long` from `GetFieldType` **and** `GetSchemaTable`, and still returns a `Decimal`. A materializer
+  compiled from the declared type — what linq2db does — then throws
+  `Unable to cast object of type 'System.Decimal' to type 'System.Int32'`. Six failures
+  (`AggregatesKeepTheDeclaredUnit`, `Issue1601`), probably ten if `Issue3360`'s GUID byte-array error is the
+  same family. **Nullability was the first hypothesis and it was wrong**: `AllowDBNull` is correct for every
+  expression column, so removing E-5a is not what exposed this.
+- **A text column compared against a numeric literal** — `[S] = 11`, `IN (11, …)`, `NOT IN (11, …)` over a
+  `VARCHAR` — evaluated on alpha.2 and now throws `InvalidCastException: Type mismatch: '<text>' cannot be
+  read as a number`, on any non-numeric text, not merely on an empty string. Four failures
+  (`Issue2608Test`). Ordinary SQL that linq2db emits for every provider, and ACE accepts it.
+
+The GUID-literal flip and the `CStr` brace change are breaking too, but in the corrective direction.
+Both are written up for the upstream author in **`findings.md`** (the file they monitor) rather than filed
+as issues — the user's call, 2026-09-22: collect there, triage and report later. `findings-alpha3.md` §4
+records the *method*, which is what the verdict rests on: the A/B control overturned three claims this
+amendment first made from the failure list alone.
+
+**Row 22 was recorded wrong, and the correction is the sharper finding.** `TestZeroDate` still fails, but
+not because "LibRed reads the Access zero date as `DateTime.MinValue`": raw ADO round-trips 1899-12-30
+through a parameter, a `#…#` literal *and* `DateSerial(1899, 12, 30)` — which is what linq2db actually
+emits. The loss is in the reader: on the same column `GetValue` returns `12/30/1899` and **`GetDateTime`
+returns `01/01/0001`**. The gate is restored with that mechanism, and it is now an upstream report with a
+one-line repro instead of a symptom.
+
+### A-18 — the schema provider moves to `GetSchema`, and D-4 is superseded (2026-09-22)
+
+D-4 chose SQL-over-`[INFORMATION_SCHEMA.*]` because U-4 measured that **no** ADO schema API existed.
+alpha.3 implements 20 collections, so the premise is gone. The user asked for the two sources to be
+compared rather than for the release notes to be trusted; measured side by side on the populated suite
+database, `GetSchema` is a superset on every fact the provider needs except one:
+
+- **Tables** — `INFORMATION_SCHEMA` lists 15 base tables and no views; `GetSchema("Tables")` lists the same
+  15 plus the 4 `MSys*` as `SYSTEM TABLE` and 3 as `VIEW`.
+- **Views** — the whole A-3 apparatus (12 `MSysObjects Type = 5` candidates → a hand-written DAO `Flags`
+  low-byte gate → one `SELECT … WHERE 1 = 0` bind probe each) is replaced by three rows carrying
+  `VIEW_DEFINITION` and `IS_UPDATABLE`. The engine classifies the 6 parameterised selects and 3 action
+  queries as procedures, so the "no mutating stored query is ever executed" property stops being ours to
+  maintain.
+- **View columns** — were a name and a CLR type with nullability forced `true`; now full rows with
+  `TYPE_NAME`, `IS_NULLABLE` and length (`Patient_SelectAll.Diagnosis` → `VarChar(255)`).
+- **Columns** — `TYPE_NAME` (`Long`/`VarChar`/`LongText`/`Char`) instead of the lowercase Access spellings;
+  all 17 names the engine returns were already covered by `AccessSchemaProviderBase.GetDataType` and by
+  this provider's own `_dataTypes` list, which `SchemaProviderBase` looks up `OrdinalIgnoreCase`. Identity
+  arrives as `IS_AUTOINCREMENT` rather than being inferred from `DATA_TYPE = 'counter'`.
+- **Keys** — `PrimaryKeys` and `ForeignKeys` replace the `INDEXES ⋈ INDEX_COLUMNS` join and the
+  `MSysRelationships` read, and the FK rows add `UPDATE_RULE`/`DELETE_RULE` (`CASCADE` reported correctly
+  for `PersonDoctor`/`PersonPatient`).
+- **Procedures** — no source at all before; now 9 procedures with definitions and 18 parameters with type,
+  length and direction. `GetProcedures`/`GetProcedureParameters` are implemented from them, which retires
+  the P10 entry "LibRed reports no procedures" and un-gates both `Issue792Tests`.
+- **The one gap:** `GetSchema("DataTypes")` carries no `CreateFormat`, so the scaffolder could not spell a
+  column type back out. The hand-written `_dataTypes` list therefore stays — re-keyed to the engine's
+  spellings — and `GetDataTypes` remains overridden. Two other shape differences are normalised rather than
+  inherited: a length of `0` is reported for the unbounded types and a precision for every numeric, so both
+  are carried only when the type's `CreateParameters` can spell them (the `AccessOleDbSchemaProvider`
+  idiom), and `SYSTEM TABLE` maps to `IsProviderSpecific`.
+
+**The safety question was measured before the code was written, not after.** `SchemaProviderBase` describes
+each procedure by executing it with `CommandBehavior.SchemaOnly`; on alpha.2 `SchemaOnly` was ignored and
+the statement ran (row 10), which for an action query would mean schema discovery mutating the database.
+Measured on alpha.3: describing `Person_Insert`, `Person_Update`, `Person_Delete` and `AddIssue792Record`
+leaves `Person` at 4 rows and `AllTypes` at 2, and each returns an empty column set, while the select
+queries describe fully **without parameter values**. So `GetProcedureSchemaExecutesProcedure` stays `false`
+— the OLE DB flavour's `KeyInfo` route, which does execute, refuses outright here
+(`Procedure … declares 1 parameter(s) but was executed with 0 argument(s)`). `Issue792Tests.TestWithoutTransaction`
+asserts exactly this property, which is why un-gating it is the verification rather than a side effect.
+
 ### Resuming — open work as of 2026-09-22
 
-1. **Failure triage — done** (A-16). All 119 dispositioned across commits `4e64debe2` and `5926952da`,
-   each category verified by its own filtered run. The only residue is `TestExpressionVisitorHops(10)`,
-   provider-independent and pre-existing on this branch stack. **The post-fix count is not measured**: a
-   full run has not been repeated since, so 119 − 119 is arithmetic, not an observation.
-2. **P13 triage** — now **27 rows**, none filed. Check each against existing EntityFrameworkCore.Jet issues
-   and the unmerged PR #301 before reporting, and confirm the same SQL runs on a Microsoft flavour: that
-   linq2db emits it for Access is not by itself evidence Access accepts it. Then backfill the tracking links
-   into the `[ActiveIssue]` gates, which are deliberately linkless (user's call, 2026-09-22).
-3. **Phase D** (CI leg, E-23..E-25) and **Phase E** (CLI scaffold, E-26..E-31) — not started.
+1. **Failure triage — done** (A-16), then **mostly undone by the alpha.3 bump** (A-17): ~35 of the gates it
+   produced were reverted because the engine now behaves, and the whole-file reverts were taken against the
+   merge base rather than hand-edited. What remains gated is the nine-row residue named in the P13 banner.
+   **The post-bump full run is measured, not arithmetic this time: 15 513 cases, 28 failures, 284 verified
+   skips** (2 h 11 m, both configs, direct + `LinqService`), against A-16's 119 on 15 381. The 28 resolve
+   into: 10 alpha.3 regressions (A-17), 8 defects of this session's own changes — 6 from LibRed binding
+   stored-query parameters **by name** where the Microsoft drivers bind positionally, so three test helpers
+   passing arbitrary names had to be corrected, and 2 from the rewritten schema provider needing a
+   `GetProcedureResultColumns` override (`SchemaProviderBase` reads an `IsIdentity` column that is not an
+   ADO standard name; LibRed carries the standard `IsAutoIncrement`) — 4 needing a re-gate on a changed
+   mechanism, 2 that now *pass* and needed a pre-existing non-LibRed gate narrowed, 1 gRPC transport flake
+   in the `LinqService` harness, and 1 pre-existing provider-independent failure. **All dispositioned and
+   re-verified**: procedures + schema provider + `Issue792` + create-data are **44/44** on both configs, the
+   regressions are gated (and report as verified skips), `Issue2815Test1` passes once its gate is narrowed
+   to `AllNativeAccess`, and `CountTestAsync2` passed on re-run, confirming the gRPC flake. The full run has
+   not been repeated since — the residue is arithmetic again, but every cluster was re-run individually.
+   Three follow-on divergences surfaced while fixing the procedure path, all in the schema provider and all
+   settled by mirroring `AccessOleDbSchemaProvider` rather than the base: the result-column `MemberType`
+   comes from the reader's own `DataType` while `SystemType` goes through `GetSystemType` (the base uses one
+   value for both, which turned `Gender` into `char` where the other flavours report `string`); the
+   `CreateFormat` casing follows the `TypeName` so a scaffolded type reads `VarChar(50)` as OLE DB spells it;
+   and LibRed propagates the base column's nullability into a procedure's result schema where the Microsoft
+   drivers report everything nullable, which is a genuine transport difference and gets a test arm.
+2. **P13 triage** — **14 of the 27 rows are fixed upstream** and must not be reported (P13 banner). The nine
+   that remain, plus the re-scoped row 22, are what to file: check each against existing
+   EntityFrameworkCore.Jet issues before reporting, and confirm the same SQL runs on a Microsoft flavour —
+   that linq2db emits it for Access is not by itself evidence Access accepts it. Then backfill the tracking
+   links into the `[ActiveIssue]` gates, which are deliberately linkless (user's call, 2026-09-22).
+3. **Phase D** (CI leg, E-23..E-25) — **done 2026-09-22**: `Build/Azure/configs/access.libred.json` with its
+   providers under `NET110.Azure` (D-12), the `z_Access_LibRed` Linux-only entry in `test-matrix.yml`, the
+   `linq2db.slnx` registration and both `Build/Azure/README.md` tables. TO-10 (a net10.0 pass of the leg's
+   own config resolving zero LibRed cases) is still unrun. **Phase E** (CLI scaffold, E-26..E-31) — the code
+   half is done (`DatabaseType.AccessLibRed` + its `ScaffoldCommand` arm, the `McpInfoTool` row, the
+   `LegacySchemaProvider` system-table skip, a net11.0-conditional `LibRed.Ado` reference in
+   `LinqToDB.CLI.csproj`); the generated half (E-29/E-30/E-31) is not. Two corrections to E-26/E-28 found
+   while writing it:
+   - **`LinqToDB.CLI` already targets `net10.0;net11.0`**, so the net11.0 asset can load `LibRed.Ado` and the
+     ".NET 11 track" note that the CLI needs a real net11.0 TFM is stale. The net10.0 asset cannot, so the
+     arm is `#if`-guarded with a message rather than left to fail inside the reflection adapter.
+   - **E-28 said the two `LegacySchemaProvider` flavour flags were correct to leave `false` for LibRed. They
+     are not.** `LegacySchemaProvider.cs:360-367` *throws* on a table with `IsProviderSpecific` unless the
+     provider is one of the two Microsoft Access flavours, and the rewritten schema provider reports the four
+     `MSys*` tables that way (A-18) — `GetSchema("Tables")` lists them where `[INFORMATION_SCHEMA.TABLES]`
+     did not. So LibRed joins that condition. Nothing in the main suite covers it; it surfaces only through
+     the CLI.
+   - **D-9's "over the `.accdb`" cannot be taken literally**: the T4 scaffold path
+     (`.build\bin\NuGet\Debug\net462\Database`) holds no `.accdb`, and the two committed LibRed containers
+     are empty until a test run fills them. Point the key at that path's `TestData.mdb` — the same file the
+     OLE DB key uses, which makes the two outputs directly comparable and needs no new artifact.
 4. **TO-2 baselines** — capture now *works* and the mechanism is settled: seed a worktree-local
    `UserDataProviders.json` carrying **only** the TFM bucket and an absolute `BaselinesPath` (per
    `worktree.md`), which leaves `--provider` and every connection string resolving from the tracked
    `DataProviders.json`. Sets were captured for `Access.LibRed.Mdb`, `.Accdb` and `Access.Ace.OleDb`, but
-   **pre-fix**, so they are stale for the GUID tests. The cross-comparison itself is still unrun.
+   **pre-fix**, so they are stale — and the alpha.3 bump moved the GUID literal back to the braced form and
+   removed the `COUNTER`/no-`CLUSTERED` create-table divergences, which shrinks TO-2's expected delta set to
+   parameter names alone. Re-capture before comparing. The cross-comparison itself is still unrun.
 5. **Two Jet flavours unverified locally** — both Jet drivers are 32-bit only and the runner is x64, so
    `Access.Jet.OleDb` / `Access.Jet.Odbc` rest on CI's x86 legs.
 6. **Inherited, not ours**: `dotnet restore Tests/Linq -p:Configuration=Testing` fails `NU1510` on
