@@ -511,6 +511,28 @@ So a new `[DataSources]` test using `Except` / `ExceptAll` / `Intersect` / `Inte
 
 **Sybase is the control that shows the emulation itself isn't the problem** — same false flag, so it emulates identically, but it *does* support correlated subqueries and passes. A set-operation test failing on YDB alone is this gate missing, not a defect in the operation. (Surfaced on #5833: `ExceptBranchProjectingDerivedType` reached CI ungated and failed the YDB leg on both the direct and `LinqService` contexts, while Sybase passed in the same leg.)
 
+### A date range that straddles a daylight-saving transition makes an exact span assertion environment-dependent
+
+A date/time column that stores a wall-clock reading the **server** resolves in its own zone — ClickHouse
+`DateTime` / `DateTime64` / `Date32`, and any other provider whose timestamp type carries a session or server
+timezone — makes the *absolute* distance between two stored readings depend on the zone the server runs in. Pick
+two dates either side of a daylight-saving transition and the span is an hour shorter or longer than the CLR
+computes from the same two `DateTime` values, so an exact `.Ticks` / `.TotalDays` / shifted-date expectation is
+right on a UTC container and wrong on a server in an observing zone.
+
+This is the worst shape of flake: it is green wherever it was written, it never fails twice in the same place,
+and nothing in the test says it depends on the host. **Choose the range, don't discover it** — a window inside
+one transition period is free to pick, and June–August is clear in both hemispheres (northern transitions fall
+in March and October/November, southern in April and September/October). Where a fixture already owns a shared
+origin constant, check that `origin + span` lands in the same window too, not just the two endpoints.
+
+If a range genuinely has to cross one, derive the expectation from the server rather than the CLR, and say in
+the test why.
+
+(Surfaced on [#5959](https://github.com/linq2db/linq2db/pull/5959): three new tests spanned 2026-03-08, a US DST
+transition, over `DataType.DateTime` and `DataType.Date32` columns. All green on the local UTC container; the
+diff review caught them before CI did.)
+
 ### ClickHouse: `CreateLocalTable` needs no engine; ASOF runs on Memory tables
 
 ClickHouse `CREATE TABLE` requires an `ENGINE`, but you don't specify one for `db.CreateLocalTable<T>()` — the builder auto-emits `ENGINE = MergeTree() ORDER BY <pk>` when the mapping has a `[PrimaryKey]`, else `ENGINE = Memory()` (`ClickHouseSqlBuilder.BuildEndCreateTableStatement`; there's a `// TODO` for an engine-config API, so custom engines still need raw SQL). So a keyless test type lands on `Memory()`, which is fine for query tests. `LEFT ASOF JOIN` and `GLOBAL LEFT ASOF JOIN` **execute** against Memory-engine local tables on a single-node container, and `CreateLocalTable` works over the LinqService remote context — so ASOF hint tests can (and should) execute rather than assert on `ToSqlQuery().Sql`. Note bespoke test tables (e.g. `AsofTrade`/`AsofQuote`) are **not** in the ClickHouse test schema (unlike the T4-scaffolded `ReplacingMergeTreeTable`), which is why they need `CreateLocalTable` rather than `GetTable<T>`.
