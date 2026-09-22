@@ -131,6 +131,8 @@ $sqlCeProvLoc  = 'c:\Program Files\Microsoft SQL Server Compact Edition\v4.0\Pri
 # --- File-based connection strings (no docker) --------------------------------------------------
 $accessOdbcCN  = "Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=$databasesPath\TestData.ODBC.mdb;ExtendedAnsiSQL=1"
 $accessOleDbCN = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$databasesPath\TestData.mdb;Locale Identifier=1033;Persist Security Info=True"
+# the managed engine reads the same Microsoft-written file; Data Source is the only keyword it takes
+$accessLibRedCN = "Data Source=$databasesPath\TestData.mdb"
 $sqliteCN      = "Data Source=$databasesPath\TestData.sqlite"
 $sqliteNwCN    = "Data Source=$databasesPath\Northwind.sqlite"
 $sqlceCN       = "Data Source=$databasesPath\TestData.sdf"
@@ -209,6 +211,8 @@ $matrix = @(
     @{ p='Access';          cn=$null;                 key='AccessOdbc';         ns='Access.Odbc';  cs=$accessOdbcCN;  pl=$null;        add=$null         }
     @{ p='Access';          cn=$null;                 key='AccessOleDb';        ns='Access.OleDb'; cs=$accessOleDbCN; pl=$null;        add=$null         }
     @{ p='Access';          cn=$null;                 key='AccessBoth';         ns='Access.Both';  cs=$accessOleDbCN; pl=$null;        add=$accessOdbcCN }
+    # net11.0-only provider, so this row needs a CliDll built for net11.0
+    @{ p='AccessLibRed';    cn=$null;                 key='AccessLibRed';       ns='Access.LibRed';cs=$accessLibRedCN;pl=$null;        add=$null         }
     @{ p='DuckDB';          cn=$null;                 key='DuckDB';             cs=$duckdbCN;      pl=$null;        add=$null         }
     @{ p='DB2';             cn='DB2';                 key='DB2';                cs=$null;          pl=$db2ProvLoc;  add=$null         }
     @{ p='Firebird';        cn='Firebird.5';          key='Firebird';           cs=$null;          pl=$null;        add=$null         }
