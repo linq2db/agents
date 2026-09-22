@@ -107,6 +107,17 @@ When a provider cannot honour an API's documented contract, make the API **throw
 
 Prefer the **broad** throw over the narrow one: on #5643 `UpdateOptimisticWithRefresh`, a no-rowcount `SELECT` fallback mutated the entity yet returned the documented `0`-means-concurrency-failure sentinel, and the verify-by-written-columns fallback was itself unreliable (async ClickHouse mutations read pre-apply). The resolution was to throw `LinqToDBException` — *before* executing any `UPDATE` — whenever the provider supports neither `OUTPUT`/`RETURNING` nor a reliable affected-rows count, deleting the whole best-effort path. Maintainer: *"such databases too broken to use concurrency api — we shouldn't try to do best-effort when it is not guaranteed."*
 
+### Classify a driver exception by type *name*, never by `is` — the remote path re-wraps it
+
+`DmlServiceBase.IsTableNotFoundExceptionCore` and anything else that recognises a driver's error must match with **`TypeOrMessageContains(exception, "SomeException")`**, not `exception is SomeException`. The remote (`LinqService`) transport wraps every exception — `Grpc.Core.RpcException : Status(Detail="System.InvalidOperationException: …")` — so a concrete-type test matches on the direct path and silently fails on the remote one. `TypeOrMessageContains` exists for exactly this, and its sibling `HResultMatches` says so in its own doc comment ("the remote-transport message wrapper").
+
+The failure shape is what makes this expensive: the direct half of the suite is green, so the provider looks fine and the remote failures look like a *remote* defect. On #5956 a `exception is InvalidOperationException` arm accounted for **~1 100 of a first run's 1 440 failures** — 84% — and the direct-context count never moved across the fix. Two corollaries:
+
+- **Run the remote contexts before drawing any conclusion about a new provider.** A triage that starts from the direct failures, or from a run that excludes `.LinqService`, reports a provider in far worse shape than it is.
+- **Exception *type* is not a layer boundary for an embedded engine.** A managed in-process engine raises BCL types from its own code — LibRed throws bare `NotSupportedException` and `InvalidOperationException` — so a BCL exception is not evidence the failure is linq2db's. Read the stack before attributing it. (Same PR: `Cannot UPDATE/DELETE the derived table` was read as linq2db refusing to lower an update; the stack said `LibRed.Engine.Execution.StatementExecutor.TargetTable`.)
+
+The test-side counterpart is already covered — see [`testing.md`](testing.md) → *`[ThrowsForProvider]` covers the `.LinqService` context, and tolerates the remote wrapper*.
+
 ### `IsDependsOnSources` ignore-set doesn't cover field/column refs
 
 `QueryHelper.IsDependsOnSources(expr, onSources, sourcesToIgnore:)` applies `sourcesToIgnore` only on the **direct `ISqlTableSource`-element** match path. The `SqlField` / `SqlColumn` paths — how predicates actually reference tables — check `OnSources.Contains(field.Table)` / `Contains(column.Parent)` **without** consulting `sourcesToIgnore`. So `sourcesToIgnore` does *not* subtract a table a predicate reaches through a field, and `IsDependsOnSources(pred, [t], sourcesToIgnore: [t])` still returns true.
