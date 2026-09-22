@@ -117,6 +117,36 @@ bare `InvalidOperationException` for `DROP TABLE` / `DROP PROCEDURE`, with no `N
   statement with `ExecuteNonQuery`, which never evaluates the projection. A false positive of the probe,
   not a capability.
 
+## A `PARAMETERS` clause Access wrote comes back double-quoted, and then will not parse
+
+Found by diffing the CLI-scaffolded model against the one the OLE DB flavour produces from the *same*
+database, which is the case this provider exists for: a file Microsoft's engine wrote.
+
+`Data/TestData.mdb` (ACE-written) against `TestData.LibRed.mdb` (same queries, written through LibRed):
+
+```
+ACE-written     PARAMETER_NAME = [@firstName]      <- the [ ] quoting is part of the reported name
+                PROCEDURE_DEFINITION = PARAMETERS [[@firstName]] TEXT(50), [[@lastName]] TEXT(50); SELECT ...
+                describe with '@firstName'   -> SqlParseException: token recognition error at: ']'
+                describe with '[@firstName]' -> SqlParseException: token recognition error at: '@['
+LibRed-written  PARAMETER_NAME = @firstName
+                PROCEDURE_DEFINITION = PARAMETERS [@firstName] TEXT(50), [@lastName] TEXT(50); SELECT ...
+                describe with '@firstName'   -> 6 columns
+```
+
+Two consequences, one of which has no client-side remedy:
+
+- the reported parameter name cannot be used to bind — it names a parameter no query declares. A consumer
+  can strip the quoting, and this branch does.
+- the re-emitted definition is **double-quoted and unparseable**, so a parameterised stored SELECT in an
+  ACE-written file cannot be described or executed by any spelling of the name. Scaffolding therefore
+  degrades it from a result-returning query to a non-query: `ExecuteProc` returning `int` where the OLE DB
+  flavour produces `QueryProc<…Result>` with a generated result class.
+
+The declared name really is `@id`, with `[ ]` as Access's identifier quoting — `CREATE Procedure
+Person_SelectByKey([@id] Long)` is what this repo's own create script writes. So the read path appears to
+take the quoted token as the name rather than unquoting it, and the write path then quotes it again.
+
 ## Stored-procedure parameters bind **by name**
 
 New on alpha.3, since procedures could not be created before. `CommandType.StoredProcedure` resolves

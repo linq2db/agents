@@ -1221,6 +1221,23 @@ asserts exactly this property, which is why un-gating it is the verification rat
      provider-specific, and the two models have the same 22 entities. Worth noting for the altitude of the
      obligation set: TO-3's instrument (`SchemaProviderTests`) is green either way, and only generating real
      scaffold output exposed it.
+   - **Diffing the generated model against the OLE DB one exposed a second, larger defect — upstream this
+     time.** For a `PARAMETERS` clause **Access itself wrote**, LibRed reports the `[ ]` quoting as part of
+     the parameter name (`[@firstName]`) and re-emits the definition double-quoted
+     (`PARAMETERS [[@firstName]] TEXT(50)`), which then does not parse: the query cannot be described or
+     executed by any spelling. A query written *through* LibRed round-trips correctly, which is why nothing
+     in the suite sees it — the suite's own database is LibRed-written, and the CLI scaffolds
+     `Data/TestData.mdb`, which ACE wrote. The name is unquoted in `GetProcedureParameters`; the result-set
+     loss has no client-side remedy and the committed output shows it (`ExecuteProc` returning `int` where
+     OLE DB produces `QueryProc<…Result>`). `findings.md` carries the repro.
+   - **Three model differences that are LibRed being more accurate, not defects:** it detects identity
+     (`IsIdentity`/`SkipOnInsert`/`SkipOnUpdate` on `AllTypes.ID` and `DataTypeTest.DataTypeID`) where the
+     OLE DB flavour hard-codes `IsIdentity = false` for #3149; it reports `Binary(10)` where OLE DB
+     coarsens `binary(10)` to `VARBINARY(10)`; and it types a procedure parameter from the declaration
+     (`VarChar(50)`) where OLE DB's regex over the definition yields `Text`/`NText`. One difference goes the
+     other way and is worth watching: `bitDataType` is declared `NULL` in the script and LibRed honours
+     that (`bool?`), while ACE reports it non-nullable (`bool`) because a Yes/No column cannot physically
+     hold NULL — the OLE DB model is the more useful one there.
 4. **TO-2 baselines** — capture now *works* and the mechanism is settled: seed a worktree-local
    `UserDataProviders.json` carrying **only** the TFM bucket and an absolute `BaselinesPath` (per
    `worktree.md`), which leaves `--provider` and every connection string resolving from the tracked
