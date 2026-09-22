@@ -92,6 +92,9 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 
 ### D-3 — `PivotCell` carries an arbitrary aggregate; the five named factories become wrappers
 
+> **Superseded in part by A-13:** the arbitrary aggregate stays and becomes the *only* form — the five wrappers and
+> the static-form overload pair are deleted.
+
 - **chosen:** `PivotCell<TSource,TFor>.Custom<TCell>(Expression<Func<IEnumerable<TSource>, TCell>> aggregate, Func<TFor,string>? name = null)`, desugaring to `aggregate(g.Where(row => forColumn(row) == value))`. `Sum`/`Min`/`Max`/`Avg`/`Count` are kept as wrappers building the same shape, so there is one mechanism and five conveniences. `PivotAggregate` is deleted. **Requires D-5.**
 - **rejected:** keep the enum and add `Custom` beside it (critic round 1's suggested repair) — it avoids all churn and all shared-engine risk, but the new capability then ships with a provider-shaped hole: `Custom` emits an unparseable `FILTER` clause on PostgreSQL < 9.4 while the five named cells work there. Shipping a capability that works on every provider is worth more than avoiding the churn.
 - **rejected:** take the aggregate as `Expression<Func<IEnumerable<TCell>, TResult>>` over the projected values — it cannot express `Count()` over rows, or any aggregate reading more than one column.
@@ -100,6 +103,8 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 - **failure mode of the choice:** U-7's baseline churn is unavoidable, and on PostgreSQL ≥ 9.4 the emitted SQL changes shape. If D-5's gate is wrong, every filtered aggregate on old PostgreSQL is affected, not just pivots.
 
 ### D-4 — The nullability lift survives, and extends to `Custom`
+
+> **Superseded in part by A-13:** the lift survives, but there is now one mechanism (the result lift), not three.
 
 - **chosen:** keep `MakeNullable`; the five wrappers lift the aggregated value to `TCell?` as today, and `Custom` lifts its **result** type when `TCell` is a non-nullable value type.
 - **rejected:** drop the lift because `agg(g.Where(…))` is "the same shape" — U-9 probed this and it is false. The SQL is identical and the *materialization* differs: an empty cell over a non-nullable column reads `0` / `0001-01-01` instead of `null`, because `ConvertFromDataReaderExpression` maps `DBNull` through `GetDefaultValue(type)`.
@@ -333,6 +338,37 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   same query" was an unverified claim; and the differing exception *shape* (wrapped `LinqToDBConvertException` vs.
   raw `ArgumentException`) is linq2db's, not the driver's — the fast→slow mapper fallback at
   `Source/LinqToDB/Internal/Linq/QueryRunner.cs:98` catches `InvalidCastException` but not `ArgumentException`.
+
+- **A-13 (2026-09-22) — D-3's five wrappers and the static-form overload pair are deleted; one factory member is
+  the whole cell API.** Review of the shipped surface (2 public types, 12 members, 4 `Pivot` overloads, 18
+  `PublicAPI.Unshipped.txt` lines) found most of it a verbose alias for the lambda the API generates anyway.
+  Three findings, each independently sufficient:
+  - `Sum`/`Min`/`Max`/`Avg`/`Count` are wrappers over `Custom`, implemented by ~50 lines of reflection
+    (`PivotCell.Named` + `GetAggregate`) that re-derive at runtime what the compiler resolves in
+    `rows => rows.Sum(x => x.Amount)`. `Sum`/`Avg` throw `LinqToDBException` at query-build time for a type
+    `Enumerable.Sum` has no overload for; the lambda form makes that a **compile error**.
+  - D-4's "two independent lift mechanisms" is a consequence of the wrappers, not a requirement. With one
+    mechanism (`Custom`'s result lift) the observable behaviour is unchanged — the branch's own
+    `AnEmptyCellOverANonNullableColumnReadsNull` already pinned the `Custom` arm reading `null` on every
+    `[DataSources]` provider, so the wrapper arm was the redundant one. `Count`'s unlifted special case goes with it
+    (`COUNT` never returns `NULL`, so reading it as `int?` is inert).
+  - The `params PivotCell<TSource,TFor>[]` overload pair is strictly worse than its factory twin: C# cannot infer
+    type arguments from a result used as an argument, so all 19 static-form references in the tests spelled
+    `PivotCell<CategorySales, int>.` by hand, and the form cannot be used at all when `TSource`/`TFor` are anonymous
+    — which the production-shape test needs.
+  What survives is the **erasure carrier**, and only that: multi-cell is the one thing `Pivot` has over
+  `GroupBy` + `SelectDynamic` (which takes a single `valueTemplate`, hence a single `TCell`), and C# cannot put
+  differently-typed generic lambdas in one `params` array. The factory lambda is the idiom that recovers inference
+  across the erasure, so the `params Func<PivotCellFactory<…>, PivotCell<…>>[]` shape is kept verbatim.
+  **Supersedes D-3 and D-4's wrapper half. Amends E-14** (`PivotCell` keeps only an `internal static Cell<TCell>`;
+  no reflection, no `Named`, no `GetAggregate` — the type is public with zero public members), **E-15**
+  (`PivotCellFactory.Cell<TCell>` is the sole public member) and **E-17** (18 lines → 5).
+  Test consequence, audited test-by-test: the tests were never testing the factory members, they are provider
+  coverage for the aggregate vocabulary, so 15 convert mechanically and none is a duplicate.
+  `AnEmptyCellOverANonNullableColumnReadsNull` is the only one that loses content (3 cells → 2, the wrapper arm
+  being an exact duplicate of the `Custom` arm), and `PivotsWithACustomAggregate` → `PivotsWithADistinctCountCell`
+  because "custom" stops being a category. `PivotsAvgCell` is kept deliberately: it is the only carrier of the
+  #5954 Access-Jet exclusion.
 
 ## P12 Critic verdict (M/L)
 
