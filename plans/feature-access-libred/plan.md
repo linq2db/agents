@@ -609,7 +609,44 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   markers, `TestBase.Identity.cs`, `TypeTestsBase`'s name hook, the `AllNativeAccess` narrowings, and the
   `[ActiveIssue(3893)]` re-scoping. It is also what makes the LibRed failure list *interpretable*: every
   cluster left there is LibRed's, because the same tests pass on Access through Microsoft's driver.
-- G-02: — (pending) — baselines (TO-2), reviewed via `baselines-reviewer`, not eyeballed.
+- G-02: — (done, 2026-09-23) — **TO-2 captured and cross-compared.** Both LibRed configurations and
+  `Access.Ace.OleDb` captured over the full suite into an isolated `BaselinesPath` under the worktree's
+  `.build/.agents/` — not the shared `c:\GitHub\linq2db.bls`, which concurrent sessions write to — seeded
+  per `worktree.md` with only the TFM bucket, its `BasedOn` and an absolute path, so `--provider` and every
+  connection string still resolve from the tracked `DataProviders.json`. 3 592 baseline files per LibRed
+  config; the runs were 1 failure each, `TestExpressionVisitorHops(10)`.
+
+  **`Access.LibRed.Mdb` vs `Access.LibRed.Accdb`: 3 592 pairs, 0 differing, 0 unpaired.** D-1's claim that
+  one provider serves both file formats is now measured rather than argued, and it is what validated the
+  comparison tooling before the real comparison ran.
+
+  **`Access.LibRed.Mdb` vs `Access.Ace.OleDb`: 3 569 pairs, 2 393 identical, 1 176 differing, 23/19
+  unpaired.** Every difference falls into three mechanisms, and the unpaired files all trace to a
+  documented decision (the MARS supported/not-supported pair, `CreateDatabase`'s ADOX gate, the
+  `AllNativeAccess` narrowings, the `WITH OWNERACCESS` exclusions, and the tests LibRed now passes).
+
+  The plan's predicted delta set did **not** materialise: parameter *names* are identical (both flavours
+  use the base normalizer), and `DateValue` is identical. What remains is
+  - **≈1 130 — the parameter-type comment in the baseline preamble**, the fourth category TO-2 says is a
+    finding. `DECLARE @ID  -- Int32` against OLE DB's `DECLARE @ID Integer -- Int32`. Mechanism measured,
+    not inferred: both Microsoft flavours **override** `GetProviderTypeName` to read their provider enum
+    (`OleDbParameter.OleDbType` / `OdbcParameter.OdbcType`), while `BasicSqlBuilder`'s base maps only six
+    `DbType` values and returns `null` for the rest — so Int32, Boolean, DateTime, Guid, Int64, Int16,
+    Double, Single and Byte print blank. A-4 declined the override on the grounds that `LibRedParameter`
+    exposes no provider type; re-probed on alpha.3, that is still true (its only type member is `DbType`),
+    so there is nothing to read and no override to write. **Trace-only — it never reaches the database.**
+    Recorded rather than fixed, and A-4's reasoning stands while its stated consequence understated the
+    reach.
+  - **16 — the database-qualified name**, `[Database\TestData].[Issue681Table]` dropped to
+    `[Issue681Table]`. Expected: the `BuildObjectName` override, A-5.
+  - **3 — the GUID literal**, `'{…}'` against OLE DB's `{guid {…}}`. Expected, and OLE DB is the outlier
+    here: that escape comes from its own mapping schema, and LibRed uses the base braced form that A-17
+    restored.
+
+  Not run through `baselines-reviewer`: that agent reads the `linq2db.baselines` clone, and this capture
+  is a local isolated directory, so the comparison was done with a purpose-built script instead
+  (`.build/.agents/compare-baselines.ps1`, pairs by test identity, drops the per-statement provider header,
+  buckets by the shape of the first differing line).
 - G-03: — (done) — `PublicAPI.Unshipped.txt` carries every new public type and member (E-13), hand-written
   per the no-local-RS0016-check rule; XML docs on `AccessProvider.LibRed` and `ProviderName.AccessLibRed`.
 - G-04: — (done) — no `CompatibilitySuppressions.xml` in the diff.
@@ -1238,7 +1275,8 @@ asserts exactly this property, which is why un-gating it is the verification rat
      other way and is worth watching: `bitDataType` is declared `NULL` in the script and LibRed honours
      that (`bool?`), while ACE reports it non-nullable (`bool`) because a Yes/No column cannot physically
      hold NULL — the OLE DB model is the more useful one there.
-4. **TO-2 baselines** — capture now *works* and the mechanism is settled: seed a worktree-local
+4. **TO-2 baselines — done 2026-09-23**, see G-02 for the result. What follows is the mechanism, kept
+   because it is what made the capture work: seed a worktree-local
    `UserDataProviders.json` carrying **only** the TFM bucket and an absolute `BaselinesPath` (per
    `worktree.md`), which leaves `--provider` and every connection string resolving from the tracked
    `DataProviders.json`. Sets were captured for `Access.LibRed.Mdb`, `.Accdb` and `Access.Ace.OleDb`, but
