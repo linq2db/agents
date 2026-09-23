@@ -115,10 +115,12 @@ The Bash tool is Git Bash (POSIX sh), **not** PowerShell — a PowerShell here-s
 `git fetch origin <headRefName>:refs/remotes/origin/<headRefName>` is fragile — when the head ref isn't tracked by the local remote's fetch refspec (fork PRs, pruned branches, stale refs), the fetch exits 0 but creates no usable ref, and a later `git diff origin/master...origin/<headRefName>` dies with "ambiguous argument". Instead:
 
 ```
-git fetch origin refs/pull/<n>/head:refs/remotes/origin/pr/<n>
+git fetch origin +refs/pull/<n>/head:refs/remotes/origin/pr/<n>
 ```
 
 Then diff/log against `origin/pr/<n>` — works for any PR (upstream branch, fork, closed, whatever), never collides with local branch names, and the `pr/<n>` namespace is self-documenting.
+
+**Keep the leading `+`.** Without it a force-pushed or rebased PR head is rejected as `! [rejected] … (non-fast-forward)`, the old `origin/pr/<n>` stays in place, and every later read silently sees the stale branch. In a multi-refspec fetch the other refs still update, so the one rejection is easy to miss. (#5959)
 
 **When you *do* need the branch itself, spell the source side `refs/heads/<branch>` — a bare slashed branch name deletes the destination.** The failure above is a fetch that creates nothing; this one is worse, because it *destroys* something. A branch named `issue/5814-projectflags-condition-analyzer` does not resolve as a source in `git fetch origin <src>:<dst>` — git reads the source as empty and takes the refspec as a **delete** of `<dst>`, printing `- [deleted] (none) -> origin/issue/5814-…` and exiting 0. If a remote-tracking ref was already there, it is now gone, and the next `git grep origin/issue/…` fails with `unable to resolve revision` in a way that looks like the branch never existed. The working form is:
 
