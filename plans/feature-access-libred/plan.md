@@ -1227,6 +1227,23 @@ LibRed works exactly when the LINQPad *query runtime* is .NET 11+.
 - **Unverified:** LibRed end-to-end in LINQPad on a .NET 11 query (Windows and macOS). No LINQPad test
   project exists; test builds go to the local feed (`6.6.0-local.1`–`.3`).
 
+### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
+
+- **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
+  `d9cdaf998`; master (#5950, #5962) merged through all three. Still blocked on .NET 11 RTM.
+- **LINQPad — done** (A-19). Test builds `6.6.0-local.1`–`.3` on the local feed; `.3` not yet exercised.
+- **The Linux leg had never passed.** Run 35801786703 (`c44d367bb`): all 14 154 `z_Access_LibRed` cases
+  failed with `FileNotFoundException` — `DataProviders.json` wrote the LibRed paths with `\`, not a separator
+  on Linux; every earlier run was on Windows. `3b6b73ba7` switches the four strings to `/` (Windows re-check:
+  `AccessTests`, 103 cases, 0 failed) and adds the two LibRed `.Data` files to `CopyDatabases`' parallel-run
+  list. **Verification is run 35887295789** (`surface='[all]'`), in flight at session end — read its
+  `z_Access_LibRed` and `b_ClickHouse` legs before anything else.
+- **TO-2 is done** (item 4 below says "cross-comparison unrun" — stale; see the PR body's *TO-2* section).
+- **Next session: stage 4, LibRed's extended SQL dialect** (window functions, `APPLY`, `FULL JOIN`,
+  `OFFSET`/`FETCH`, `INTERSECT`/`EXCEPT`, `CASE` — P3 *No extended dialect*), a child PR on this branch. The
+  user will scope it at the start of that session; don't plan it from this file.
+- Still open from below: P13 triage/filing (item 2), Jet flavours on x86 CI only (item 5).
+
 ### Resuming — open work as of 2026-09-22
 
 1. **Failure triage — done** (A-16), then **mostly undone by the alpha.3 bump** (A-17): ~35 of the gates it
