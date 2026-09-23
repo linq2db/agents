@@ -7,11 +7,12 @@ Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, bas
 
 ## Resuming (2026-09-24)
 
-**Where things are.** Worktree `C:\Worktrees\linq2db\access-libred-dialect`, branch `feature/access-libred-dialect`
-(upstream unset on purpose — never push to `feature/access-libred`). **Nothing on the linq2db branch is committed or
-pushed**; ~125 files are dirty. Corpus: this plan's first version is commit `09ebf10` in the worktree's `.claude/`
-(a manual clone on `master`, not pushed); every later edit to this plan and to `feature-access-libred/findings.md`
-(R13, R14) is uncommitted. Local runs use `Access.LibRed.Mdb` only (user: both configs on CI only).
+**Where things are.** Draft PR **#5969** (base `feature/access-libred`, milestone `6.x`), branch
+`feature/access-libred-dialect` pushed with its own upstream — two commits, `02960914f` (provider) and `60f299542`
+(tests). The worktree was removed at session end; recreate with `git worktree add
+C:/Worktrees/linq2db/access-libred-dialect origin/feature/access-libred-dialect` (then bootstrap `.claude/` by
+`git clone --reference`, as the post-checkout hook does not fire from this primary clone) — cold `Tests/Linq`
+net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both configs on CI only).
 
 **Measured trajectory** (full `Access.LibRed.Mdb` suite, net11.0 Debug build of `Tests/Linq`): 1227 → 340 → 109 → 36 →
 2 (run 5) → 10 (run 6). Run 5's two: `TestExpressionVisitorHops(10)` (provider-independent, pre-existing) and
