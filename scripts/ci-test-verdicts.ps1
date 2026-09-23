@@ -31,6 +31,13 @@ neither, still mismatches its signature and must not be read as an ordinary regr
 
 Anything else on a `failed` line is an ordinary `failure`.
 
+A leg can also go red with no failing case at all: the test host itself fails after the tests ran,
+and every case line reads as a holding gate. The per-case parse is blind to that, so each
+`Test run summary: Failed!` block is checked too — when its `failed:` count exceeds the leg's parsed
+non-holding cases, one `host-failure` row is emitted carrying the first `##[error][Failed] …` line.
+`details` is prefixed `x86-oom:` when that line is NUnit's `OutOfMemoryException` in result
+serialization, the known intermittent 32-bit address-space failure — not PR-introduced.
+
 Getting the logs
 ----------------
 Azure : .claude/scripts/azp-build-failures.ps1 -BuildId <n>   (persists to .build/.agents/azp-<n>/)
@@ -98,7 +105,7 @@ param(
     # Only these test methods (exact name, no arguments).
     [string[]] $Test,
     # Only these verdicts.
-    [ValidateSet('gate-too-wide', 'signature-mismatch', 'gate-collision', 'gate-holds', 'failure')]
+    [ValidateSet('gate-too-wide', 'signature-mismatch', 'gate-collision', 'gate-holds', 'failure', 'host-failure')]
     [string[]] $Verdict,
     [ValidateSet('json', 'table')][string] $Format = 'json',
     [string] $WriteDir
@@ -133,8 +140,24 @@ foreach ($d in $Dir) {
         $leg   = $file.BaseName -replace '^tests-', ''
         $lines = [System.IO.File]::ReadAllLines($file.FullName)
 
+        $legStart       = $rows.Count
+        $summaryFailed  = 0
+        $failedAssembly = @()
+        $hostError      = ''
+
         for ($i = 0; $i -lt $lines.Length; $i++) {
             $line = Clear-Decoration $lines[$i]
+
+            if ($line -match '^Test run summary: (?:Failed|Aborted)!\s*-\s*(.+)$') {
+                $failedAssembly += $Matches[1].Trim()
+                for ($j = $i + 1; $j -lt [Math]::Min($i + 8, $lines.Length); $j++) {
+                    if ((Clear-Decoration $lines[$j]) -match '^\s*failed:\s*(\d+)') { $summaryFailed += [int]$Matches[1]; break }
+                }
+                continue
+            }
+
+            if (-not $hostError -and $line -match '^##\[error\]\[Failed\]\s*(.+)$') { $hostError = $Matches[1].Trim(); continue }
+
             if ($line -notmatch $caseRx) { continue }
 
             $outcome  = $Matches[1]
@@ -201,6 +224,27 @@ foreach ($d in $Dir) {
                 actual       = $actual
                 details      = $details
             })
+        }
+
+        if ($summaryFailed -gt 0 -and -not $Test) {
+            $parsed = @($rows | Select-Object -Skip $legStart | Where-Object verdict -ne 'gate-holds' |
+                Sort-Object test, args, provider -Unique).Count
+
+            if ($summaryFailed -gt $parsed) {
+                $tag = if ($hostError -match 'OutOfMemoryException' -and $hostError -match 'NUnit\.Engine') { 'x86-oom: ' } else { '' }
+
+                $rows.Add([pscustomobject]@{
+                    verdict      = 'host-failure'
+                    test         = '(test host)'
+                    args         = ''
+                    provider     = ''
+                    leg          = $leg
+                    expectedType = ''
+                    expected     = ''
+                    actual       = $hostError
+                    details      = "${tag}summary failed: $summaryFailed, parsed non-holding cases: $parsed; $($failedAssembly -join '; ')"
+                })
+            }
         }
     }
 }
