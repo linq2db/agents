@@ -18,7 +18,8 @@ uses N+1 (the feed's read endpoints list prerelease only with semVerLevel=2.0.0)
 
 Params:
   -FeedUrl <url>      (required) push target, e.g. https://host/nuget/nuget/
-  -RepoRoot <path>    repo / worktree root to build from (default: current directory)
+  -RepoRoot <path>    repo / worktree root to build from (default: current directory); packs run with
+                      it as cwd, because the SDK is chosen by the global.json nearest the cwd
   -Version <ver>      base version (default: <Version> from <RepoRoot>/Directory.Build.props)
   -LocalSuffix <n>    force the -local.<n> suffix (default: max-on-feed + 1)
   -OutDir <path>      nupkg output dir (default: <RepoRoot>/.build/.agents/linqpad-nuget)
@@ -98,11 +99,17 @@ Get-ChildItem $OutDir -Filter "*.nupkg" -ErrorAction SilentlyContinue | Remove-I
 $packArgs = @('-c', 'Release', "-p:PackageVersion=$pkgVersion", '-o', $OutDir, '--nologo', '-v', 'q')
 if ($NoBuild) { $packArgs += '--no-build' }
 
-foreach ($id in $projects.Keys) {
-    $proj = Join-Path $RepoRoot $projects[$id]
-    [Console]::Error.WriteLine("pack $id")
-    [Console]::Error.WriteLine((& dotnet pack $proj @packArgs 2>&1 | Out-String))
-    if ($LASTEXITCODE -ne 0) { Exit-WithError "pack failed for $id ($proj)" }
+Push-Location $RepoRoot
+try {
+    foreach ($id in $projects.Keys) {
+        $proj = Join-Path $RepoRoot $projects[$id]
+        [Console]::Error.WriteLine("pack $id")
+        [Console]::Error.WriteLine((& dotnet pack $proj @packArgs 2>&1 | Out-String))
+        if ($LASTEXITCODE -ne 0) { Exit-WithError "pack failed for $id ($proj)" }
+    }
+}
+finally {
+    Pop-Location
 }
 
 # --- push -------------------------------------------------------------------
