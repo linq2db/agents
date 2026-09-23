@@ -1209,17 +1209,23 @@ LibRed works exactly when the LINQPad *query runtime* is .NET 11+.
 
 - Access's `IsPlatformSupported` is now `true`; off Windows OLE DB and ODBC are `IsHidden` (existing
   connections still load) and LibRed is `IsDefault`. LibRed is absent from the net472 lpx build.
-- `ProviderInfo.ProvisionOnlyWhenSelected` keeps `LibRed.Ado` out of the fan-out that
-  `OverrideDriverDependencies` uses when the connection's client is unknown — otherwise every new connection
-  and every database-less static context would provision a net11.0-only package into a .NET 10 query runtime.
-  The known-database static path skips it too; a static context that uses LibRed references `LibRed.Ado`
-  itself and loads it from its own folder, which the driver already requires of every static context.
-- `GetProviderByConnectionString`: OLE DB marker → OLE DB; `Driver=` / `Dsn=` → ODBC; otherwise LibRed
-  (its strings are a bare `Data Source=<file>`). The old `[isOleDb ? 0 : 1]` index is replaced by a lookup.
+- **Revised after the first test build (`a9cfd6787`, `f05176b05`).** The first cut auto-detected the provider
+  from the connection string (bare `Data Source=` → LibRed) and kept `LibRed.Ado` out of the fallback with a
+  `ProvisionOnlyWhenSelected` flag. On a .NET 10 query that auto-selected LibRed and prompted for a restore
+  that cannot succeed. Final shape:
+  - Access shows the provider selector like every other multi-provider database — no auto-detection at all.
+    OLE DB is the default on Windows, LibRed elsewhere.
+  - `ProviderInfo.MinimumRuntime = 11` on LibRed; `OverrideDriverDependencies` parses
+    `DriverDependencyInfo.FrameworkVersion` (a string, format undocumented — leading number, else this
+    process's runtime) and never provisions a client above it, on every path. A LibRed connection on an older
+    query runtime fails in `AccessProvider.GetDataProvider` with the troubleshoot text.
+  - The merged OLE DB + ODBC schema is two explicit entries (`ProviderInfo.SecondaryName`), one per query
+    direction, so no saved connection changes which provider runs its queries; only they show a second
+    connection string. Stored settings are unchanged.
 - `ClearAllPools` is a no-op for LibRed (only a per-connection `ClearPool` exists); `GetLastSchemaUpdate`
   stays OLE DB-only.
-- **Unverified:** whether LINQPad lets a query run on a .NET 11 preview runtime, and LibRed end-to-end in
-  LINQPad on Windows and macOS. No LINQPad test project exists; this is a manual release-test-matrix check.
+- **Unverified:** LibRed end-to-end in LINQPad on a .NET 11 query (Windows and macOS). No LINQPad test
+  project exists; test builds go to the local feed (`6.6.0-local.1`–`.3`).
 
 ### Resuming — open work as of 2026-09-22
 
