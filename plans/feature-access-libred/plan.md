@@ -73,8 +73,8 @@ read 24/24 tables.
   That is a fourth branch with its own baselines churn.
 - **No `PackageReference` to `LibRed.*` in `Source/LinqToDB`.** The adapter is reflection-loaded like
   every other dynamic provider adapter. `Tests/Linq` gets a `net11.0`-conditional reference.
-- **No LINQPad work.** The driver targets `net472;net8.0-windows7.0`; a net11.0-only dependency cannot
-  load in it. `Source/LinqToDB.LINQPad/**` is not an edit-point.
+- ~~**No LINQPad work.**~~ Superseded by A-19: the driver now targets `net10.0-windows7.0` (#5942), and
+  LibRed is exposed through it by reflection, with no compile-time reference.
 - **No `CompatibilitySuppressions.xml` regeneration** — a release task, never a feature PR
   (`definition-of-done.md:14`). `PublicAPI.Unshipped.txt` entries **are** required (`:13`).
 - **No reshaping of cross-cutting core** — SQL AST, `IDataProvider`, translator interfaces. Every
@@ -162,7 +162,7 @@ the superseded reasoning stays readable; the paragraph immediately following is 
   `SetParameter:142`, `SetParameterType:174/209`) plus `AccessProviderDetector:118-124` and the 4-arm
   `MappingSchemaInstance.Get` switch. P6 converts each to a three-way switch; P7 carries them as rows.
   `LinqToDB.LINQPad/DatabaseProviders/AccessProvider.cs:96-105` indexes `_providers[isOleDb ? 0 : 1]`,
-  which is why LINQPad stays an anti-goal rather than a silent edit.
+  which is why LINQPad stays an anti-goal rather than a silent edit. *(Superseded by A-19.)*
 
 ### D-2 — The adapter is reflection-loaded, like every other dynamic provider adapter
 
@@ -521,6 +521,8 @@ the superseded reasoning stays readable; the paragraph immediately following is 
 - E-30 `Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata,T4}/AccessLibRed/**` (**new generated output**).
 - E-31 `.claude/scripts/release-test-cli-scaffold.ps1:115,132-137,206-235` — matrix row, connection-string
   variable, `$expectedDbs` entry. *(corpus edit — committed to the agents repo, not the linq2db branch)*
+- E-32 `Source/LinqToDB.LINQPad/DatabaseProviders/{AccessProvider,ProviderInfo,DatabaseProviders}.cs`,
+  `LinqToDB.LINQPad.csproj` (`GenerateNuGetPackageVersions`), `README.md` — A-19.
 
 ## P7 Impact map (M/L)
 
@@ -546,7 +548,7 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - `Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Execute.cs:319-372` — the `case ProviderName.Access:` block sniffs Jet, guards 32-bit Jet, decides `isOleDb`, and **requires** primary/secondary to use different transports at `:347-354` — covered by E-26
 - `Source/LinqToDB.CLI/CommandLine/Commands/Mcp/McpInfoTool.cs:44` — a hard-coded six-name literal array, not prefix-tolerant — covered by E-27
 - `Source/LinqToDB.CLI/CommandLine/Commands/Connection/ProviderDialectCatalog.cs:26,32-36` — prefix-tolerant `IsProvider(name, "Access")`, so `Access.*.LibRed` already maps to "Microsoft Access SQL" — out-of-scope
-- `Source/LinqToDB.LINQPad/DatabaseProviders/AccessProvider.cs:17-21,96-105,107-113` — a two-element `_providers` list indexed as `[isOleDb ? 0 : 1]` plus a binary `GetProviderFactory`; a third entry here would break the index arithmetic — out-of-scope: P3 excludes LINQPad (a net11.0-only dependency cannot load in a `net472;net8.0-windows7.0` host) and untouched code cannot break
+- `Source/LinqToDB.LINQPad/DatabaseProviders/AccessProvider.cs:17-21,96-105,107-113` — a two-element `_providers` list indexed as `[isOleDb ? 0 : 1]` plus a binary `GetProviderFactory`; a third entry here would break the index arithmetic — covered by E-32 (A-19): lookup by name replaces the index
 - `Source/LinqToDB.EntityFrameworkCore/LinqToDBForEFToolsImplDefault.cs:254,276,299` — maps EntityFrameworkCore.Jet's types to the `ProviderName.Access` **alias**, so the EF bridge keeps resolving through the detector — out-of-scope
 - `Source/LinqToDB/PublicAPI/PublicAPI.Shipped.txt:656-659,662-665,8947-8952` — `AccessProvider` members carry explicit values (`AutoDetect = 0`, `OleDb = 1`, `ODBC = 2`), so appending `LibRed = 3` adds one line and rewrites none; the four per-TFM files carry one Access line each (`AccessOptions.<Clone>$()`), so nothing TFM-conditional is added — covered by E-13
 - `Build/Azure/pipelines/templates/test-matrix.yml:17,38,176-177,372-488` — four Access legs, three `x86: true`; `.github/workflows/tests.yml:181-208` derives its matrix from this file and gates x86 jobs on `e.get('x86') is True`, so a non-x86 Access leg is already expressible — covered by E-24
@@ -1196,6 +1198,28 @@ queries describe fully **without parameter values**. So `GetProcedureSchemaExecu
 — the OLE DB flavour's `KeyInfo` route, which does execute, refuses outright here
 (`Procedure … declares 1 parameter(s) but was executed with 0 argument(s)`). `Issue792Tests.TestWithoutTransaction`
 asserts exactly this property, which is why un-gating it is the verification rather than a side effect.
+
+### A-19 — LibRed is exposed in the LINQPad driver, and Access becomes cross-platform there (2026-09-23, user request)
+
+P3's LINQPad anti-goal rested on the driver being `net8.0-windows7.0`; #5942 moved it to
+`net10.0-windows7.0`. The driver still cannot *reference* `LibRed.Ado` (net11.0-only), and does not need to:
+linq2db's adapter is reflection-loaded (D-2), and the driver reaches `LibRedFactory.Instance` (a public
+static readonly field, measured on alpha.3) through `LibRedProviderAdapter.ConnectionType.Assembly`. So
+LibRed works exactly when the LINQPad *query runtime* is .NET 11+.
+
+- Access's `IsPlatformSupported` is now `true`; off Windows OLE DB and ODBC are `IsHidden` (existing
+  connections still load) and LibRed is `IsDefault`. LibRed is absent from the net472 lpx build.
+- `ProviderInfo.ProvisionOnlyWhenSelected` keeps `LibRed.Ado` out of the fan-out that
+  `OverrideDriverDependencies` uses when the connection's client is unknown — otherwise every new connection
+  and every database-less static context would provision a net11.0-only package into a .NET 10 query runtime.
+  The known-database static path skips it too; a static context that uses LibRed references `LibRed.Ado`
+  itself and loads it from its own folder, which the driver already requires of every static context.
+- `GetProviderByConnectionString`: OLE DB marker → OLE DB; `Driver=` / `Dsn=` → ODBC; otherwise LibRed
+  (its strings are a bare `Data Source=<file>`). The old `[isOleDb ? 0 : 1]` index is replaced by a lookup.
+- `ClearAllPools` is a no-op for LibRed (only a per-connection `ClearPool` exists); `GetLastSchemaUpdate`
+  stays OLE DB-only.
+- **Unverified:** whether LINQPad lets a query run on a .NET 11 preview runtime, and LibRed end-to-end in
+  LINQPad on Windows and macOS. No LINQPad test project exists; this is a manual release-test-matrix check.
 
 ### Resuming — open work as of 2026-09-22
 
