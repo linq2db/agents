@@ -5,6 +5,45 @@
 
 Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, base `feature/access-libred`, milestone `6.x`.
 
+## Resuming (2026-09-24)
+
+**Where things are.** Worktree `C:\Worktrees\linq2db\access-libred-dialect`, branch `feature/access-libred-dialect`
+(upstream unset on purpose — never push to `feature/access-libred`). **Nothing on the linq2db branch is committed or
+pushed**; ~125 files are dirty. Corpus: this plan's first version is commit `09ebf10` in the worktree's `.claude/`
+(a manual clone on `master`, not pushed); every later edit to this plan and to `feature-access-libred/findings.md`
+(R13, R14) is uncommitted. Local runs use `Access.LibRed.Mdb` only (user: both configs on CI only).
+
+**Measured trajectory** (full `Access.LibRed.Mdb` suite, net11.0 Debug build of `Tests/Linq`): 1227 → 340 → 109 → 36 →
+2 (run 5) → 10 (run 6). Run 5's two: `TestExpressionVisitorHops(10)` (provider-independent, pre-existing) and
+`LeftJoinSubqueryDoNotOptimize` (LinqService only, red in every run — not investigated).
+
+**Open — in order:**
+1. **Boolean sort keys (A-1/A-4) are half-done.** Probe proved the critic right: with the render-time rewrite, native
+   `Access.Ace.OleDb` fails `DistinctTests.DistinctOrderByBoolean` with *"ORDER BY clause (IIf([t].[BoolValue]=-1,1,0))
+   conflicts with DISTINCT"*. The relocated pre-`base.Finalize` pass (`AccessBooleanSortKeyLoweringVisitor`) does
+   **not** fix it — DISTINCT and ORDER BY already sit on one `SelectQuery` there, so a derived key under DISTINCT still
+   needs a wrap-in-subquery (or must be left alone) — and it **regressed** the window keys (run 6: `Issue2842Test1`,
+   `Issue5123Test`, `PercentileDiscWithBooleanOrderBy`, `RowNumberWithBooleanComputedValues`, all ×2): window
+   `ORDER BY`/`WITHIN GROUP` items are not reached before optimization. Next: put the window-item rewrite back in the
+   convert visitor (no select-list constraint there — the code removed in A-4 is in this conversation's history and
+   in `.build/.agents/probe-old-sortkey.ps1`), and decide the DISTINCT case in the pre-pass: wrap the query, or skip a
+   key that is not already in the DISTINCT projection. Re-run the two new `DistinctTests` on OleDb + LibRed.
+2. **Native control never completed.** `Access.Ace.OleDb` full suite crashed twice with `0xC0000005` inside
+   `ICommandText.Execute`, at ~2120 results both times (logs `.build/.agents/oledb-e5.log`, `oledb-e6.log`); the
+   faulting statement is not logged. Establish whether the base branch crashes at the same point (build the base in a
+   second worktree, or bisect the shared-file edits) before calling it the #5956 driver flake.
+3. **CASE for conditions (A-4)**: in run 6; the three `Sum*SubqueryEmpty` R13 gates did **not** fail as "passed but
+   gated", so check whether they still fail as gated or pass — then drop or keep the gates.
+4. **Critic round 3** on A-4 once 1–3 are measured (one round, `plan-critic` on fable — config says opus = author).
+5. Then: Release build `Source/LinqToDB -c Release -f net10.0` and `-f netstandard2.0` (G-05, analyzers, XML docs);
+   `/api-baselines` is a release task (memory) — PublicAPI.Unshipped already hand-listed (91 entries); commit in
+   logical chunks per user preference; push; draft PR on `feature/access-libred`; CI both LibRed configs
+   (`gh workflow run tests.yml --ref feature/access-libred-dialect -f surface='[access.all]'`).
+
+**Scripts** (all under `.build/.agents/`): `libred-narrow-exclusions.ps1` (E-1, applied), `libred-reexclude.ps1`
+(`File.cs:Method` specs, `-Token`), `libred-add-throws.ps1`, `trx-buckets.ps1`, `trx-reasons.ps1`,
+`libred-access-census.ps1`, `probe-old-sortkey.ps1` (`-Restore` already run).
+
 ## P1 Problem
 
 #5956 ships LibRed (`Access.LibRed`, configs `Access.LibRed.Mdb` / `Access.LibRed.Accdb`) as a third
@@ -42,7 +81,9 @@ Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, bas
 - No public API outside `LinqToDB.Internal.*`.
 - Not in scope: CTE, MERGE, OUTPUT/RETURNING, CAST, IS DISTINCT FROM, LATERAL, INTERSECT/EXCEPT ALL, ROLLUP,
   NULLS FIRST/LAST, LIKE ESCAPE, UPDATE…FROM — LibRed's grammar has none of them.
-- Provider-specific Access tests (`[IncludeDataSources]` naming Access) are not retargeted.
+- Provider-specific Access tests (`[IncludeDataSources]` naming Access) are not retargeted — except where the test
+  asserts a Jet limit LibRed lifts by design (A-3: the two second-resolution tests in
+  `IntervalTranslationTests.Difference.cs`, narrowed to `AllNativeAccess`).
 
 ## P4 Unknowns (M/L)
 
@@ -119,9 +160,9 @@ Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, bas
 
 ## P6 Edit-points
 
-- E-1 `Tests/**/*.cs` (exclusion-form sites, per D-1) — `AllAccess` → `AllNativeAccess`, by script `.build/.agents/libred-narrow-exclusions.ps1`
+- E-1 `Tests/*` (exclusion-form `.cs` sites, per D-1) — `AllAccess` → `AllNativeAccess`, by script `.build/.agents/libred-narrow-exclusions.ps1`
 - E-2 `Tests/Base/Attributes/FeatureSources/MergeDataContextSourceAttribute.cs`, `SupportsAnalyticFunctionsContextAttribute.cs` — same narrowing (the E-1 script). `SupportsDateTimeOffsetContextAttribute` is **not** narrowed: `AccessDataProvider.cs:158-159` strips the offset for every flavour, so it is not a dialect exclusion
-- E-3 `Tests/**/*.cs` — re-add `TestProvName.AllAccessLibRed` (D-2) / `[ActiveIssue]` on `AllAccessLibRed` / per-flavour `ThrowsForProvider`, per triage; and, decided up front, the assertion-skipping `IsAnyOf(AllAccess)` sites `ConvertExpressionTests.cs:399,442` and `WhereTests.cs:1483-1490` narrow to `AllNativeAccess` so LibRed runs the assertions (a skip there can never surface as a failure)
+- E-3 `Tests/*` — re-add `TestProvName.AllAccessLibRed` (D-2) / `[ActiveIssue]` on `AllAccessLibRed` / per-flavour `ThrowsForProvider`, per triage; and, decided up front, the assertion-skipping `IsAnyOf(AllAccess)` sites `ConvertExpressionTests.cs:399,442` and `WhereTests.cs:1483-1490` narrow to `AllNativeAccess` so LibRed runs the assertions (a skip there can never surface as a failure)
 - E-4 `Tests/Base/TestProvName.cs:WithApplyJoin,WithWindowFunctions` and `Tests/Base/Attributes/FeatureSources/AllJoinsSourceAttribute.cs` — add `AllAccessLibRed` once the feature is on
 - E-5 `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs:.ctor,CreateMemberTranslator` — LibRed flag arm; optimizer + member-translator selection by `Provider`
 - E-6 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSqlBuilder.cs` — paging (D-4), native CASE, join rendering, `IsValuesSyntaxSupported`, set operators, as the flags require
@@ -133,6 +174,13 @@ Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, bas
 - E-12 `.claude/plans/feature-access-libred/findings.md` — new LibRed defects found in advertised features
 - E-13 `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlBuilderBase.cs:BuildSqlCaseExpression,BuildSqlConditionExpression` — a `protected virtual bool` toggle (native default = IIF) so `AccessLibRedSqlBuilder` falls through to the `BasicSqlBuilder` CASE bodies (`BasicSqlBuilder.cs:3997-4027,4046-4082`) instead of duplicating them
 - E-14 `Source/LinqToDB/Sql/WindowFunctions.FeatureMatrix.md:23` — Access row split: LibRed supports window functions
+- E-15 `Source/LinqToDB/Sql/Sql.cs:Reverse` — LibRed `StrReverse` mapping (A-2)
+- E-16 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSqlExpressionConvertVisitor.cs` (new) — LibRed convert visitor (A-2, A-3)
+- E-17 `Source/LinqToDB/Sql/Sql.DateTime.cs:DateDiffBuilderAccessLibRed` — LibRed `DateDiff` builder + registration (A-3)
+- E-17b `Source/LinqToDB/Sql/Sql.DateOnly.cs:DateDiff` — registration (A-3)
+- E-17c `Source/LinqToDB/Sql/Sql.DateTimeOffset.cs:DateDiff` — registration (A-3)
+- E-18 `Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs:MathMemberTranslator.Power` — power helper (A-3)
+- E-19 `Source/LinqToDB/Internal/DataProvider/Access/AccessBooleanSortKeyLoweringVisitor.cs` (new, internal) — pre-optimization boolean sort-key lowering (A-4)
 
 ## P7 Impact map (M/L)
 
@@ -195,7 +243,72 @@ _None yet._
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-09-23, user: "b, but here") — boolean sort keys. Jet/ACE stores True as -1, so a boolean `ORDER BY` /
+  window `ORDER BY` / `WITHIN GROUP` key sorts True first, reversing CLR order; surfaced by the window-function
+  tests (`RankOverPredicate`-style `Issue2842Test1`, `RowNumberWithBoolean*`, `Issue5123Test`,
+  `PercentileDiscWithBooleanOrderBy`). The shared precedent (`SqlExpressionConvertVisitor.VisitSqlOrderByItem` /
+  `VisitSqlWindowOrderItem` → `WrapBooleanExpression`) wraps predicates only when `SupportsBooleanType` is false
+  and re-emits `true`/`false`, which Access renders as -1/0 again, and never wraps fields. Fix: E-10 in the
+  **shared** `AccessSqlExpressionConvertVisitor` (all five flavours) — non-constant bool keys become
+  `IIF(p, 1, 0)` / nullable `IIF(p, 1, IIF(NOT p, 0, NULL))`; positioned items untouched. **SC-3 changes:** native
+  Access baselines move for boolean sort keys (expected, the only native delta); TO-10 compares everything else
+  byte-identical and lists that delta. Approval for E-10's widened scope: user, this turn.
+- A-2 (2026-09-23) — surface found during triage, all LibRed-only:
+  - new E-15 `Source/LinqToDB/Sql/Sql.cs:Reverse` — `[Function(PN.AccessLibRed, "StrReverse")]`; `LastIndexOf`
+    expands through `Sql.Reverse` (`Linq/Expressions.cs:515-524`), so one attribute covers both.
+  - E-13 widened: `AccessSqlBuilderBase` also gets `IsCommentSupported` (native `false`, LibRed `true`); LibRed's
+    lexer skips `--` / `/* */` (`AccessSql.g4:749-750`). `FirstFormat` stays non-nullable (shipped signature):
+    paging suppresses `TOP` by overriding `BuildSkipFirst` instead.
+  - E-9 widened: LibRed date translator (`DatePart`/`DateAdd` `'ms'`), string translator (`LTrim`/`RTrim` with a
+    character set; `STRING_AGG` for the aggregate `string.Join`/`Concat`, item form keeps the Access `Mid`
+    emulation), window translator family flags + `VarianceFunctionName => "Var"` (measured: `VARIANCE` →
+    `NotSupportedException`, `Var` → 18/18).
+  - E-7/E-10: `AccessLibRedSqlOptimizer` + `AccessLibRedSqlExpressionConvertVisitor` exist for
+    `EscapeLikeCharacters` via `REPLACE`.
+  - E-3 kinds used so far: D-2 re-exclusion on not-advertised features (MERGE, MERGE-lowered Upsert, UPDATE/DELETE
+    Take/Skip, RETURNING, COLLATE, CheckExistence, DateTimeOffset/Blob columns, nullable bool, sub-ms DateTime,
+    KeepIdentity row-by-row, KEEP / hypothetical-set / MEDIAN / windowed percentiles); `AccessLibRedMdb`-only on
+    seven tests needing an ACE-only type; LibRed added to the MARS `_NotSupported` complements (the narrowing was
+    wrong there — they mirror `_Supported` lists that already include `AllAccess`); LibRed added to
+    `PredicateTests.AssertIntersect`'s native-INTERSECT `IsAnyOf` list.
+- A-3 (2026-09-23, user: "a" — implement LibRed interval arithmetic here rather than exclude) — plus the shared-file
+  edits triage forced after A-2:
+  - D-5 (new) **interval arithmetic for LibRed.** chosen: reuse the base day-anchored `ElapsedTicks` /
+    `LowerTemporalArithmetic` through one `AccessSqlExpressionConvertVisitor.IsTickArithmeticSupported` switch
+    (native `false`, so native keeps returning null); LibRed sets `FinestDateUnit`/`IntervalResolution` to
+    Millisecond, `CanLowerIntervalDifference`/`CanMeasureDifferenceInTicks`/`CanLowerIntervalShift` true, counts with
+    `DateDiff_Big` (Int64) for every unit incl. `'ms'` and shifts with `DateAdd('ms')`; members keep Access's
+    corrected per-unit counting (`ElapsedTicksResolveMembers` stays false). rejected: a LibRed-specific tick formula
+    — duplicates the base's overflow reasoning; rejected: excluding the ~15 tests — user chose to implement.
+    failure mode: a declared duration is still CURRENCY via the shared `Access` column configuration, so combining
+    one is correctly refused by `CarriesWholeTicks` — asserted through new `DeclaredMoneyDurationProviders`.
+    Measured: interval + math + date fixtures 531/0 on `Access.LibRed.Mdb`.
+  - E-17 `Source/LinqToDB/Sql/Sql.DateTime.cs`, `Sql.DateOnly.cs`, `Sql.DateTimeOffset.cs:DateDiff` —
+    `DateDiffBuilderAccessLibRed` registered under `PN.AccessLibRed` (`'ms'`); Access body shared via `BuildAccess`.
+  - E-8 used: `AccessSqlOptimizer.CorrectExistsAndIn` → `protected virtual`; LibRed skips the `COUNT(*) > 0`
+    rewrite.
+  - E-9 widened: `AccessMemberTranslator.MathMemberTranslator.Power` helper (native `x ^ y`, unchanged SQL); LibRed
+    emits `Power(x, y)` because `^` becomes `BXOR` in the LibRed visitor — measured regression when missed: `Pow`,
+    `Round9`, `Round12` computed XOR.
+  - E-13 fix: `AccessSqlBuilderBase.BuildUpdateClause` rewrites `FROM`→`UPDATE` at the position `FROM` was written,
+    not at 0 — a tagged UPDATE on LibRed (comments on) produced `UPDATEy …`; native is at 0 either way.
+  - E-3 corrections of the E-1 narrowing, measured: `WhereTests.cs:1483` skip restored for LibRed (NULL bool stored
+    as False, same as Jet); MARS `_NotSupported` complements; two alignment fixes. Access-only `IncludeDataSources`
+    narrowed to `AllNativeAccess` where the test asserts Jet's second resolution (two in
+    `IntervalTranslationTests.Difference.cs`) — LibRed now resolves milliseconds by design.
+  - E-12: findings R13 (`IIF` typed by taken branch) and R14 (`NTH_VALUE` ignores default frame).
+- A-4 (2026-09-24) — response to critic round 2 (`refuted`, see P12):
+  - A-1 relocated. The boolean sort-key lowering moves out of `AccessSqlExpressionConvertVisitor` (render time,
+    after `SelectQueryOptimizerVisitor.cs:2427` has merged a DISTINCT sub-query on a plain-column key) into new
+    internal E-19 `Source/LinqToDB/Internal/DataProvider/Access/AccessBooleanSortKeyLoweringVisitor.cs`, run from
+    `AccessSqlOptimizer.Finalize` before `base.Finalize` — the `SqlNullsOrderingLoweringVisitor` position. Field keys
+    become predicates through `SqlPredicate.IsTrue`. New tests `DistinctTests.DistinctOrderByBoolean` /
+    `GroupByBooleanOrderByKey` pin the shape the corpus lacked; run on `Access.Ace.OleDb` and LibRed.
+  - E-13 now also toggles `BuildSqlConditionExpression` under `IsCaseExpressionSupported`: LibRed documents that `CASE`
+    unifies branch types, which is the R13 mechanism; the three `Sum*SubqueryEmpty` gates are re-measured and
+    removed if they pass.
+  - `DatePartName` is a `protected virtual` on the Access visitor; the LibRed `ShiftDate` copy is gone.
+  - Noted, not changed: `Sql.DateDiff(Millisecond)` on LibRed is 32-bit `DATEDIFF('ms')`, SQL Server parity.
 
 ## P12 Critic verdict (M/L)
 
@@ -216,3 +329,21 @@ What the critic searched: `AllAccess\b` across `Tests` (all file kinds), `IsAnyO
 and SqlServer ORDER BY precedents, PublicAPI, the CI leg. Not checkable by it: the grammar itself,
 OFFSET-under-ORDER-BY, OFFSET / VALUES inside derived tables, aggregate DISTINCT — left to per-bucket probes (U-3,
 U-4). No second round: every objection was accepted as stated, none disputed.
+
+refuted — round 2 (delta A-1..A-3), `plan-critic` on **fable**. Objections and responses (A-4):
+
+- A-1 at the wrong altitude: rewriting sort keys at render time defeats the DISTINCT sub-query guard
+  (`SelectQueryOptimizerVisitor.cs:2420-2431`), which only sees a plain column; the codebase lowers NULLS keys
+  pre-optimization for this reason (`BasicSqlOptimizer.cs:59-64`) → relocated to a pre-`base.Finalize` visitor.
+  The Jet runtime consequence was the critic's recollection, unprobed; the new `DistinctTests` cases measure it.
+- TO-10 blind to the shape (no corpus test) → two new tests.
+- E-13 promised CASE for conditions, code toggled only `SqlCaseExpression` → conditions toggled; R13 re-measured.
+- D-5 verbatim `DatePartName`/`ShiftDate` twin → `DatePartName` virtual.
+- P3 exception unrecorded → P3 line added.
+- Note: `Sql.DateDiff(Millisecond)` 32-bit → recorded, unchanged.
+
+Critic searched: the full `Source` delta, every `SqlBinaryExpression("^")` producer (only CLR XOR and the new `Power`
+helper — native byte-identical verified by reading), `SupportsBooleanType`, `WithinGroup` visiting,
+`SqlNullsOrderingLoweringVisitor` call site, `TransformStatement` call site, `BuildSqlComment`/`BuildTag`,
+skip/take builder path, LibRed mapping-schema precedence, base interval lowering, PublicAPI entry-for-member
+count. Round 3 (the revision) pending.
