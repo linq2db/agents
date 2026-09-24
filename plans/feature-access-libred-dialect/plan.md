@@ -267,6 +267,16 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     (its NULL-partition assertion skipped for Access — no NULL booleans).
   - TO-10 cannot complete as one run (known ACE OLE DB `0xC0000005`, see Resuming item 2) → run it in chunks
     (per namespace / fixture, fresh process each) whose union covers the suite.
+  - **Shared-engine fix carried in-branch — #5970, ported to its own PR before merge (release-blocking).**
+    `JoinTests.LeftJoinSubqueryDoNotOptimize` failed on LibRed LinqService (CI run 35991422429). Root cause, measured
+    with stage dumps: `SqlExpressionConvertVisitor.Optimize` (`:302`) passed `OptimizationContext.TransformationInfo`
+    to the nested optimizer, while the convert pass registers its own Transform-mode replacements (a rebuilt
+    sub-query `t139 → t143`) in `TransformationInfoConvert`; the nullability lookup could not map the rebuilt LEFT JOIN
+    source back and folded `x IS NULL` to false. Affects every provider on remote and on direct parameter-dependent
+    queries; Access hits it on plain `??` (COALESCE → IS NULL condition). Fix: pass `TransformationInfoConvert`.
+    Rejected: also attaching it in `Convert` — measured no effect. Test: `JoinTests.Issue5970Test` (explicit IS NULL,
+    `[Values] parameterDependent`, all providers but native Access) — red 7/14 → green 14/14 on SQLite + LibRed.
+    Port shape: fix branch off `origin/master`, milestone 6.5.1, #5969 stacked on it.
   - a second double-convert path exists besides remote: a non-`optimizeAndConvertAll` query re-runs
     `OptimizeAndConvert` on the ORDER BY at build time (`BasicSqlBuilder.cs:2566` → `OptimizationContext.cs:167-176`);
     the int-typed key covers it too.
