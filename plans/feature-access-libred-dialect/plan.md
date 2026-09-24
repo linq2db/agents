@@ -19,7 +19,16 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 `LeftJoinSubqueryDoNotOptimize` (LinqService only, red in every run — not investigated).
 
 **Open — in order:**
-1. **Boolean sort keys (A-1/A-4) are half-done.** Probe proved the critic right: with the render-time rewrite, native
+1. **Boolean sort keys — DONE locally (2026-09-24, uncommitted in the worktree), after ChrisJollyAU's
+   [#5969 comment](https://github.com/linq2db/linq2db/pull/5969#issuecomment-5810265686) ("just use NOT / unary minus").**
+   OLE DB probe (`.build/.agents/probe-bool-sortkey-oledb.ps1`): `NOT b` / `-b` sort correctly, but any expression key
+   under DISTINCT is still rejected, while `ORDER BY (b) DESC` is accepted. Shipped: `AccessBooleanSortKeyLoweringVisitor`
+   deleted; `AccessSqlExpressionConvertVisitor` order/window items — non-nullable key → flipped direction, wrapped in an
+   int-typed `({0})`; nullable key → int-typed unary minus. The int type makes it idempotent — the remote path converts
+   on the client *and* the server (`RemoteDataContextBase.QueryRunner`, `isAlreadyOptimizedAndConverted: true`), and a
+   bare flip was undone there (LinqService-only reds). 33/33 on OleDb + LibRed.Mdb incl. LinqService. Residual: a
+   *nullable* key under DISTINCT on native Jet is still rejected (engine limit).
+   Previous state, kept for the record: **Boolean sort keys (A-1/A-4) were half-done.** Probe proved the critic right: with the render-time rewrite, native
    `Access.Ace.OleDb` fails `DistinctTests.DistinctOrderByBoolean` with *"ORDER BY clause (IIf([t].[BoolValue]=-1,1,0))
    conflicts with DISTINCT"*. The relocated pre-`base.Finalize` pass (`AccessBooleanSortKeyLoweringVisitor`) does
    **not** fix it — DISTINCT and ORDER BY already sit on one `SelectQuery` there, so a derived key under DISTINCT still
@@ -103,13 +112,12 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - **chosen:** script-rewrite `TestProvName.AllAccess` → `TestProvName.AllNativeAccess` at exclusion-form sites only
   (`[DataSources]` exclusion lists incl. multi-line, shared exclusion constants, `Issue269Tests`
   `TestDataContextSourceAttribute`, the three exclusion feature sources, `Throws*` attributes, `[ActiveIssue]`
-  configurations); then re-add `TestProvName.AllAccessLibRed` beside `AllNativeAccess` at sites where triage shows
+  configurations); then restore `TestProvName.AllAccess` (D-2) at sites where triage shows
   LibRed also lacks the feature.
 - **rejected:** redefine `AllAccess` as native-only — user rejected it; it would also silently drop LibRed from the
   ~68 `[IncludeDataSources]` Access tests.
 - **rejected:** hand-edit each site — ~500 near-identical edits, unreviewable (AGENTS.md → *fix the loop*).
-- **why this:** keeps `AllAccess` semantics, makes the enablement one reviewable transformation, and every
-  re-exclusion is a visible, named `AllAccessLibRed` token that says "LibRed doesn't advertise this".
+- **why this:** keeps `AllAccess` semantics and makes the enablement one reviewable transformation.
 - **failure mode of the choice:** the rewrite also narrows sites whose exclusion is *not* dialect (a transport or
   schema trait); those surface as LibRed failures in triage and get `AllAccessLibRed` re-added, so the cost is
   triage time, not silent coverage loss. A test that passes on LibRed for the wrong reason is not caught — same
@@ -117,11 +125,12 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 
 ### D-2 — Re-exclusion spelling
 
-- **chosen:** `TestProvName.AllNativeAccess, TestProvName.AllAccessLibRed` — never revert to `AllAccess`.
-- **rejected:** revert the site to `AllAccess` — reads cleaner but erases the fact that LibRed was evaluated.
-- **why this:** after this branch, a bare `AllAccess` in an exclusion means "not yet evaluated for LibRed"; the
-  two-token form means "evaluated, LibRed lacks it too".
-- **failure mode of the choice:** longer attribute lines; column alignment in multi-line lists has to be kept.
+- **chosen:** revert the site to `TestProvName.AllAccess` (user, 2026-09-24) — it is the same provider set.
+- **rejected:** `TestProvName.AllNativeAccess, TestProvName.AllAccessLibRed` — used first as an "evaluated for LibRed"
+  marker, but the marker lived only in this plan; in code it is a redundant spelling of `AllAccess`. Collapsed by
+  `.build/.agents/libred-collapse-allaccess.ps1` (59 sites, 29 files).
+- **failure mode of the choice:** an exclusion no longer shows whether LibRed was evaluated for it; the triage record
+  is the branch history.
 
 ### D-3 — Where the LibRed dialect lives
 
