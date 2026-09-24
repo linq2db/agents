@@ -276,7 +276,10 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     queries; Access hits it on plain `??` (COALESCE → IS NULL condition). Fix: pass `TransformationInfoConvert`.
     Rejected: also attaching it in `Convert` — measured no effect. Test: `JoinTests.Issue5970Test` (explicit IS NULL,
     `[Values] parameterDependent`, all providers but native Access) — red 7/14 → green 14/14 on SQLite + LibRed.
-    Port shape: fix branch off `origin/master`, milestone 6.5.1, #5969 stacked on it.
+    **Ported (2026-09-24): [#5971](https://github.com/linq2db/linq2db/pull/5971)**, draft, branch
+    `issue/5970-fix-transform-isnull-leftjoin` off `master`, milestone 6.5.1; `Issue5970Test` red 3/4 → green on
+    `master` (SQLite, net10.0). #5969 keeps its identical copy (user: "leave") — no rebase, since its base chain is the
+    .NET 11 stack; the duplicate becomes a no-op once `master` flows up.
   - a second double-convert path exists besides remote: a non-`optimizeAndConvertAll` query re-runs
     `OptimizeAndConvert` on the ORDER BY at build time (`BasicSqlBuilder.cs:2566` → `OptimizationContext.cs:167-176`);
     the int-typed key covers it too.
