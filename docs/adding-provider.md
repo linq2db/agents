@@ -99,5 +99,12 @@ open PR that moves the same surface. Rank by whether the behaviour produces a **
 literal that parses and matches nothing outranks everything), then a crash where a capability error is
 due, then plain dialect gaps.
 
+A row is not a defect until it has a control. Run the same statement through the **reference engine** on the same
+file (ACE for a managed Jet engine), and check it against the new engine's **own advertised grammar**: where both
+engines refuse it, it is not a defect; where the reference engine refuses it but the grammar advertises it, it is the
+new engine's extension. The probe's inputs must match the call being reported, too — a parameterised query probed
+without its parameter measures the missing parameter. (#5969: three rows of the LibRed report were wrong on exactly
+these counts — an unmeasured "ACE evaluates it", a stored query probed without `@id`, and syntax ACE rejects as well.)
+
 The register is also what keeps the workarounds honest: every entry names the code that exists only
 because the driver misbehaves, so when upstream fixes it there is a list of things to delete.

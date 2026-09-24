@@ -96,6 +96,8 @@ One `D-n` block per consequential decision:
 
 The `failure mode` line is what makes a decision defensible rather than merely explained, and is usually where the critic finds its objection.
 
+**A decision whose only effect is a spelling convention must be visible in the code, or it is not a decision.** When two spellings mean the same thing to the compiler and the tests, choosing the longer one to *signal* something ("this exclusion was evaluated for LibRed") puts meaning in a place only the plan explains; a reader of the diff sees an unexplained redundancy. Use the canonical spelling, and if the distinction really matters, give it a name the code can carry — a constant, an attribute property. (#5969 D-2: `AllNativeAccess, AllAccessLibRed` at 59 sites, identical to `AllAccess`; the user asked why, and all 59 were reverted.)
+
 ### P6 Edit-points
 
 The **authorized change surface**, not a prediction. One row per planned edit: `E-n <path>:<symbol> — what changes`. Touching anything not listed here needs a `P11` amendment.
