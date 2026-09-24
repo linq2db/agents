@@ -407,6 +407,10 @@ When a fix touches a rarely-hit construction path (inheritance + flattened/dotte
 
 When a failure is a limitation of a **not-yet-released** provider or client (not a linq2db bug), gate it with `[ActiveIssue(Configurations = new[] { ProviderName.X }, Details = "…<symptom>… — <server build> / <client version> prerelease; re-check when a newer <provider> is released.")]`. The version-anchored `Details` surfaces in the test's skip reason, so the next person re-checks exactly these tests on an upgrade instead of rediscovering them from scratch. Keep the note factual about the symptom (the SQL / exception text), not a guessed root cause. (FB6 #5485: gated against Firebird 6.0.0.2068 / FbClient 10.3.4 — native VARBINARY read truncation, OCTETS Guid "Malformed string", etc.) This is the *write* direction; removing the gate once the provider ships is the section below.
 
+## Before blaming a new provider's engine, rule out the test
+
+A new provider runs the whole suite in an order no existing provider happened to use, so it exposes order-dependent tests that were already broken. Before an `[ActiveIssue]` gate or an upstream report names an engine mechanism, run two checks. (1) **Is the asserted order guaranteed?** Positional assertions (`res[0]`, `res[1]`) on a query with no `ORDER BY` fail as soon as an engine returns rows in a different order, and the message names a value, not an order. (2) **Could the claimed mechanism produce a different result on this data?** Work out the expected value under the bug you're claiming. If it equals the correct value, that mechanism can't be what failed. (LibRed R14, #5969: "NTH_VALUE ignores the default frame" was reported from `Expected null but was 5` on `res[0].Id`. The 5 was the row's `Id`, returned in input order, and `NTH_VALUE(Id, 2)` is NULL on that data under any frame.)
+
 ## Enabling an `[ActiveIssue]` test after the issue closes
 
 The `/enable-disabled-test` skill drives this end to end; this section is the rationale and the manual fallback.
