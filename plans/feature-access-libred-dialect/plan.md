@@ -38,7 +38,12 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
    convert visitor (no select-list constraint there — the code removed in A-4 is in this conversation's history and
    in `.build/.agents/probe-old-sortkey.ps1`), and decide the DISTINCT case in the pre-pass: wrap the query, or skip a
    key that is not already in the DISTINCT projection. Re-run the two new `DistinctTests` on OleDb + LibRed.
-2. **Native control never completed.** `Access.Ace.OleDb` full suite crashed twice with `0xC0000005` inside
+2. **Native crash is NOT from this branch (measured 2026-09-24).** Head `d2f8dd89e`: `0xC0000005` in
+   `ICommandText.Execute` after 2097 results, in `ConvertTests.ConvertFromOneToAnother` (passes when run alone). Base
+   `3b6b73ba7` (#5956, worktree `C:/Worktrees/linq2db/access-libred-base`): same `0xC0000005` after 5030 results, in
+   `InheritanceTests.TestInsertIssue2`. Different test and count each run → cumulative native ACE state, pre-existing — a known OLE DB driver issue (user, 2026-09-24); closed, base worktree removed.
+   Recovered results: the only failure on both is `TestExpressionVisitorHops(10)`. Logs `.build/.agents/oledb-e7.*`,
+   `oledb-base.*`. Earlier note, kept: **Native control never completed.** `Access.Ace.OleDb` full suite crashed twice with `0xC0000005` inside
    `ICommandText.Execute`, at ~2120 results both times (logs `.build/.agents/oledb-e5.log`, `oledb-e6.log`); the
    faulting statement is not logged. Establish whether the base branch crashes at the same point (build the base in a
    second worktree, or bisect the shared-file edits) before calling it the #5956 driver flake.
