@@ -83,7 +83,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 
 - SC-1 Every test excluded for Access by a *dialect* exclusion runs on both LibRed configs, unless LibRed does not advertise the feature (then excluded again by name, `TestProvName.AllAccessLibRed`) → TO-1
 - SC-2 For each advertised feature enabled, LibRed emits the extended form and that feature's tests pass on both LibRed configs → TO-2, TO-3, TO-4, TO-5, TO-6, TO-7, TO-8, TO-9
-- SC-3 Native Access flavours unchanged: `Access.Ace.OleDb` full suite has the base failure set (`TestExpressionVisitorHops(10)` only) and byte-identical baselines to a base capture → TO-10
+- SC-3 Native Access flavours unchanged except boolean sort keys (A-1: direction flip / unary minus, OleDb and ODBC): `Access.Ace.OleDb` suite, run in chunks (P10), has the base failure set (`TestExpressionVisitorHops(10)` only) and baselines identical to a base capture outside that delta → TO-10
 - SC-4 Full suite on both LibRed configs ends with 0 unexplained failures — each red fixed, re-excluded (not advertised) or `[ActiveIssue]`-gated on `AllAccessLibRed` (advertised but defective, recorded in `plans/feature-access-libred/findings.md`) → TO-11
 
 ## P3 Constraints & anti-goals (M/L)
@@ -184,7 +184,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - E-7 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSqlOptimizer.cs` (new) — skip Jet-only rewrites per D-3
 - E-8 `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlOptimizer.cs` — `protected virtual` hooks for the rewrites E-7 skips; native behaviour unchanged
 - E-9 `Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessLibRedMemberTranslator.cs` (new) — window functions on, STRING_AGG for `string.Join`, aggregate DISTINCT per U-4
-- E-10 `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs`, `AccessLibRedSqlExpressionConvertVisitor.cs` (new) — only if a bucket needs NULLIF / COALESCE / CASE conversion off for LibRed
+- E-10 `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs`, `AccessLibRedSqlExpressionConvertVisitor.cs` (new) — the shared visitor carries the boolean sort-key rewrite for all flavours (A-1); the LibRed one only what a bucket needs (NULLIF / COALESCE / CASE conversion off)
 - E-11 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — entries for any new public type in `LinqToDB.Internal.DataProvider.Access`
 - E-12 `.claude/plans/feature-access-libred/findings.md` — new LibRed defects found in advertised features
 - E-13 `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlBuilderBase.cs:BuildSqlCaseExpression,BuildSqlConditionExpression` — a `protected virtual bool` toggle (native default = IIF) so `AccessLibRedSqlBuilder` falls through to the `BasicSqlBuilder` CASE bodies (`BasicSqlBuilder.cs:3997-4027,4046-4082`) instead of duplicating them
@@ -195,7 +195,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - E-17b `Source/LinqToDB/Sql/Sql.DateOnly.cs:DateDiff` — registration (A-3)
 - E-17c `Source/LinqToDB/Sql/Sql.DateTimeOffset.cs:DateDiff` — registration (A-3)
 - E-18 `Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs:MathMemberTranslator.Power` — power helper (A-3)
-- E-19 `Source/LinqToDB/Internal/DataProvider/Access/AccessBooleanSortKeyLoweringVisitor.cs` (new, internal) — pre-optimization boolean sort-key lowering (A-4)
+- E-19 ~~`AccessBooleanSortKeyLoweringVisitor.cs`~~ — deleted in `10f517d5f`; the boolean sort-key rewrite lives in E-10 (`AccessSqlExpressionConvertVisitor`, all flavours)
 
 ## P7 Impact map (M/L)
 
@@ -237,7 +237,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - TO-7 INTERSECT / EXCEPT: the base emulates them (`SetOperationBuilder.cs:55-57`) and passes, so the observable is SQL shape — LibRed baselines of the `ConcatUnionTests` Intersect/Except cases contain `INTERSECT`/`EXCEPT` where the base capture has the emulation, with equal results (duplicate rows on both sides); `*All` variants and the 5 `Union5x` exclusions (`ConcatUnionTests.cs:486-535`) decided by triage — proof: characterization (observable: baseline diff)
 - TO-8 CASE: LibRed baselines of a `Select` ternary / `switch` test contain `CASE WHEN` where the base capture has `IIF(`, rows equal; `Access.Ace.OleDb` baselines still `IIF(` (TO-10) — proof: control (observable: baseline diff)
 - TO-9 VALUES table source, STRING_AGG (`StringJoinTests`), aggregate DISTINCT (U-4) — each only if its bucket enables it; else the bucket's re-exclusion is the obligation — proof: red→green per enabled feature
-- TO-10 Symmetry guard on the unchanged path: `Access.Ace.OleDb` full suite (own host) = base failure set; its baselines byte-identical to a base capture — proof: characterization
+- TO-10 Symmetry guard on the unchanged path: `Access.Ace.OleDb` suite in chunks (fresh process each; union = full suite) = base failure set; its baselines identical to a base capture except the boolean sort-key delta — proof: characterization
 - TO-11 Full suite on both LibRed configs after triage: 0 unexplained failures (SC-4); on CI leg `z_Access_LibRed` if U-5 is green, else locally — proof: characterization
 
 ## P9 Verification gates
@@ -254,7 +254,22 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 
 ## P10 Adjudicated (M/L)
 
-_None yet._
+- Critic round 3 (refuted, 2026-09-24) — boolean sort keys, all accepted and fixed on this branch:
+  - nullable key under DISTINCT → the unary-minus form is rejected by native Jet. **Decision:** under DISTINCT always
+    flip (`(key) DESC`). Trade-off: a NULL key sorts last instead of first there; reachable only through an outer
+    join or a computed key, since no Access flavour stores a NULL boolean (`NullableBoolTests`,
+    `ProvidersThatDoNotSupportNullableBool` = `AllAccess`). Accepted over a hard failure.
+  - a `bool` mapped to a non-Yes/No column (value converter, `DataType.Char` / `Int16`) already sorts in CLR order →
+    `IsBooleanSortKey` skips a key with a `ValueConverter` or a `DataType` other than `Boolean` / `Undefined`.
+  - missing obligations → `DistinctTests.DistinctOrderByNullableBoolean` / `GroupByNullableBooleanOrderByKey` /
+    `ConcatOrderByBoolean`, `ValueConversionTests.Issue3830OrderByTest`,
+    `WindowFunctionsTests.RowNumberWithNullableBooleanOrderBy`; `RowNumberWithBooleanColumn` un-gated for LibRed
+    (its NULL-partition assertion skipped for Access — no NULL booleans).
+  - TO-10 cannot complete as one run (known ACE OLE DB `0xC0000005`, see Resuming item 2) → run it in chunks
+    (per namespace / fixture, fresh process each) whose union covers the suite.
+  - a second double-convert path exists besides remote: a non-`optimizeAndConvertAll` query re-runs
+    `OptimizeAndConvert` on the ORDER BY at build time (`BasicSqlBuilder.cs:2566` → `OptimizationContext.cs:167-176`);
+    the int-typed key covers it too.
 
 ## P11 Amendments (M/L)
 
