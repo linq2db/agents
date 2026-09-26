@@ -83,6 +83,8 @@ Same pattern applies to every `Use<Provider>(Func<ProviderOptions, ProviderOptio
 
 Pick the narrowest set that still covers the behavior. Provider-agnostic behavior → `[DataSources]`. Provider-specific → `[IncludeDataSources]` / `[EFIncludeDataSources]` with a `TestProvName.All<Family>` constant. Never hardcode a single version unless the test is testing version-specific behavior.
 
+**Exclude a provider with the attribute, never with an early `return`.** Use `[DataSources(<excluded>)]`, or `Assert.Ignore("<reason>")` when only one `[Values]` value is unsupported (see [`testing.md`](../docs/testing.md) → *Excluding a provider from one combination*). An `if (context.IsAnyOf(…)) return;` guard records a pass for a case that never ran. (#5972)
+
 **`IncludeDataSources` first arg defaults to `true`** (include the remote `LinqService` variant). Server-side SQL-builder behavior reproduces over the remote transport, so remote-included coverage is free and catches transport regressions. Use `false` only when the test genuinely can't work over remote — e.g. it depends on a provider-specific client object, directly pokes `DataConnection` internals, or asserts things the remote transport strips.
 
 ## Table setup in tests

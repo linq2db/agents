@@ -645,6 +645,10 @@ Precedent: `Tests/Linq/Linq/StringConcatTests.cs` does this in five places for S
 
 The cost is that the skipped arm now hides in the run's `skipped` count rather than simply not existing, so cross-check `summary.skipped` after any run you cite as verification — see *A skipped test is "not tested"* above. (#5938: two new eager-load tests failed on all four Access configs under `KeyedQuery` only, while the `Default` arm passed and was worth keeping.)
 
+**`[ActiveIssue]` has the same blind spot.** It selects by provider, by direct vs `LinqService`, and by platform (`ActiveIssueAttribute.AppliesTo`), never by a `[Values]` value. When a known issue fails only one value, a gate on the whole method reports every other value as `Test passed but is marked with [ActiveIssue]`. Split the failing value into its own method and gate that method. Don't use `Assert.Ignore` here: it hides a known failure that the gate would otherwise check. (#5972: an inlined `ulong` failed only with `InlineParameters = true`, so `Issue5972_UInt64` and `Issue5972_UInt64Parameter` became separate methods.)
+
+A gate whose `ErrorMessage` is the direct/remote baseline check (`Baselines for remote context doesn't match direct access baselines`) fires only when `BaselinesPath` is set. On a run without baselines the test passes and the gate reports "passed but marked".
+
 ### Test-proofing a gated provider capability
 
 To empirically determine whether a database actually supports a feature gated off by a capability flag (`Is…Supported` on a translator, a `SqlProviderFlags` bool, etc.) — rather than trusting docs:
