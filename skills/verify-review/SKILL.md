@@ -83,6 +83,8 @@ Per `.claude/docs/review-conventions.md` → **ID-continuation floor**: regex-ma
 
 Dedup by ID — if the same ID appears in multiple places, keep the most recent location. Compute the **ID-continuation floor** per severity: `max(number) + 1`, or `1` when no prior matches.
 
+**Zero own findings** (only other authors reviewed): the run reduces to the step-2b audit. When HEAD equals that review's `commit_id`, skip the step-5 subagents — each verdict is about the claim's accuracy, not fixed-or-not — and walk each audited claim interactively.
+
 ### 4. Prepare change summary and baselines state
 
 Execute the **Change summary** and **Baselines clone setup** sections of `.claude/docs/pr-context-prep.md` against the current PR HEAD. Per the project decision, baselines grouping is rerun from scratch in verify mode — do not try to diff incrementally against a prior baselines review.
