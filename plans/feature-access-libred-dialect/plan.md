@@ -310,7 +310,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     `EscapeLikeCharacters` via `REPLACE`.
   - E-3 kinds used so far: D-2 re-exclusion on not-advertised features (MERGE, MERGE-lowered Upsert, UPDATE/DELETE
     Take/Skip, RETURNING, COLLATE, CheckExistence, DateTimeOffset/Blob columns, nullable bool, sub-ms DateTime,
-    KeepIdentity row-by-row, KEEP / hypothetical-set / MEDIAN / windowed percentiles); `AccessLibRedMdb`-only on
+    KeepIdentity row-by-row, KEEP / hypothetical-set / MEDIAN); `AccessLibRedMdb`-only on
     seven tests needing an ACE-only type; LibRed added to the MARS `_NotSupported` complements (the narrowing was
     wrong there — they mirror `_Supported` lists that already include `AllAccess`); LibRed added to
     `PredicateTests.AssertIntersect`'s native-INTERSECT `IsAnyOf` list.
@@ -352,6 +352,10 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     removed if they pass.
   - `DatePartName` is a `protected virtual` on the Access visitor; the LibRed `ShiftDate` copy is gone.
   - Noted, not changed: `Sql.DateDiff(Millisecond)` on LibRed is 32-bit `DATEDIFF('ms')`, SQL Server parity.
+- A-5 (2026-09-28, ChrisJollyAU on #5969) — windowed percentiles are advertised at `v11.0.0-alpha.3` (`README.md:203`,
+  grammar `functionCall` takes `withinGroup` before `OVER`, `WindowFunctions.cs:103-105`); the D-2 re-exclusion was
+  wrong. `IsOrderedSetWindowedSupported => true` on the LibRed window translator; `AllAccessLibRed` dropped from
+  `PercentileContWindowed` / `PercentileDiscWindowed`.
 
 ## P12 Critic verdict (M/L)
 
