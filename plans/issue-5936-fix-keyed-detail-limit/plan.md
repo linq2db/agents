@@ -94,9 +94,10 @@ which is why `Default` is correct on SQLite, a provider with `IsApplyJoinSupport
   `SelectMany` shape KeyedQuery already has locally — so it buys no correctness the local path lacks.
 - **why this:** the defect is a property of one of two shapes, not of the strategy. `U-1` measured the
   surviving shape producing the correct per-key SQL on the reporting provider.
-- **failure mode of the choice:** on a provider that supports neither APPLY nor window functions, the
-  correlated shape is inexpressible where the flat one merely returned wrong rows — a wrong answer becomes a
-  loud failure. That is the intended direction, and `Default` fails identically there (`U-4`).
+- **failure mode of the choice:** on a provider that supports neither APPLY nor window functions (MySQL 5.7,
+  Firebird 2.5), the per-key limit cannot be expressed in SQL: the child query fetches every row for the batch
+  and the limit is applied per parent after materialization — correct rows, larger transfer. `Default` emits
+  the identical shape there (`U-4`). *Corrected in `A-3`.*
 
 **D-2 — detect on the outer chain, not the whole tree.**
 - **chosen:** walk `MethodCallExpression.Arguments[0]` while `IsQueryable`, stepping through
@@ -218,9 +219,9 @@ All rows measured 2026-09-17 against the tree committed as this branch's first c
 
 - **The issue's stated remedy is not implemented.** #5936's *Expected behavior* asks the strategy resolver to
   fall back and notes `EagerLoadFallbackReason` has no member for this case. Declined per `D-1`, whose
-  failure-mode line qualifies the loss: on a provider supporting neither APPLY nor window functions the
-  correlated shape is inexpressible and now fails loudly instead of returning wrong rows — `Default` fails
-  identically there, so no strategy regresses. To be disclosed in the PR body; not a review finding.
+  failure-mode line qualifies the cost: on a provider supporting neither APPLY nor window functions the
+  limit is applied after materialization rather than in SQL — `Default` emits the identical shape there, so no
+  strategy regresses. Disclosed in the PR body; not a review finding.
 - **Access / Sybase are not asserted on**, matching every other fixture in this file. Named in `U-4`;
   re-opens when #5900 removes the blanket exclusions.
 - **`U-5` is left unexplained.** The table-vs-association path divergence is measured and fixtured on both
@@ -242,6 +243,12 @@ All rows measured 2026-09-17 against the tree committed as this branch's first c
   commits behind and is corrected to this branch's `:1486` / `:1602`. No conclusion changed:
   `EagerLoadingWideKeyTests.cs` carries no `Take`/`Skip`, so "no existing baseline moves" still holds — but it
   now rests on a search rather than on luck.
+- **A-3 (2026-09-28) — `D-1`'s failure mode was wrong (review MIN002, igor-tkachev).** The plan claimed a
+  loud failure on providers with neither APPLY nor window functions. CI's baselines refute it: on
+  MySql.5.7 / MySqlConnector.5.7 / Firebird.2.5 every strategy emits the child query with no LIMIT/OFFSET
+  (`OptimizeApplyJoin` declines the `ROW_NUMBER` emulation at `SelectQueryOptimizerVisitor.cs:1533`), and the
+  fixtures pass, so the limit is applied after materialization. `D-1`, `P10` and the PR body corrected; the
+  client-side site itself was not located.
 
 ## P12 Critic verdict
 
