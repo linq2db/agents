@@ -91,7 +91,9 @@ resolve against the *process's* working directory. That is the **primary clone**
 that cwd (a plain `--project <worktree>/…` call), and the **worktree** when the runner `Set-Location`s
 there per the recipe above — both happen, and both happened within one session, one heartbeat landing in
 each tree. So "no heartbeat in this tree" is **not** evidence that the run never started: look in the
-other one before concluding the build failed. The same applies to temporary in-library instrumentation:
+other one before concluding the build failed. `test-status.ps1` reads only the clone it lives in, and its
+output doesn't name the file, so the primary clone's copy silently reports a stale primary-clone run: pass
+`-RepoRoot <worktree>` for a worktree run. The same applies to temporary in-library instrumentation:
 hardcode an absolute output path or accept that the dump follows the cwd. (Cost two wrong-directory
 lookups on 2026-08-12, once while waiting on a full-suite run that was in fact heartbeating normally;
 then on 2026-08-18 a worktree run that had finished 6/6 green was read as a failed build, because only

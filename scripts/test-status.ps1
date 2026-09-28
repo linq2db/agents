@@ -3,22 +3,25 @@
 #
 # Reads the JSON heartbeat written by Tests/Base/TestProgressReporter.cs when a run is launched with
 # the --test-progress command-line option. By default it picks the most recently updated
-# .build/.agents/test-progress.*.json file (the active run); pass -Path to target a specific file.
+# .build/.agents/test-progress.*.json file (the active run) under the clone this script lives in;
+# pass -RepoRoot to read another clone's (a worktree run), or -Path to target a specific file.
 #
 # Usage:
 #   pwsh -NoProfile -File .claude/scripts/test-status.ps1
+#   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -RepoRoot C:/Worktrees/linq2db/<slug>
 #   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Path .build/.agents/test-progress.net10.0.1234.json
 #   pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw      # emit the raw JSON instead of a summary
 
 [CmdletBinding()]
 param(
 	[string] $Path,
+	[string] $RepoRoot,
 	[switch] $Raw
 )
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..' '..')
+$repoRoot = if ($RepoRoot) { Resolve-Path $RepoRoot } else { Resolve-Path (Join-Path $PSScriptRoot '..' '..') }
 
 if (-not $Path) {
 	$dir = Join-Path $repoRoot '.build/.agents'
