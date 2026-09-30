@@ -56,7 +56,7 @@ Collect requirements:
 
 1. **Task description** — what the test should verify. Reuse the user's phrasing; ask only if the description is too vague to act on.
 2. **Target provider(s)** — if the description doesn't make it obvious (e.g. "add a regression for issue #5439 on SQL Server" → `TestProvName.AllSqlServer`), ask.
-3. **Preferred test file / class** — optional. When the task cites an issue number, try to find an existing `Issue<N>Tests.cs` or the nearest `IssueTests.cs` by grep before asking.
+3. **Preferred test file / class** — optional. When the task cites an issue number, look first for the feature fixture that owns the behaviour, then for an existing `Issue<N>Tests.cs`, before asking — the order is `test-writer`'s *Fixture lookup*.
 4. **Issue / task reference** — optional; ask for the number or URL when the test is an issue regression.
 
 Invoke `test-writer` with those inputs. When it returns `status: "needDisambiguation"`, present its `candidates[]` to the user as a numbered list and re-invoke with the choice.

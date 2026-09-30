@@ -63,7 +63,7 @@ Summarize the issue back to the user in 5–8 lines. Then, in **the same message
 2. **Branch slug** — propose a 2–5 word kebab slug derived from the issue title. Show the full branch name (`issue/<n>-<slug>`) and ask for approval or a replacement.
 3. **Pre-fix test expectation** — should the test, right now, *fail* on master (demonstrating the bug), or *pass* (if the user has already drafted the fix locally)? Affects whether we run the test before creating the branch's first commit.
 4. **Reproduction completeness** — if the issue body is ambiguous (no LINQ snippet, vague expected behavior), ask for whatever's missing.
-5. **Fixture location preference** — ask only if the test-writer's fixture-lookup rules (grep for `Issue<N>Tests.cs` → `IssueTests.cs` → feature fixture) don't yield an obvious answer. Otherwise, let test-writer pick and relay its rationale.
+5. **Fixture location preference** — ask only if the test-writer's fixture-lookup rules (the feature fixture that owns the behaviour → an existing `Issue<N>Tests.cs` → the `UserTests/Issue<N>Tests.cs` fallback) don't yield an obvious answer. Otherwise, let test-writer pick and relay its rationale.
 6. **Heavy-provider opt-in** — if the issue mentions DB2 / Informix / SAP HANA / SAP ASE, explicitly flag the startup cost and ask whether to include them. Default: exclude.
 
 Number the questions. Wait for answers before moving on. Do not interleave partial actions with further questions unless a later question genuinely depends on the outcome of an earlier action.
