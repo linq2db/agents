@@ -37,6 +37,18 @@ That is the dangerous shape: an empty result indistinguishable from the string g
 
 Drop the anchor, or anchor on something that isn't the line end. The same applies to .NET regex in a `.claude/scripts/` helper reading a CRLF file with `(?m)`: `^(?<lead>…)(?<tail>,?)$` found **zero** matches until the tail became `(?=\r?$)`. Use `\r?$` whenever the pattern must anchor.
 
+## `Grep`'s `glob` is anchored at the session's working directory, not at `path` — and the miss looks like absence
+
+A `glob` that contains a `/` is matched against paths relative to the **session's working directory**, not relative to the `path` argument. So `path: .claude` with `glob: agents/*.md` — or `{skills,agents}/**/*.md` — looks under `<cwd>/agents/`, finds nothing, and returns *"No files found"*: the same answer as a genuine absence.
+
+```
+path: .claude   glob: {skills,agents}/**/*.md           -> No files found
+path: .claude   glob: .claude/{skills,agents}/**/*.md   -> 2 files
+path: .claude   glob: **/{skills,agents}/**/*.md        -> 2 files
+```
+
+Write the glob relative to the cwd, prefix it with `**/`, or drop the directory part and narrow with `path` alone. A glob with no `/` (`*.md`, `{a,b}.ps1`) matches file names at any depth and is unaffected. (Surfaced 2026-09-30: three false negatives in one session, one of which hid two skills that still restated a rule being changed.)
+
 ## Permission-friendly Bash patterns
 
 Patterns that triggered prompts in real sessions and the equivalents that don't. The summary in [`agent-rules.md`](agent-rules.md) → *Bash command rules* names the most-hit ones; this is the full table.
