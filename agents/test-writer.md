@@ -29,25 +29,26 @@ Test frameworks, file layout, and patterns are documented in [`.claude/docs/test
 
 ## File placement rules
 
-- **linq2db core tests** — `Tests/Linq/`. Issue-specific regressions go into the nearest `Issue<N>Tests.cs` or `IssueTests.cs`. Feature-specific tests go into the matching `<Feature>Tests.cs`.
-- **EFCore integration tests** — `Tests/EntityFrameworkCore/Tests/`. Same issue-vs-feature split. Model types live under `Tests/EntityFrameworkCore/Models/IssueModel/` (shared) and `…/IssueModel/<Provider>/` (provider-specific configuration).
+- **linq2db core tests** — `Tests/Linq/`. A test goes into the fixture that owns the behaviour it checks — the matching `<Feature>Tests.cs` — even when an issue prompted it. `Tests/Linq/UserTests/Issue<N>Tests.cs` is the fallback for a repro with no natural home, not the default; see *Fixture lookup* below.
+- **EFCore integration tests** — `Tests/EntityFrameworkCore/Tests/`. Issue-specific regressions go into the nearest `Issue<N>Tests.cs` or `IssueTests.cs`, feature-specific tests into the matching `<Feature>Tests.cs`; the *Fixture lookup* below is for core tests. Model types live under `Tests/EntityFrameworkCore/Models/IssueModel/` (shared) and `…/IssueModel/<Provider>/` (provider-specific configuration).
 - **Playground** — `Tests/Tests.Playground/Tests.Playground.csproj` is used for fast-iteration execution. **Never add the test source file under `Tests/Tests.Playground/`.** The test itself always lives in `Tests/Linq/` (or `Tests/EntityFrameworkCore/Tests/`); the playground project references it via a `<Compile Include="..\Linq\<relative>.cs" Link="<Name>.cs" />` item in `Tests.Playground.csproj`. See the existing `TestsInitialization.cs` / `CreateData.cs` entries in that csproj for the pattern. `test-runner` then runs `Tests.Playground.csproj` which builds fast (~seconds vs. minutes for the full `Tests/Linq/Tests.csproj`).
 
 ### Fixture lookup (issue tests)
 
-When the task cites an issue number `<N>`, pick the target file in this order:
+When the task cites an issue number `<N>` for a core test, pick the target file in this order:
 
-1. **Existing `Issue<N>Tests.cs`** — grep for the filename; prefer this if it already exists.
-2. **Existing `IssueTests.cs`** — the catch-all fixture. Suitable when the repro is small (1–2 methods) and doesn't need supporting models. Insert near other `Issue<N>_*` tests that target the same area (CTE, Merge, SchemaProvider, etc.).
-3. **Feature-specific fixture that the issue touches** — e.g. an issue about `Merge` behavior on Oracle can sit in `MergeTests.Oracle.cs` if the file exists and the repro fits the surrounding patterns. Use this only when the feature fixture is an obviously better home than `IssueTests.cs`.
-4. **Propose a new `Issue<N>Tests.cs`** — do **not** create it silently. Return `"status": "needDisambiguation"` (per *Output format* below) with:
-   - Option A: insert into `IssueTests.cs` (recommended for ≤2 methods, no new models).
-   - Option B: create `Issue<N>Tests.cs` (recommended when the repro needs multiple methods, supporting models, or a dedicated `[TestFixture]`).
+1. **The fixture that owns the behaviour** — grep `Tests/Linq/` for the feature the issue is about; an aggregate that should refuse, for instance, belongs in `Tests/Linq/Linq/AggregationTests.cs`. Prefer it whenever the repro shares the fixture's subject, and reuse the fixture's own models — often no new model is needed at all.
+2. **An existing `Issue<N>Tests.cs` for the same issue** — only when no feature fixture fits.
+3. **Propose a fallback** — do **not** create a file silently. Return `"status": "needDisambiguation"` (per *Output format* below) naming the feature fixtures you considered and why none fits, with:
+   - Option A: create `Tests/Linq/UserTests/Issue<N>Tests.cs` — `namespace Tests.UserTests`, class `Issue<N>Tests : TestBase`, models declared inside the fixture (recommended).
+   - Option B: insert into the catch-all `Tests/Linq/Linq/IssueTests.cs` (only for 1–2 methods that need no model).
    Let the caller pick. Include a one-line rationale for each option so the caller has context to decide.
 
-Don't fall back to "put it anywhere"; if steps 1–3 don't yield an obvious target, step 4 is the right move even for small tests.
+**No `Issue<N>`-prefixed types, data or test names in a shared feature fixture.** There the model is named for what it is, the test for what it checks, and the issue appears only as the URL in `[Test(Description = "...")]`. Existing `Issue<N>*` types in feature fixtures are legacy, not a pattern to extend.
 
-When the test isn't tied to an issue number, skip straight to the feature-fixture lookup and return `needDisambiguation` if nothing obvious exists.
+Don't fall back to "put it anywhere"; if steps 1–2 don't yield an obvious target, step 3 is the right move even for small tests.
+
+When the test isn't tied to an issue number, take step 1 alone and return `needDisambiguation` if nothing obvious exists.
 
 ## Test-harness API pitfalls
 
@@ -71,7 +72,7 @@ Same pattern applies to every `Use<Provider>(Func<ProviderOptions, ProviderOptio
 ## Naming conventions
 
 - **Match the surrounding file.** Most tests use PascalCase method names (`Issue5177Test`, `ConstantAndValueConversion`). A few files use underscores for sub-grouping (`BulkCopy_Sequence_AsIdentity`). Mirror whatever the neighbours do — inconsistency across a file is a legitimate review nit, so don't introduce it.
-- **Issue tests** use the pattern `Issue<N>Test` or `Issue<N>_<Aspect>`. Always include the issue number.
+- **Issue tests** — in a feature fixture, name the test for the behaviour it pins and cite the issue in `[Test(Description = "https://github.com/linq2db/linq2db/issues/<N>")]` (see *Fixture lookup*). Only an issue fixture — `Issue<N>Tests.cs`, `IssueTests.cs` — uses the `Issue<N>Test` / `Issue<N>_<Aspect>` pattern, and there it always includes the issue number.
 - **Test description attribute** — `[Test(Description = "...")]` is optional. Include it only when citing a GitHub issue URL (`https://github.com/linq2db/linq2db/issues/<N>`); plain tests use `[Test]` and rely on the method name to carry intent. Don't invent `Description = "user-reported"` / `Description = "bugfix"` — the test name already says this.
 
 ## DataSources selection
@@ -99,7 +100,7 @@ Pick the narrowest set that still covers the behavior. Provider-agnostic behavio
 
 ## Workflow
 
-1. **Discover.** Run the **Fixture lookup** from *File placement rules* above — grep for `Issue<N>Tests.cs`, then `IssueTests.cs`, then the feature fixture. Read the chosen file to understand its grouping scheme (regions, alphabetical, insertion-order). If none qualify, return `needDisambiguation` — don't guess.
+1. **Discover.** Run the **Fixture lookup** from *File placement rules* above — the feature fixture that owns the behaviour first, then an existing `Issue<N>Tests.cs`. Read the chosen file to understand its grouping scheme (regions, alphabetical, insertion-order). If none qualify, return `needDisambiguation` — don't guess.
 2. **Choose insertion point.** Respect existing `#region` boundaries. Insert near related tests; don't force an alphabetical sort if the file isn't alphabetical.
 3. **Draft.** Write the test body using the patterns above — correct attributes, correct `optionsSetter` form, correct TFM guards, matching naming style. The test must be able to go **red** on the targeted behavior — avoid the hollow-test anti-patterns in [`testing.md`](../docs/testing.md) → *Tests that pass but catch nothing* (happy-path only, brittle string assertions, mocking the logic away, mirroring the implementation, trivially-true assertions). When the test needs a new entity/model class, add it to the matching `Models/…` file and reference it.
 4. **Edit.** Single `Edit` tool call per file. Do not reformat surrounding code. **Never create a new source file under `Tests/Tests.Playground/`** — if the caller wants playground-speed iteration, the file belongs in `Tests/Linq/` (or `Tests/EntityFrameworkCore/Tests/`) and the playground project links it via `<Compile Include>` (see *Playground* under File placement rules).
