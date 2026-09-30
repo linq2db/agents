@@ -446,7 +446,7 @@ Entries with empty `sampleUrl` / `samplePath` (rollup entries not tied to a spec
 
 **Pre-show meta-content scan.** Before showing the user anything, grep the assembled review body **and** every line / file / reply comment body for forbidden meta-tokens. If any match, strip or rewrite the offending fragment and re-check. Do not rely on "I'll remember not to do it" — the rule is already documented twice (`.claude/docs/review-conventions.md` → *Audience*, step 5 above) and still gets violated. Tokens to reject:
 
-- `Prior review continuation`, `continues from`, `ID-continuation`, `continuation floor`, `starting point`, `starting floor`
+- `Prior review continuation`, `continues from`, `ID-continuation`, `continuation floor`, `starting point` (except in the disclaimer, whose *"starting points for discussion"* [`review-conventions.md`](../../docs/review-conventions.md) mandates), `starting floor`
 - `MIN00N`, `SUG00N`, `BLK00N`, `MAJ00N`, `NIT00N` in any phrase that *explains* the numbering (e.g. "IDs MIN001–MIN004 were used in…") — IDs on the new findings themselves are fine; commentary *about* the floor or prior-run IDs is not
 - subagent names: `code-reviewer`, `baselines-reviewer`, `verify-lines`, `diff-reader`, `post-pr-review`
 - internal paths: `.claude/`, `.build/.agents/`, `writeDir`
