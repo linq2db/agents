@@ -20,7 +20,7 @@ Optional named parameters:
 
 Stdin JSON is still accepted for callers that prefer the heredoc form (`pwsh ... pr-context.ps1 <<'EOF' { "pr": <n> } EOF`); see the script header for the JSON schema.
 
-**Reading the returned JSON.** Redirect stdout to `.build/.agents/pr<n>-context.json` and read fields from there with the **PowerShell tool** or `Grep`. Never `Bash(pwsh -NoProfile -Command "$j = Get-Content … | ConvertFrom-Json; …")` — bash expands `$j` as its own (undefined) variable before pwsh sees the string, so pwsh receives `= Get-Content …` and dies with `The term '=' is not recognized`. This is the general rule in [`agent-rules.md`](agent-rules.md) → *PowerShell Core scripts for complex operations*, restated here because the context load is the place it keeps getting hit.
+**Reading the returned JSON.** Redirect stdout to `.build/.agents/pr<n>-context.json` and read fields from there with the **PowerShell tool** or `Grep`. In a fresh worktree `.build/.agents/` does not exist yet and the redirect fails with `Could not find a part of the path` — create it first (`New-Item -ItemType Directory -Force .build/.agents`). Never `Bash(pwsh -NoProfile -Command "$j = Get-Content … | ConvertFrom-Json; …")` — bash expands `$j` as its own (undefined) variable before pwsh sees the string, so pwsh receives `= Get-Content …` and dies with `The term '=' is not recognized`. This is the general rule in [`agent-rules.md`](agent-rules.md) → *PowerShell Core scripts for complex operations*, restated here because the context load is the place it keeps getting hit.
 
 Output is a single JSON object — see the script's header comment for the exact schema. The fields the review skills consume:
 
@@ -58,6 +58,8 @@ This summary is the briefing fed to both subagents so the baselines-reviewer can
 ### Baselines clone setup
 
 The baselines clone is expected at **`../linq2db.baselines`** (sibling of this repo).
+
+**Sibling of the primary clone, not of the working directory.** From a worktree that is not itself a sibling of the primary clone — the desktop app's `.claude/worktrees/<name>/`, for one — `../linq2db.baselines` names a directory that does not exist, and the fetch below fails with `fatal: cannot change to '../linq2db.baselines'`, not the `not a git repository` of point 2. Don't read that as "clone missing" and offer to clone there. Take the primary root from `git rev-parse --path-format=absolute --git-common-dir` (its parent directory) and use `<primary-root>/../linq2db.baselines` in every `git -C` below. (Surfaced on #5987.)
 
 Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.claude/docs/windows-gotchas.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
 
