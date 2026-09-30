@@ -47,6 +47,8 @@ Each kept review already carries its `review_id` in the `id` field of the listin
 
 Build an in-memory lookup `{ comment_id → { threadId, isResolved } }` by matching each `reviewComments[*].id` against `reviewThreads[*].firstCommentId`.
 
+**A prior review of your own that is still `PENDING` (`submitted_at: null`) is replaced, not edited.** Nobody has seen it, and neither write path below works on it: step 9's body `PUT` submits the stale draft ([`review-posting.md`](../../docs/review-posting.md) → *Editing a pending review's body via the API submits it*), and step 10 cannot post a second draft while it exists — GitHub allows one pending review per user per PR. Re-verify its findings at the new head as usual, then, with the user's go-ahead, `DELETE` it and post one replacement draft holding only what is still actual. Its IDs were never public, so number the replacement from 1. (#5987)
+
 ### 2b. Audit prior reviewer claims (bot + human)
 
 Run the same audit pass as [`/review-pr` step 2b](../review-pr/SKILL.md). Scope is both surfaces from **other** authors (bot + human): every thread in `reviewThreads[]` not `resolvedBy == currentUser` (open + closed-by-others), **and** every discrete claim in the `body` of any `reviews[]` entry whose `user != currentUser` not already covered by one of that review's threads. Classify each as **Fixed at HEAD** / **Inaccurate at HEAD** / **Still actual**, surface every verdict in the `## Prior-review audit` section of the new draft review's body, then disposition the **thread** items per the same table (body-summary claims have no thread to mutate — the audit line is their disposition; Still-actual ones also feed the finding stream):
@@ -228,7 +230,7 @@ Per `review-orchestration.md` → **Command-usage audit (closing step)**.
 
 - **Never submit** the new review — omit `event`.
 - **Never resolve a thread** without explicit per-thread user approval in step 8.
-- **Never delete** a prior review or comment. Only `PUT` / `PATCH`.
+- **Never delete** a prior review or comment. Only `PUT` / `PATCH`. The one exception is your own still-`PENDING` draft, which step 2 replaces.
 - Do not edit reviews authored by other users.
 - Do not edit any source file or push anything.
 - Do not skip the batched confirmation in step 8 — one preview, one approval, then all writes in order.
