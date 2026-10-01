@@ -42,6 +42,11 @@ Contract
                          rather than triaging failures (see ci-test-verdicts.ps1 ->
                          "Harvesting what a holding gate hides").
   -JobFilter   <string>  optional case-insensitive substring on the job name
+  -Attempt     <int>     optional run attempt. Default: the latest attempt, falling back to
+                         earlier attempts when the latest matches no job - a re-run still in
+                         flight lists its re-run jobs without a conclusion, which otherwise
+                         hides the failures that made the run red. `attempt` in the output
+                         says which one was read.
   -WriteDir    <path>    default '.build/.agents/gh-<RunId>'
 
 Output: one JSON object on stdout. Logs persist under WriteDir for Read / Grep.
@@ -67,6 +72,7 @@ param(
     [string] $Repo       = 'linq2db/linq2db',
     [string] $Conclusion = 'failure',
     [string] $JobFilter,
+    [int]    $Attempt,
     [string] $WriteDir
 )
 
@@ -82,21 +88,41 @@ $WriteDir = (Resolve-Path $WriteDir).Path
 
 # --allow-escape-sequences keeps the runner's ANSI colouring, which ci-test-verdicts.ps1 strips
 # itself - stripping here instead would lose the failed/skipped markers it keys on.
-$listed = Invoke-GhJson -ArgumentList @(
-    'api', "repos/$Repo/actions/runs/$RunId/jobs?per_page=100", '--paginate',
-    '--jq', '[.jobs[] | {id, name, conclusion}]'
-)
+function Get-MatchedJobs([int] $n) {
+    $listed = Invoke-GhJson -ArgumentList @(
+        'api', "repos/$Repo/actions/runs/$RunId/attempts/$n/jobs?per_page=100", '--paginate',
+        '--jq', '[.jobs[] | {id, name, conclusion}]'
+    )
 
-if (-not $listed.ok) { Exit-WithError "gh api jobs failed: $($listed.error)" }
+    if (-not $listed.ok) { Exit-WithError "gh api jobs (attempt $n) failed: $($listed.error)" }
 
-$jobs = @($listed.data)
+    $matched = @($listed.data)
 
-if ($Conclusion -ne 'all') {
-    $jobs = @($jobs | Where-Object { $_.conclusion -eq $Conclusion })
+    if ($Conclusion -ne 'all') {
+        $matched = @($matched | Where-Object { $_.conclusion -eq $Conclusion })
+    }
+
+    if ($JobFilter) {
+        $matched = @($matched | Where-Object { $_.name -match [regex]::Escape($JobFilter) })
+    }
+
+    return ,$matched
 }
 
-if ($JobFilter) {
-    $jobs = @($jobs | Where-Object { $_.name -match [regex]::Escape($JobFilter) })
+if ($Attempt -gt 0) {
+    $jobs = Get-MatchedJobs $Attempt
+}
+else {
+    $run = Invoke-GhJson -ArgumentList @('api', "repos/$Repo/actions/runs/$RunId", '--jq', '{run_attempt}')
+    if (-not $run.ok) { Exit-WithError "gh api run failed: $($run.error)" }
+
+    $Attempt = [int]$run.data.run_attempt
+    $jobs    = Get-MatchedJobs $Attempt
+
+    while ($jobs.Count -eq 0 -and $Attempt -gt 1) {
+        $Attempt--
+        $jobs = Get-MatchedJobs $Attempt
+    }
 }
 
 $fetched    = [System.Collections.Generic.List[object]]::new()
@@ -136,6 +162,7 @@ foreach ($job in $jobs) {
 Write-JsonOutput ([ordered]@{
     runId       = $RunId
     repo        = $Repo
+    attempt     = $Attempt
     conclusion  = $Conclusion
     logsDir     = $WriteDir
     jobsMatched = $jobs.Count
