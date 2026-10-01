@@ -99,8 +99,9 @@ if ($JobFilter) {
     $jobs = @($jobs | Where-Object { $_.name -match [regex]::Escape($JobFilter) })
 }
 
-$fetched = [System.Collections.Generic.List[object]]::new()
-$failed  = [System.Collections.Generic.List[object]]::new()
+$fetched    = [System.Collections.Generic.List[object]]::new()
+$failed     = [System.Collections.Generic.List[object]]::new()
+$escapeFlag = @('--allow-escape-sequences')
 
 foreach ($job in $jobs) {
     # The job name carries '/' and spaces ("tests / Lin p_MySQL"); collapse to a filename that
@@ -108,9 +109,13 @@ foreach ($job in $jobs) {
     $safe = (($job.name -replace '[^A-Za-z0-9_-]', '-') -replace '-+', '-').Trim('-')
     $path = Join-Path $WriteDir "$safe.log"
 
-    $log = Invoke-Gh -ArgumentList @(
-        'api', "repos/$Repo/actions/jobs/$($job.id)/logs", '--allow-escape-sequences'
-    )
+    $log = Invoke-Gh -ArgumentList (@('api', "repos/$Repo/actions/jobs/$($job.id)/logs") + $escapeFlag)
+
+    # A gh that predates the flag rejects it - and passes the escapes through without it (gh 2.89.0).
+    if (-not $log.ok -and $escapeFlag.Count -gt 0 -and $log.error -match 'unknown flag: --allow-escape-sequences') {
+        $escapeFlag = @()
+        $log        = Invoke-Gh -ArgumentList @('api', "repos/$Repo/actions/jobs/$($job.id)/logs")
+    }
 
     if (-not $log.ok) {
         $failed.Add([pscustomobject]@{ id = $job.id; name = $job.name; error = $log.error })
