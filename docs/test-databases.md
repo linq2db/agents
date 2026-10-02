@@ -95,7 +95,7 @@ No setup needed. Runs against `Microsoft.Data.Sqlite` (provider ID `SQLite.MS`) 
 | 2008 | `SqlServer.2008`, `SqlServer.2008.MS` | yes (usually) | `sqlserver2008-win.cmd` | `sql2008` | `linq2db/linq2db:win-mssql-2008` | local |
 | 2012 | `SqlServer.2012`, `SqlServer.2012.MS` | yes (usually) | `sqlserver2012-win.cmd` | `sql2012` | `linq2db/linq2db:win-mssql-2012` | local |
 | 2014 | `SqlServer.2014`, `SqlServer.2014.MS` | yes (usually) | `sqlserver2014-win.cmd` | `sql2014` | `linq2db/linq2db:win-mssql-2014` | local |
-| 2016 | `SqlServer.2016`, `SqlServer.2016.MS` | yes (usually) | `sqlserver2016.cmd` | `sql2016` | `microsoft/mssql-server-2016-express-windows` | **local: 1** |
+| 2016 | `SqlServer.2016`, `SqlServer.2016.MS` | yes (usually) | `sqlserver2016-win.cmd` | `sql2016` | `microsoft/mssql-server-2016-express-windows` | **local: 1** |
 | 2017 | `SqlServer.2017`, `SqlServer.2017.MS` | no | `sqlserver2017.cmd` | `sql2017` | `linq2db/linq2db:mssql-2017` | docker: 3 |
 | 2019 | `SqlServer.2019`, `SqlServer.2019.MS` | no | `sqlserver2019.cmd` | `sql2019` | `linq2db/linq2db:mssql-2019-fts` | docker: 2 |
 | 2022 | `SqlServer.2022`, `SqlServer.2022.MS` | no | `sqlserver2022.cmd` | `sql2022` | `linq2db/linq2db:mssql-2022` | docker: 1 |
