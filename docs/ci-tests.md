@@ -337,6 +337,13 @@ The `details_url` ends in `buildId=<n>`.
 
 **These `gh api … --jq` recipes are the build-metadata interface — don't hand-roll `Invoke-RestMethod` against the Azure builds API.** The `azp-*.ps1` scripts each answer a narrower question (`azp-build-failures` = per-test failures, `azp-job-durations` = timing/ordering, `azp-step-log` = one step's log, `azp-run` = trigger), so "which commit did build N build?", "what has this branch run lately?" and "is this definition red across other PRs too?" have no script — but they *are* covered here, by the two recipes above plus `/_apis/build/builds/<id>`'s `sourceVersion` + `triggerInfo`. (Surfaced on #5828: three hand-rolled `Invoke-RestMethod` calls re-derived exactly these, because the recipes live under a heading about failure *attribution* and don't read as the general build-query entry point.)
 
+### The GitHub legs — the leg's history across PRs, via `gh-leg-history.ps1`
+
+Everything above is Azure. A red GitHub leg (`tests (comment)`) is checked against the same leg on other PRs' runs. Those runs are attributed to master's commit (see *The GitHub half* above), so nothing in the run object names the PR. [`.claude/scripts/gh-leg-history.ps1`](../scripts/gh-leg-history.ps1) `-Leg <substring>` lists the leg's conclusion for each run and attempt, plus the PR each run tested, which it reads from the small `authorize` job log. Then fetch the other PR's failed leg with `gh-run-logs.ps1 -JobFilter <leg>` and compare the **first** failing test and its message: once triggered, a test-infra flake makes the same test fail first every time, at roughly the same point in the log. Two traps:
+
+- **A run's attempt 1 can be an `authorize` failure with `tests` skipped**, so the real results are in attempt 2. `gh-run-logs.ps1` falls back across attempts; a hand-rolled `runs/<id>/jobs` call returns only the latest attempt unless you pass `filter=all`.
+- **The PR's own earlier green run on the leg is the cheaper baseline**, as on Azure. A red run on an unrelated PR with the same first failure means the failure was already there before this PR. (#5978: `i_PostgreSQL1` lost the remote mapping schema on PostgreSQL 9.x `.LinqService`; #5943 had the same first failure a day earlier. It was test-infra, fixed in #5992.)
+
 ## A leg that went red with no matching code change — check the container image
 
 A third cause, beside PR-introduced and pre-existing: **the environment moved.** The provider
