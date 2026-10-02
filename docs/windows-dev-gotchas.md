@@ -485,6 +485,8 @@ One settled answer worth not re-deriving: **the `T:System.Threading.Lock` polyfi
 
 When the API is genuinely missing on an older TFM, **prefer enabling the matching `Meziantou.Polyfill` entry** in the `<Polyfill>` opt-in list in `Directory.Build.props` over reworking the call — keep the idiomatic BCL form. The polyfill is TFM-conditional (newer TFMs use the real method), and the supported-polyfill ID list is linked in the props header. Reworking the call (`new HashSet<T>(seq, cmp)` instead of `seq.ToHashSet(cmp)`, etc.) is the fallback when no polyfill exists.
 
+**Check that a construct is actually unavailable before you downgrade it for an older TFM.** `System.Index` / `Range` (`[^1]`, `[1..]`) compile on every `Source/` TFM. `Source/LinqToDB` uses `[^1]` throughout. The "avoid `[^1]`" line in [`authoring-analyzers.md`](authoring-analyzers.md) is scoped to the analyzer projects, which have a minimal polyfill list. So before replacing idiomatic syntax "for netstandard2.0", grep the target project for an existing use. One hit settles it. (#5978: `results[^1]` was rewritten to an explicit index on an unchecked assumption and had to be reverted.)
+
 ## Analyzers are Release-only — build Release before push when a change can trip one
 
 Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). So a `dotnet build -c Testing` / `/test` run can be fully green while CI's Release `build` leg fails. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:

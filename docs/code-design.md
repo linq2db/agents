@@ -132,6 +132,19 @@ The test-side counterpart is already covered — see [`testing.md`](testing.md) 
 
 To ask "does this expression depend on any source *outside* a given subtree" — e.g. is a join predicate purely right-side, in `SelectQueryOptimizerVisitor.MoveJoinConditionsToWhere` — use **`QueryHelper.IsDependsOnOuterSources(expr, currentSources: <subtree sources>)`**, which collects `field.Table` / `column.Parent` and excepts `currentSources` at the field level. Reaching for `IsDependsOnSources(..., sourcesToIgnore:)` here is a dead end.
 
+### A `SqlParameter` is shared by every usage — change one usage through a per-usage node
+
+`ParametersContext` reuses one `SqlParameter` instance for every usage of a captured value, so a property set on that instance applies to all of them. Setting `IsQueryParameter = false` to inline the value at one position also inlines it in every other usage, such as a WHERE predicate on the same variable. That loses parameterization and plan reuse, and on a Transform pass it writes into the cached statement. Change a single usage by replacing the node at that position:
+
+- cast: `QueryHelper.EnsureParameterCast`
+- inline: `QueryHelper.MarkAsNonQueryParameters` / `SqlParameter.WithIsQueryParameter(false)`, whose copy keeps `AccessorId`, so `SqlParameterValues` still resolves its value per execution
+
+Then rebuild the parent node. Reviewer consequence: flag any assignment to a `SqlParameter`'s `IsQueryParameter` (or other properties) inside a visitor or convert override. `ConvertCoalesceToBinaryFunc(supportsParameters: false)` still does this in place and is the known exception. (#5978: an Informix CASE inlining fix mutated the shared parameter; Copilot caught it, and `InformixTests.DateParameterInCaseStaysBoundElsewhere` pins the WHERE usage.)
+
+### Convert-visitor overrides run per node — no allocation on the no-op path
+
+A `Convert*` / `Visit*` override in a provider's `SqlExpressionConvertVisitor` runs for every node of its type in every query, and almost every call is a no-op. Decide whether the rewrite applies with an allocation-free pass over the node's existing children. Allocate arrays or lists, or rebuild the node, only once the rewrite is known to apply. Collecting the children into a fresh array before deciding is a per-node cost on every query. (#5978: `ConvertSqlCaseExpression` copied every CASE's results into an array before checking for the one shape it rewrites.)
+
 ### Internal AST APIs trust NRT — validation lives in factory extensions
 
 Constructors and `Modify` methods on types under `LinqToDB.Internal.SqlQuery.*` (and peer internal AST namespaces) do **not** carry null / empty argument guards. Validation is the job of the factory extensions (`SqlExpressionFactoryExtensions.Concat`, peers) that provide the validated entry point for broader use; bare AST ctors trust callers to respect `<Nullable>enable</Nullable>` and pass sane parameters. Adding the same guard on the ctor duplicates the check at no benefit and adds noise NRT analysis would have already surfaced.
