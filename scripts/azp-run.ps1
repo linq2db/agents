@@ -59,7 +59,9 @@ Hence two behaviours below, both defeatable:
                         silent no-op surfaces as a failure the caller can retry
                         rather than as a comment URL that means nothing
 
-Output: prints one new comment URL per line on stdout. Non-zero exit on the
+Output: prints one new comment URL per line on stdout, then a verification
+line per pipeline - `azp-run: '<name>' started (buildId <n>).` when the check
+URL carries the Azure build id, ready for `azp-wait.ps1 -BuildId`. Non-zero exit on the
 first `gh` failure, leaving the already-posted triggers in place (a partially
 triggered run is visible in the URLs printed before the error), or when
 verification times out.
@@ -76,17 +78,24 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-# Returns the check-run names currently on the PR. Empty on any gh failure: the caller treats that
+# Returns the checks currently on the PR as { name, url }. Empty on any gh failure: the caller treats that
 # as "not seen yet" and keeps polling, so a transient gh hiccup does not read as a failed trigger.
-function Get-CheckNames {
-    $json = gh pr view $Pr --repo $Repo --json statusCheckRollup --jq '[.statusCheckRollup[].name]' 2>$null
+function Get-Checks {
+    $json = gh pr view $Pr --repo $Repo --json statusCheckRollup --jq '[.statusCheckRollup[] | {name, url: (.detailsUrl // .targetUrl)}]' 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $json) { return @() }
     try { return @($json | ConvertFrom-Json) } catch { return @() }
 }
 
 # A pipeline named `test-all` surfaces as `test-all` plus per-leg `test-all (Lin SQLite)` entries.
-function Test-PipelineStarted([string]$name, [string[]]$checkNames) {
-    return @($checkNames | Where-Object { $_ -eq $name -or $_ -like "$name (*" }).Count -gt 0
+function Get-PipelineChecks([string]$name, [object[]]$checks) {
+    return @($checks | Where-Object { $_.name -eq $name -or $_.name -like "$name (*" })
+}
+
+function Get-BuildId([object[]]$pipelineChecks) {
+    foreach ($c in $pipelineChecks) {
+        if ($c.url -match 'buildId=(\d+)') { return $Matches[1] }
+    }
+    return $null
 }
 
 if ($SettleSeconds -gt 0) {
@@ -99,7 +108,7 @@ foreach ($name in $Pipeline) {
     $body = if ($name -eq 'list') { '/azp list' } else { "/azp run $name" }
 
     # Checks already present before the trigger are not evidence this trigger worked.
-    $before = if ($name -eq 'list') { @() } else { Get-CheckNames }
+    $before = if ($name -eq 'list') { @() } else { Get-Checks }
 
     $body | gh pr comment $Pr --repo $Repo --body-file -
     if ($LASTEXITCODE -ne 0) {
@@ -110,21 +119,24 @@ foreach ($name in $Pipeline) {
     # `/azp list` answers with a comment rather than a run, so there is nothing to verify.
     if ($name -eq 'list' -or $VerifyTimeoutSeconds -le 0) { continue }
 
-    if (Test-PipelineStarted $name $before) {
+    if ((Get-PipelineChecks $name $before).Count -gt 0) {
         Write-Output "azp-run: '$name' already had checks on this PR before the trigger; not verifying."
         continue
     }
 
     $deadline = (Get-Date).AddSeconds($VerifyTimeoutSeconds)
-    $started  = $false
+    $started  = @()
 
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 5
-        if (Test-PipelineStarted $name (Get-CheckNames)) { $started = $true; break }
+        $started = Get-PipelineChecks $name (Get-Checks)
+        if ($started.Count -gt 0) { break }
     }
 
-    if ($started) {
-        Write-Output "azp-run: '$name' started."
+    if ($started.Count -gt 0) {
+        $buildId = Get-BuildId $started
+        if ($buildId) { Write-Output "azp-run: '$name' started (buildId $buildId)." }
+        else          { Write-Output "azp-run: '$name' started." }
     }
     else {
         $notStarted += $name
