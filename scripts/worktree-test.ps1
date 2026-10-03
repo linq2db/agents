@@ -72,6 +72,13 @@ Input (named parameters):
                            passing test's exception / stack".
   -NoTestProgress          optional; suppress the `--test-progress` flag this script
                            passes by default.
+  -ExpectTests   <list>    optional; test METHOD names (no class, no arguments) that
+                           must have run. Implies -OutputDetailed, since MTP lists a
+                           passed test only in that mode. Any name with no passed /
+                           failed / skipped line lands in `missingTests` and fails the
+                           run (exit 1). Use it when a broad filter carries a test you
+                           just wrote: the summary counts alone cannot show that the
+                           new test was among them.
 
 `--test-progress` is passed by default, per `.claude/docs/agent-rules.md` ->
 "Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`".
@@ -100,7 +107,8 @@ Output (stdout, single JSON object):
     "logPath":   "C:/.../worktree-test-X-net10.0.log",
     "testProgress": true,            // whether --test-progress was actually passed
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
-    "failedTests": [ "SomeTest", ... ]
+    "failedTests": [ "SomeTest", ... ],
+    "missingTests": [ ... ]          // only with -ExpectTests; names that did not run
   }
 
 `summary` is null when no `Test run summary:` block was produced (typically a
@@ -124,7 +132,8 @@ param(
     [switch]$OutputDetailed,
     [switch]$SharedCompilation,
     [switch]$NoRestore,
-    [switch]$NoTestProgress
+    [switch]$NoTestProgress,
+    [string[]]$ExpectTests
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -201,7 +210,7 @@ $dotnetArgs = @('test', '--project', $projectFull, '-c', $Configuration)
 if ($Tfm)      { $dotnetArgs += @('-f', $Tfm) }
 if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
-if ($OutputDetailed) { $dotnetArgs += @('--output', 'Detailed') }
+if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed') }
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
 
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
@@ -220,6 +229,7 @@ finally {
 $summary     = $null
 $failedTests = @()
 $buildFailed = $false
+$ranTests    = [System.Collections.Generic.HashSet[string]]::new()
 
 if (Test-Path -LiteralPath $LogPath) {
     $lines = [System.IO.File]::ReadAllLines($LogPath)
@@ -228,6 +238,7 @@ if (Test-Path -LiteralPath $LogPath) {
 
     foreach ($line in $lines) {
         if ($line -match '^failed\s+(\S+)') { $failedTests += $Matches[1] }
+        if ($line -match '^\s*(passed|failed|skipped)\s+([^\s(]+)') { [void]$ranTests.Add($Matches[2]) }
     }
 
     $idx = [array]::FindIndex($lines, [Predicate[string]] { param($l) $l -match '^Test run summary:' })
@@ -250,8 +261,10 @@ if (Test-Path -LiteralPath $LogPath) {
     }
 }
 
-[ordered]@{
-    ok          = ($exitCode -eq 0)
+$missingTests = @($ExpectTests | Where-Object { $_ -and -not $ranTests.Contains($_) })
+
+$result = [ordered]@{
+    ok          = ($exitCode -eq 0) -and $missingTests.Count -eq 0
     exitCode    = $exitCode
     buildFailed = $buildFailed
     repoRoot     = $repoFull
@@ -261,6 +274,9 @@ if (Test-Path -LiteralPath $LogPath) {
     testProgress = $useTestProgress
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
-} | ConvertTo-Json -Depth 5
+}
+if ($ExpectTests) { $result['missingTests'] = $missingTests }
 
-if ($exitCode -ne 0) { exit 1 }
+$result | ConvertTo-Json -Depth 5
+
+if ($exitCode -ne 0 -or $missingTests.Count -gt 0) { exit 1 }

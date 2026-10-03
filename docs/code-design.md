@@ -266,11 +266,17 @@ A mixed-version LinqService deployment — client and server on different builds
 
 **This contradicts comments in the codebase, which is why it needs stating here.** Several `QueryElementType` members carry a `// TODO: appended here for v6.x LinqService wire-compat (enum ordinals are serialized as int)` marker. That rationale is inaccurate. The real reason those members are tail-appended is the **public-enum ABI**: `QueryElementType` is public API, so inserting mid-enum renumbers every later member and trips ApiCompat `CP0011`. The constraint is real; the stated reason for it is not. Treat a wire-compat argument sourced from those comments as unfounded — on PR #5723 it produced a bot finding, and an agent review rated it a blocker, before the maintainer corrected the premise.
 
+### A wrong user mapping is the user's error, not an engine gap
+
+A property mapped without the `DataType` its server column needs (a `DateTime` column with no `DataType = DataType.DateTime`, so linq2db types it from the schema default) is a configuration mistake. Don't propose engine support to compensate for it, and decline review findings that ask for it. The reverse matters as much: before arguing that a regression needs fixing, state whether the repro's mapping is correct — when it is and linq2db loses the declared type on the way (an untyped `COALESCE`, a window function typed from its CLR type), that is an engine bug. (#5959)
+
 ### Column-aligned formatting is intentional
 
 Large blocks of the codebase use column-aligned formatting — property declarations line their `{ get; }` up at the same column, constructor parameters line their defaults up at the same column, constant declarations line their `=` up at the same column. This is deliberate house style, not accidental. Preserve it when editing; match the existing alignment of surrounding code rather than reformatting it to a narrower width.
 
 When you *do* edit an aligned block, align each `=` / `=>` to the longest left-hand side **within its contiguous same-kind subgroup** — declarations of one type form a subgroup independent of an adjacent block of another type (a `var` group and a `List<T>?` group align to *different* columns even with no blank line between them), a bare assignment aligns with the variable-declaration block it sits directly above/below, and a `switch`-expression's arms align their `=>` one space past the longest pattern. A lone declaration takes a single space; a group that loses a member re-collapses to the new longest LHS. The common defect is an `=`/`=>` sitting one column off its neighbours — fix it by adding/removing the one space, never by stripping the alignment.
+
+After an `Edit` inside an aligned block, `Grep` the block and compare the `=>` / `=` / `{ get; }` columns: the `Read` display's line-number-and-tab prefix hides a one-column drift. For a temporary mutation, anchor `old_string` on the mutated line alone — an anchor that runs into the next line's padding re-pads that line on the way in and again on the restore. (#5959: an added `switch` arm one column short, and a mutation edit that stripped a space from the neighbouring arm.)
 
 Formatting is only worth flagging when it is clearly broken — three or more consecutive blank lines, mixed tabs and spaces that cause visible misalignment, indentation that doesn't match the enclosing scope. The positive alignment style is never the bug.
 
