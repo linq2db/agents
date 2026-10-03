@@ -650,6 +650,8 @@ The cost is that the skipped arm now hides in the run's `skipped` count rather t
 
 **`[ActiveIssue]` has the same blind spot.** It selects by provider, by direct vs `LinqService`, and by platform (`ActiveIssueAttribute.AppliesTo`), never by a `[Values]` value. When a known issue fails only one value, a gate on the whole method reports every other value as `Test passed but is marked with [ActiveIssue]`. Split the failing value into its own method and gate that method. Don't use `Assert.Ignore` here: it hides a known failure that the gate would otherwise check. (#5972: an inlined `ulong` failed only with `InlineParameters = true`, so `Issue5972_UInt64` and `Issue5972_UInt64Parameter` became separate methods.)
 
+**A tracked provider failure on one arm: `[ThrowsForProvider]` with `AlsoWhenParameter` / `AlsoWhenValue`.** Unlike `[ActiveIssue]` it does select by a `[Values]` value, and unlike `Assert.Ignore` it keeps checking the failure. It also matches the `RpcException`-wrapped error on `.LinqService`. Precedent: `EagerLoadingStrategyKeyedQueryTests.Select_KeyedQuery_DetailTakeIsPerParent`, `Issue5935Tests` (#5940 on SAP HANA).
+
 A gate whose `ErrorMessage` is the direct/remote baseline check (`Baselines for remote context doesn't match direct access baselines`) fires only when `BaselinesPath` is set. On a run without baselines the test passes and the gate reports "passed but marked".
 
 ### Test-proofing a gated provider capability
