@@ -179,6 +179,7 @@ Copilot's PR-review activity uses **two different author logins** at the API lay
 
 - The **review wrapper** (top-level submission at `/repos/{o}/{r}/pulls/{n}/reviews`) is authored by **`copilot-pull-request-reviewer[bot]`**. Its `body` typically reads "Copilot reviewed N of M changed files in this pull request and generated K comments." and links to the inline-comment threads.
 - The **inline line comments** (`/repos/{o}/{r}/pulls/{n}/comments`) are authored by user **`Copilot`** — a separate user account, not the `[bot]` login.
+- **Overview format (`<!-- ccr-overview-v2 -->`, seen 2026-10).** The wrapper body can carry findings itself: a `<details>` *"Previously missed"* block lists findings on code unchanged since the last review — `path:line` plus text — with **no inline comment and no thread**, even under a `Findings: None` header. Search `/reviews` bodies as well as `/comments`; with no thread to reply to, answer in a PR comment that names the finding. (#5959)
 
 A filter that uses only the bot login (`select(.user.login == "copilot-pull-request-reviewer[bot]")`) on the `/comments` endpoint returns empty, which falsely suggests Copilot left no inline comments. Filter both endpoints in one shape with a case-insensitive regex:
 
