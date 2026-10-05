@@ -595,6 +595,10 @@ sealed class Entity
 }
 ```
 
+### A `static readonly` derived from a field in another partial-class file can read its default
+
+Fixtures are split across partial-class files (`IntervalTranslationTests.*.cs`, `DateTimeFunctionsTests` and friends), and C# gives static field initializers in *different* files of one partial class no defined order. `static readonly DateTime B = A.AddMilliseconds(500);` with `A` declared in a sibling file can run first and read `default(DateTime)`: the query renders `0001-01-01 00:00:00.5` and the test fails for a reason unrelated to what it pins. Spell the value out, or derive it in the file that declares `A`. (#5959)
+
 ### Verifying server-side function translations
 
 When a test asserts a method translates to a server-side function, wrap the call in `Sql.AsSql(...)` (e.g. `select Sql.AsSql(Sql.NewGuid7())`). Without it, a provider that *lacks* the translation can silently client-evaluate the method and the test still passes — a false green that hides a missing translation.
