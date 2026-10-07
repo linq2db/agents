@@ -28,7 +28,9 @@ Input (named parameters; plain strings and switches, so `pwsh -File` binds them 
                             merge base of the change under test
   -ProbeFile      <path>    required; the scratch test file, relative to RepoRoot. Linked into
                             `Tests/Tests.Playground/Tests.Playground.csproj` for the run only; the
-                            file itself is the caller's and is left in place.
+                            file itself is the caller's and is left in place. A copy is kept under
+                            `.build/.agents/ab-probe-archive/<yyyyMMdd-HHmmss>-<file name>`, so a
+                            later review round can re-run a probe the caller has since deleted.
   -Filter         <string>  required; the probe's test filter, e.g. `FullyQualifiedName~MyProbe`.
                             `FullyQualifiedName~CreateData.CreateDatabase|` is prepended.
   -Provider       <string>  required; comma-separated provider ids, passed to --provider
@@ -59,6 +61,7 @@ Output (stdout, single JSON object):
     "swapOk": true,                  // Source/ matched ControlRef exactly before the control arm
     "treeRestored": true,            // no tracked changes left afterwards
     "scratchBaselines": "...",       // what -ScratchBaselines did, null without it
+    "probeArchive": "...",           // the kept copy of the probe file
     "arms": [
       { "name": "head",    "sourceRef": "HEAD",         "exitCode": 0, "buildFailed": false,
         "summary": { "total": 3, "failed": 0, ... }, "failedTests": [], "markerPresent": true,
@@ -196,6 +199,11 @@ if (-not (Test-Path -LiteralPath $agentsDir)) {
     New-Item -ItemType Directory -Force -Path $agentsDir | Out-Null
 }
 
+$archiveDir   = Join-Path $agentsDir 'ab-probe-archive'
+$probeArchive = Join-Path $archiveDir ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [System.IO.Path]::GetFileName($probeFull))
+[void][System.IO.Directory]::CreateDirectory($archiveDir)
+Copy-Item -LiteralPath $probeFull -Destination $probeArchive
+
 function Invoke-Arm {
     param([string]$Name, [string]$SourceRef)
 
@@ -303,6 +311,7 @@ Write-JsonOutput -InputObject ([ordered]@{
     swapOk              = $swapOk
     treeRestored        = $treeRestored
     scratchBaselines    = $baselinesNote
+    probeArchive        = $probeArchive
     arms                = @($arms)
 })
 

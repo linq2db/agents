@@ -23,6 +23,9 @@ Input — two forms (preferred first)
       pwsh -NoProfile -File .claude/scripts/diff-reader.ps1 -ManifestFile .build/.agents/diff-reader-5503.json
 
     The manifest file contains exactly the same JSON shape as the stdin form below.
+    `-OutFile <path>` (or the manifest's `outFile`) writes the JSON output there and
+    prints one summary line instead - use it when the call only refreshes the
+    `writeDir` cache, or from the PowerShell tool, which cannot redirect stdout.
 
 (2) Stdin JSON (legacy, still accepted — heredoc form).
 
@@ -62,6 +65,8 @@ JSON manifest shape
                                               //           building repo-wide style reports.
     },
     "maxContentBytes": 200000,                // optional — truncate inline content; omit for no limit
+    "outFile":    ".build/.agents/pr5414-diff.json", // optional — output to file, one summary line on stdout:
+                                              // { ok, outFile, bytes, headRef, baseRef, files, missing, writeDir }
     "writeDir":   ".build/.agents/pr5414"     // optional — when set, full per-file content is
                                               // written to <writeDir>/<source-path> (directory
                                               // structure preserved) and `contentPath` is emitted
@@ -94,12 +99,13 @@ Exit codes
   1 = hard failure
 #>
 
-param([string]$ManifestFile)
+param([string]$ManifestFile, [string]$OutFile)
 
 $global:ScriptBaseName = 'diff-reader'
 . "$PSScriptRoot/_shared.ps1"
 
 $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
+$outFile = if ($OutFile) { $OutFile } elseif ($m.outFile) { [string]$m.outFile } else { $null }
 
 $files = @()
 if ($m.files) { foreach ($f in $m.files) { if ($f -is [string] -and $f.Length -gt 0) { $files += $f } } }
@@ -357,4 +363,10 @@ Write-JsonOutput ([pscustomobject]@{
     headRef = $headRef
     baseRef = $baseRef
     files = @($out)
+}) -OutFile $outFile -Summary ([ordered]@{
+    headRef  = $headRef
+    baseRef  = $baseRef
+    files    = @($out).Count
+    missing  = @($out | Where-Object { -not $_.exists }).Count
+    writeDir = $writeDir
 })

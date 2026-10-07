@@ -85,6 +85,8 @@ Per `.claude/docs/review-conventions.md` → **ID-continuation floor**: regex-ma
 
 Dedup by ID — if the same ID appears in multiple places, keep the most recent location. Compute the **ID-continuation floor** per severity: `max(number) + 1`, or `1` when no prior matches.
 
+**Run [`prior-findings.ps1`](../../scripts/prior-findings.ps1) for this step — don't build it by hand.** `pwsh -NoProfile -File .claude/scripts/prior-findings.ps1 -Pr <n>` reads the context file step 2 saved and writes `.build/.agents/pr<n>-prior-findings.json`: every finding in the shape above (plus `node_id`, thread state and the author's `replies`, matched by `in_reply_to_id`), `alsoAt` for the earlier locations, `unnumbered` for our out-of-scope line comments, `openNotes` for unchecked notes, `authorComments` since our latest review, `pendingOwnReview`, and `idFloor`. Hand that file to `code-reviewer` as the prior findings list. A context file from before `in_reply_to_id` is refused with the re-run command. (#5987: the parse was rebuilt as an ad-hoc script in each of two rounds, and the path-and-line reply matching it used broke across rounds.)
+
 **Zero own findings** (only other authors reviewed): the run reduces to the step-2b audit. When HEAD equals that review's `commit_id`, skip the step-5 subagents — each verdict is about the claim's accuracy, not fixed-or-not — and walk each audited claim interactively.
 
 ### 4. Prepare change summary and baselines state
@@ -97,7 +99,7 @@ Execute the **Change summary** and **Baselines clone setup** sections of `.claud
 
 Per `review-orchestration.md` → **Spawning the subagents in parallel**. This skill adds only `verify`-mode specifics on top of the common briefing:
 
-**Refresh the diff cache before spawning (verify-mode only).** A prior `/review-pr` run leaves a `writeDir` cache populated at *that* run's HEAD. Re-run `diff-reader.ps1` for all changed files at current HEAD first, so a subagent whose own `diff-reader` call is denied (background runs can't surface a permission prompt) falls back to a *fresh* cache rather than the stale prior-run one — a stale cache produces false line-level findings (a dropped-then-readded comment surfaced as a NIT on PR #5639). Pairs with the live-blob cross-check in `pr-context-prep.md` → *Cache freshness*.
+**Refresh the diff cache before spawning (verify-mode only).** A prior `/review-pr` run leaves a `writeDir` cache populated at *that* run's HEAD. Re-run `diff-reader.ps1` for all changed files at current HEAD first, so a subagent whose own `diff-reader` call is denied (background runs can't surface a permission prompt) falls back to a *fresh* cache rather than the stale prior-run one — a stale cache produces false line-level findings (a dropped-then-readded comment surfaced as a NIT on PR #5639). Pairs with the live-blob cross-check in `pr-context-prep.md` → *Cache freshness*. Set `outFile` in that manifest: the refresh needs only the files on disk, and without it the per-file JSON lands in your context.
 
 - **`code-reviewer`:** `mode: verify`; **prior findings list** (the full parsed structure from step 3). The subagent returns `prior_finding_status` (fixed / still_actual / partial), plus fresh `findings` for `partial` cases and any genuinely new issues, plus `api_changes`.
 - **`baselines-reviewer`:** `mode: verify`.

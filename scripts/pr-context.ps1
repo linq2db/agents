@@ -30,6 +30,9 @@ Input — two forms (preferred first)
       -BaseRef <ref>            — default "origin/master"
       -NoFetch                  — switch; skip `git fetch` (caller already fetched)
       -LinkedConcurrency <int>  — default 6
+      -OutFile <path>           — write the JSON there and print one summary line
+                                  instead (see Output below); use it from the
+                                  PowerShell tool, which cannot redirect stdout
 
 (2) Stdin JSON (legacy, still accepted — heredoc form):
 
@@ -44,13 +47,21 @@ Input — two forms (preferred first)
         "repo":      "linq2db",       // optional, default "linq2db". Also accepts "owner/repo"
         "baseRef":   "origin/master", // optional
         "fetchHead": true,            // optional, default true
-        "linkedConcurrency": 6        // optional, default 6
+        "linkedConcurrency": 6,       // optional, default 6
+        "outFile":   ".build/.agents/pr5414-context.json"  // optional
       }
 
 Output (stdout, single JSON object): see the review skills' expected shape —
   { pr, currentUser, reviews, reviewComments, issueComments, reviewThreads,
     closingIssues, linkedRefs, linkedIssues, diffStat, nameStatus, commits,
     baseRef, headRef, headSha }
+With -OutFile that object goes to the file, and stdout carries one line:
+  { ok, outFile, bytes, headSha, reviews, reviewComments, reviewThreads,
+    issueComments, changedFiles, commits } (the last six are counts).
+
+`reviewComments[]` carry `node_id` (the GraphQL id a `replyComments[]` entry's
+`inReplyTo` needs) and `in_reply_to_id` (null on a thread's first comment, the
+first comment's id on every reply). `issueComments[]` carry `id`.
 
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
 step 7 and `/review-pr` step 2b (which thread-disposition action to take per
@@ -74,7 +85,8 @@ param(
     [string]$BaseRef,
     [switch]$NoFetch,
     [int]$LinkedConcurrency = 0,
-    [string]$ManifestFile
+    [string]$ManifestFile,
+    [string]$OutFile
 )
 
 $global:ScriptBaseName = 'pr-context'
@@ -88,6 +100,7 @@ $m = if ($Pr -gt 0) {
         baseRef           = $BaseRef
         fetchHead         = -not $NoFetch.IsPresent
         linkedConcurrency = $LinkedConcurrency
+        outFile           = $OutFile
     }
 } else {
     Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
@@ -117,6 +130,7 @@ $baseRef = if ($m.baseRef) { [string]$m.baseRef } else { 'origin/master' }
 $headRef = "origin/pr/$pr"
 $fetchHead = ($null -eq $m.fetchHead) -or ([bool]$m.fetchHead)
 $linkedConcurrency = if ((Test-IsInteger $m.linkedConcurrency) -and [long]$m.linkedConcurrency -gt 0) { [int]$m.linkedConcurrency } else { 6 }
+$outFile = if ($OutFile) { $OutFile } elseif ($m.outFile) { [string]$m.outFile } else { $null }
 
 # Everything except the git work that depends on the fetch can run in parallel.
 # Fire them all as thread jobs, including the fetch itself.
@@ -415,6 +429,9 @@ $reviews = foreach ($r in $reviewsRaw) {
 $reviewComments = foreach ($c in $reviewCommentsRaw) {
     [pscustomobject]@{
         id = $c.id
+        node_id = $c.node_id
+        in_reply_to_id = $c.in_reply_to_id
+        created_at = $c.created_at
         user = $c.user.login
         path = $c.path
         line = $c.line
@@ -430,6 +447,7 @@ $reviewComments = foreach ($c in $reviewCommentsRaw) {
 
 $issueComments = foreach ($c in $issueCommentsRaw) {
     [pscustomobject]@{
+        id = $c.id
         user = $c.user.login
         created_at = $c.created_at
         body = [string]$c.body
@@ -452,4 +470,12 @@ Write-JsonOutput ([pscustomobject]@{
     baseRef = $baseRef
     headRef = $headRef
     headSha = $headSha
+}) -OutFile $outFile -Summary ([ordered]@{
+    headSha        = $headSha
+    reviews        = @($reviews).Count
+    reviewComments = @($reviewComments).Count
+    reviewThreads  = @($reviewThreads).Count
+    issueComments  = @($issueComments).Count
+    changedFiles   = @($nameStatus).Count
+    commits        = @($commits).Count
 })

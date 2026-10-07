@@ -35,7 +35,7 @@ Carry the choice forward (a fresh re-review still walks `initial`-mode normally)
 One call does all of it:
 
 ```
-pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n> -OutFile .build/.agents/pr<n>-context.json
 ```
 
 Execute the three sections of [`pr-context-prep.md`](pr-context-prep.md) in order: **Context load** (the one script call), **Change summary**, **Baselines clone setup**. Both skills need all three — draft PRs are no different from ready-for-review PRs.

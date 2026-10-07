@@ -7,7 +7,7 @@ Common preparation done by `/review-pr` and `/verify-review` before spawning sub
 Everything the skill needs up front — PR metadata, reviews, review comments, issue comments, closing-issues references, the PR head fetched into `origin/pr/<n>`, diff stat / name-status / commits, and the one-level linked-issue scan — is returned by a single invocation of `.claude/scripts/pr-context.ps1`. Use named parameters (single allowlist-friendly command line, no stdin pipe needed):
 
 ```
-pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n>
+pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -Pr <n> -OutFile .build/.agents/pr<n>-context.json
 ```
 
 Optional named parameters:
@@ -17,10 +17,11 @@ Optional named parameters:
 - `-BaseRef <ref>` — default `origin/master`
 - `-NoFetch` — switch; skip the bundled `git fetch` (PR head **and** base branch) when both refs are already current
 - `-LinkedConcurrency <int>` — default `6`; parallel fan-out cap when fetching linked issues
+- `-OutFile <path>` — write the JSON there and print one summary line (`{ ok, outFile, bytes, headSha, reviews, reviewComments, reviewThreads, issueComments, changedFiles, commits }`)
 
 Stdin JSON is still accepted for callers that prefer the heredoc form (`pwsh ... pr-context.ps1 <<'EOF' { "pr": <n> } EOF`); see the script header for the JSON schema.
 
-**Reading the returned JSON.** Redirect stdout to `.build/.agents/pr<n>-context.json` and read fields from there with the **PowerShell tool** or `Grep`. In a fresh worktree `.build/.agents/` does not exist yet and the redirect fails with `Could not find a part of the path` — create it first (`New-Item -ItemType Directory -Force .build/.agents`). Never `Bash(pwsh -NoProfile -Command "$j = Get-Content … | ConvertFrom-Json; …")` — bash expands `$j` as its own (undefined) variable before pwsh sees the string, so pwsh receives `= Get-Content …` and dies with `The term '=' is not recognized`. This is the general rule in [`agent-rules.md`](agent-rules.md) → *PowerShell Core scripts for complex operations*, restated here because the context load is the place it keeps getting hit.
+**Reading the returned JSON.** Pass `-OutFile .build/.agents/pr<n>-context.json` and read fields from that file with the **PowerShell tool** or `Grep`; the script creates the directory and prints only a one-line summary, so the 100–300 KB payload never enters the context. Don't redirect stdout instead: the script writes to `[Console]::Out`, not to the PowerShell pipeline, so from the PowerShell tool `& .claude/scripts/pr-context.ps1 … | Out-File …` writes **0 bytes** and dumps the whole payload into the context (#5987, twice). `diff-reader.ps1` and `baselines-diff.ps1` take the same `-OutFile`. Never `Bash(pwsh -NoProfile -Command "$j = Get-Content … | ConvertFrom-Json; …")` — bash expands `$j` as its own (undefined) variable before pwsh sees the string, so pwsh receives `= Get-Content …` and dies with `The term '=' is not recognized`. This is the general rule in [`agent-rules.md`](agent-rules.md) → *PowerShell Core scripts for complex operations*, restated here because the context load is the place it keeps getting hit.
 
 Output is a single JSON object — see the script's header comment for the exact schema. The fields the review skills consume:
 

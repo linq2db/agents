@@ -174,10 +174,34 @@ function Read-ManifestFromFileOrStdin {
 # Write-JsonOutput: emit JSON on stdout with a trailing newline. Depth is
 # generous so deeply nested structures (e.g. linked issues with comments)
 # serialize in full.
+#
+# With -OutFile the JSON goes to that file instead (UTF-8 without BOM, parent
+# directory created) and stdout carries one compact line - { ok, outFile,
+# bytes } plus the -Summary entries. stdout here is [Console]::Out, not the
+# PowerShell pipeline, so a script invoked in-process (the PowerShell tool's
+# `& script.ps1 | Out-File`) cannot be redirected and writes the whole payload
+# into the caller's context.
 function Write-JsonOutput {
-    param([Parameter(Mandatory)]$InputObject, [int]$Depth = 100)
+    param(
+        [Parameter(Mandatory)]$InputObject,
+        [int]$Depth = 100,
+        [string]$OutFile,
+        [System.Collections.IDictionary]$Summary
+    )
     $json = $InputObject | ConvertTo-Json -Depth $Depth
-    [Console]::Out.WriteLine($json)
+    if (-not $OutFile) {
+        [Console]::Out.WriteLine($json)
+        return
+    }
+
+    $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutFile)
+    $dir  = [System.IO.Path]::GetDirectoryName($full)
+    if ($dir) { [void][System.IO.Directory]::CreateDirectory($dir) }
+    [System.IO.File]::WriteAllText($full, $json, [System.Text.UTF8Encoding]::new($false))
+
+    $line = [ordered]@{ ok = $true; outFile = $full; bytes = ([System.IO.FileInfo]::new($full)).Length }
+    if ($Summary) { foreach ($k in $Summary.Keys) { $line[$k] = $Summary[$k] } }
+    [Console]::Out.WriteLine(($line | ConvertTo-Json -Depth 5 -Compress))
 }
 
 # Parse the output of `git diff --unified=0 A...B -- <paths>` into per-file

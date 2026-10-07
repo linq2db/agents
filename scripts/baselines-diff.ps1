@@ -28,6 +28,14 @@ Input — two forms (preferred first)
       -Fetch                    — switch; fetch the baselines branch before diffing
       -BaselineOwner <name>     — owner of baselines repo on GitHub
       -BaselineRepo <name>      — baselines repo name on GitHub
+      -HeadRef <ref>            — default "origin/pr/<pr>"; the PR head in the linq2db
+                                  checkout the script runs from, for the orphan check
+      -OutFile <path>           — write the JSON (often several MB) there and print one
+                                  summary line instead: { ok, outFile, bytes, status,
+                                  counts, testGroups, patterns, orphans, branchWriteWindow }
+
+    Pass a Windows path through -BaselinesPath, never through the stdin JSON: its
+    backslashes are JSON escapes, and the call dies with "Bad JSON escape sequence".
 
 (2) Stdin JSON (legacy, still accepted — heredoc form). JSON manifest shape:
 
@@ -39,13 +47,16 @@ Input — two forms (preferred first)
         "maxDiffBytes":   16384,                     // optional — per-file diff truncation; 0 = no limit
         "fetch":          false,                     // optional, default false — caller already fetched
         "baselineOwner":  "linq2db",                 // optional — owner of baselines repo on GitHub
-        "baselineRepo":   "linq2db.baselines"        // optional — baselines repo name on GitHub
+        "baselineRepo":   "linq2db.baselines",       // optional — baselines repo name on GitHub
+        "headRef":        "origin/pr/5414",          // optional — PR head for the orphan check
+        "outFile":        ".build/.agents/pr5414-baselines-diff.json"  // optional — see -OutFile
       }
 
 Output (stdout, single JSON object): { status, pr, branch, baseRef,
 baselineRepo, baselineBranchUrl, baselineCompareUrl, baselineReview,
 counts, summary, testGroupSummary[], changePatterns[], sizeOutliers[],
-regressionCandidates[], sql[], metrics[], unknown[], testGroups }. When
+regressionCandidates[], orphanCheck, orphans[], sql[], metrics[], unknown[],
+testGroups }. When
 status == "branch_missing", only the header fields plus an all-zero
 `counts` are emitted; the rest are omitted.
   `baselineRepo` — "owner/name" of the baselines repo on GitHub.
@@ -109,6 +120,20 @@ status == "branch_missing", only the header fields plus an all-zero
   Each `changePatterns[]` entry also carries `sizeMetrics` (the per-pattern
     byte/line deltas) and `regressionArchetypes` (string array of archetype
     names, empty when none fired).
+  `lastWritten` / `oldestWritten` — on each `changePatterns[]` entry, the newest
+    and oldest time a run wrote one of the pattern's files on the branch;
+    `lastWritten` on each `sql[]` entry too. Author time: a replayed (rebased)
+    run commit keeps its run's author time but takes a new committer time. A
+    file older than the PR head's last code commit describes SQL the head may no
+    longer emit. `summary.branchWriteWindow` = { first, last } over the branch.
+  `orphans` — test groups whose method name no longer occurs anywhere under
+    `Tests/` at `orphanCheck.headRef`: renamed or deleted tests, whose files no
+    run will rewrite. Each entry: { test, entryCount, providerCount, statuses,
+    samplePath, sampleUrl, lastWritten }. Checked by name in the linq2db
+    checkout the script runs from (any language, any file), so a changed
+    signature under the same name is not caught. `orphanCheck` = { headRef, ok,
+    methodsChecked, error }; when the head ref does not resolve, `ok` is false
+    and `orphans` is empty.
 
 Exit codes
 ----------
@@ -125,7 +150,9 @@ param(
     [switch]$Fetch,
     [string]$BaselineOwner,
     [string]$BaselineRepo,
-    [string]$ManifestFile
+    [string]$HeadRef,
+    [string]$ManifestFile,
+    [string]$OutFile
 )
 
 $global:ScriptBaseName = 'baselines-diff'
@@ -413,6 +440,7 @@ $m = if ($Pr -gt 0) {
         fetch          = $Fetch.IsPresent
         baselineOwner  = $BaselineOwner
         baselineRepo   = $BaselineRepo
+        headRef        = $HeadRef
     }
 } else {
     Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
@@ -428,6 +456,8 @@ $maxDiffBytes = if (Test-IsInteger $m.maxDiffBytes) { [int]$m.maxDiffBytes } els
 $baselineOwner = if ($m.baselineOwner) { [string]$m.baselineOwner } else { 'linq2db' }
 $baselineRepoName = if ($m.baselineRepo) { [string]$m.baselineRepo } else { 'linq2db.baselines' }
 $baselineRepoFull = "${baselineOwner}/${baselineRepoName}"
+$prHeadRef = if ($m.headRef) { [string]$m.headRef } else { "origin/pr/$pr" }
+$outFile = if ($OutFile) { $OutFile } elseif ($m.outFile) { [string]$m.outFile } else { $null }
 $baselineBranchUrl = "https://github.com/${baselineRepoFull}/tree/${branch}"
 $baselineCompareUrl = "https://github.com/${baselineRepoFull}/compare/master...${branch}"
 
@@ -487,7 +517,7 @@ if (-not $rev.ok) {
         baselineCompareUrl = $baselineCompareUrl
         baselineReview = $baselineReview
         counts = [pscustomobject]@{ added = 0; modified = 0; deleted = 0; renamed = 0; other = 0 }
-    })
+    }) -OutFile $outFile -Summary ([ordered]@{ status = 'branch_missing' })
     return
 }
 
@@ -527,6 +557,27 @@ if ($entries.Count -gt 0) {
     $diffBodies = Split-DiffByFile -DiffText $diffRes.stdout
 }
 
+# When a run last wrote each path on the branch, by author time. `git log` lists newest first,
+# so the first time a path appears is its last write.
+$lastWritten = @{}
+if ($entries.Count -gt 0) {
+    $logRes = Invoke-Git @('-C',$clonePath,'log','--name-only','--format=@@%aI',"$baseRef..$remoteRef")
+    if ($logRes.ok) {
+        $when = $null
+        foreach ($line in ($logRes.stdout -split "`n")) {
+            $l = $line.TrimEnd("`r")
+            if ($l.StartsWith('@@')) { $when = $l.Substring(2); continue }
+            if ($l -and $when -and -not $lastWritten.ContainsKey($l)) { $lastWritten[$l] = $when }
+        }
+    }
+}
+
+function Get-WriteWindow([string[]]$Paths) {
+    $times = @($Paths | Where-Object { $lastWritten.ContainsKey($_) } | ForEach-Object { [datetimeoffset]$lastWritten[$_] } | Sort-Object)
+    if ($times.Count -eq 0) { return @{ oldest = $null; newest = $null } }
+    return @{ oldest = $times[0].ToString('o'); newest = $times[-1].ToString('o') }
+}
+
 $sql = @()
 $metrics = @()
 $unknown = @()
@@ -556,6 +607,7 @@ foreach ($e in $entries) {
             diff = $diff
             rawDiff = $rawDiff
             diffTruncated = $diffTruncated
+            lastWritten = if ($lastWritten.ContainsKey($e.path)) { $lastWritten[$e.path] } else { $null }
         }
 
         if (-not $groupMap.ContainsKey($parsed.testBase)) {
@@ -627,10 +679,12 @@ foreach ($s in $sql) {
             sampleDiffTruncated = [bool]$s.diffTruncated
             sampleStatus = [string]$s.status
             statuses = [System.Collections.Generic.HashSet[string]]::new()
+            paths = [System.Collections.Generic.List[string]]::new()
         }
     }
     [void]$patternMap[$key].providers.Add($s.provider)
     [void]$patternMap[$key].statuses.Add($s.status)
+    $patternMap[$key].paths.Add($s.path)
 }
 $changePatterns = @()
 foreach ($val in $patternMap.Values) {
@@ -652,6 +706,7 @@ foreach ($val in $patternMap.Values) {
     $sides = Split-DiffSides -Diff $val.sampleRawDiff
     $sizeMetrics = Get-PatternSizeMetrics -Sides $sides
     $archetypes = Get-RegressionArchetypes -Sides $sides
+    $window = Get-WriteWindow -Paths $val.paths.ToArray()
     $changePatterns += [pscustomobject]@{
         testBase = $val.testBase
         patternHash = $val.patternHash
@@ -666,6 +721,8 @@ foreach ($val in $patternMap.Values) {
         status = $statusLabel
         sizeMetrics = [pscustomobject]$sizeMetrics
         regressionArchetypes = @($archetypes | ForEach-Object { $_.name })
+        lastWritten = $window.newest
+        oldestWritten = $window.oldest
     }
 }
 $changePatterns = @($changePatterns | Sort-Object -Property @{ Expression = 'providerCount'; Descending = $true }, @{ Expression = 'testBase'; Descending = $false })
@@ -751,6 +808,56 @@ foreach ($key in ($groupMap.Keys | Sort-Object)) {
 # persisted output sees the biggest work items.
 $testGroupSummary = @($testGroupSummary | Sort-Object -Property @{ Expression = 'entryCount'; Descending = $true }, @{ Expression = 'providerCount'; Descending = $true }, @{ Expression = 'test'; Descending = $false })
 
+# Test groups whose method no longer exists at the PR head. One `git grep -o -w -F` per batch
+# of names, in the linq2db checkout the script runs from; a batch keeps the command line short.
+$orphanCheck = [ordered]@{ headRef = $prHeadRef; ok = $false; methodsChecked = 0; error = $null }
+$orphans = @()
+$methodNames = @($groupMap.Keys | ForEach-Object { ($_ -split '\.')[-1] } | Where-Object { $_ } | Sort-Object -Unique)
+$cwd = (Get-Location).Path
+$headOk = Invoke-Git -ArgumentList @('rev-parse','--verify','--quiet',"$prHeadRef^{commit}") -WorkingDirectory $cwd
+if (-not $headOk.ok) {
+    $orphanCheck.error = "$prHeadRef does not resolve in $cwd; fetch it (pr-context.ps1 does) or pass -HeadRef"
+}
+elseif ($methodNames.Count -gt 0) {
+    $found = [System.Collections.Generic.HashSet[string]]::new()
+    $grepError = $null
+    for ($i = 0; $i -lt $methodNames.Count; $i += 200) {
+        $grepArgs = @('grep','-h','-o','-w','-F')
+        foreach ($n in $methodNames[$i..([Math]::Min($i + 199, $methodNames.Count - 1))]) { $grepArgs += @('-e', $n) }
+        $grepArgs += @($prHeadRef, '--', 'Tests/')
+        $g = Invoke-Git -ArgumentList $grepArgs -WorkingDirectory $cwd
+        # git grep exits 1 when nothing matched; anything else non-zero is a real failure.
+        if (-not $g.ok -and $g.code -ne 1) { $grepError = $g.error; break }
+        foreach ($line in ($g.stdout -split "`n")) { $t = $line.Trim(); if ($t) { [void]$found.Add($t) } }
+    }
+
+    if ($grepError) {
+        $orphanCheck.error = "git grep: $grepError"
+    }
+    else {
+        $orphanCheck.ok = $true
+        $orphanCheck.methodsChecked = $methodNames.Count
+        foreach ($key in ($groupMap.Keys | Sort-Object)) {
+            if ($found.Contains(($key -split '\.')[-1])) { continue }
+            $g = $groupMap[$key]
+            $paths = @($g.entries | ForEach-Object { $_.path })
+            $sample = @($g.entries | Where-Object { $_.status[0] -ne 'D' } | Select-Object -First 1)
+            $orphans += [pscustomobject]@{
+                test          = $key
+                entryCount    = @($g.entries).Count
+                providerCount = $g.providers.Count
+                statuses      = @($g.entries | ForEach-Object { [string]$_.status[0] } | Sort-Object -Unique)
+                samplePath    = if ($sample) { $sample[0].path } else { $paths[0] }
+                sampleUrl     = if ($sample) { "https://github.com/${baselineRepoFull}/blob/${branch}/$(ConvertTo-GitHubBlobPath -Path $sample[0].path)" } else { $null }
+                lastWritten   = (Get-WriteWindow -Paths $paths).newest
+            }
+        }
+    }
+}
+else {
+    $orphanCheck.ok = $true
+}
+
 # Orientation summary — precomputed so callers don't have to reparse the blob
 # (e.g. via an ad-hoc `pwsh -Command "...ConvertFrom-Json..."` probe) just to
 # know how big each bucket is or which providers / TFMs are touched.
@@ -760,13 +867,17 @@ foreach ($mm in $metrics) { if ($mm.provider) { [void]$providerSet.Add($mm.provi
 $tfmSet = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($mm in $metrics) { if ($mm.tfm) { [void]$tfmSet.Add($mm.tfm) } }
 
+$branchWindow = Get-WriteWindow -Paths @($lastWritten.Keys)
+
 $summary = [pscustomobject]@{
-    sqlCount       = $sql.Count
-    metricsCount   = $metrics.Count
-    unknownCount   = $unknown.Count
-    testGroupCount = $testGroups.Keys.Count
-    providers      = @($providerSet | Sort-Object)
-    tfms           = @($tfmSet | Sort-Object)
+    sqlCount          = $sql.Count
+    metricsCount      = $metrics.Count
+    unknownCount      = $unknown.Count
+    testGroupCount    = $testGroups.Keys.Count
+    orphanCount       = $orphans.Count
+    providers         = @($providerSet | Sort-Object)
+    tfms              = @($tfmSet | Sort-Object)
+    branchWriteWindow = [pscustomobject]@{ first = $branchWindow.oldest; last = $branchWindow.newest }
 }
 
 Write-JsonOutput ([pscustomobject]@{
@@ -784,6 +895,8 @@ Write-JsonOutput ([pscustomobject]@{
     changePatterns = @($changePatterns)
     sizeOutliers = @($sizeOutliers)
     regressionCandidates = @($regressionCandidates)
+    orphanCheck = [pscustomobject]$orphanCheck
+    orphans = @($orphans)
     # Strip `rawDiff` from emitted sql entries — it's the unbounded pre-
     # truncation body kept around for accurate size/archetype metrics on
     # `changePatterns[]`, but emitting it would bypass the `maxDiffBytes`
@@ -792,4 +905,11 @@ Write-JsonOutput ([pscustomobject]@{
     metrics = @($metrics)
     unknown = @($unknown)
     testGroups = [pscustomobject]$testGroups
+}) -OutFile $outFile -Summary ([ordered]@{
+    status            = 'changed'
+    counts            = [pscustomobject]$counts
+    testGroups        = $testGroups.Keys.Count
+    patterns          = $changePatterns.Count
+    orphans           = $orphans.Count
+    branchWriteWindow = $summary.branchWriteWindow
 })

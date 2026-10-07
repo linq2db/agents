@@ -49,6 +49,16 @@ are no `Tests *` task failures to parse; the result then carries a
 ("Cmd.exe exited with code '1'"); the real CSxxxx / MAxxxx / MSBxxxx message
 lives in the task log, which is why the log is fetched and `: error` /
 `##[error]` lines are surfaced in `errors`.
+
+Every result also carries `build` - { definition, status, result, sourceBranch,
+sourceVersion, prSourceSha, queueTime, finishTime }. A canceled or still-running
+build has no failed task, so without it the answer reads as "nothing failed"
+while `gh pr checks` lists the canceled jobs as failures (#5987: a `test-all`
+run canceled when `master` moved took four calls to tell apart from a failure).
+Read `build.result` for that: a build canceled outright can leave its timeline
+empty, so `canceledJobs` - the jobs the timeline records as canceled - is only
+filled when single jobs were canceled inside a build that ran.
+`prSourceSha` is the PR head the run built; `sourceVersion` is the merge commit.
 #>
 
 param(
@@ -69,6 +79,24 @@ if (-not $WriteDir) {
 New-Item -ItemType Directory -Force -Path $WriteDir | Out-Null
 
 $baseUrl = "https://dev.azure.com/$Org/$Project/_apis/build/builds/$BuildId"
+
+try {
+    $buildInfo = Invoke-RestMethod -Uri "${baseUrl}?api-version=7.1"
+}
+catch {
+    Exit-WithError "failed to fetch build ${BuildId}: $_"
+}
+
+$build = [ordered]@{
+    definition    = $buildInfo.definition.name
+    status        = $buildInfo.status
+    result        = $buildInfo.result
+    sourceBranch  = $buildInfo.sourceBranch
+    sourceVersion = $buildInfo.sourceVersion
+    prSourceSha   = $buildInfo.triggerInfo.'pr.sourceSha'
+    queueTime     = $buildInfo.queueTime
+    finishTime    = $buildInfo.finishTime
+}
 
 function ConvertTo-Slug {
     param([string]$Name)
@@ -114,6 +142,8 @@ function Add-AttemptLabel($records, [string]$label) {
 
 $current   = Get-BuildTimeline $null
 $timelines = @([pscustomobject]@{ attempt = 'current'; records = $current.records })
+
+$canceledJobs = @(@($current.records) | Where-Object { $null -ne $_ -and $_.type -eq 'Job' -and $_.result -eq 'canceled' } | ForEach-Object { $_.name } | Sort-Object -Unique)
 
 # Oldest first, so the earliest attempt's failures are reported before the retry's.
 $priorTimelineIds = @($current.records |
@@ -192,8 +222,10 @@ if ($failedTasks.Count -eq 0) {
             }
         })
 
-    @{
+    [ordered]@{
         buildId         = $BuildId
+        build           = $build
+        canceledJobs    = $canceledJobs
         logsDir         = $WriteDir
         attemptsScanned = @($timelines.attempt)
         failedTaskCount = 0
@@ -284,6 +316,8 @@ $tasks = foreach ($t in $failedTasks) {
 # 3. Emit one JSON result.
 $result = [ordered]@{
     buildId         = $BuildId
+    build           = $build
+    canceledJobs    = $canceledJobs
     logsDir         = $WriteDir
     attemptsScanned = @($timelines.attempt)
     failedTaskCount = $failedTasks.Count
