@@ -27,7 +27,8 @@ Invocation
 Parameters
 ----------
   -Pr <int>            required — PR number, resolves branch `baselines/pr_<n>`
-  -Clone <path>        default `../linq2db.baselines`
+  -Clone <path>        default `../linq2db.baselines`, else the primary clone's
+                       sibling (so it also resolves from a worktree)
   -BaseRef <ref>       default `origin/master`
   -Signal <regex>      default `^\s*DECLARE\s` — the structural signal counted
                        per file on the added and removed sides. Override for a
@@ -85,7 +86,7 @@ would silently drop it — see `.claude/docs/script-authoring.md` → Gotchas.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][int] $Pr,
-    [string]   $Clone              = '../linq2db.baselines',
+    [string]   $Clone,
     [string]   $BaseRef            = 'origin/master',
     [string]   $Signal             = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
@@ -97,6 +98,7 @@ param(
 . "$PSScriptRoot/_shared.ps1"
 $global:ScriptBaseName = 'baselines-pr-scan'
 
+$Clone = Resolve-BaselinesClone -Path $Clone
 if (-not (Test-Path -LiteralPath $Clone)) {
     Exit-WithError -Message "baselines clone not found at '$Clone'" `
         -NextAction "clone https://github.com/linq2db/linq2db.baselines.git to '$Clone', or pass -Clone <path>"

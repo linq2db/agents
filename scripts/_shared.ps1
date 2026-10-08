@@ -118,6 +118,23 @@ function Invoke-Git {
     return Invoke-Process -FilePath 'git' -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
 }
 
+# The baselines clone is a sibling of the *primary* clone, so the cwd-relative
+# `../linq2db.baselines` is wrong from a worktree that is not itself a sibling
+# (the desktop app's `.claude/worktrees/<name>/`). An explicit path wins; then the
+# cwd-relative default; then the primary clone's sibling.
+function Resolve-BaselinesClone {
+    param([string]$Path)
+    if ($Path) { return $Path }
+    $default = '../linq2db.baselines'
+    if (Test-Path -LiteralPath $default) { return $default }
+    $r = Invoke-Git -ArgumentList @('rev-parse', '--path-format=absolute', '--git-common-dir')
+    if ($r.ok) {
+        $candidate = Join-Path (Split-Path -Parent (Split-Path -Parent $r.stdout.Trim())) 'linq2db.baselines'
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $default
+}
+
 # `ConvertFrom-Json` parses numeric values as [int64]/[long], not [int32]. A
 # plain `-is [int]` check therefore fails for any JSON-sourced number. Use
 # these helpers wherever validating or coercing integer manifest fields.

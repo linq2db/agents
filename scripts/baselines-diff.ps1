@@ -21,7 +21,8 @@ Input — two forms (preferred first)
       pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 -Pr 5414
 
     Optional named parameters:
-      -BaselinesPath <path>     — default "../linq2db.baselines"
+      -BaselinesPath <path>     — default "../linq2db.baselines", else the primary
+                                  clone's sibling (so it also resolves from a worktree)
       -Branch <name>            — default "baselines/pr_<pr>"
       -BaseRef <ref>            — default "origin/master"
       -MaxDiffBytes <int>       — per-file diff truncation; 0 = no limit
@@ -448,7 +449,7 @@ $m = if ($Pr -gt 0) {
 
 if (-not (Test-IsInteger $m.pr) -or [long]$m.pr -le 0) { Exit-WithError 'pr (positive integer) required' }
 $pr = [int]$m.pr
-$clonePath = if ($m.baselinesPath) { [string]$m.baselinesPath } else { '../linq2db.baselines' }
+$clonePath = Resolve-BaselinesClone -Path ([string]$m.baselinesPath)
 $branch = if ($m.branch) { [string]$m.branch } else { "baselines/pr_$pr" }
 $baseRef = if ($m.baseRef) { [string]$m.baseRef } else { 'origin/master' }
 $remoteRef = "origin/$branch"
