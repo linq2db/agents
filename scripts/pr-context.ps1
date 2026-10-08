@@ -75,7 +75,8 @@ thread, or `null` when the thread is open.
 Exit codes
 ----------
   0 = success
-  1 = hard failure (invalid stdin, gh/git command failed, etc.)
+  1 = hard failure (invalid stdin, gh/git command failed, etc.). When `pr` is an
+      issue number, the error says so and `next_action` lists the PRs referencing it.
 #>
 
 param(
@@ -226,6 +227,23 @@ $issueCommentsRes = Receive-Job $jobs.issueComments -Wait; Remove-Job $jobs.issu
 $userRes          = Receive-Job $jobs.user -Wait;          Remove-Job $jobs.user
 $closingRes       = Receive-Job $jobs.closingIssues -Wait; Remove-Job $jobs.closingIssues
 $reviewThreadsRes = Receive-Job $jobs.reviewThreads -Wait; Remove-Job $jobs.reviewThreads
+
+# An issue number is the commonest wrong input (`/review-pr #<issue>` reads like a PR
+# reference), and it surfaces as a bare `couldn't find remote ref refs/pull/<n>/head`.
+# When the PR lookup failed, check whether <n> is an issue and name the PRs that reference it.
+if (-not $prMetaRes.ok) {
+    $query = 'query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){ issueOrPullRequest(number:$n){ __typename ... on Issue { timelineItems(first:50, itemTypes:[CROSS_REFERENCED_EVENT, CONNECTED_EVENT]){ nodes{ ... on CrossReferencedEvent { source { ... on PullRequest { number state headRefName } } } ... on ConnectedEvent { subject { ... on PullRequest { number state headRefName } } } } } } } } }'
+    $kindRes = Invoke-GhJson @('api','graphql','-F',"o=$owner",'-F',"r=$repo",'-F',"n=$pr",'-f',"query=$query")
+    $item    = if ($kindRes.ok) { $kindRes.data.data.repository.issueOrPullRequest } else { $null }
+    if ($item -and $item.__typename -eq 'Issue') {
+        $linkedPrs = @($item.timelineItems.nodes |
+            ForEach-Object { if ($_.source.number) { $_.source } elseif ($_.subject.number) { $_.subject } } |
+            Sort-Object -Property number -Unique)
+        $list = ($linkedPrs | ForEach-Object { "#$($_.number) ($($_.state), $($_.headRefName))" }) -join ', '
+        $hint = if ($linkedPrs.Count) { "re-run with -Pr set to one of: $list" } else { "no pull request references #$pr" }
+        Exit-WithError -Message "#$pr in $repoFull is an issue, not a pull request" -NextAction $hint
+    }
+}
 
 if (-not $fetchRes.ok)          { Exit-WithError "git fetch failed: $($fetchRes.error)" }
 if (-not $prMetaRes.ok)         { Exit-WithError "gh pr view ($repoFull#$pr) failed: $($prMetaRes.error)" }
