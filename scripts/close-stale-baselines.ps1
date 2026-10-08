@@ -19,12 +19,13 @@ param(
     [Parameter(Mandatory)][int]$Pr,
     [string]$Comment,
     [string]$Repo           = 'linq2db/linq2db.baselines',
-    [string]$BaselinesClone = '../linq2db.baselines',
+    [string]$BaselinesClone,
     [switch]$DryRun
 )
 
 . "$PSScriptRoot/_shared.ps1"
 $global:ScriptBaseName = 'close-stale-baselines'
+$BaselinesClone = Resolve-BaselinesClone -Path $BaselinesClone
 
 $head = "baselines/pr_$Pr"
 if (-not $Comment) {

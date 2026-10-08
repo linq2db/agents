@@ -24,7 +24,8 @@ Contract
 Input (named parameters):
   -Pr            <int>     required; PR number, resolves `origin/baselines/pr_<n>`
   -CapturePath   <path>    required; local BaselinesPath root (contains `<Provider>/Tests/...`)
-  -BaselinesRepo <path>    optional; default `../linq2db.baselines`
+  -BaselinesRepo <path>    optional; default `../linq2db.baselines`, else the primary clone's
+                           sibling (so it also resolves from a worktree)
   -Fetch                   optional; fetch master + the branch before comparing
 
 Output (stdout, single JSON object):
@@ -51,16 +52,20 @@ Exit codes:
 param(
 	[Parameter(Mandatory = $true)][int]$Pr,
 	[Parameter(Mandatory = $true)][string]$CapturePath,
-	[string]$BaselinesRepo = "../linq2db.baselines",
+	[string]$BaselinesRepo,
 	[switch]$Fetch
 )
 
 $ErrorActionPreference = 'Stop'
 
+. "$PSScriptRoot/_shared.ps1"
+
 function Fail([string]$message) {
 	[Console]::Out.WriteLine((@{ error = $message } | ConvertTo-Json -Compress))
 	exit 1
 }
+
+$BaselinesRepo = Resolve-BaselinesClone -Path $BaselinesRepo
 
 if (-not (Test-Path -LiteralPath $CapturePath)) { Fail "capture path not found: $CapturePath" }
 if (-not (Test-Path -LiteralPath $BaselinesRepo)) { Fail "baselines repo not found: $BaselinesRepo" }
