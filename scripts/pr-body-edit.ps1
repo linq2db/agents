@@ -154,7 +154,7 @@ $repoFull = "$owner/$repo"
 # Distinct name, not a case variant of $DryRun: variable names are case-insensitive, so assigning to
 # $dryRun would write back into the [switch] parameter and coerce this bool into a SwitchParameter -
 # which then serialises as {"IsPresent":true} in the JSON below instead of a plain boolean.
-$isDryRun = $DryRun.IsPresent -or [bool]$m.dryRun
+$isDryRun = if ($PSBoundParameters.ContainsKey('DryRun')) { $DryRun.IsPresent } else { [bool]$m.dryRun }
 $workDir  = if ($m.workDir) { [string]$m.workDir } else { '.build/.agents' }
 
 $hasInsertions   = $m.insertions   -and @($m.insertions).Count   -gt 0
