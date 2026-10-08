@@ -188,6 +188,10 @@ Each subclass inherits everything from its lower-version parent and only overrid
 
 For a per-provider capability use a `SqlProviderFlags` bool (`dc.SqlProviderFlags.X`, and see the next section); for provider identity use the name on `IDataProvider`. (Applied on #5643: a `ConcurrencyOutputSupport` list keyed off `ContextName` was replaced by `SqlProviderFlags.IsUpdateOutputSupported`.)
 
+### Shared code asks the SQL builder for provider syntax
+
+Engine code shared across providers must not hard-code provider SQL syntax — parameter prefixes (`@`, `:`, `$`), positional `?`, identifier quoting. Ask the builder (`ConvertInline(name, ConvertType.NameToQueryParameter)` and the other `ConvertType`s) and `SqlProviderFlags` (`IsParameterOrderDependent`); a provider that accepts an alternate syntax overrides a virtual on its builder. (#6003: an unreferenced-argument check matched a fixed `@`/`:`/`?` list; reworked to `BasicSqlBuilder.IsParameterReferenced`, with PostgreSQL adding Npgsql's `@name`.)
+
 ### A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test
 
 When a feature needs to know whether a provider supports something, expose it as a `SqlProviderFlags` bool set per-provider **and** add a test that probes the provider's actual runtime behaviour and asserts the flag equals the probe result. An unenforced flag is rejected — maintainer: *"adding flag when it is not enforced on implementation is not a good idea"* — because a bool nothing verifies drifts as providers change, silently. The probing test makes divergence fail loudly.
