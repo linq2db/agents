@@ -42,17 +42,19 @@ cause is the push/trigger race, not the pipeline. Observed on #5614, where a
 `test-all` trigger posted seconds after the push produced a comment URL and no
 run at all, while the same command a few minutes later worked.
 
-The observed lag can be far longer than the default pause. On #5725 two triggers were
-refused — 4 and 10 minutes after the push, both with `-SettleSeconds` at 5 and 20 — each
-drawing the bot's `the pull request was updated after the run command was issued. Review
-the pull request again and issue a new run command`, with `test-all` staying
-ACTION_REQUIRED and no build registering. A third attempt with `-SettleSeconds 180`
-started immediately. Elapsed wall time since the push is evidently not what clears it, so
-prefer `-SettleSeconds 180` when triggering after a push you just made, rather than
-retrying at the default and re-posting dead comments on the PR. The mechanism is not
-established — treat this as an observed value, not an explanation.
+A PR that conflicts with its base is refused every time, whatever the delay: Azure
+builds refs/pull/<n>/merge, which does not exist for a conflicting PR, and the bot answers
+with the misleading `the pull request was updated after the run command was issued.
+Review the pull request again and issue a new run command`. On #6003 three triggers were
+refused this way (settle 180 s included) until master was merged into the branch. So the
+script first reads `mergeable` and refuses to post on CONFLICTING - merge the base
+branch, push, then trigger. (#5725 drew the same message on two triggers and started on a
+third after `-SettleSeconds 180`; whether that was a conflict-free PR still being
+evaluated was not established, so the longer settle remains the advice after a push.)
 
-Hence two behaviours below, both defeatable:
+Hence three behaviours below, the last two defeatable:
+  mergeable check       wait for GitHub to compute `mergeable` (UNKNOWN right after a
+                        push) and exit 2 without posting when it is CONFLICTING
   -SettleSeconds        pause before posting (default 5) so the push lands first
   -VerifyTimeoutSeconds poll the PR's checks afterwards until the pipeline shows
                         up (default 60); exit non-zero when it never does, so a
@@ -64,7 +66,7 @@ line per pipeline - `azp-run: '<name>' started (buildId <n>).` when the check
 URL carries the Azure build id, ready for `azp-wait.ps1 -BuildId`. Non-zero exit on the
 first `gh` failure, leaving the already-posted triggers in place (a partially
 triggered run is visible in the URLs printed before the error), or when
-verification times out.
+verification times out. Exit 2, with nothing posted, when the PR conflicts with its base.
 #>
 
 param(
@@ -100,6 +102,18 @@ function Get-BuildId([object[]]$pipelineChecks) {
 
 if ($SettleSeconds -gt 0) {
     Start-Sleep -Seconds $SettleSeconds
+}
+
+# GitHub computes mergeability lazily, so UNKNOWN is normal for a while after a push.
+$mergeable = 'UNKNOWN'
+for ($i = 0; $i -lt 12 -and $mergeable -eq 'UNKNOWN'; $i++) {
+    if ($i -gt 0) { Start-Sleep -Seconds 5 }
+    $mergeable = gh pr view $Pr --repo $Repo --json mergeable --jq .mergeable 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $mergeable) { $mergeable = 'UNKNOWN' }
+}
+if ($mergeable -eq 'CONFLICTING') {
+    [Console]::Error.WriteLine("azp-run: PR #$Pr conflicts with its base branch - Azure would refuse the run. Merge the base branch, push, then trigger again.")
+    exit 2
 }
 
 $notStarted = @()
