@@ -3,8 +3,8 @@ area: T4-TEMPLATES
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-06-15
-last_verified_sha: b3340aa9ded15ffc626983fd202e6399daa081ca
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 4/4
 coverage_tier_2: 11/11
 ---
@@ -24,7 +24,7 @@ This is the **legacy** scaffold path. The modern alternative is the `dotnet linq
 | `LinqToDB.Tools.ttinclude` | Bottom layer. Loads `linq2db.dll`, `linq2db.Scaffold.dll`, and `Microsoft.Bcl.AsyncInterfaces.dll` into the T4 AppDomain via `<#@ assembly #>` directives; supplies `GetProviderToolsPath` and `LoadAssembly` helpers for provider-specific includes that need extra native DLLs (e.g., MySqlConnector). Handles assembly-resolve fallback for version mismatches (`AppDomain.CurrentDomain.AssemblyResolve`). |
 | `T4Model.ttinclude` | Abstract model framework. Includes `LinqToDB.Tools.ttinclude`; imports `LinqToDB.Tools.ModelGeneration`; instantiates `ModelGenerator<Table,Procedure>` backed by a `ModelSource`. Defines the concrete partial classes (`Class`, `Property`, `Field`, `Event`, `Method`, `Attribute`, `Table`, `ForeignKey`, `Procedure`, `Namespace`) that the T4 host compiles into the transformation class. Exposes `GenerateModel()`, `BeforeGenerateModel`, `WriteProperty`, `WriteField`, `WriteEvent`, `WriteAttribute`, `SetPropertyValueAction`. |
 | `DataModel.ttinclude` | Database-specific model surface. Includes `T4Model.ttinclude`; imports `LinqToDB.SchemaProvider`. Wraps `ModelGenerator` properties with C#-property surface for `NamespaceName`, `DataContextName`, `BaseDataContextClass`, `EnforceModelNullability`, pluralization flags, normalization hooks (`ToValidName`, `ConvertToCompilable`, `NormalizeName`), schema-load options (`GetSchemaOptions`), `LoadServerMetadata`, `LoadMetadata`, `GetTable`, `GetColumn`, `GetFK`, `GetProcedure`. Defines the `Column` partial extending `Property` and `IColumn`. |
-| `LinqToDB.ttinclude` | Top-level entry for most provider includes. Includes `DataModel.ttinclude`; sets `BaseDataContextClass` default to `"LinqToDB.Data.DataConnection"`; hooks `BeforeGenerateModel` to call `GenerateTypesFromMetadata()`. Exposes generation flags (`GenerateDataOptionsConstructors`, `GenerateFindExtensions`, `GenerateSchemaAsType`, `GenerateViews`, `GenerateDbTypes`, `IsCompactColumns`, etc.) and provider-specific callbacks (`GenerateProviderSpecificTable`, `GenerateProcedureDbType`). |
+| `LinqToDB.ttinclude` | Top-level entry for most provider includes. Includes `DataModel.ttinclude`; sets `BaseDataContextClass` default to `"LinqToDB.Data.DataConnection"`; hooks `BeforeGenerateModel` to call `GenerateTypesFromMetadata()`. Exposes generation flags (`GenerateDataOptionsConstructors`, `GenerateFindExtensions`, `GenerateSchemaAsType`, `GenerateViews`, `GenerateDbTypes`, `IsCompactColumns`, `GenerateSqlServerDecimalOverflowProtection`, etc.) and provider-specific callbacks (`GenerateProviderSpecificTable`, `GenerateProcedureDbType`). |
 
 ### Optional add-ons
 
@@ -131,7 +131,7 @@ The `T4Model.ttinclude`'s concrete partial classes (`Table`, `Column`, `ForeignK
 
 `NuGet/t4models/linq2db.t4models.csproj` packs this folder's `.ttinclude` files as NuGet content (`contentFiles\any\any\LinqToDB.Templates\` and `content\LinqToDB.Templates\`). The `tools\` folder in the NuGet package carries pre-built provider DLLs (`linq2db.dll`, `linq2db.Scaffold.dll`, all provider clients) so the T4 host can resolve them without a full project build. The `$(LinqToDBT4SharedTools)` MSBuild property in the `<#@ assembly #>` directives resolves to this `tools\` path at template-expansion time.
 
-`NuGet/NuGet.csproj` is the build-support project that resolves and stages all provider client DLLs into `$(TargetDir)` so they can be bundled into the `tools\` folder. It targets `net462` / `x64` and references: `MySqlConnector`, `ClickHouse.Driver`, `AdoNetCore.AseClient`, `Humanizer.Core`, `FirebirdSql.Data.FirebirdClient`, `Oracle.ManagedDataAccess`, `Npgsql`, `System.Data.SQLite`, `Microsoft.Data.SqlClient`, `IBM.Data.DB.Provider`, plus Redist-sourced `System.Data.SqlServerCe` and `Sap.Data.Hana.v4.5`. Redist HintPaths use `$(MSBuildThisFileDirectory)..` (not `$(SolutionDir)`) so the project resolves correctly in single-project packs as well as full-solution builds (PR #5565). `NuGet/Directory.Build.props` sets `ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None` to suppress MSB3270 (x64 NuGet.dll referenced by AnyCPU projects) (PR #5580).
+`NuGet/NuGet.csproj` is the build-support project that resolves and stages all provider client DLLs into `$(TargetDir)` so they can be bundled into the `tools\` folder. It targets `net462` / `x64` and references: `MySqlConnector`, `ClickHouse.Driver`, `AdoNetCore.AseClient`, `Humanizer.Core`, `FirebirdSql.Data.FirebirdClient`, `Oracle.ManagedDataAccess`, `Npgsql`, `System.Data.SQLite`, `Microsoft.Data.SqlClient`, `IBM.Data.DB.Provider`, plus Redist-sourced `System.Data.SqlServerCe` and `Sap.Data.Hana.v4.5`. Redist HintPaths use `$(MSBuildThisFileDirectory)..` (not `$(SolutionDir)`) so the project resolves correctly in single-project packs as well as full-solution builds (PR #5565). `NuGet/Directory.Build.props` sets `ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None` to suppress MSB3270 (x64 NuGet.dll referenced by AnyCPU projects) (PR #5580). The SQLite native library is now sourced from `SQLitePCLRaw.lib.e_sqlite3` (previously `SourceGear.sqlite3`): `NuGet/NuGet.csproj` references it with `GeneratePathProperty`, and `NuGet/t4models/linq2db.t4models.csproj` and `NuGet/SQLite/linq2db.SQLite.csproj` pack `e_sqlite3.dll` from `$(ToolsPath)/runtimes/win-{x64,x86,arm64}/native/` (previously `$(ToolsPath)/sds/runtimes/...`) into `tools\runtimes\<rid>\native`, plus a co-located x64 copy under `tools\` for the T4 host. Licensing: `NuGet/Directory.Build.props` also adds, for every project except `NuGet` (keyed on `$(MSBuildProjectName)`), two `None` pack items for `Build/licenses/generated/THIRD-PARTY-NOTICES.$(MSBuildProjectName).txt` at package root and `tools\THIRD-PARTY-NOTICES.txt`, because each T4 package redistributes third-party provider binaries not covered by its MIT expression. `NuGet/README.T4.md` and `NuGet/readme.T4.txt` gained a licensing notice pointing at that file.
 
 ## Known issues / debt
 
@@ -163,4 +163,9 @@ Tier 3: none.
 Read (this run -- delta):
 - `NuGet/NuGet.csproj`: build-support project staging provider client DLLs for the T4 tools folder; Redist HintPaths fixed from `$(SolutionDir)` to `$(MSBuildThisFileDirectory)..` (PR #5565) enabling single-project packs; provider set includes `ClickHouse.Driver`.
 - `NuGet/Directory.Build.props`: new file (PR #5580); suppresses MSB3270 architecture-mismatch warning (`ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None`) for the x64 NuGet.csproj build.
+- `NuGet/Directory.Build.props` (re-read): now also packs per-project `THIRD-PARTY-NOTICES` files (package root and `tools\`) for all projects except `NuGet`.
+- `NuGet/NuGet.csproj`: `SourceGear.sqlite3` package reference replaced by `SQLitePCLRaw.lib.e_sqlite3`.
+- `NuGet/t4models/linq2db.t4models.csproj`, `NuGet/SQLite/linq2db.SQLite.csproj`: `e_sqlite3.dll` pack sources moved from `$(ToolsPath)/sds/runtimes/...` to `$(ToolsPath)/runtimes/...`.
+- `NuGet/README.T4.md`, `NuGet/readme.T4.txt`: licensing notice added (third-party client assemblies in `tools`, see `THIRD-PARTY-NOTICES.txt`).
+- `Source/LinqToDB.Templates/LinqToDB.ttinclude`: new `GenerateSqlServerDecimalOverflowProtection` flag forwarding to `ModelGenerator.GenerateSqlServerDecimalOverflowProtection`.
 </details>

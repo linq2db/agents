@@ -3,8 +3,8 @@ area: PROV-INFORMIX
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 10/10
 coverage_tier_2: 5/5
 ---
@@ -39,19 +39,20 @@ Three underlying clients exist, collapsed into two `InformixProvider` enum value
 
 `InformixDataProviderInformix` and `InformixDataProviderDB2` are concrete sealed subclasses of `InformixDataProvider` (`InformixDataProvider.cs:20-21`). Both are registered as lazy singletons in `InformixProviderDetector` (`InformixProviderDetector.cs:15-16`). `InformixDataProvider` extends `DynamicDataProviderBase<InformixProviderAdapter>`.
 
-`InformixDataProvider` sets these `SqlProviderFlags` relevant to the dialect (`InformixDataProvider.cs:30-45`):
+`InformixDataProvider` sets these `SqlProviderFlags` relevant to the dialect (`InformixDataProvider.cs:30-50`):
 - `IsSubQueryOrderBySupported = false`
 - `IsUnionAllOrderBySupported = true`
 - `DefaultNullsOrdering = NullsDefaultOrdering.Smallest` -- Informix sorts NULL as the smallest value.
 - `IsParameterOrderDependent = !Adapter.IsIDSProvider`
 - `IsSubQueryTakeSupported = false`
 - `IsInsertOrUpdateSupported = false` -- no MERGE-based upsert; the optimizer rewrites.
-- `IsUpsertMergeWithPredicateSupported = false` -- Informix's `MERGE` has no `WHEN [NOT] MATCHED AND <cond>` clause and no `UPDATE ... WHERE` inside `MERGE`. New cross-cutting `SqlProviderFlags` member (default `true` on the base flags type); `UpsertBuilder` (`Internal/Linq/Builder/UpsertBuilder.cs:267-269`) checks it and returns `BuildSequenceResult.Error(..., ErrorHelper.Error_Upsert_MergeWithPredicate_NotSupported)` instead of emitting invalid SQL when an Upsert configuration routes `Insert.When`/`Update.When` predicates through MERGE lowering on this provider. Firebird sets the same flag conditionally (`Version > FirebirdVersion.v25`); Informix always disables it.
+- `IsUpsertMergeWithPredicateSupported = false` -- Informix's `MERGE` has no `WHEN [NOT] MATCHED AND <cond>` clause and no `UPDATE ... WHERE` inside `MERGE`. New cross-cutting `SqlProviderFlags` member (default `true` on the base flags type), `UpsertBuilder` (`Internal/Linq/Builder/UpsertBuilder.cs:267-269`) checks it and returns `BuildSequenceResult.Error(..., ErrorHelper.Error_Upsert_MergeWithPredicate_NotSupported)` instead of emitting invalid SQL when an Upsert configuration routes `Insert.When`/`Update.When` predicates through MERGE lowering on this provider. Firebird sets the same flag conditionally (`Version > FirebirdVersion.v25`), Informix always disables it.
 - `IsCommonTableExpressionsSupported = true`
 - `IsUpdateFromSupported = false`
 - `RowConstructorSupport = Equality | In`
 - `IsExistsPreferableForContains = true`
 - `IsCorrelatedSubQueryTakeSupported = false`
+- `SupportsPredicateInFunctionValuePosition = false` -- new cross-cutting `SqlProviderFlags` member. Informix has a usable `BOOLEAN` type and accepts a predicate as a value in the select list, `GROUP BY` and `ORDER BY`, but rejects one as a function argument (`COUNT(x = 1)`) and inside `OVER (PARTITION BY ...)` with a bare syntax error.
 - `IsOrderBySubQuerySupported = false`
 
 ### Public surface
@@ -65,9 +66,9 @@ Three underlying clients exist, collapsed into two `InformixProvider` enum value
 `InformixOptions` (`Source/LinqToDB/DataProvider/Informix/InformixOptions.cs`) is a `record` with:
 - `BulkCopyType` -- default `BulkCopyType.ProviderSpecific`.
 - `ExplicitFractionalSecondsSeparator` -- default `true`; must be enabled for Informix v11.70.xC8+ and v12.10.xC2+. Controls whether `TO_DATE` format uses `%Y-%m-%d %H:%M:%S.%F5` (explicit) or `%Y-%m-%d %H:%M:%S%F5` (`InformixMappingSchema.cs:16-17`).
-- Implements `IEquatable` via `ConfigurationID` comparison; `CreateID` includes `ExplicitFractionalSecondsSeparator` (`InformixOptions.cs:38-40`).
+- Implements `IEquatable` via `ConfigurationID` comparison, `CreateID` includes `ExplicitFractionalSecondsSeparator` (`InformixOptions.cs:38-40`).
 
-`InformixFactory` (`Source/LinqToDB/DataProvider/Informix/InformixFactory.cs`) is the `DataProviderFactoryBase` used by the connection-string configuration system; it maps `assemblyName` attributes to `InformixProvider` enum values.
+`InformixFactory` (`Source/LinqToDB/DataProvider/Informix/InformixFactory.cs`) is the `DataProviderFactoryBase` used by the connection-string configuration system, it maps `assemblyName` attributes to `InformixProvider` enum values.
 
 ### Provider detection
 
@@ -75,9 +76,9 @@ Three underlying clients exist, collapsed into two `InformixProvider` enum value
 
 Detection priority (`DetectProvider` / `DetectProvider(options, provider)`, lines 17-103):
 1. Explicit `InformixProvider.Informix` or `.DB2` -- returned as-is.
-2. `ProviderName` string matching: `IBM.Data.Informix` -- Informix; DB2 namespace variants (including `DB2ProviderAdapter.ClientNamespaceOld` and `DB2ProviderAdapter.ClientNamespace` on non-Framework) -- DB2.
-3. `ConfigurationString` containing `DB2` -- DB2; containing `Informix` -- Informix.
-4. Filesystem probe: looks for `IBM.Data.Informix.dll` next to the assembly. On .NET non-Framework, falls through to `DB2` if the Ifx DLL is absent (`InformixProviderDetector.cs:93-101`); on Framework, also checks for `DB2ProviderAdapter.AssemblyName` before defaulting to Informix.
+2. `ProviderName` string matching: `IBM.Data.Informix` -- Informix, DB2 namespace variants (including `DB2ProviderAdapter.ClientNamespaceOld` and `DB2ProviderAdapter.ClientNamespace` on non-Framework) -- DB2.
+3. `ConfigurationString` containing `DB2` -- DB2, containing `Informix` -- Informix.
+4. Filesystem probe: looks for `IBM.Data.Informix.dll` next to the assembly. On .NET non-Framework, falls through to `DB2` if the Ifx DLL is absent (`InformixProviderDetector.cs:93-101`), on Framework, also checks for `DB2ProviderAdapter.AssemblyName` before defaulting to Informix.
 
 The DB2 provider detector also participates: `DB2ProviderDetector.DetectProvider` short-circuits when the configuration string contains `Informix` (cross-reference: PROV-DB2 area).
 
@@ -90,17 +91,18 @@ Key overrides:
 - **Paging**: `FirstFormat` returns `FIRST {0}`, `SkipFormat` returns `SKIP {0}` (`InformixSqlBuilder.cs:105-106`). Paging is inline in the `SELECT` clause, not `OFFSET`/`FETCH`.
 - **String concatenation**: `ConcatStyle` returns `ConcatBuildStyle.Pipes` (`InformixSqlBuilder.cs:33`), directing the base builder to emit `||` for `SqlConcatExpression` nodes. This is the PR #5504 path -- concatenation is no longer rewritten as a binary `||` expression in `InformixSqlExpressionConvertVisitor`; instead the builder handles it natively. `ConcatRequiresExplicitStringCast` is `false` in the visitor (`InformixSqlExpressionConvertVisitor.cs:20`), meaning operands are not individually cast.
 - **No `FROM` dual needed for constant SELECT**: instead uses `table(set{1})` as `FakeTable` (`InformixSqlBuilder.Merge.cs:14`) -- a set-literal table constructor available since IDS 9.x, with a comment noting `sysmaster:sysdual` exists from 11.70.
-- **`VALUES(...)` not supported** in `InformixSqlBuilder.Merge.cs:10`; `IsValuesSyntaxSupported = false`.
+- **`VALUES(...)` not supported** in `InformixSqlBuilder.Merge.cs:10`, `IsValuesSyntaxSupported = false`.
 - **Row expressions**: `BuildSqlRow` emits `ROW(a, b)` syntax (`InformixSqlBuilder.cs:352`), not the bare `(a, b)` default.
 - **Identity columns**: `BuildCreateTableFieldType` maps `DataType.Int32` identity -- `SERIAL`, `DataType.Int64` identity -- `SERIAL8` (`InformixSqlBuilder.cs:222-232`). After `TRUNCATE TABLE ... RESET IDENTITY`, a second command of `ALTER TABLE ... MODIFY col SERIAL(1)` is issued (line 48-52). The inserted-row identity is retrieved with `SELECT DBINFO(sqlca.sqlerrd1) FROM systables where tabid = 1` (line 56).
-- **Type mappings** (`BuildDataTypeFromDataType`, lines 127-158): `VarBinary` -- `BYTE`; `DateTime` -- `datetime year to second`; `DateTime2` -- `datetime year to fraction`; `Time` -- `INTERVAL HOUR TO FRACTION(N)`; `Date` -- `DATETIME YEAR TO DAY`; `Boolean` -- `BOOLEAN`; `NVarChar` capped at 255 characters.
-- **Object names** (`BuildObjectName`, line 247): `database@server:schema.table` syntax; schema without server requires database; no schema separator otherwise. Reference: IBM docs SSGU8G_12.1.0 ids_sqs_1652.
-- **Parameters**: SQLI client uses positional `?`; IDS/DB2 uses `@name` (line 200-203). Stored procedure parameters use `:name` prefix (line 206-208).
-- **`NULL IN (...)` fix**: Informix rejects bare `NULL` in `IN`/`NOT IN` predicates; both `BuildInListPredicate` and `BuildInSubQueryPredicate` wrap a `null` parameter value in `SqlCastExpression` (`InformixSqlBuilder.cs:414-443`).
+- **Type mappings** (`BuildDataTypeFromDataType`, lines 127-158): `VarBinary` -- `BYTE`, `DateTime` -- `datetime year to second`, `DateTime2` -- `datetime year to fraction`, `Time` -- `INTERVAL HOUR TO FRACTION(N)`, `Date` -- `DATETIME YEAR TO DAY`, `Boolean` -- `BOOLEAN`, `NVarChar` capped at 255 characters.
+- **Object names** (`BuildObjectName`, line 247): `database@server:schema.table` syntax, schema without server requires database, no schema separator otherwise. Reference: IBM docs SSGU8G_12.1.0 ids_sqs_1652.
+- **Parameters**: SQLI client uses positional `?`, IDS/DB2 uses `@name` (line 200-203). Stored procedure parameters use `:name` prefix (line 206-208).
+- **Parameter cast hooks**: the former `BuildParameter` override (which hand-built a typed expression using `BuildStep = Step.TypedExpression`, taking length from `byte[]`/`string` values and decimal facets via `CorrectDecimalFacets(..., updateNullsOnly: true)`) was removed in favour of two `BasicSqlBuilder` hooks: `ParameterCastDecimalNullsOnly => true` (Informix only fills decimal facets the parameter type leaves unset) and `GetParameterCastType(SqlParameter)` returning `GetValueBasedParameterCastType(parameter)` (`InformixSqlBuilder.cs:~365-373`). Known Informix parameter-typing problem case: CTE query column. `BuildTypedExpression` no longer saves/sets `BuildStep` (`InformixSqlBuilder.cs:305-312`).
+- **`NULL IN (...)` fix**: Informix rejects bare `NULL` in `IN`/`NOT IN` predicates, both `BuildInListPredicate` and `BuildInSubQueryPredicate` wrap a `null` parameter value in `SqlCastExpression` (`InformixSqlBuilder.cs:414-443`).
 - **`NULL IS NULL` / `NULL IS NOT NULL`**: replaced with `1=1` / `1=0` in `BuildSql` post-processing (`InformixSqlBuilder.cs:77-79`).
 - **Typed cast syntax**: `BuildTypedExpression` uses `expr::type` (double-colon cast, line 311).
-- **`LIKE` predicate**: not rewritten to `MATCHES`; uses standard SQL `LIKE` with optional `ESCAPE`.
-- **No `MERGE` `VALUES` syntax**: `IsValuesSyntaxSupported = false`; `MERGE INTO` is emitted but with a hint slot (`BuildMergeInto`, `InformixSqlBuilder.Merge.cs:20-35`).
+- **`LIKE` predicate**: not rewritten to `MATCHES`, uses standard SQL `LIKE` with optional `ESCAPE`.
+- **No `MERGE` `VALUES` syntax**: `IsValuesSyntaxSupported = false`, `MERGE INTO` is emitted but with a hint slot (`BuildMergeInto`, `InformixSqlBuilder.Merge.cs:20-35`).
 
 ### SQL optimizer -- InformixSqlOptimizer
 
@@ -108,11 +110,12 @@ Key overrides:
 
 Key behaviors:
 
-- **`TransformStatement`**: calls `CorrectMultiTableQueries` first (shared `BasicSqlOptimizer` helper, `Internal/SqlProvider/BasicSqlOptimizer.cs:2497` -- hoists a joined multi-table `FROM` list into a subquery, keeping the remaining joins at the outer level; the same helper is also used by `AccessSqlOptimizer` and `SybaseSqlOptimizer`), then calls `GetAlternativeDelete` and `GetAlternativeUpdate` because Informix does not support `UPDATE FROM` or `DELETE JOIN` syntax directly (`InformixSqlOptimizer.cs:125-145`). Sets alias `$` on the derived table for alternative delete (line 136).
+- **`TransformStatement`**: calls `CorrectMultiTableQueries` first (shared `BasicSqlOptimizer` helper, `Internal/SqlProvider/BasicSqlOptimizer.cs:2497` -- hoists a joined multi-table `FROM` list into a subquery, keeping the remaining joins at the outer level, the same helper is also used by `AccessSqlOptimizer` and `SybaseSqlOptimizer`), then calls `GetAlternativeDelete` and `GetAlternativeUpdate` because Informix does not support `UPDATE FROM` or `DELETE JOIN` syntax directly (`InformixSqlOptimizer.cs:125-145`). Sets alias `$` on the derived table for alternative delete (line 136).
 - **`FixSetOperationValues`** (lines 71-122): works around an `IBM.Data.Db2` provider bug where a nullable column in a UNION/INTERSECT is typed as non-nullable if the first branch has a non-nullable column. Wraps affected columns with `NVL(x, NULL)` to force nullable typing. Tracked by `Issue4220Test`.
 - **`Finalize`**: forces `TimeSpan` parameters to non-query-parameter (literal) mode for IDS provider because IDS does not support interval parameters explicitly (`InformixSqlOptimizer.cs:56-58`).
 - **`FinalizeStatement`**: calls `WrapParameters` to handle CTE derived columns and boolean parameters, using flags `InSelect | InBinary | InFunctionParameters | CastBoolean` (`InformixSqlOptimizer.cs:162-168`).
-- **`IsParameterDependedElement`**: marks `LikePredicate` as parameter-dependent when `Expr2` is not a literal value (needed because SQLI client cannot process parameters in `LIKE` patterns, lines 28-34); also marks `SearchStringPredicate` (`Contains`/`StartsWith`/`EndsWith`) as parameter-dependent unless `Expr2` is a literal `SqlValue`, in which case it returns `false` explicitly rather than falling through to the base check (`InformixSqlOptimizer.cs:36-44`).
+- **`WrapParameters(element, VisitMode visitMode = VisitMode.Modify)`** (`InformixSqlOptimizer.cs:~154-170`): the internal static helper now takes the visit mode of its `WrapParametersVisitor`. `Modify` is correct only when the caller owns the element (the `FinalizeStatement` path), a caller running inside a Transform-mode convert (`ConvertIsDistinctPredicateAsIntersect`) must pass `Transform`, otherwise the cast written around a parameter usage lands in a parent node belonging to the cached statement.
+- **`IsParameterDependedElement`**: marks `LikePredicate` as parameter-dependent when `Expr2` is not a literal value (needed because SQLI client cannot process parameters in `LIKE` patterns, lines 28-34), also marks `SearchStringPredicate` (`Contains`/`StartsWith`/`EndsWith`) as parameter-dependent unless `Expr2` is a literal `SqlValue`, in which case it returns `false` explicitly rather than falling through to the base check (`InformixSqlOptimizer.cs:36-44`).
 
 ### Expression conversion -- InformixSqlExpressionConvertVisitor
 
@@ -121,14 +124,16 @@ Key behaviors:
 - **`SupportsNullInColumn = false`** -- Informix cannot use `NULL` as an untyped column expression (line 18).
 - **`SupportsDistinctAsExistsIntersect = true`** -- enables IS DISTINCT FROM emulation via INTERSECT-exists (line 19).
 - **`ConcatRequiresExplicitStringCast = false`** (line 20).
-- **`COALESCE`** -- `NVL(a, b)` via `ConvertCoalesceToBinaryFunc`. `ConvertCoalesce` first calls `RemoveNullValues` to strip null-literal operands before folding (e.g. `Coalesce(x, NULL)` -- `x`), then applies `ConvertCoalesceToBinaryFunc` (lines 64-76; fixes issue #5531). `WrapBooleanCoalesceItems` overrides base with `forceConvert: true` (lines 59-61).
-- **Bitwise ops**: `~` -- `BITNOT(x)`; `&` -- `BitAnd`; `|` -- `BitOr`; `^` -- `BitXor` (lines 41-54).
+- **`COALESCE`** -- `NVL(a, b)` via `ConvertCoalesceToBinaryFunc`. `ConvertCoalesce` first calls `RemoveNullValues` to strip null-literal operands before folding (e.g. `Coalesce(x, NULL)` -- `x`), then applies `ConvertCoalesceToBinaryFunc` (lines 64-76, fixes issue #5531). `WrapBooleanCoalesceItems` overrides base with `forceConvert: true` (lines 59-61).
+- **Bitwise ops**: `~` -- `BITNOT(x)`, `&` -- `BitAnd`, `|` -- `BitOr`, `^` -- `BitXor` (lines 41-54).
 - **`%`** (modulo) -- `Mod(a, b)` (line 51).
-- **String concat**: `ConcatRequiresExplicitStringCast = false` (line 20). The `||` binary-expression rewrite has been removed (PR #5504); `||` emission is handled by `InformixSqlBuilder.ConcatStyle = ConcatBuildStyle.Pipes`.
+- **String concat**: `ConcatRequiresExplicitStringCast = false` (line 20). The `||` binary-expression rewrite has been removed (PR #5504), `||` emission is handled by `InformixSqlBuilder.ConcatStyle = ConcatBuildStyle.Pipes`.
 - **Length**: `PseudoFunctions.LENGTH` -- `CHAR_LENGTH(value + ".") - 1` (lines 295-308) -- a workaround for Informix not returning correct CHAR_LENGTH for trailing-space-trimmed strings.
-- **Date/time conversions**: `DateTime` to string -- `To_Char(dt, "%Y-%m-%d %H:%M:%S.%F")`; number to string -- `To_Char(n)`; string to `Date` -- `Date(To_Date(s, "%Y-%m-%d"))`; string to datetime -- `To_Date(s, "%Y-%m-%d %H:%M:%S")` (lines 84-163).
-- **Boolean column wrapping**: bare non-boolean column expressions of type `bool` are wrapped in `CAST(... AS BOOLEAN)` (`WrapColumnExpression`, line 245). CASE result expressions and CASE items also force-wrap boolean expressions (`ConvertSqlCaseExpression` line 165, `ConvertCaseItem` line 180). Condition expressions (`ConvertSqlCondition`) wrap true/false branches (line 192). SET clause expressions (`VisitSqlSetExpression`) wrap boolean values (line 262). Boolean parameters in `Expr` predicates have `NeedsCast = true` set (`VisitExprPredicate`, line 286).
-- **IS DISTINCT handling**: `ConvertIsDistinctPredicateAsIntersect` calls `InformixSqlOptimizer.WrapParameters` on the base result (line 257-260).
+- **Date/time conversions**: `DateTime` to string -- `To_Char(dt, "%Y-%m-%d %H:%M:%S.%F")`, number to string -- `To_Char(n)`, string to `Date` -- `Date(To_Date(s, "%Y-%m-%d"))`, string to datetime -- `To_Date(s, "%Y-%m-%d %H:%M:%S")` (lines 84-163).
+- **Temporal parameters in CASE / conditional results**: Informix rejects a temporal (`DateTime`/`DateTimeOffset`/`DateOnly`) query parameter -- cast or not -- next to a non-parameter value among CASE results. The static `IsTemporalParameter(result, out isOtherValue)` (`InformixSqlExpressionConvertVisitor.cs:~165-200`) unwraps nullability and recognises `SqlParameter`, `SqlParameterCastExpression` and `SqlCastExpression` over a `SqlParameter`, a bare `NULL` value counts as neither. `ConvertSqlCaseExpression` (line ~210) rebuilds the `SqlCaseExpression` with `InlineTemporalParameter` (`QueryHelper.MarkAsNonQueryParameters`) applied to every result when at least one temporal parameter and at least one other value are present. `ConvertSqlCondition` (line ~262) does the same for the true/false branches, then applies the forced boolean wrapping. Inlining is done on a copy for this position only because the parameter is shared by every usage.
+- **Boolean column wrapping**: bare non-boolean column expressions of type `bool` are wrapped in `CAST(... AS BOOLEAN)` (`WrapColumnExpression`, line 245). CASE result expressions and CASE items also force-wrap boolean expressions (`ConvertSqlCaseExpression` line 165, `ConvertCaseItem` line 180). Condition expressions (`ConvertSqlCondition`) wrap true/false branches (line 192). SET clause expressions (`VisitSqlSetExpression`) wrap boolean values (line 262). Boolean query parameters in `Expr` predicates (`VisitExprPredicate`) are now replaced by a new `SqlPredicate.Expr` built from `QueryHelper.EnsureParameterCast(p)` instead of mutating `p.NeedsCast = true` -- the cast marks this usage only, because the parameter instance is shared and on a Transform pass belongs to the cached statement.
+- **IS DISTINCT handling**: `ConvertIsDistinctPredicateAsIntersect` calls `InformixSqlOptimizer.WrapParameters` on the base result, passing the traversal's own `VisitMode` (previously the `Modify` default) so a cast copy is rebuilt into a new parent instead of written into a shared one (`InformixSqlExpressionConvertVisitor.cs:~333-341`).
+- **Window order requirement**: the `IsWindowOrderByRequired(SqlExtendedFunction)` override returns true when the function has a `FrameClause`, is an order-dependent window function (`IsOrderDependentWindowFunction`) or is `NTILE`. Server messages: ntile/lead/lag/ranking functions require window order, and a window frame extent specification requires an ORDER BY clause. `ROW_NUMBER` and the `*_VALUE` pair are not counted as ranking functions, an unframed aggregate does not need ORDER BY (`InformixSqlExpressionConvertVisitor.cs:~408-416`).
 - **`NULL IN`** at visitor level: same `SqlCastExpression` wrapping as in `SqlBuilder`, applied to `SqlValue { Value: null }` at optimization phase (lines 205-237).
 
 ### Mapping schema -- InformixMappingSchema
@@ -137,12 +142,12 @@ Key behaviors:
 
 - `ColumnNameComparer = StringComparer.OrdinalIgnoreCase` (line 31).
 - `bool` literal -- character t/f cast as `::BOOLEAN` (line 33).
-- `string` default type -- `NVarChar(255)` (line 36); `byte` -- `Int16` (line 37).
-- `DateTime` and `DateTimeOffset` -- `TO_DATE(...)` literals; `DateTimeOffset` is stripped to its `.DateTime` component before formatting (`InformixMappingSchema.cs:41`). Fractional seconds respect `InformixOptions.ExplicitFractionalSecondsSeparator`.
+- `string` default type -- `NVarChar(255)` (line 36), `byte` -- `Int16` (line 37).
+- `DateTime` and `DateTimeOffset` -- `TO_DATE(...)` literals, `DateTimeOffset` is stripped to its `.DateTime` component before formatting (`InformixMappingSchema.cs:41`). Fractional seconds respect `InformixOptions.ExplicitFractionalSecondsSeparator`.
 - `TimeSpan` -- `INTERVAL(d hh:mm:ss.fffff) DAY TO FRACTION(5)` literal (lines 48-61).
 - `DateOnly` (when `SUPPORTS_DATEONLY`) -- `TO_DATE(...)` with date-only format (lines 121-126).
 - String escaping uses `||` concatenation and `chr(n)` for control characters (line 74).
-- `IfxMappingSchema` chains adapter mapping schema (from `IBM.Data.Informix`) over the base; `DB2MappingSchema` chains DB2 adapter schema (line 129-131).
+- `IfxMappingSchema` chains adapter mapping schema (from `IBM.Data.Informix`) over the base, `DB2MappingSchema` chains DB2 adapter schema (line 129-131).
 
 ### Bulk copy -- InformixBulkCopy
 
@@ -174,44 +179,44 @@ Date functions (`DateFunctionsTranslator`):
 - `DateParts.Week` -- `((Extend(date, year to day) - Mdy(12, 31-WeekDay(Mdy(1,1,year)), year-1)) / 7 + INTERVAL(1) DAY TO DAY)` (lines 151-186).
 - `DateParts.Millisecond` -- returns `null` (not supported).
 - `DateAdd` for `Millisecond` -- returns `null` (lines 273-281).
-- `MakeDateTime` -- `Mdy(m, d, y)` for date-only; `To_Date(string, "%Y-%m-%d %H:%M:%S")` for datetime (lines 52-113).
-- Truncate to date -- `Extend(dt, Year to Day)` with result typed as `DataType.Date` preserving column DbType (PR #5517; `InformixMemberTranslator.cs:306`).
+- `MakeDateTime` -- `Mdy(m, d, y)` for date-only, `To_Date(string, "%Y-%m-%d %H:%M:%S")` for datetime (lines 52-113).
+- Truncate to date -- `Extend(dt, Year to Day)` with result typed as `DataType.Date` preserving column DbType (PR #5517, `InformixMemberTranslator.cs:306`).
 - Truncate to time -- cast through `datetime Hour to Second` -- `CHAR(8)` (lines 311-321).
 
 Now-translation overrides (PR #5467 -- 5-virtual split):
-- `TranslateServerNow` (line 324): emits `CURRENT` -- Informix's server-local timestamp; used for server-side `DateTime.Now` (e.g. `Sql.CurrentTimestamp`).
-- `TranslateNow` (line 331): returns `null` -- `DateTime.Now` falls back to client-side evaluation; no server-side override.
-- `TranslateUtcNow` (line 336): emits `DBINFO(utc_to_datetime, DBINFO(utc_current))` -- server UTC time; used for `DateTime.UtcNow`.
+- `TranslateServerNow` (line 324): emits `CURRENT` -- Informix's server-local timestamp, used for server-side `DateTime.Now` (e.g. `Sql.CurrentTimestamp`).
+- `TranslateNow` (line 331): returns `null` -- `DateTime.Now` falls back to client-side evaluation, no server-side override.
+- `TranslateUtcNow` (line 336): emits `DBINFO(utc_to_datetime, DBINFO(utc_current))` -- server UTC time, used for `DateTime.UtcNow`.
 - `TranslateZonedUtcNow` (line 343): emits the same `DBINFO` expression for `DateTimeOffset.UtcNow`.
-- `TranslateZonedNow` -- not overridden; base returns `null` (client-side evaluation).
+- `TranslateZonedNow` -- not overridden, base returns `null` (client-side evaluation).
 
 String translation (PR #5504):
 - `String.Join` with separator (`withoutSeparator == false`) -- `AggregateFunctionBuilder` via `ConfigureConcatWsEmulation`, using `SUBSTRING(... FROM len+1)` to strip the leading separator copy (`InformixMemberTranslator.cs:362-373`).
-- `String.Join` without separator (`withoutSeparator == true`) -- `AggregateFunctionBuilder` via `ConfigureConcat(builder, wrapByCoalesce: true)` (`InformixMemberTranslator.cs:357-359`); the separator-specific `SUBSTRING` stripping is skipped.
+- `String.Join` without separator (`withoutSeparator == true`) -- `AggregateFunctionBuilder` via `ConfigureConcat(builder, wrapByCoalesce: true)` (`InformixMemberTranslator.cs:357-359`), the separator-specific `SUBSTRING` stripping is skipped.
 
 `IsNullOrWhiteSpace` translation (`StringMemberTranslator`):
-- `String.IsNullOrWhiteSpace` -- emits `{value} IS NULL OR LTRIM({value}, ASCII_WHITESPACES) = EMPTY` using `LTRIM` with an ASCII whitespace character literal set (`InformixMemberTranslator.cs:381-392`). Non-ASCII whitespace coverage matches pre-refactor behavior; result is wrapped via `WrapIsNullOrWhiteSpaceResult`.
+- `String.IsNullOrWhiteSpace` -- emits `{value} IS NULL OR LTRIM({value}, ASCII_WHITESPACES) = EMPTY` using `LTRIM` with an ASCII whitespace character literal set (`InformixMemberTranslator.cs:381-392`). Non-ASCII whitespace coverage matches pre-refactor behavior, result is wrapped via `WrapIsNullOrWhiteSpaceResult`.
 
 Trim translation (PR #5515):
-- `string.TrimStart` and `string.TrimEnd` -- no Informix-specific override in `InformixMemberTranslator`; the base `StringMemberTranslatorBase` handling applies.
+- `string.TrimStart` and `string.TrimEnd` -- no Informix-specific override in `InformixMemberTranslator`, the base `StringMemberTranslatorBase` handling applies.
 
 Guid translation:
 - `Guid.ToString()` -- `Lower(To_Char(guid))` (lines 396-406).
 
 Window function translation (`InformixWindowFunctionsMemberTranslator` extends `WindowFunctionsMemberTranslator`, wired via `CreateWindowFunctionsMemberTranslator`, `InformixMemberTranslator.cs:409-446`):
-- Unsupported: `NTH_VALUE` (`IsNthValueSupported = false`), frame `GROUPS` mode (`IsFrameGroupsSupported = false`), frame exclusion (`IsFrameExclusionSupported = false`), `PERCENTILE_CONT`/`PERCENTILE_DISC` (both `false`).
-- Supported: `LEAD`/`LAG` and `FIRST_VALUE`/`LAST_VALUE`/`NTH_VALUE`-family `NULL` treatment (`IsLeadLagNullTreatmentSupported` and `IsValueNullTreatmentSupported`, both `true`); bare `VARIANCE` (`IsVarianceBareSupported = true`); `STDDEV` (`IsStdDevSupported = true`, `StdDevFunctionName = STDDEV_SAMP`).
-- Sample-vs-population is non-obvious and was verified empirically against IDS 14 (Informix.DB2 connection) because the vendor docs are self-contradictory: documented `STDEV`/`VARIANCE` return the population value despite an N-1 wording in the docs; undocumented `STDDEV_SAMP`/`STDDEV_POP` behave as their names imply; `VAR_SAMP`/`VAR_POP` don't exist (syntax error). `Sql.Window.StdDev` maps to `STDDEV_SAMP` for that reason. `Sql.Window.Variance` has no sample-variance equivalent on Informix (no `VAR_SAMP`; bare/documented `VARIANCE` is population), so `TranslateVariance` rejects it at translation time via `CreateErrorExpression(..., ErrorHelper.Error_WindowFunction_Variance, ...)` (`InformixMemberTranslator.cs:439-440`) instead of silently returning a population value. `CORR`/`COVAR_*`/`REGR_*`/`MEDIAN` are not implemented.
+- Unsupported: `NTH_VALUE` (`IsNthValueSupported = false`), frame `GROUPS` mode (`IsFrameGroupsSupported = false`), frame exclusion (`IsFrameExclusionSupported = false`), `PERCENTILE_CONT`/`PERCENTILE_DISC` (both `false`), `FIRST_VALUE`/`LAST_VALUE` over a boolean (`IsFirstLastValueBooleanSupported = false`, `InformixMemberTranslator.cs:~422`): Informix resolves the frame comparison to a `lessthanorequal` routine with no boolean overload, so even `FIRST_VALUE(<bool column>)` fails with "Routine (lessthanorequal) can not be resolved", it is rejected at translation time with a clear message instead.
+- Supported: `LEAD`/`LAG` and `FIRST_VALUE`/`LAST_VALUE`/`NTH_VALUE`-family `NULL` treatment (`IsLeadLagNullTreatmentSupported` and `IsValueNullTreatmentSupported`, both `true`), bare `VARIANCE` (`IsVarianceBareSupported = true`), `STDDEV` (`IsStdDevSupported = true`, `StdDevFunctionName = STDDEV_SAMP`).
+- Sample-vs-population is non-obvious and was verified empirically against IDS 14 (Informix.DB2 connection) because the vendor docs are self-contradictory: documented `STDEV`/`VARIANCE` return the population value despite an N-1 wording in the docs, undocumented `STDDEV_SAMP`/`STDDEV_POP` behave as their names imply, `VAR_SAMP`/`VAR_POP` do not exist (syntax error). `Sql.Window.StdDev` maps to `STDDEV_SAMP` for that reason. `Sql.Window.Variance` has no sample-variance equivalent on Informix (no `VAR_SAMP`, bare/documented `VARIANCE` is population), so `TranslateVariance` rejects it at translation time via `CreateErrorExpression(..., ErrorHelper.Error_WindowFunction_Variance, ...)` (`InformixMemberTranslator.cs:439-440`) instead of silently returning a population value. `CORR`/`COVAR_*`/`REGR_*`/`MEDIAN` are not implemented.
 
 ### Schema provider -- InformixSchemaProvider
 
 `InformixSchemaProvider` (`Source/LinqToDB/Internal/DataProvider/Informix/InformixSchemaProvider.cs`) extends `SchemaProviderBase`.
 
 - **`GetTables`**: queries `systables` where `tabid >= 100` (user tables only). Owner `informix` is mapped to `IsDefaultSchema = true` (line 109-119).
-- **`GetColumns`**: queries `systables JOIN syscolumns`; decodes Informix raw type codes (bitfield in `coltype`) into type names. Nullability: `(typeid & 0x100) != 0x100` (line 289). `SERIAL`/`SERIAL8`/`BIGSERIAL` columns are flagged `IsIdentity = SkipOnInsert = SkipOnUpdate = true` (lines 308, 318, 361).
+- **`GetColumns`**: queries `systables JOIN syscolumns`, decodes Informix raw type codes (bitfield in `coltype`) into type names. Nullability: `(typeid & 0x100) != 0x100` (line 289). `SERIAL`/`SERIAL8`/`BIGSERIAL` columns are flagged `IsIdentity = SkipOnInsert = SkipOnUpdate = true` (lines 308, 318, 361).
 - **`GetPrimaryKeys`**: queries `systables JOIN sysindexes` where `idxtype = U`. Index column parts are resolved from `syscolumns` via per-column subqueries (up to 16 parts, lines 152-170).
 - **`GetForeignKeys`**: joins `sysreferences`, `sysconstraints`, `sysindexes` for both the referencing and referenced sides, resolving column names from `syscolumns` (lines 379-490). Auto-generates `FK_ThisTable_OtherTable` names for system-generated constraint names matching the `r{tabid}_{constrid}` pattern.
-- `SetDate` helper (line 188): decodes Informix's packed `coltype`/`collength` integer for `DATETIME` and `INTERVAL` columns into range-qualified type strings like `DATETIME YEAR TO FRACTION(5)`.
+- `SetDate` helper (line 188): decodes the packed `coltype`/`collength` integer for `DATETIME` and `INTERVAL` columns into range-qualified type strings like `DATETIME YEAR TO FRACTION(5)`.
 - No `GetProcedures` override -- Informix stored procedures are not indexed.
 
 ### Parameter binding
@@ -220,7 +225,7 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 - `TimeSpan` -- `IfxTimeSpan` factory if available and not `DataType.Int64`.
 - `Guid` -- `string` (char) representation.
 - `byte` typed as `Int16` -- promoted to `short`.
-- `bool` in `BulkCopyReader.Parameter` context -- `(short)(b ? 1 : 0)` + `DataType.Int16`; in regular SQL -- character `t`/`f` + `DataType.Char` (lines 137-148).
+- `bool` in `BulkCopyReader.Parameter` context -- `(short)(b ? 1 : 0)` + `DataType.Int16`, in regular SQL -- character `t`/`f` + `DataType.Char` (lines 137-148).
 - `DateOnly` -- `DateTime` (line 151-153).
 
 `SetParameterType` (`InformixDataProvider.cs:161`): skips processing for `BulkCopyReader.Parameter`. For `Text`/`NText` sets provider-specific type to `IfxType.Clob` or `DB2Type.Clob`. Falls through to type remapping for unsigned integers.
@@ -231,10 +236,10 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 
 | Type | File | Role |
 |---|---|---|
-| `InformixDataProvider` | `Internal/DataProvider/Informix/InformixDataProvider.cs` | Abstract provider base; concrete subclasses `InformixDataProviderInformix` / `InformixDataProviderDB2` |
+| `InformixDataProvider` | `Internal/DataProvider/Informix/InformixDataProvider.cs` | Abstract provider base, concrete subclasses `InformixDataProviderInformix` / `InformixDataProviderDB2` |
 | `InformixSqlBuilder` | `Internal/DataProvider/Informix/InformixSqlBuilder.cs` (+`.Merge.cs`) | SQL generation for Informix dialect |
 | `InformixSqlOptimizer` | `Internal/DataProvider/Informix/InformixSqlOptimizer.cs` | Statement rewrites, NVL workaround, multi-table correction, parameter finalization |
-| `InformixSqlExpressionConvertVisitor` | `Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` | Expression-level rewrites (COALESCE, bitwise, boolean wrapping, conversions) |
+| `InformixSqlExpressionConvertVisitor` | `Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` | Expression-level rewrites (COALESCE, bitwise, boolean wrapping, temporal-parameter inlining in CASE, conversions) |
 | `InformixProviderAdapter` | `Internal/DataProvider/Informix/InformixProviderAdapter.cs` | Reflection-based ADO.NET bridge for both client families |
 | `InformixProviderDetector` | `Internal/DataProvider/Informix/InformixProviderDetector.cs` | Client auto-detection |
 | `InformixMappingSchema` | `Internal/DataProvider/Informix/InformixMappingSchema.cs` | Type mappings and literal generation |
@@ -276,29 +281,33 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 ## Inbound / outbound dependencies
 
 **Inbound:**
-- `LinqToDB.DataProvider.Informix.InformixTools` -- the only public gateway; consumers call `GetDataProvider` or `CreateDataConnection`.
+- `LinqToDB.DataProvider.Informix.InformixTools` -- the only public gateway, consumers call `GetDataProvider` or `CreateDataConnection`.
 - `InformixFactory` -- invoked by the connection-string configuration subsystem.
 
 **Outbound:**
 - `DynamicDataProviderBase<InformixProviderAdapter>` -- from [INTERNAL-API](../INTERNAL-API/INDEX.md).
-- `BasicSqlBuilder`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`, `BasicBulkCopy`, `SchemaProviderBase` -- from [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md). `BasicSqlOptimizer.CorrectMultiTableQueries` (`Internal/SqlProvider/BasicSqlOptimizer.cs:2497`) is a shared multi-table-`FROM`-hoisting helper also consumed by `AccessSqlOptimizer` and `SybaseSqlOptimizer`.
+- `BasicSqlBuilder`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`, `BasicBulkCopy`, `SchemaProviderBase` -- from [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md). `BasicSqlOptimizer.CorrectMultiTableQueries` (`Internal/SqlProvider/BasicSqlOptimizer.cs:2497`) is a shared multi-table-`FROM`-hoisting helper also consumed by `AccessSqlOptimizer` and `SybaseSqlOptimizer`. The builder hooks `ParameterCastDecimalNullsOnly` / `GetParameterCastType` / `GetValueBasedParameterCastType` and the visitor hooks `IsWindowOrderByRequired` / `IsOrderDependentWindowFunction` are base-class members consumed here.
+- `QueryHelper.MarkAsNonQueryParameters`, `QueryHelper.EnsureParameterCast`, `QueryHelper.UnwrapNullablity` -- shared SQL-AST helpers used by the visitor for per-usage parameter inlining and casting.
 - `DB2ProviderAdapter.Instance`, `DB2BulkCopyShared.ProviderSpecificCopyImpl` -- from [PROV-DB2](../PROV-DB2/INDEX.md). The DB2 adapter wraps `InformixProviderAdapter` for the DB2 client path.
 - `LockedMappingSchema`, `MappingSchema` -- from [MAPPING](../MAPPING/INDEX.md).
 - `SchemaProviderBase` -- from [METADATA](../METADATA/INDEX.md).
 - `ProviderMemberTranslatorDefault`, `DateFunctionsTranslatorBase`, `StringMemberTranslatorBase`, `WindowFunctionsMemberTranslator`, `SqlTypesTranslationDefault` -- from the translation subsystem (see [INTERNAL-API](../INTERNAL-API/INDEX.md)).
-- `SqlProviderFlags.IsUpsertMergeWithPredicateSupported` and `UpsertBuilder` -- from the core LINQ builder (`Internal/Linq/Builder/UpsertBuilder.cs`); Informix's `false` setting routes conditional-`.When` Upsert configurations to `ErrorHelper.Error_Upsert_MergeWithPredicate_NotSupported` instead of invalid SQL.
+- `SqlProviderFlags.IsUpsertMergeWithPredicateSupported` and `UpsertBuilder` -- from the core LINQ builder (`Internal/Linq/Builder/UpsertBuilder.cs`), the Informix `false` setting routes conditional-`.When` Upsert configurations to `ErrorHelper.Error_Upsert_MergeWithPredicate_NotSupported` instead of invalid SQL.
+- `SqlProviderFlags.SupportsPredicateInFunctionValuePosition` -- cross-cutting flag set to `false` by this provider.
 - `InvariantCultureRegion` -- applied in `ExecuteScope`, `GetFloat/Double/Decimal`, and all `MultipleRowsCopy*` paths to guard against locale-sensitive decimal parsing.
 
 ## Known issues / debt
 
-- `SetParameter` has a `TODO` comment noting that the `DataType.Int64` guard for `TimeSpan` parameters pollutes multiple places and will not work with other not-interval mappings (`InformixDataProvider.cs:127-128`). Related: IDS provider deprecates `IfxTimeSpan`; the adapter handles this by treating it as `null` when the type carries `ObsoleteAttribute`.
-- `InformixSqlExpressionConvertVisitor` has `//TODO: Move everything to SQLBuilder` (line 78 of the convert visitor).
+- `SetParameter` has a `TODO` comment noting that the `DataType.Int64` guard for `TimeSpan` parameters pollutes multiple places and will not work with other not-interval mappings (`InformixDataProvider.cs:127-128`). Related: IDS provider deprecates `IfxTimeSpan`, the adapter handles this by treating it as `null` when the type carries `ObsoleteAttribute`.
+- `InformixSqlExpressionConvertVisitor` has a `TODO` to move everything to SQLBuilder (line 78 of the convert visitor).
 - `DateParts.Millisecond` in both `TranslateDateTimeDatePart` and `TranslateDateTimeDateAdd` returns `null` (unsupported). The `DateAdd` millisecond path has a non-working code comment (lines 273-281). Tracked as DI-0603.
 - `InformixSqlBuilder.IsValidIdentifier` has two `TODO` comments about a missing reserved-words list and incomplete locale support (`InformixSqlBuilder.cs:167-169`).
-- The `SQLI` provider (`IBM.Data.Informix` without `IfxBulkCopy`) falls back to `MultipleRowsCopy`; no native bulk load path exists for that client.
+- The `SQLI` provider (`IBM.Data.Informix` without `IfxBulkCopy`) falls back to `MultipleRowsCopy`, no native bulk load path exists for that client.
 - The async bulk-copy path for IDS calls the synchronous `WriteToServer` -- no true async on `IfxBulkCopy`.
 - Collection types (`SET`, `MULTISET`, `LIST`, `ROW`) are enumerated in `GetDataTypes` but commented out (`InformixSchemaProvider.cs:50-54`).
-- `Sql.Window.Variance` is unsupported on Informix by design (no sample-variance function exists server-side); `TranslateVariance` rejects it with `Error_WindowFunction_Variance` rather than silently returning the population value that bare `VARIANCE` would produce.
+- `Sql.Window.Variance` is unsupported on Informix by design (no sample-variance function exists server-side), `TranslateVariance` rejects it with `Error_WindowFunction_Variance` rather than silently returning the population value that bare `VARIANCE` would produce.
+- `FIRST_VALUE`/`LAST_VALUE` over a boolean is unsupported (server cannot resolve `lessthanorequal` for BOOLEAN), rejected at translation time via `IsFirstLastValueBooleanSupported = false`.
+- Temporal (`DateTime`/`DateTimeOffset`/`DateOnly`) query parameters mixed with non-parameter values in CASE/conditional results are inlined as literals per usage because the server rejects them.
 
 ## Pointers
 
@@ -353,5 +362,12 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs` -- added `SqlProviderFlags.IsUpsertMergeWithPredicateSupported = false` (line 39, a new cross-cutting flag on `SqlProviderFlags` shared with Firebird) with a comment explaining Informix's `MERGE` dialect lacks `WHEN [NOT] MATCHED AND <cond>` / `UPDATE ... WHERE` inside `MERGE`; `UpsertBuilder` surfaces `Error_Upsert_MergeWithPredicate_NotSupported` when an Upsert configuration with `.When` predicates routes through MERGE lowering on this provider. No other flag or method-body changes in this file.
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs` -- `TransformStatement` now calls the shared `BasicSqlOptimizer.CorrectMultiTableQueries` helper before `GetAlternativeDelete`/`GetAlternativeUpdate` (line 128), hoisting a joined multi-table `FROM` into a subquery so the alternative-delete/update rewrite operates on a single-table shape. `IsParameterDependedElement` gained a `QueryElementType.SearchStringPredicate` case (lines 36-44): marks `Contains`/`StartsWith`/`EndsWith` predicates as parameter-dependent unless `Expr2` is a literal `SqlValue`.
 - `Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs` -- full re-read surfaced two nested translators not previously documented: `SqlTypesTranslation` (`CreateSqlTypesTranslator`) reinterprets `Sql.Types.Bit` -> Boolean, `TinyInt` -> Int16, `Money` -> Decimal(19,4), `SmallMoney` -> Decimal(10,4); `InformixWindowFunctionsMemberTranslator` (`CreateWindowFunctionsMemberTranslator`) sets window-function capability flags (NthValue/FrameGroups/FrameExclusion/PercentileCont/PercentileDisc all unsupported; LeadLag/Value null-treatment supported; bare Variance and StdDev supported with `StdDevFunctionName = STDDEV_SAMP`) and overrides `TranslateVariance` to reject `Sql.Window.Variance` via `Error_WindowFunction_Variance` (no Informix sample-variance function exists). Date/string/guid translation content unchanged from the 2026-06-01/2026-06-14 deltas.
+
+**Read (this run -- delta):** (2026-10-09, sha 05150894e)
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs` -- added `SqlProviderFlags.SupportsPredicateInFunctionValuePosition = false` (new cross-cutting flag): predicates are accepted as select-list/GROUP BY/ORDER BY values but rejected as function arguments and in `OVER (PARTITION BY ...)`.
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs` -- removed the `BuildParameter` override and the `BuildStep` save/restore in `BuildTypedExpression`; parameter casting now goes through base hooks `ParameterCastDecimalNullsOnly => true` and `GetParameterCastType` -> `GetValueBasedParameterCastType`.
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs` -- `WrapParameters` gained an optional `VisitMode` parameter (default `Modify`) so Transform-mode callers do not write casts into the cached statement.
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` -- temporal-parameter inlining in CASE/conditional results (`IsTemporalParameter`, `InlineTemporalParameter`); `VisitExprPredicate` now builds a new `SqlPredicate.Expr` with `QueryHelper.EnsureParameterCast` instead of mutating `NeedsCast`; `ConvertIsDistinctPredicateAsIntersect` passes `VisitMode` to `WrapParameters`; new `IsWindowOrderByRequired` override (frame clause, order-dependent window functions, `NTILE`).
+- `Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs` -- window translator sets `IsFirstLastValueBooleanSupported = false` (server cannot resolve `lessthanorequal` for BOOLEAN).
 
 </details>

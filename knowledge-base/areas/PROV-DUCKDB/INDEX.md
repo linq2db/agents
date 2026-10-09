@@ -3,8 +3,8 @@ area: PROV-DUCKDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 13/13
 coverage_tier_2: 4/4
 ---
@@ -21,6 +21,7 @@ DuckDB provider added by PR #5451. DuckDB is an embedded, in-process analytical 
 
 - CTE, sub-query ORDER BY, all set operations, APPLY joins (CROSS + OUTER), INSERT-OR-UPDATE, `DISTINCT FROM`, `DISTINCT ON`, predicate comparison -- all enabled.
 - `IsDistinctOnSupported = true` (DuckDBDataProvider.cs:40): pairs with `DuckDBSqlBuilder.BuildDistinctModifier`, which emits `DISTINCT ON (...)` via `BuildDistinctOnExpressions`.
+- `IsUpdateOutputRowsSupported = true` (DuckDBDataProvider.cs:42, commented `// RETURNING`): UPDATE ... OUTPUT-style row returns are served by the DuckDB RETURNING clause.
 - `IsNullsOrderingSupported = true`; `DefaultNullsOrdering = NullsDefaultOrdering.AlwaysLast` (DuckDBDataProvider.cs:31-32): DuckDB places NULL last regardless of sort direction.
 - `IsCrossApplyJoinSupportsCondition = true`; `IsOuterApplyJoinSupportsCondition = true` (DuckDBDataProvider.cs:37-38).
 - `DefaultMultiQueryIsolationLevel` = `Snapshot` (DuckDB default).
@@ -52,7 +53,7 @@ Notable overrides:
 - `BuildTruncateTableStatement`: DuckDB ALTER SEQUENCE RESTART is not implemented; TRUNCATE does not reset sequences. Workaround: create a replacement reset sequence and switch the column DEFAULT to it. The old sequence becomes orphaned (DuckDBSqlBuilder.cs:345-388). On DROP TABLE, both the primary and reset sequences are dropped (DuckDBSqlBuilder.cs:262-296).
 - `BuildJoinType`: CrossApply -> INNER JOIN LATERAL, OuterApply -> LEFT JOIN LATERAL (DuckDBSqlBuilder.cs:223-232).
 - `BuildObjectName`: strips schema/db for temp tables; supports a three-part database.schema.name form (DuckDBSqlBuilder.cs:234-260).
-- `BuildParameter`: emits an explicit CAST for INTERVAL and DECIMAL parameters in binary expressions to guide DuckDB operator overload resolution (DuckDBSqlBuilder.cs:390-414).
+- `GetParameterCastType` (replaces the former `BuildParameter` override, DuckDBSqlBuilder.cs:~403-415): returns the parameter own `DbDataType` for `DataType.Interval` and `DataType.Decimal` parameters and `null` otherwise. The base builder uses the returned type to emit an explicit CAST around the parameter, guiding DuckDB operator overload resolution (for example timestamp minus interval, DECIMAL arithmetic). Whether a given reference is cast is decided by the optimizer (see `TuneParameters` below), not by a flag on the shared parameter.
 - `BuildCreateTableNullAttribute`: emits NOT NULL only for non-PK non-nullable fields; PK nullability is implicit (DuckDBSqlBuilder.cs:298-301).
 - `GetWindowNullsPlacement` -> `WindowNullsPlacement.AfterLastArgument` (DuckDBSqlBuilder.cs:40-43): DuckDB places IGNORE NULLS inside the parentheses after the last argument, e.g. LAG(expr, offset, default IGNORE NULLS), NTH_VALUE(expr, n IGNORE NULLS).
 - `BuildDistinctModifier` (DuckDBSqlBuilder.cs:45-49): emits DISTINCT followed by `BuildDistinctOnExpressions`, backing DISTINCT ON queries; paired with `IsDistinctOnSupported = true` on the provider.
@@ -63,6 +64,17 @@ Notable overrides:
 - `ConvertExpressionImpl`: passes all conversions to the base; DuckDB-specific rewrites live in `DuckDBSqlExpressionConvertVisitor`.
 - `OptimizeQueryRoot`: no custom logic; inherits base CTE/limit/order normalization.
 - No custom join rewriting beyond what the flags control (`IsApplyJoinSupported`, `IsCrossApplyJoinSupportsCondition`, `IsOuterApplyJoinSupportsCondition`).
+- `TuneParameters` (DuckDBSqlOptimizer.cs:~85-135): a statement-level visitor pass. The `SqlParameter` case disables query-parameter mode for unsupported types. Operand casting moved to a separate `SqlBinaryExpression` case: each operand that is an `IsQueryParameter` `SqlParameter` is replaced via `QueryHelper.EnsureParameterCast(parameter)` and a new `SqlBinaryExpression` is returned. This is deliberate: the previous approach set `p.NeedsCast = true` on the shared parameter from the `SqlParameter` case (with `withStack: true` to inspect the parent), which marked every reference to the parameter; and returning a cast wrapping the parameter from the `SqlParameter` case would map the parameter to a node containing itself, making the replacer expand it endlessly. The cast now marks only the operand in the binary expression; the visitor no longer needs `withStack`. The cast type is supplied by `DuckDBSqlBuilder.GetParameterCastType`.
+
+### SQL expression conversion (`DuckDBSqlExpressionConvertVisitor`)
+
+`DuckDBSqlExpressionConvertVisitor` (Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlExpressionConvertVisitor.cs) carries DuckDB-specific expression rewrites beyond search-string handling and `ConvertConversion`:
+
+- `ConcatRequiresExplicitStringCast` = `false` (line 14).
+- `TruncateDivide(value, divisor)`: emits `{0} // {1}` (precedence Multiplicative, `long` typed), the DuckDB integer division, because the DuckDB `/` yields a double even between two integers.
+- `CanLowerIntervalDifference` = `true` with `ElapsedTicks(SqlIntervalDifferenceExpression)`: a `Date_Diff` over the `microsecond` unit (exact, DuckDB timestamps hold microseconds) multiplied by `TicksPerMillisecond / 1000` (10 ticks per microsecond) to give ticks. Done through the count rather than the DuckDB `INTERVAL`, which carries months and days alongside microseconds. `TypeParameter` wraps a `SqlParameter` operand in an explicit CAST to its own type, since against a `TIMESTAMP` column the `date_diff` overloads leave an untyped parameter undecided and it gets bound as culture-formatted text that DuckDB cannot parse.
+- `CanLowerIntervalShift` = `true` with `LowerTemporalArithmetic(SqlTemporalArithmeticExpression)`: shifts by `To_Microseconds(interval / 10)` (interval type `DataType.Interval`), the tick count passed through `TruncateDivide` so a non-whole-microsecond tick count never hands a fraction to the BIGINT parameter. The temporal operand is cast to `DataType.DateTime2` first because a parameter reaches DuckDB as an untyped literal and DuckDB will not pick between the `+` overloads for string and interval. Emits temporal plus or minus interval per `IsSubtract`. Part of the date-difference / date-shift regression fix (#5987).
+- `CanWrapWindowOrderByConstant` = `false`: DuckDB accepts a scalar subquery as a window sort key in general but fails inside a `RANGE` frame (`Serialization Error: Cannot copy BoundSubqueryExpression`). Keeping the caller constant ORDER BY key is safe because DuckDB treats the integer as a constant expression, not an output column position (unlike MySQL 8), so `RANGE` over `ORDER BY 1` covers the whole partition.
 
 ### Provider adapter (`DuckDBProviderAdapter`)
 
@@ -101,7 +113,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 `DuckDBMemberTranslator` extends `ProviderMemberTranslatorDefault` (DuckDBMemberTranslator.cs:14) and composes four sub-translators:
 
 - `SqlTypesTranslation`: overrides `ConvertMoney` (DECIMAL(19,4)), `ConvertSmallMoney` (DECIMAL(10,4)), `ConvertDateTime`/`ConvertDateTime2` (both -> DataType.DateTime2).
-- `DateFunctionsTranslator`: translates `Sql.DatePart` to an EXTRACT expression (DuckDBMemberTranslator.cs:73-110); Millisecond special-cased to EXTRACT(millisecond) modulo 1000 (lines 92-98); DateAdd via typed INTERVAL arithmetic (lines 117-146); MakeDateTime -> make_timestamp(y,m,d,h,mi,s) (lines 148-175); date/time truncation via CAST (lines 177-191); now-functions emit function-call forms, not bare keywords: `TranslateServerNow`/`TranslateZonedNow` -> now(), `TranslateNow` -> current_localtimestamp(), `TranslateZonedUtcNow` -> now() AT TIME ZONE UTC (lines 193-225). Changed from the prior bare-keyword forms (CURRENT_TIMESTAMP, LOCALTIMESTAMP, CURRENT_TIMESTAMP AT TIME ZONE UTC): DuckDBs ON CONFLICT DO UPDATE SET binder parses the bare keyword as a column reference (a Binder Error reporting no column named CURRENT_TIMESTAMP), so the function-call form is required for correctness in that context.
+- `DateFunctionsTranslator`: translates `Sql.DatePart` to an EXTRACT expression (DuckDBMemberTranslator.cs:73-110); Millisecond special-cased to EXTRACT(millisecond) modulo 1000 (lines 92-98); DateAdd via typed INTERVAL arithmetic (lines 117-146; the local `ToInterval` helper multiplies the number by an interval unit expression, variable renamed `intervalUnit` in the latest delta, no behavior change); MakeDateTime -> make_timestamp(y,m,d,h,mi,s) (lines 148-175); date/time truncation via CAST (lines 177-191); now-functions emit function-call forms, not bare keywords: `TranslateServerNow`/`TranslateZonedNow` -> now(), `TranslateNow` -> current_localtimestamp(), `TranslateZonedUtcNow` -> now() AT TIME ZONE UTC (lines 193-225). Changed from the prior bare-keyword forms (CURRENT_TIMESTAMP, LOCALTIMESTAMP, CURRENT_TIMESTAMP AT TIME ZONE UTC): DuckDBs ON CONFLICT DO UPDATE SET binder parses the bare keyword as a column reference (a Binder Error reporting no column named CURRENT_TIMESTAMP), so the function-call form is required for correctness in that context.
 - `StringMemberTranslator`: String.Join -> STRING_AGG(value, separator, optional ORDER BY) (DuckDBMemberTranslator.cs:230-298); uses the `AggregateFunctionBuilder` pattern; withoutSeparator path passes an empty string; DISTINCT+ORDER BY is validated (must order by the aggregated value itself, else falls back via `SetFallback`); NULLs ordering via `BuildAggregateNullsOrderBy`, now driven by `translationContext.ProviderFlags.DefaultNullsOrdering` (line 274) rather than a hardcoded AlwaysLast literal -- same effective result for DuckDB (which sets DefaultNullsOrdering to AlwaysLast), but the ordering now follows the provider flag instead of being duplicated as a literal.
 - `DuckDBWindowFunctionsMemberTranslator` (extends `WindowFunctionsMemberTranslator`, wired via `CreateWindowFunctionsMemberTranslator()`, DuckDBMemberTranslator.cs:19-40): enables `IsLeadLagNullTreatmentSupported` / `IsValueNullTreatmentSupported` (IGNORE NULLS for LEAD/LAG/FIRST_VALUE/LAST_VALUE/NTH_VALUE; DuckDB does not support NTH_VALUE FROM FIRST/LAST), `IsWindowFilterSupported` (native FILTER (WHERE ...) on aggregate window functions instead of CASE-WHEN emulation), `IsAggregateDistinctSupported` (SUM(DISTINCT x) OVER (...)), `IsOrderedSetFilterSupported` (FILTER on PERCENTILE_CONT/DISC WITHIN GROUP), and the full statistical/regression set (`IsVarianceSupported`, `IsVarianceBareSupported`, `IsCorrelationSupported`, `IsLinearRegressionSupported`, `IsMedianSupported`). IGNORE NULLS placement is provided by `DuckDBSqlBuilder.GetWindowNullsPlacement` -> AfterLastArgument.
 - `TranslateNewGuidMethod`: Guid.NewGuid() -> non-pure uuid() function (DuckDBMemberTranslator.cs:42-46).
@@ -122,7 +134,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 | `DuckDBDataProvider` | Internal/.../DuckDB/DuckDBDataProvider.cs | Main provider: flags, readers, parameter handling |
 | `DuckDBSqlBuilder` | Internal/.../DuckDB/DuckDBSqlBuilder.cs | SQL emitter |
 | `DuckDBSqlOptimizer` | Internal/.../DuckDB/DuckDBSqlOptimizer.cs | Query optimizer |
-| `DuckDBSqlExpressionConvertVisitor` | Internal/.../DuckDB/DuckDBSqlExpressionConvertVisitor.cs | Expression converter |
+| `DuckDBSqlExpressionConvertVisitor` | Internal/.../DuckDB/DuckDBSqlExpressionConvertVisitor.cs | Expression converter: integer divide, interval-difference / interval-shift lowering, window ORDER BY constant policy |
 | `DuckDBProviderAdapter` | Internal/.../DuckDB/DuckDBProviderAdapter.cs | Dynamic-load adapter for DuckDB.NET |
 | `DuckDBMappingSchema` | Internal/.../DuckDB/DuckDBMappingSchema.cs | Type mappings + converters |
 | `DuckDBBulkCopy` | Internal/.../DuckDB/DuckDBBulkCopy.cs | Appender + multi-row bulk-copy |
@@ -170,6 +182,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - `BasicSqlBuilder`, `BasicSqlOptimizer`, `DynamicDataProviderBase`, `LockedMappingSchema` -- all from the shared linq2db engine
 - `SchemaProviderBase` -- schema infrastructure
 - `ProviderMemberTranslatorDefault`, `AggregateFunctionBuilder`, `DateFunctionsTranslatorBase`, `WindowFunctionsMemberTranslator` -- translator infrastructure
+- `SqlExpressionConvertVisitor` hooks (`TruncateDivide`, `ElapsedTicks`, `LowerTemporalArithmetic`, `CanLowerIntervalDifference`, `CanLowerIntervalShift`, `CanWrapWindowOrderByConstant`), `QueryHelper.EnsureParameterCast`, and `BasicSqlBuilder.GetParameterCastType` -- shared SQL-AST / builder seams the provider overrides
 ## Known issues / debt
 
 - **TRUNCATE does not reset sequences** (DuckDBSqlBuilder.cs:345-388): the workaround creates a replacement reset sequence and re-points the column default, leaving the original sequence orphaned. A clean fix requires DuckDB to implement ALTER SEQUENCE RESTART.
@@ -177,6 +190,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - **No stored procedure support**: `GetProcedures` returns empty (DuckDB has macro/scalar functions but no traditional stored procedures accessible via the schema provider).
 - **T4/NuGet DuckDB package skips netfx TFM** (from MEMORY.md): DuckDB.NET has no net462 TFM, so the T4 NuGet package and LINQPad NuGet driver are unsupported. CLI scaffold and LINQPad driver are supported via netstandard2.0.
 - **DuckDB has no version-dialect split in linq2db**: `TranslateNewGuid7Method` emits uuidv7() unconditionally even though it requires DuckDB 1.3.0+; there is no mechanism to gate it on an older DuckDB instance.
+- **Untyped parameters need explicit casts**: DuckDB.NET parameters reach DuckDB untyped, so operator/function overload resolution fails or mis-binds (text parse of culture-formatted DateTime in `date_diff`, plus/minus with interval, DECIMAL arithmetic). The provider patches this per site (`TuneParameters` operand casts, `GetParameterCastType`, `TypeParameter`, the DateTime2 cast in `LowerTemporalArithmetic`) rather than typing parameters centrally; a new function or operator taking a parameter operand may need the same treatment.
 
 ## See also
 
@@ -191,6 +205,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - DuckDB.NET repo: https://github.com/Giorgi/DuckDB.NET -- upstream provider; data-reader types documented under DuckDB.NET.Data/DataChunk/Reader.
 - PR #5451: initial DuckDB provider addition.
 - PR #5504: `ConcatBuildStyle.Pipes` -- replaced visitor-level concatenation rewrite.
+- PR #5987: date-difference regression fix and date-shift translation (DuckDB interval lowering in the convert visitor).
 <details><summary>Coverage</summary>
 
 **Tier 1 (13/13):** All 13 Tier-1 files read in full during initial build run.
@@ -206,9 +221,16 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs -- Added IsNullsOrderingSupported=true, DefaultNullsOrdering=AlwaysLast (lines 31-32); IsCrossApplyJoinSupportsCondition=true, IsOuterApplyJoinSupportsCondition=true (lines 37-38); Bit field type -> byte[] via ParseBitString reader (line 74); DateTimeOffset+DataType.DateTime -> dto.DateTime unwrap (lines 138-141); SetParameterType override for DataType.VarNumeric -> DbType.Decimal (lines 170-178).
 - Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- No structural changes; withoutSeparator path and AggregateFunctionBuilder pattern confirmed accurate per prior delta.
 
-**Read (this run -- delta):**
+**Read (prior delta run, 2026-07-05):**
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs -- Added `SqlProviderFlags.IsDistinctOnSupported = true` (line 40), pairing with the SQL builder's new `BuildDistinctModifier` for DISTINCT ON support.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs -- Added `GetWindowNullsPlacement` override (AfterLastArgument, lines 40-43) for IGNORE NULLS placement on LAG/NTH_VALUE etc.; added `BuildDistinctModifier` override (lines 45-49) emitting DISTINCT plus `BuildDistinctOnExpressions` for DISTINCT ON support.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- Added `DuckDBWindowFunctionsMemberTranslator` nested class (lines 21-40) enabling the full window-function capability set (IGNORE NULLS treatment, window FILTER, aggregate DISTINCT, ordered-set FILTER, variance/correlation/regression/median); added `TranslateNewGuid7Method` -> uuidv7() (lines 48-54); changed `TranslateServerNow`/`TranslateNow`/`TranslateZonedNow`/`TranslateZonedUtcNow` from bare-keyword forms to function-call forms (now(), current_localtimestamp()) to fix ON CONFLICT DO UPDATE SET binder misparsing the bare keyword as a column reference; `TranslateStringJoin`'s `BuildAggregateNullsOrderBy` call now sources NullsDefaultOrdering from `translationContext.ProviderFlags.DefaultNullsOrdering` instead of a hardcoded literal.
+
+**Read (this run -- delta):**
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs -- Added `SqlProviderFlags.IsUpdateOutputRowsSupported = true` (line 42, RETURNING).
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs -- `BuildParameter` override replaced by `GetParameterCastType` (Interval/Decimal parameter type, else null); cast decision moved to the optimizer.
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlExpressionConvertVisitor.cs -- Added `TruncateDivide`, `CanLowerIntervalDifference` + `ElapsedTicks` + `TypeParameter`, `CanLowerIntervalShift` + `LowerTemporalArithmetic`, `CanWrapWindowOrderByConstant = false`.
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlOptimizer.cs -- `TuneParameters`: operand casts now applied from a `SqlBinaryExpression` case via `QueryHelper.EnsureParameterCast` instead of mutating the shared parameter `NeedsCast`; `withStack` dropped.
+- Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- Local variable rename in DateAdd `ToInterval` (`intervalExpr` -> `intervalUnit`); no behavior change.
 
 </details>

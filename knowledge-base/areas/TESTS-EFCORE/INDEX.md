@@ -3,10 +3,10 @@ area: TESTS-EFCORE
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 0/0
-coverage_tier_2: 157/194
+coverage_tier_2: 159/196
 ---
 
 # TESTS-EFCORE
@@ -20,14 +20,14 @@ EFCore integration test suite. Four `.csproj` files (`Tests.EntityFrameworkCore.
 | `Tests.EntityFrameworkCore.EF3.csproj` | `net462` | `LinqToDB.EntityFrameworkCore.EF3.csproj` | Pins `Npgsql` 4.1.14 override for transitive vuln |
 | `Tests.EntityFrameworkCore.EF8.csproj` | (see props) | `LinqToDB.EntityFrameworkCore.EF8.csproj` | |
 | `Tests.EntityFrameworkCore.EF9.csproj` | (see props) | `LinqToDB.EntityFrameworkCore.EF9.csproj` | |
-| `Tests.EntityFrameworkCore.EF10.csproj` | `net10.0` | `LinqToDB.EntityFrameworkCore.EF10.csproj` | Removes `Pomelo.EntityFrameworkCore.MySql` (unsupported on EF10); defines `EF10` compile constant (`DefineConstants>EF10;$(DefineConstants)`), enabling `#if EF10` guards for EF10-only test behavior (e.g. named query filters in `NorthwindContextBase`) |
+| `Tests.EntityFrameworkCore.EF10.csproj` | `net10.0` | `LinqToDB.EntityFrameworkCore.EF10.csproj` | Removes `Pomelo.EntityFrameworkCore.MySql` (no EF Core 10 release) and adds `Microting.EntityFrameworkCore.MySql` (the Microting fork, exposes the same `UseMySql` API) so MySQL tests now run on EF10 too. Defines `EF10` compile constant (`DefineConstants>EF10;$(DefineConstants)`), enabling `#if EF10` guards for EF10-only test behavior (e.g. named query filters in `NorthwindContextBase`) |
 
 The shared `Tests.EntityFrameworkCore.props` (`Tests/EntityFrameworkCore/Tests.EntityFrameworkCore.props`) sets:
 - `AssemblyName` = `linq2db.EntityFrameworkCore.Tests`, `RootNamespace` = `LinqToDB.EntityFrameworkCore.Tests`
 - References `Tests.Base.csproj` (TESTS-INFRA)
-- Package references: `Microsoft.EntityFrameworkCore.InMemory`, `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`, `Pomelo.EntityFrameworkCore.MySql`, `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, `Microsoft.Extensions.Logging.Console`
+- Package references: `Microsoft.EntityFrameworkCore.InMemory`, `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.SqlServer`, `Pomelo.EntityFrameworkCore.MySql` (EF3/EF8/EF9 only, replaced by `Microting.EntityFrameworkCore.MySql` on EF10), `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime`, `Microsoft.Extensions.Logging.Console`
 
-`#if EF8`-gated source file: `Tests/FSharpTests.cs` -- active only from EF8 onwards.
+`#if EF8`-gated source file: `Tests/FSharpTests.cs` -- intended to be active only from EF8 onwards. In practice it is dead code: `EF8` is defined only in `Source/LinqToDB.EntityFrameworkCore.EF8.csproj` and `DefineConstants` do not cross a `ProjectReference`, so the file compiles into no test assembly (see its `[ActiveIssue(4646, ...)]` comment).
 
 `AssemblyInfo.TestProgress.cs` -- applies `[assembly: TestProgressReporter]` to all EF csproj variants; opt-in live progress heartbeat for long runs, enabled by the `--test-progress` CLI option (see `.claude/docs/testing.md` -> *Monitoring a long run*; no longer an environment variable -- PR #5621 replaced the earlier `LINQ2DB_TEST_PROGRESS` env-var mechanism).
 
@@ -39,7 +39,7 @@ EFCore-specific provider-selection attributes and test utilities.
 
 - `EFDataSourcesAttribute` -- extends `DataSourcesBaseAttribute`. `GetProviders()` returns `TestConfiguration.UserProviders` filtered against `TestConfiguration.EFProviders` (exclusion mode). `[EFDataSources]` is the standard parameter attribute used across almost every test fixture.
 - `EFIncludeDataSourcesAttribute` -- inclusion-mode variant. `GetProviders()` intersects user providers with `TestConfiguration.EFProviders`. Used for provider-specific tests (`[EFIncludeDataSources(TestProvName.AllSqlServer)]`).
-- `TestConfiguration.EFProviders` (`Tests/Base/TestConfiguration.cs:200`) -- the EF-supported provider list: `SQLiteMS`, `AllSqlServer2016PlusMS`, `AllPostgreSQL13Plus`, and `AllMySqlConnector` (excluded on `NET10_0`). All EF test attributes filter through this list.
+- `TestConfiguration.EFProviders` (`Tests/Base/TestConfiguration.cs:200`) -- the EF-supported provider list: `SQLiteMS`, `AllSqlServer2016PlusMS`, `AllPostgreSQL13Plus`, and `AllMySqlConnector` (the `NET10_0` exclusion is not re-verified by the latest delta -- `TestBase`/`ContextTestBase` no longer carry `#if !NET10_0` MySQL guards). All EF test attributes filter through this list.
 - `QueryableExtensions` -- two helpers: `AsLinqToDB(bool)` and `AsTracking(bool)`, convenience for conditional `ToLinqToDB()` / `AsNoTracking()` in test code.
 - `AAA` -- Arrange/Act/Assert fluent DSL (`ArrangeResult<T,TMock>`, `ActResult<T,TMock>`) used by a subset of tests.
 - `ExceptionExtensions` -- single helper `Throw(this Exception)` returning `Unit`; used with `AAA` DSL for act-throws patterns.
@@ -52,31 +52,35 @@ EFCore-specific provider-selection attributes and test utilities.
 
 - `ContextTestBase<TContext>` (`Tests/EntityFrameworkCore/ContextTestBase.cs`) -- `abstract class` extending `TestBase` (TESTS-INFRA), parameterized on `TContext : DbContext`. Key method: `CreateContext(provider, optionsSetter?, optionsBuilderSetter?)` -- builds `DbContextOptionsBuilder<TContext>`, calls `ProviderSetup()` to wire the EF provider, calls `UseLinqToDB()` when `optionsSetter` is set, then constructs the context. On first call per `connectionString x TContext`, calls `EnsureDeleted()` + `EnsureCreated()` + `OnDatabaseCreated()` to initialize the schema. Uses `TestContextTracker.LastContexts` (static `Dictionary<string, Type>`) to avoid reinitializing databases across tests.
 
-  `ProviderSetup()` dispatches on `provider` to `optionsBuilder.UseNpgsql()`, `.UseMySql()`, `.UseSqlite()`, or `.UseSqlServer()`. Always calls `UseLinqToDB()` for PostgreSQL with `UseMappingSchema(NodaTimeSupport)`. Pomelo (`AllMySql`) is excluded when `#if NET10_0`.
+  `ProviderSetup(provider, connectionString, optionsBuilder, bool useNodaTime)` dispatches on `provider` to `optionsBuilder.UseNpgsql()`, `.UseMySql()`, `.UseSqlite()`, or `.UseSqlServer()`. `CreateContext(..., bool useNodaTime = true)` forwards the flag: for PostgreSQL with `useNodaTime: true` it calls `UseLinqToDB()` with `UseMappingSchema(NodaTimeSupport)`, with `useNodaTime: false` it uses plain `UseNpgsql(connectionString)` (used by `Issue5976_ConcatConvertedDates`). The `#if !NET10_0` guard around `UseMySql` is gone -- MySQL is wired on every TFM (Pomelo on EF3/8/9, Microting fork on EF10). `InitializeDatabase` now calls `NpgsqlConnection.ClearAllPools()` between `EnsureDeleted()` and `EnsureCreated()` on PostgreSQL, because `DROP DATABASE WITH (FORCE)` kills pooled connections of contexts that do not share the data source. Subclasses overriding `ProviderSetup` (`ConvertorTests`, `IdTests`, `FSharpTests`) were updated to the new signature.
 
-- `NorthwindContextTestBase` (`Tests/EntityFrameworkCore/NorthwindContextTestBase.cs`) -- concrete `ContextTestBase<NorthwindContextBase>`. `CreateProviderContext()` dispatches provider string to the matching per-provider `NorthwindContext` subclass. `OnDatabaseCreated()` calls `NorthwindData.Seed(context)`.
+- `NorthwindContextTestBase` (`Tests/EntityFrameworkCore/NorthwindContextTestBase.cs`) -- concrete `ContextTestBase<NorthwindContextBase>`. `CreateProviderContext()` dispatches provider string to the matching per-provider `NorthwindContext` subclass. `OnDatabaseCreated()` calls `NorthwindData.Seed(context)`. MySQL dispatch now targets the `MySql.Models.Northwind.NorthwindContext` namespace (renamed from `Pomelo`).
+
+- `TestBase` (`Tests/EntityFrameworkCore/TestBase.cs`) -- EF-suite `TestBase` shared by `ContextTestBase<T>` and direct-`TestBase` fixtures. Delta additions: a `[SetUp] OnBeforeTest()` that calls `CustomTestContext.Begin(false, null)` (fresh per-test context, EF tests never use the remote LinqService path), and `GetConnectionString` for SQLite forces a per-TFM file DB (`sqlite.<provider>.<suffix>.db`, `Mode=ReadWriteCreate`, `Cache=Default`) even when the base connection string is in-memory (CI), because this assembly has no in-memory keep-alive anchor (that lives in Tests.Linq). The `#if !NET10_0` guards around the MySQL `GetConnectionString` branch and its usings were removed.
 
 ### Test fixtures (`Tests/EntityFrameworkCore/Tests/`)
 
-15 fixtures. All inherit `ContextTestBase<T>` or `NorthwindContextTestBase`:
+17 fixtures. All inherit `ContextTestBase<T>` or `NorthwindContextTestBase`:
 
 | Fixture | Base context | Key coverage |
 |---|---|---|
-| `ToolsTests` | `NorthwindContextTestBase` | Core bridge API: `ToLinqToDB()`, `CreateLinqToDBConnection()`, `Include`/`ThenInclude`, change tracker, `TagWith`, temporal tables, `FromSqlRaw/Interpolated`, `SetUpdate`, DML, async methods, EF10 named query filters (`HasQueryFilter(name, ...)` / `IgnoreQueryFilters([key])`, `#if EF10`-gated) |
-| `IssueTests` | `ContextTestBase<IssueContextBase>` | Regression tests for EFCore-specific GitHub issues (numbered: Issue73, 117, 321, 340, 4624...5585 etc.) |
+| `ToolsTests` | `NorthwindContextTestBase` | (delta: `[ActiveIssue(#4669, AllMySql)]` gates on `TestGlobalQueryFilters` and the 4 EF10 named-filter tests were removed after the `NorthwindContextBase` filter fix. The DELETE-with-limit test gate is now split per provider with `ErrorTypeName`/`ErrorMessage`.) Core bridge API: `ToLinqToDB()`, `CreateLinqToDBConnection()`, `Include`/`ThenInclude`, change tracker, `TagWith`, temporal tables, `FromSqlRaw/Interpolated`, `SetUpdate`, DML, async methods, EF10 named query filters (`HasQueryFilter(name, ...)` / `IgnoreQueryFilters([key])`, `#if EF10`-gated) |
+| `IssueTests` | `ContextTestBase<IssueContextBase>` | Regression tests for EFCore-specific GitHub issues (numbered: Issue73, 117, 321, 340, 4624...5585, 5975/5976/5981 etc.). Also `TestImplicitConnectionManagement` (#5364: 300 abandoned contexts per `ImplicitLeakPath` of `ToLinqToDB`/`GetTable`/`ToLinqToDBTable`, `DisableBaseline`) and `TempTableSurvivesAcrossCommands` (explicit `CreateLinqToDBContext()` keeps its connection open). Most formerly bare `[ActiveIssue]` gates now carry issue number plus `ErrorTypeName`/`ErrorMessage`/`Configuration` expectations |
 | `ManyToManyTests` | `ContextTestBase<ManyToManyContextBase>` | M:N translation coverage across 8 structural variants: implicit single-key, explicit with payload, composite-key, self-referencing, two distinct pairs between same entities, two implicit pairs (unsupported -- expects error), field-mapped key, shadow key; `#if !NETFRAMEWORK` |
 | `SqlTransparentExpressionTests` | none (`TestFixture` direct) | Standalone regression: verifies `SqlTransparentExpression` cctor does not throw `TypeInitializationException` (PR #5546); uses reflection to forcibly run the class constructor via `RuntimeHelpers.RunClassConstructor` |
-| `InterceptorTests` | `NorthwindContextTestBase` | Tests all 5 interceptor surfaces: `ICommandInterceptor`, `IConnectionInterceptor`, `IDataContextInterceptor`, `IEntityServiceInterceptor`, dual EF+linq2db combo interceptor, plus `UseEfCoreRegisteredInterceptorsIfPossible` glue |
+| `InterceptorTests` | `NorthwindContextTestBase` | Tests all 5 interceptor surfaces: `ICommandInterceptor`, `IConnectionInterceptor`, `IDataContextInterceptor`, `IEntityServiceInterceptor`, dual EF+linq2db combo interceptor, plus `UseEfCoreRegisteredInterceptorsIfPossible` glue. Since #5364 the implicit `ToLinqToDB()` context closes its connection per command (`CloseAfterUse`), so the test now asserts `_testDataContextInterceptor.HasInterceptorBeenInvoked` is `True` (previously `False`) |
 | `ForMappingTests` | `ContextTestBase<ForMappingContextBase>` | `EFCoreMetadataReader` mapping: identity detection, skip-on-insert/update, type mapping, bulk-copy, `MERGE`, `BulkCopyType.*`, `SkipModesTable`, `UIntTable` |
 | `ConvertorTests` | `ContextTestBase<ConvertorContext>` | Custom `IValueConverterSelector`, strongly-typed `Id<T,U>` round-trips via EF value converters into linq2db |
 | `IdTests` | `ContextTestBase<IdTestContext>` | `Models/Shared` entity set with EF-registered `IdValueConverter`; verifies converter import into `MappingSchema` |
 | `InheritanceTests` | `ContextTestBase<InheritanceContext>` | Discriminator inheritance + bulk copy (`BulkCopyType.*`) across `Blog`/`RssBlog`/`ShadowBlog`/`ShadowRssBlog` hierarchy |
 | `NpgSqlTests` | `ContextTestBase<NpgSqlEntitiesContext>` | Npgsql range functions, arrays, xmin, views, NodaTime, `AT TIME ZONE` |
-| `PomeloMySqlTests` | `NorthwindContextTestBase` | MySQL-specific queries via Pomelo; excluded on EF10. Tests: `SimpleProviderTest` (basic `.ToLinqToDB()` query), `TestFunctionTranslation` and `TestFunctionTranslationParameter` (Pomelo issue #1801 -- `string.Contains` translation) |
+| `MySqlTests` (renamed from `PomeloMySqlTests`) | `NorthwindContextTestBase` | MySQL-specific queries via Pomelo (EF3/8/9) or the Microting fork (EF10) -- no longer excluded on EF10. Tests: `SimpleProviderTest` (basic `.ToLinqToDB()` query), `TestFunctionTranslation` and `TestFunctionTranslationParameter` (Pomelo issue #1801 -- `string.Contains` translation) |
 | `SQLiteTests` | `NorthwindContextTestBase` | SQLite-specific provider selection (issue #343: `UseSQLite(SQLiteProvider.Microsoft)`) |
 | `JsonConvertTests` | `ContextTestBase<JsonConvertContext>` | JSON-serialized column round-trips via EF value converters. Single test `TestJsonConvert` ([EFIncludeDataSources(AllSqlServer)]): inserts `EventScheduleItem` with JSON-serialized `LocalizedString` column, queries via `.ToLinqToDB()` projecting `JSON_VALUE` EF db-function, asserts deserialized field values. Has a `//TODO` to support sub-property projection from JSON columns. |
 | `FSharpTests` | `ContextTestBase<FSharpContext.AppDbContext>` | F# entity mapping interop; `#if EF8` only; uses `EntityFrameworkCore.FSharp` |
-| `CustomContextIssueTests` | `TestBase` (direct) | Tests that corrupt DB state; creates fresh contexts per test via `TestContextTracker` invalidation |
+| `DataProviderCacheTests` | `TestBase` (direct) | `ProviderNotSharedBetweenConnectionsWithoutConnectionString` (PostgreSQL only): `LinqToDBForEFTools.GetDataProvider` must key its provider cache on the connection when `EFConnectionInfo.ConnectionString` is null (DbDataSource or externally supplied `DbConnection`). Resolves a configured connection (name must equal `DataConnection.GetDataProvider(provider).Name`), then an unreachable `Host=linq2db-nonexistent.invalid` connection which must throw rather than reuse the first dialect |
+| `MappingSchemaCacheTests` | none (plain `[TestFixture]`, SQLite/SQL Server options only, no DB connection) | Mapping-schema cache identity and retention: `MappingSchemaIdentityStableAcrossContexts` (same model on `EnableServiceProviderCaching(false)` gives equal `IConfigurationID.ConfigurationID`), `MappingSchemaNotSharedBetweenProviders` (#5778: one context type mapping a column per provider), `MappingSchemaNotSharedBetweenReplacedServices` (`ReplaceService<IModelCustomizer,...>` gets its own schema), `CachesDoNotRetainApplicationServiceProvider` and `MetadataReaderCacheDoesNotRetainModel` (WeakReference + bounded GC loop `ShouldBeCollected`, exercising `LinqToDBForEFTools.GetMappingSchema` / `GetMetadataReader`) |
+| `CustomContextIssueTests` | `TestBase` (direct) | Tests that corrupt DB state; creates fresh contexts per test via `TestContextTracker` invalidation. Delta additions: `Issue4669QueryFilterTest` (own `Issue4669Context` with shadow `IsDeleted` + `EF.Property` query filter, so the #4669 outcome no longer depends on `ToolsTests` execution order, `[ActiveIssue(4669, AllMySql, ErrorTypeName=UnreachableException)]`) and `Issue5296Test` (SQL Server + PostgreSQL: auto-detection through `CreateLinqToDBConnection()` must not leave EF's shared `DbConnection` open, verified by `EnsureDeleted`/`EnsureCreated` afterwards). `Issue4917Test` now also asserts `db.DataProvider.Name` equals the provider resolved for the configured server |
 
 ### Interceptors (`Tests/EntityFrameworkCore/Interceptors/`)
 
@@ -106,15 +110,15 @@ Six model subdirectories, each scoped to specific test scenarios:
 | Subdir | Entities | Test fixture |
 |---|---|---|
 | `Northwind/` | Full Northwind schema (`Category`, `Customer`, `Order`, `OrderDetail`, `Product`, `Employee`, `Territory`, ...); `NorthwindContextBase` with `QueryFilter` + `ISoftDelete` support | `NorthwindContextTestBase` descendants |
-| `Northwind/SQLServer/`, `/Pomelo/`, `/PostgreSQL/` | Per-provider `NorthwindContext` subclass + EF Fluent API mapping classes | Provider dispatch in `NorthwindContextTestBase` |
-| `IssueModel/` | `IssueContextBase` + per-issue entity classes (Issue73, 117, 321, 4624...5585); per-provider context subclasses under `SQLServer/`, `SQLite/`, `PostgreSQL/`, `Pomelo/` | `IssueTests` |
+| `Northwind/SQLServer/`, `/MySql/` (renamed from `Pomelo/`), `/PostgreSQL/` | Per-provider `NorthwindContext` subclass + EF Fluent API mapping classes | Provider dispatch in `NorthwindContextTestBase` |
+| `IssueModel/` | `IssueContextBase` + per-issue entity classes (Issue73, 117, 321, 4624...5585); per-provider context subclasses under `SQLServer/`, `SQLite/`, `PostgreSQL/`, `MySql/` (renamed from `Pomelo/`) | `IssueTests` |
 | `ForMapping/` | `ForMappingContextBase` with identity/no-identity, `UIntTable`, `StringTypes`, `TypesTable`, `WithInheritance`, `SkipModesTable`, `WithDuplicateProperties`; per-provider subclasses | `ForMappingTests` |
 | `Inheritance/` | `InheritanceContext` with `Blog/RssBlog` + `ShadowBlog/ShadowRssBlog` discriminator hierarchies | `InheritanceTests` |
 | `NpgSqlEntities/` | `NpgSqlEntitiesContext`, `EntityWithArrays`, `EntityWithXmin`, `Event` (range type), `EventView`, `TimeStampEntity` | `NpgSqlTests` |
 | `Shared/` | `IdTestContext`, `Entity`, `Item`, `Detail`, `SubDetail`, strongly-typed `Id<T,U>` + `IdValueConverter`, `ModelBuilderExtensions` | `IdTests` |
 | `ValueConversion/` | `ConvertorContext`, `SubDivision`, `Id<T,U>`, `IEntity<T>`, `IdValueConverterSelector`, `IdValueConverter<T,U>` | `ConvertorTests` |
 | `JsonConverter/` | `JsonConvertContext`, `EventScheduleItem`, `CrashEnum`, `LocalizedString` | `JsonConvertTests` |
-| `ManyToMany/` | `ManyToManyContextBase` + per-provider subclasses (`Pomelo/`, `PostgreSQL/`, `SQLServer/`, `SQLite/`); all M:N entity + join-table classes (`MmStudent`, `MmCourse`, `MmOrder`, `MmProduct`, `MmOrderProduct`, `MmProject`, `MmMember`, `MmProjectMember`, `MmPerson`, `MmFriendship`, `MmUser`, `MmTeam`, `MmMembership`, `MmLeadership`, `MmDoc`, `MmLabel`, `MmAccount`, `MmRole`, `MmArticle`, `MmTag`); `#if !NETFRAMEWORK` | `ManyToManyTests` |
+| `ManyToMany/` | `ManyToManyContextBase` + per-provider subclasses (`MySql/`, `PostgreSQL/`, `SQLServer/`, `SQLite/`); all M:N entity + join-table classes (`MmStudent`, `MmCourse`, `MmOrder`, `MmProduct`, `MmOrderProduct`, `MmProject`, `MmMember`, `MmProjectMember`, `MmPerson`, `MmFriendship`, `MmUser`, `MmTeam`, `MmMembership`, `MmLeadership`, `MmDoc`, `MmLabel`, `MmAccount`, `MmRole`, `MmArticle`, `MmTag`); `#if !NETFRAMEWORK` | `ManyToManyTests` |
 
 #### Models/Northwind -- entity detail
 
@@ -136,6 +140,8 @@ All entities inherit `BaseEntity` (which implements `ISoftDelete` with `IsDelete
 | `OrderDetail` | `OrderId + ProductId` | `UnitPrice`, `Quantity`, `Discount`; nav `Order`, `Product` |
 | `Product` | `ProductId` | `ProductName`, `Discontinued`; nav `Category`, `Supplier`, `OrderDetails`; SQL Server map uses `IsTemporal()` |
 | `Region` | `RegionId` | `RegionDescription`; nav `Territories` |
+
+`NorthwindContextBase.ConfigureEntityFilter<TEntity>` (delta): the soft-delete query filter (named `SoftDeleteFilter` under `#if EF10`, anonymous otherwise) now references the context property `IsSoftDeleteFilterEnabled` directly, like the `Product` filters reference `IsFilterProducts`. It previously went through a local `NorthwindContextBase? obj = null` that was never assigned, so EF had to translate a member access on a null constant and threw `UnreachableException` from `RelationalSqlTranslatingExpressionVisitor` (the root of the #4669 MySQL gates), and the property set by `CreateContext(provider, enableFilter)` was never actually read by the filter.
 
 `NorthwindData` -- partial class seeding the DB: `Seed(DbContext)` / `SeedAsync(DbContext)` call `AddEntities()` which uses `EF1001`-suppressed internal shadow-property access for `Employee.Title`. Inner `AsyncEnumerable<T>` implements `IAsyncQueryProvider` to support in-memory EF query tests; rewrites `EF.Property` shadow-property access via `ShadowStateAccessRewriter : ExpressionVisitor`.
 
@@ -176,7 +182,7 @@ Entities in `ForMappingContextBase` used by `ForMappingTests` to exercise `EFCor
 | `WithDuplicateProperties` / `WithDuplicatePropertiesBase` | `Id int` + `Value` (base `string?`, derived `int?`) | Tests `new` keyword property hiding in inheritance |
 | `WithInheritance` / `WithInheritanceA` / `WithInheritanceA1` / `WithInheritanceA2` | `Id int` + `Discriminator string` | Tests EF discriminator-based TPH inheritance mapping |
 
-Per-provider `ForMappingContext` subclasses (`Npgsql/`, `Pomelo/`, `SQLite/`, `SQLServer/`) override `OnModelCreating` to set provider-specific identity column configuration (`UseIdentityAlwaysColumn()` for Npgsql, `UseMySqlIdentityColumn()` for Pomelo gated `#if !NET10_0`, `UseIdentityColumn()` for SQL Server). All four configure `HasDiscriminator` on `WithInheritance`. The SQL Server variant additionally maps `StringTypes` unicode flags and `TypesTable` max-length.
+Per-provider `ForMappingContext` subclasses (`Npgsql/`, `MySql/` (renamed from `Pomelo/`, namespace `LinqToDB.EntityFrameworkCore.Tests.MySql.Models.ForMapping`), `SQLite/`, `SQLServer/`) override `OnModelCreating` to set provider-specific identity column configuration (`UseIdentityAlwaysColumn()` for Npgsql, `UseMySqlIdentityColumn()` for MySQL (the `#if !NET10_0` gate was removed), `UseIdentityColumn()` for SQL Server). All four configure `HasDiscriminator` on `WithInheritance`. The SQL Server variant additionally maps `StringTypes` unicode flags and `TypesTable` max-length.
 
 #### Models/IssueModel -- entity detail
 
@@ -211,16 +217,17 @@ Per-provider `ForMappingContext` subclasses (`Npgsql/`, `Pomelo/`, `SQLite/`, `S
 - `Issue5388Task` -- `Id int`, `IsArchived bool`; `IsArchived` stored as `smallint` via `HasConversion<short>()`. No `DbSet<>` -- registered model-only via `modelBuilder.Entity<Issue5388Task>()`.
 - `Issue5547CustomerShare` -- `Id int`, `CustomerId int`, FK to `Issue5355Customer`; seeds three rows (one per customer) via `HasData`. Added in a prior delta -- used by `Issue5547_ContainsThroughQueryableShapes` to exercise transparent-identifier navigation paths through `Select(s => s.Customer)`.
 - `Issue5585Customer` / `Issue5585CustomerShare` / `Issue5585User` -- `#if !NETFRAMEWORK`; three-entity M:N cluster: `Customer` 1:N `CustomerShare`, `CustomerShare` M:N `User` (via implicit join configured with `UsingEntity`); seeds 2 customers, 3 shares, 2 users; used by `Issue5585_ManyToManyDirectAny` and `Issue5585_ManyToManyNestedAny` in `IssueTests`.
+- `Issue5975TableOne` / `Issue5975TableTwo` -- `Id`, `FromDate?`/`ToDate?` `DateTime?` (TableTwo also `Code`, `TableOneId?`, nav `TableOne`); `DbSet`s `Issue5975TableOnes`/`Issue5975TableTwos`. Both date columns use a CLR-only `ValueConverter<DateTime?,DateTime?>` that delegates to a plain `ValueConverter<DateTime,DateTime>` shifting by +1h to store and -1h on read (`Issue5975ToStore`/`Issue5975FromStore`), mirroring the issue. TableTwo to TableOne is an optional FK with `ValueGeneratedNever` ids. Used by `Issue5975_InsertServerSideDate`, `Issue5975_UpdateServerSideDate` (server-side `DateTime.UtcNow` in DML setters must bypass the converter, #5975), `Issue5976_ConcatConvertedDates` (Concat/UNION of converted dates through `useNodaTime: false`, #5976, EF8 restricted to PostgreSQL because the NodaTime plugin is process-wide) and `[ActiveIssue(5981)]` `Issue5981_ReadConvertedDateWithNodaTime` (PostgreSQL + NodaTime).
 - `BulkCopyIdentityTable` -- `Id int`, `Value int`; not registered in `IssueContextBase` model at all -- accessed via `db.GetTable<BulkCopyIdentityTable>()` through the linq2db bridge.
 
 Per-provider `IssueContext` subclasses:
-- `SQLite/IssueContext` and `Pomelo/IssueContext` -- extend `IssueContextBase`, override `Issue4640Table.Items` to `HasColumnType("text")`.
+- `SQLite/IssueContext` and `MySql/IssueContext` (renamed from `Pomelo/`) -- extend `IssueContextBase`, override `Issue4640Table.Items` to `HasColumnType("text")`.
 - `PostgreSQL/IssueEntities.cs` -- provider-specific entity classes: `PostgreTable` (with `NpgsqlTsVector SearchVector`), `Issue155Table` (`int[] Linked`, `[NotMapped] int[] LinkedFrom`), `Issue4641Table`, `Issue4643Table` (`DayOfWeek[]? Value`), `Issue4667Table` (`Dictionary<string,string> Headers`).
 - `SQLServer/IssueEntities.cs` -- `Issue129Table` (`Id`, `Key` both private-set), `Issue4816Table` (`ValueVarChar?`, `ValueNVarChar?` both private-set).
 
 #### Models/ManyToMany -- entity and context detail
 
-`ManyToManyContextBase` (`Tests/EntityFrameworkCore/Models/ManyToMany/ManyToManyContextBase.cs`) -- `#if !NETFRAMEWORK`; abstract `DbContext` with 16 `DbSet`s across 8 M:N structural scenarios. `OnModelCreating` configures all 8 scenarios with `HasData` seeds. Per-provider subclasses (`Pomelo/`, `PostgreSQL/`, `SQLServer/`, `SQLite/`) are trivial primary-constructor subclasses that forward `DbContextOptions`.
+`ManyToManyContextBase` (`Tests/EntityFrameworkCore/Models/ManyToMany/ManyToManyContextBase.cs`) -- `#if !NETFRAMEWORK`; abstract `DbContext` with 16 `DbSet`s across 8 M:N structural scenarios. `OnModelCreating` configures all 8 scenarios with `HasData` seeds. Per-provider subclasses (`MySql/`, `PostgreSQL/`, `SQLServer/`, `SQLite/`) are trivial primary-constructor subclasses (now bodiless `;` form) that forward `DbContextOptions`.
 
 The 8 M:N scenarios and their entity sets:
 
@@ -307,6 +314,9 @@ Parallel to `Models/Shared` but for `ConvertorTests`; key difference is `IdValue
 | `BulkCopyIdentityTable` | `Tests/EntityFrameworkCore/Models/IssueModel/IssueEntities.cs` | BulkCopy identity sequence test table; not a `DbSet<>` in `IssueContextBase` |
 | `FilterIssue5355License<T>` | `Tests/EntityFrameworkCore/Tests/IssueTests.cs` | Static extension on `IQueryable<T> where T : IIssue5355Profile`; applies `licenseFilter.Contains(x.Profile.License)` predicate |
 | `SqlTransparentExpressionTests` | `Tests/EntityFrameworkCore/Tests/SqlTransparentExpressionTests.cs` | Standalone fixture: forces `SqlTransparentExpression` cctor via `RuntimeHelpers.RunClassConstructor`; guards against `TypeInitializationException` regression (PR #5546) |
+| `DataProviderCacheTests` | `Tests/EntityFrameworkCore/Tests/DataProviderCacheTests.cs` | Guards that `LinqToDBForEFTools.GetDataProvider` does not share a provider between servers when the EF options carry no connection string (PostgreSQL only) |
+| `MappingSchemaCacheTests` | `Tests/EntityFrameworkCore/Tests/MappingSchemaCacheTests.cs` | Mapping-schema cache identity/partitioning and non-retention tests (`GetMappingSchema`, `GetMetadataReader`) |
+| `Issue5975TableOne` / `Issue5975TableTwo` | `Tests/EntityFrameworkCore/Models/IssueModel/IssueEntities.cs` | Issues #5975/#5976/#5981: date entities with a CLR-only +1h/-1h `DateTime` value converter |
 
 ## Files (Tier 1 / Tier 2)
 
@@ -384,7 +394,7 @@ There are no declared Tier-1 files for this area (row says `(none)`). See AUDIT-
 | `Models/ForMapping/WithDuplicateProperties.cs` | Base `Value string?` + derived `new Value int?` -- property-hiding tests |
 | `Models/ForMapping/WithInheritance.cs` + `WithInheritanceA/A1/A2` | TPH hierarchy with `Discriminator` string |
 | `Models/ForMapping/Npgsql/ForMappingContext.cs` | Npgsql subcontext: `UseIdentityAlwaysColumn()` for `WithIdentity` |
-| `Models/ForMapping/Pomelo/ForMappingContext.cs` | Pomelo subcontext: `UseMySqlIdentityColumn()` gated `#if !NET10_0` |
+| `Models/ForMapping/MySql/ForMappingContext.cs` | MySQL subcontext (renamed from `Pomelo/`): `UseMySqlIdentityColumn()`, no longer gated `#if !NET10_0` |
 | `Models/ForMapping/SQLite/ForMappingContext.cs` | SQLite subcontext: no provider-specific identity config |
 | `Models/ForMapping/SQLServer/ForMappingContext.cs` | SQL Server subcontext: `UseIdentityColumn()` + `StringTypes` unicode + `TypesTable` max-length |
 
@@ -395,7 +405,7 @@ There are no declared Tier-1 files for this area (row says `(none)`). See AUDIT-
 | `Models/IssueModel/Issue117Entities.cs` | `Patent` + `PatentAssessment` -- 1:1 with `DeleteBehavior.Restrict` |
 | `Models/IssueModel/Issue73Entity.cs` | Self-referential tree entity (`Id`, `ParentId?`, `Childs`) |
 | `Models/IssueModel/IssueContext.cs` | Provider-agnostic `DbContext` for Issue73 + Issue117 entities; seeds `Issue73Entity` data |
-| `Models/IssueModel/Pomelo/IssueContext.cs` | Pomelo subcontext: `Issue4640Table.Items` -> `text` column type |
+| `Models/IssueModel/MySql/IssueContext.cs` | MySQL subcontext (renamed from `Pomelo/`): `Issue4640Table.Items` -> `text` column type |
 | `Models/IssueModel/SQLite/IssueContext.cs` | SQLite subcontext: `Issue4640Table.Items` -> `text` column type |
 | `Models/IssueModel/PostgreSQL/IssueEntities.cs` | PostgreSQL-specific entities: `PostgreTable` (tsVector), `Issue155Table` (int[] arrays), `Issue4641/4643/4667Table` |
 | `Models/IssueModel/SQLServer/IssueEntities.cs` | SQL Server-specific entities: `Issue129Table`, `Issue4816Table` (private-set properties) |
@@ -494,7 +504,7 @@ There are no declared Tier-1 files for this area (row says `(none)`). See AUDIT-
 | File | Notes |
 |---|---|
 | `Tests/JsonConvertTests.cs` | Single test `TestJsonConvert` ([AllSqlServer]): verifies JSON-serialized `LocalizedString` column + `JSON_VALUE` db-function via `.ToLinqToDB()` |
-| `Tests/PomeloMySqlTests.cs` | 3 tests: `SimpleProviderTest` (basic query), `TestFunctionTranslation` / `TestFunctionTranslationParameter` (Pomelo `string.Contains` issue #1801) |
+| `Tests/MySqlTests.cs` (renamed from `PomeloMySqlTests.cs`) | 3 tests: `SimpleProviderTest` (basic query), `TestFunctionTranslation` / `TestFunctionTranslationParameter` (Pomelo `string.Contains` issue #1801) |
 
 **Utilities/**
 
@@ -535,6 +545,22 @@ Read (this run -- delta at sha b3340aa9):
 - `Tests/IssueTests.cs` (re-read: added `Issue5585_ManyToManyDirectAny`, `Issue5585_ManyToManyNestedAny`, both `#if !NETFRAMEWORK`)
 - `Tests/ManyToManyTests.cs` (new: `ManyToManyTests` fixture with ~30 tests across 8 M:N scenarios, `#if !NETFRAMEWORK`)
 
+#### Read (this run -- delta at sha 05150894)
+
+| File | Notes |
+|---|---|
+| `Tests/DataProviderCacheTests.cs` | New fixture: PostgreSQL provider-cache keying when no connection string is available |
+| `Tests/MappingSchemaCacheTests.cs` | New fixture: 5 tests on mapping-schema identity, partitioning by provider/replaced services, and weak retention |
+| `Tests/MySqlTests.cs` | Renamed from `PomeloMySqlTests.cs`, body unchanged, no longer EF10-excluded |
+| `Models/*/MySql/*` (Northwind 14 files, ForMapping, IssueModel, ManyToMany) | Folder and namespace rename `Pomelo` -> `MySql`. Only `ForMapping/MySql/ForMappingContext.cs` changed content (dropped `#if !NET10_0`) |
+| `ContextTestBase.cs`, `TestBase.cs`, `NorthwindContextTestBase.cs` | `useNodaTime` parameter, `ClearAllPools`, `[SetUp]`, SQLite file-DB forcing, MySQL guards removed |
+| `Models/IssueModel/IssueContextBase.cs`, `IssueEntities.cs` | Issue5975 entities and value-converter configuration |
+| `Models/Northwind/NorthwindContext.cs` | Soft-delete filter references context property directly |
+| `Models/ForMapping/WithInheritance.cs`, `Models/ManyToMany/*/ManyToManyContext.cs`, `Utilities/Unit.cs` | Style-only: empty class bodies turned into `;` declarations |
+| `Tests.EntityFrameworkCore.EF10.csproj` | `Microting.EntityFrameworkCore.MySql` added |
+| `Tests/IssueTests.cs`, `CustomContextIssueTests.cs`, `ToolsTests.cs`, `FSharpTests.cs`, `InterceptorTests.cs` | New tests, gate rewrites, signature updates (see Subsystems and Known issues) |
+| `Tests/ConvertorTests.cs`, `IdTests.cs`, `ForMappingTests.cs`, `ManyToManyTests.cs`, `Providers.md` | Signature/namespace updates, provider table now lists Microting fork for net10.0 |
+
 ## Inbound / outbound dependencies
 
 **Inbound:**
@@ -546,7 +572,7 @@ Read (this run -- delta at sha b3340aa9):
 - **PROV-SQLSERVER** -- used by `ToolsTests.TestFunctions`, `TestCommandTimeout`, `TestCreateTempTable`, temporal-table tests; SQL Server NorthwindContext; `JsonConvertTests` (AllSqlServer only); SQL Server Fluent maps use `IsTemporal()`. Also used by `BulkCopy_Sequence_AsIdentity`.
 - **PROV-SQLITE** -- used by `SQLiteTests`; default EF provider in many `[EFDataSources]` tests.
 - **PROV-POSTGRES** -- used by `NpgSqlTests` (range, array, NodaTime); Northwind and IssueModel PostgreSQL context variants; `ForMapping/Npgsql` context. Also used by `BulkCopy_Sequence_AsIdentity`.
-- **PROV-MYSQL** -- used by `PomeloMySqlTests` and multi-provider tests (excluded EF10); `ForMapping/Pomelo` and `IssueModel/Pomelo` contexts.
+- **PROV-MYSQL** -- used by `MySqlTests` (formerly `PomeloMySqlTests`) and multi-provider tests (now also on EF10 via `Microting.EntityFrameworkCore.MySql`); `ForMapping/MySql`, `IssueModel/MySql`, `ManyToMany/MySql` and `Northwind/MySql` contexts.
 - **INTERCEPTORS** -- `TestCommandInterceptor` / `TestConnectionInterceptor` / `TestEntityServiceInterceptor` implement INTERCEPTORS area interfaces; `LinqToDBContextOptionsBuilderExtensions` bridges EF-registered interceptors.
 - **DATA** -- `BulkCopyType`, `DataOptions`, `DataConnection` (`CreateLinqToDBConnection`), `CreateTempTable`.
 - **MAPPING** -- `MappingSchema`, `ColumnAttribute`, `AssociationAttribute` assertions in `ToolsTests.TestKey` and `TestAssociations`.
@@ -557,12 +583,14 @@ Read (this run -- delta at sha b3340aa9):
 - `TestContextTracker.LastContexts` is a static `Dictionary<string, Type>` (not thread-safe, no locking). Multiple `TContext` types sharing a connection string will cause spurious re-initializations; the first test to run for a given `connectionString` wins.
 - `CustomContextIssueTests` manually invalidates `TestContextTracker.LastContexts` by removing its connection string on every `GetConnectionString()` call, forcing schema recreation on each test. This is intentional but fragile if test ordering changes.
 - `InheritanceTests.TestInheritanceBulkCopy` has a workaround `try { x = CreateContext(); } catch { x = CreateContext(); }` for an Npgsql EFCore bug (#3671). The bug may be resolved upstream; the workaround should be rechecked.
-- `PomeloMySqlTests` is excluded from EF10 builds by removing the `Pomelo.EntityFrameworkCore.MySql` package reference in the EF10 csproj -- there is no explicit `[ActiveIssue]` annotation explaining the gap for readers.
-- `FSharpTests` is gated `#if EF8` -- F# EFCore interop is not tested against EF3 or EF31.
+- (resolved by delta) MySQL tests used to be excluded from EF10 by removing the Pomelo reference. The EF10 csproj now references `Microting.EntityFrameworkCore.MySql` instead and the `#if !NET10_0` guards were removed from `TestBase`, `ContextTestBase`, `CustomContextIssueTests` and `ForMappingContext`. MySQL-family `[ActiveIssue]` gates now omit `ErrorTypeName` because the exception type differs per TFM (`MySqlConnector.MySqlException` on net8.0+, `MySql.Data.MySqlClient.MySqlException` on net462).
+- `FSharpTests` is gated `#if EF8` -- F# EFCore interop is not tested against EF3 or EF31. Worse, `EF8` is defined only in the production `LinqToDB.EntityFrameworkCore.EF8.csproj` and `DefineConstants` do not flow across a `ProjectReference`, so the file is compiled into no test assembly and has never been observed running. Its `Issue4646` test carries `[ActiveIssue(4646, Details = "no-declaration: dead behind #if EF8, never observed running")]`.
 - `NorthwindData.Objects.cs` is marked `<auto-generated>` to suppress analyzers but is a hand-maintained seed-data file exceeding 1 MB; file is not actually generated and the marker is a workaround, not a true generation artifact.
 - `JsonConvertTests` has a `//TODO` comment noting that sub-property projection from a JSON column (e.g. `p.NameLocalized.English`) does not yet work through the linq2db bridge.
 - `Models/Shared/IdValueConverter.cs` and `Models/ValueConversion/IdValueConverterSelector.cs` are near-duplicate implementations of the strongly-typed ID pattern (differing only in the `IHasId` vs `IEntity` interface constraint and the `+-1` test offset in `IdValueConverter<TEntity>`). No shared abstraction exists.
-- `Models/ForMapping/Pomelo/ForMappingContext.cs` gates `UseMySqlIdentityColumn()` on `#if !NET10_0` with an inline comment but no `[ActiveIssue]` link, making the exclusion reason opaque in test output.
+- (resolved by delta) `Models/ForMapping/MySql/ForMappingContext.cs` no longer gates `UseMySqlIdentityColumn()` on `#if !NET10_0`.
+- `Issue5981_ReadConvertedDateWithNodaTime` is `[ActiveIssue(5981)]`-gated (PostgreSQL + NodaTime + converted date read path); on EF8 the Npgsql NodaTime plugin registers process-wide, so `useNodaTime: false` cannot isolate #5976 from #5981 and `Issue5976_ConcatConvertedDates` is restricted to PostgreSQL there.
+- Many formerly bare `[ActiveIssue]` gates in `IssueTests` were converted to issue-numbered, expectation-bearing gates (e.g. 3174, 4012, 4603, 4627, 4628, 4640, 4641, 4644, 4649, 4653, 4663, 4666, 4671). `Issue4624Test`, `Issue4643Test` and `Issue4662Test` lost their bare gates and `Issue4624Test` now seeds data and asserts the result row. Tests whose gate previously used a positional `TestProvName` (`[ActiveIssue(TestProvName.AllPostgreSQL)]`, binding the `issue` string ctor and thus gating every provider) were fixed to use `Configuration =`.
 - `Issue5388Task` has no `DbSet<>` in `IssueContextBase` -- it is model-only (registered only via `modelBuilder.Entity<Issue5388Task>()`); test access is via `db.GetTable<Issue5388Task>()` through the linq2db bridge after EF `SaveChanges`. This asymmetry (EF writes, linq2db reads) is intentional to verify constant-value-conversion parity.
 - `ManyToManyTests` scenario 6 (`MultipleImplicitPair_Throws`) deliberately tests unsupported behavior (two implicit M:N relationships between the same entity pair) and expects an exception containing "implicit many-to-many". This documents an intentional current limitation: the linq2db bridge cannot disambiguate multiple EF-auto-created shadow join tables for the same entity pair.
 - `Issue5585` M:N entities and `ManyToMany` test infrastructure are both `#if !NETFRAMEWORK` -- there is no coverage of M:N translation on EF3 (net462).
@@ -579,7 +607,7 @@ Read (this run -- delta at sha b3340aa9):
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 0 / 0 -- no Tier-1 anchors declared; see AUDIT-NOTE for proposed anchors
-- Tier 2 (visited / total): 157 / 194 (80.9%)
+- Tier 2 (visited / total): 159 / 196 (81.1%)
 - Tier 3 (skipped, logged): 4 (the 4 csproj files -- counted, not read as .cs)
 
 Read (run 1):
@@ -636,4 +664,22 @@ Read (this run -- delta at sha 36ee4f82):
 - `Models/Northwind/NorthwindContext.cs` (re-read: added `#if EF10` named-query-filter branches on `Product` (`ProductIdFilter`/`NotDiscontinued`) and on the `ISoftDelete` base filter (`SoftDeleteFilter`), enabling multiple coexisting filters selectively disabled via `IgnoreQueryFilters([key])`; pre-EF10 single-anonymous-filter path unchanged)
 - `Tests.EntityFrameworkCore.EF10.csproj` (added `<DefineConstants>EF10;$(DefineConstants)</DefineConstants>`; first EF-version compile symbol among the 4 test csprojs -- corrected the matching claim in ## Known issues / debt)
 - `Tests/ToolsTests.cs` (added 4 `#if EF10`-gated tests: `TestNamedQueryFilter_AppliesAll`, `TestIgnoreQueryFilters_ByKey`, `TestIgnoreQueryFilters_All_StillWorks`, `TestIgnoreQueryFilters_Empty_IsNoOp`, all `[ActiveIssue(#4669, AllMySql)]`-gated; exercise the new named-filter behavior in `NorthwindContextBase`)
-</details>
+
+Read (this run -- delta at sha 05150894):
+- `Tests/DataProviderCacheTests.cs` (new: `ProviderNotSharedBetweenConnectionsWithoutConnectionString`, PostgreSQL only)
+- `Tests/MappingSchemaCacheTests.cs` (new: 5 tests -- `MappingSchemaIdentityStableAcrossContexts`, `MappingSchemaNotSharedBetweenProviders` (#5778), `MappingSchemaNotSharedBetweenReplacedServices`, `CachesDoNotRetainApplicationServiceProvider`, `MetadataReaderCacheDoesNotRetainModel`)
+- `Tests/MySqlTests.cs` (R094 from `PomeloMySqlTests.cs`: rename only)
+- `Models/ForMapping/MySql/ForMappingContext.cs`, `Models/IssueModel/MySql/IssueContext.cs`, `Models/ManyToMany/MySql/ManyToManyContext.cs` (renamed from `Pomelo/`, namespace `...Tests.MySql.Models.*`, ForMapping dropped `#if !NET10_0`)
+- `Models/Northwind/MySql/CategoriesMap.cs`, `CustomerCustomerDemoMap.cs`, `CustomerDemographicsMap.cs`, `CustomersMap.cs`, `EmployeeTerritoriesMap.cs`, `EmployeesMap.cs`, `NorthwindContext.cs`, `OrderDetailsMap.cs`, `OrderMap.cs`, `ProductsMap.cs`, `RegionMap.cs`, `ShippersMap.cs`, `SuppliersMap.cs`, `TerritoriesMap.cs` (renamed from `Pomelo/`, namespace change only)
+- `ContextTestBase.cs` (`useNodaTime` parameter, `NpgsqlConnection.ClearAllPools()` after `EnsureDeleted`, MySQL `#if !NET10_0` removed)
+- `TestBase.cs` (`[SetUp] OnBeforeTest` -> `CustomTestContext.Begin(false, null)`, SQLite forced to file DB, MySQL guards removed)
+- `NorthwindContextTestBase.cs` (dispatch to `MySql.Models.Northwind.NorthwindContext`)
+- `Models/IssueModel/IssueContextBase.cs` (Issue5975 DbSets + converter config), `Models/IssueModel/IssueEntities.cs` (`Issue5975TableOne`/`Issue5975TableTwo`)
+- `Models/Northwind/NorthwindContext.cs` (soft-delete filter now reads `IsSoftDeleteFilterEnabled` directly, previously via a null local)
+- `Models/ForMapping/WithInheritance.cs`, `Models/ManyToMany/PostgreSQL/ManyToManyContext.cs`, `Models/ManyToMany/SQLServer/ManyToManyContext.cs`, `Models/ManyToMany/SQLite/ManyToManyContext.cs`, `Utilities/Unit.cs` (style-only, `;`-bodied declarations)
+- `Tests.EntityFrameworkCore.EF10.csproj` (added `Microting.EntityFrameworkCore.MySql` reference)
+- `Tests/IssueTests.cs` (Issue5975_*, Issue5976, Issue5981 `[ActiveIssue(5981)]`, `TestImplicitConnectionManagement`, `TempTableSurvivesAcrossCommands`, gate rewrites, `Issue4624Test` seeding/assertions, `Issue155` `IsColumn = true`)
+- `Tests/CustomContextIssueTests.cs` (`Issue4669QueryFilterTest`, `Issue5296Test`, `Issue4917Test` provider-name assertion)
+- `Tests/ToolsTests.cs` (removed #4669 MySQL gates, per-provider DELETE-with-limit gates, `ProviderSetup` call updated)
+- `Tests/FSharpTests.cs` (signature update, dead-behind-`#if EF8` ActiveIssue note), `Tests/InterceptorTests.cs` (#5364 assertion flip)
+- `Tests/ConvertorTests.cs`, `Tests/IdTests.cs`, `Tests/ForMappingTests.cs`, `Tests/ManyToManyTests.cs`, `Tests/Providers.md` (signature/namespace/provider-table updates)</details>

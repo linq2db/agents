@@ -3,10 +3,10 @@ area: TESTS-LINQ
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-07-06
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 4/4
-coverage_tier_2: 571/667
+coverage_tier_2: 590/692
 ---
 
 # TESTS-LINQ
@@ -30,6 +30,17 @@ Tests/Linq/TestsInitialization.cs -- NUnit [SetUpFixture], no namespace (intenti
 - [OneTimeTearDown]: dumps ActivityStatistics.GetReport() and optionally writes metrics baselines via BaselinesWriter.WriteMetrics.
 
 Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgressReporter] attribute; provides a live heartbeat for long test runs. **(updated, this delta)** opt-in switched from the LINQ2DB_TEST_PROGRESS environment variable to a --test-progress command-line option -- see .claude/docs/testing.md for monitoring details (the prior delta entry describing the env-var form is now out of date; corrected here, see AUDIT-NOTE).
+**(updated, delta 2026-10-09)** TestsInitialization.cs (Tier 1, re-read in full) now does considerably more than the list above:
+
+- `[assembly: Parallelizable(ParallelScope.All)]` plus `NUnit.ParallelByResource`: OneTimeSetUp installs a `ResourceLaneDispatcher` with a `DatabaseLaneStrategy`, so each provider context gets its own lane and same-database tests never overlap. Concurrency ceiling is `TestConfiguration.MaxParallelLanes` or 2 x CPU count. Sets `TestBase.ParallelExecutionEnabled`. Lane tracing is opt-in via `TestEnvironment.ParallelDiagnostics`. OneTimeTearDown calls `_dispatcher.Shutdown(...)` and `TestInMemoryDatabases.DisposeAll()`.
+- Providers that reach tests as arguments but have no `CreateDatabase` case (Northwind contexts, TestNoopProvider) are pre-marked ready via `CustomTestContext.MarkDatabaseReady`, otherwise their lane blocks on the readiness latch for the full timeout (pinned by Infrastructure/ParallelExecutionTests.cs).
+- Process-wide query cache is capped (`QueryCache.Default.MaxEntriesOverride`, 100 entries) on x86 and on NETFRAMEWORK legs, overridable via `TestEnvironment.QueryCacheMax` (env L2DB_TEST_QUERYCACHE). 64-bit non-netfx legs keep the default because a small cap breaks exact-miss-count cache tests.
+- `SetupInMemoryDatabases()` keeps one shared-cache in-memory connection open per SQLite config (SQLite.Classic, .MPU, .MPM, SQLite.MS, Northwind.SQLite, Northwind.SQLite.MS) and for DuckDB (non-NETFX), preloading from the committed on-disk file (SQLite online backup, DuckDB EXPORT/IMPORT DATABASE via Parquet). Only activates when the connection string is in-memory (CI).
+- `SetupAccessKeepAlive()` holds one Access connection open per transport (ODBC, OLE DB) for the whole run, registered in the same keep-alive list. Rationale is measured and documented inline (ACE driver has no pooling, leaks handles on every connect). It is explicitly not a crash guard for dotnet/runtime#46187.
+- SQLite native resolution now also sets the `PreLoadSQLite_BaseDirectory` environment variable (see SQLite.Runtime.props for the netfx deployment gap).
+
+**(updated, delta 2026-10-09)** Tests.csproj: ClickHouseTests.tt/.generated.cs T4 pair registered next to the MySql/Oracle/PostgreSQL/SqlCe/SqlServer pairs, and `Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryValueFormatter.cs` is compiled into the test assembly as `DataProvider/QueryValueFormatter.cs` (all TFMs except net462) so that DataProvider/ProviderSpecificReaderValueTests.cs exercises the exact formatter source the CLI uses.
+
 ## Subsystems (subdirectory taxonomy)
 
 | Subdirectory | File count | Purpose | Representative files | Production area(s) validated |
@@ -56,6 +67,8 @@ Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgres
 | ThirdParty/ | ~1 | Third-party LINQ extension compatibility (LinqKit.Core -- PredicateBuilder, AsExpandable()). | LinqKitTests.cs | EXPR-TRANS |
 | AST/ | ~1 | SQL AST unit tests: SqlDataTypeTests.cs. Single test: SqlDataType.GetDataType(DataType.Boolean).SystemType. | SqlDataTypeTests.cs | SQL-AST |
 | Create/ | ~1 | CreateData.cs -- utility class (no namespace, class a_CreateData) that populates test-database tables for all providers. Uses BulkCopy for seed rows and per-provider DbConnection action callbacks for binary/text data. [Order(-1)] ensures it runs first. **(updated this delta)** the YDB seed-script dispatch now matches context.IsAnyOf(TestProvName.AllYdb) instead of the single ProviderName.Ydb case. | CreateData.cs | TESTS-INFRA |
+
+Counts in the table above date from earlier runs. The 2026-10-09 delta below adds Linq/ (IntervalTranslationTests x7, ParameterTests.Naming/Reuse, ConcurrencyRefreshTests, SqlRawSqlTableTests, WindowFunctionsTests.ConstantOrderBy), Infrastructure/ (ActiveIssueTests, BaselinesManagerTests, ParallelExecutionTests, TestProgressStateTests), Mapping/DurationMappingTests, DataProvider/ProviderSpecificReaderValueTests, Extensions/ClickHouseTests (.tt + .generated.cs), Scaffold/SqlServerDecimalOverflowProtectionTests and 6 UserTests/ regressions (27 files added, 2 deleted).
 
 ## Delta since prior run (sha 7f972dbce -> 4a478ff14)
 
@@ -327,6 +340,49 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - Issue5616Tests.cs -- UNION ALL with a built-in aggregate (Average) in one branch and a constant in the other, plus a custom [Sql.Extension("count_if(...)", IsAggregate = true)]; previously threw InvalidCastException (SqlPathExpression to SqlPlaceholderExpression) in VisitSqlReaderIsNullExpression.
 - Issue5625Tests.cs -- Entity/Item/Thing multi-table nullable-join shape (only the entity definitions were read this delta; the test method bodies past line 50 were not verified -- flag for a future pass if this fixture needs deeper citation).
 - Issue5666Tests.cs -- #nullable disable entity with a nullable-enum column (Enum1? Status) and an [Association] on a nullable foreign key; SQLite-only regression.
+### Delta since prior run (sha 36ee4f82f -> 05150894e) -- parallel test execution, interval/duration, parameter naming, ActiveIssue rework
+
+266 changed entries under Tests/Linq/ (27 added, 2 deleted, rest modified). The delta is mostly new test families plus infrastructure self-tests for the parallel runner. Many modified fixtures (roughly 190) are mechanical ripple edits and were not individually read (see DEFERRED-COVERAGE).
+
+#### Test-runner infrastructure self-tests (Infrastructure/)
+
+- ActiveIssueTests.cs (new, replaces ActiveIssueConfigurationTests.cs and ActiveIssueGenericTests.cs, both deleted) -- tests the pure decision function `ActiveIssueAttribute.Decide(attr, resultState, message, isRemote)`. A passing gated test is Failed ("Test passed but is marked ..."), a declared error type/message fragment is Inconclusive ("Known issue"), a different error type is Failed with both halves named. Not testable end-to-end because a gated test that passes fails by construction and a nested runner would share the static `TestProgressTracker`.
+- BaselinesManagerTests.cs (new) -- 8 writers x 500 `BaselinesManager.LogQuery` appends race, asserts none lost in the shared StringBuilder in `CustomTestContext.BASELINE`. Takes no data source so no baseline file is written.
+- ParallelExecutionTests.cs (new) -- compares provider selection of `CreateDatabaseSourcesAttribute` vs `NorthwindDataContextAttribute` / `IncludeDataSourcesAttribute` through derived probe attributes and asserts every lane key without a CreateDatabase case is pre-marked ready (matches the TestsInitialization logic above).
+- TestProgressStateTests.cs (new) -- accounting of `TestProgressState` behind the `--test-progress` heartbeat, notably result-rewriting wrappers such as `ThrowsWhenAttribute` (BeginDeferred / StartTest / CompleteTest / CommitDeferred): an expected throw is never published as a failure and costs no forced write.
+
+#### Interval / duration translation (new)
+
+- Linq/IntervalTranslationTests.cs plus partials Arithmetic, Difference, Mapping, Members, Queries, Write (7 files, namespace Tests.Linq). Root file defines `DurationRow` with TimeSpan columns stored as Int64 (Access stores Money/CURRENCY) declared with `[Duration(DurationUnit.Second)]`, `[Duration(DurationUnit.Tick)]`, undeclared, and undeclared-with-converter variants, built through FluentMappingBuilder `HasConversion`. Point: the unit comes from the declaration, never from the storage type (a hardcoded Int64-means-ticks is silently wrong by a factor of 10 million). Only the root file was read.
+- Mapping/DurationMappingTests.cs (new) -- `ColumnDescriptor.DurationUnit` resolution from attribute and from fluent mapping (Attributed and Fluent entities, nullable TimeSpan with Millisecond unit). Only the first 60 lines were read.
+
+#### Parameter naming and reuse (Linq/ParameterTests partials, new)
+
+- ParameterTests.Naming.cs -- a parameter is named after where the value comes from (the captured variable) rather than the compared column. For non-member expressions the name walk follows unary operators, indexed array or container, and parameterless `GetValueOrDefault` target. Assertions go against `DataParameter.Name` of `ToSqlQuery().Parameters`, e.g. `["values", "values_1"]` for `values[0]` and `values[1]`.
+- ParameterTests.Reuse.cs -- repeated expressions share one parameter only when both occurrences yield the same value: an impure call (`ReuseCounter.Next()`) is evaluated per occurrence and gets separate parameters. Uses the shared `ParameterDeduplication` entity from ParameterTests.cs. Both partials use `[IncludeDataSources(TestProvName.AllSQLite, TestProvName.AllSqlServer)]`.
+
+#### Other new fixtures
+
+- Linq/ConcurrencyRefreshTests.cs -- `LinqToDB.Concurrency` optimistic-lock refresh API over `RefreshTable<TStamp>`, a no-parameterless-ctor entity, a two-stamp entity (Guid and int revision) and a read-only stamp member that the API must reject. Only the first 60 lines were read.
+- Linq/SqlRawSqlTableTests.cs -- pure unit regression: `SqlRawSqlTable` rebuilt by `QueryElementVisitor.VisitSqlRawSqlTable` (Transform mode, via `Clone`) must keep `IsScalar`, `SQL` and `SqlTableType.RawSql`.
+- Linq/WindowFunctionsTests.ConstantOrderBy.cs (#5806) -- constant window ORDER BY keys (`OrderByDesc(5)`, `ThenBy(1)`, leading `OrderBy(1)`) are dropped before reaching SQL Server, SAP HANA and MySQL 8, which reject or misread them. Asserts real-key numbering is unchanged and constant-only numbering is a complete 1..N. WindowFunctionsTests family is now 47 files.
+- DataProvider/ProviderSpecificReaderValueTests.cs -- compiled only on non-NETFRAMEWORK, `DataProviderTestBase`. Matrix of provider-specific reader types vs CLR types vs formatted text per provider (SqlServer SqlBoolean/SqlDecimal/SqlXml and others, with usings for Db2, Firebird, MySql/MySqlConnector decimals, Npgsql, Oracle, DuckDB and ClickHouse numerics) via `AssertReadMatrix` / `AssertProviderSpecificRequired`. Only the SqlServer block was read. Shares `QueryValueFormatter` source with the CLI (see Tests.csproj note).
+- Scaffold/SqlServerDecimalOverflowProtectionTests.cs -- `ScaffoldOptions.DataModel.GenerateSqlServerDecimalOverflowProtection`: SQL Server decimal columns with precision above 28 or a scale pushing outside CLR decimal limits get `Metadata.UseGetSqlDecimal = true`, decimal(28,0) does not, non-SQL Server databases are never marked.
+- Extensions/ClickHouseTests.tt + ClickHouseTests.generated.cs -- ClickHouse hint tests are now T4-generated like the other vendors (hand-written ClickHouseTests.cs modified alongside). Not read.
+
+#### New UserTests regressions
+
+- Issue5683Tests.cs -- recursive CTE with paginated anchor whose recursive term projects a derived type cast to the CTE type: merged set-operation projection must keep PartId/RootPartId/RootPartSortField so the outer join resolves.
+- Issue5684Tests.cs -- result compared against a LINQ-to-Objects multiset (order-independent). Scenario not read beyond the header.
+- Issue5719Tests.cs -- mapper must not embed the same parameterized constructor body at every use site (counts constructor occurrences via a trace-captured MapperCreated event), otherwise `Expression.Compile` processes it N times.
+- Issue5769Tests.cs -- a value read by a `Sql.IExtensionCallBuilder` from an argument (captured local field or inline collection initializer) must be part of the query cache key.
+- Issue5916Tests.cs -- an `(object)`-cast set-operation branch must keep members evaluated client-side and read the same columns as the uncast form. Uses structural equality because the default `AssertQuery` comparer folds object members into an always-true comparison.
+- Issue5935Tests.cs -- eager-loaded OrderBy/ThenBy whose key is not in the projection must not throw, plus SelectMany/Cast below the OrderBy (element type change without remap).
+
+#### Modified fixtures (not individually read)
+
+Roughly 190 modified entries -- Linq/ (about 85, including the WindowFunctionsTests.* partials, EagerLoading*, DateTime*, String*, SubQuery, Join, Where, Tph, PreferClientCalculation), Update/ (about 30, incl. Merge/Upsert/Entity DML), UserTests/ (about 40), DataProvider/ and DataProvider/Types/ (about 20), Mapping/, Data/, Extensions/, Scaffold/, SchemaProvider/, Tools/, Reflection/, Samples/, Microsoft/, OrmBattle/ -- are listed in the DEFERRED-COVERAGE fence. Their individual contents are unverified, so treat specific assertion claims about them in earlier sections as potentially stale.
+
 ## Naming patterns
 
 - **<Feature>Tests.cs** -- primary fixture style in Linq/, Exceptions/, Update/, Data/, Mapping/, Extensions/. One class per file; class name matches file name.
@@ -339,6 +395,7 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
   - Update/MergeTests.*.cs -- 19 partial files (root MergeTests.Issues.cs + 18 operation/sub-API files, including MergeTests.ComplexProperty.cs). See **MergeTests family** below.
   - Update/UpdateFromTests.Row.cs -- row-constructor variant of update-from.
   - Update/UpsertTests.*.cs -- **(new, this delta)** 4 partial files (Single, Enumerable, Queryable, ApiParametersValidation) for the new Upsert<T> API. See Delta section above.
+- **(delta 2026-10-09)** Linq/IntervalTranslationTests.*.cs -- 7 files (root + Arithmetic, Difference, Mapping, Members, Queries, Write). Linq/ParameterTests.*.cs now also has Naming and Reuse partials. Linq/WindowFunctionsTests.*.cs gained ConstantOrderBy (47 files). UserTests/ numbering now reaches Issue5935Tests.cs.
 - **.generated.cs files** -- Extensions/ has T4-generated files: MySqlTests.generated.cs, PostgreSQLTests.generated.cs, OracleTests.generated.cs, SqlServerTests.generated.cs, SqlCeTests.generated.cs. Each is a partial class extending its sibling handwritten fixture.
 ## Notable per-fixture findings
 **AST:**
@@ -393,6 +450,8 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - YdbTests.cs -- **(new, this delta)** YdbHints.Unique / YdbHints.Distinct via .UniqueHint()/.DistinctHint(), and the IYdbSpecificQueryable<T> .AsYdb() entrypoint for provider-specific query extension methods.
 **Infrastructure:**
 - ActiveIssueGenericTests.cs -- verifies [ActiveIssue] attribute variants (no details, details-only, URL+details, number-only). All tests are expected to skip in normal runs.
+- **(delta 2026-10-09)** ActiveIssueConfigurationTests.cs and ActiveIssueGenericTests.cs (entries above) were deleted and replaced by ActiveIssueTests.cs (pure `ActiveIssueAttribute.Decide` policy tests). The ActiveIssueGenericTests entry above is historical.
+- ActiveIssueTests.cs, BaselinesManagerTests.cs, ParallelExecutionTests.cs, TestProgressStateTests.cs -- **(new, delta 2026-10-09)** see the 2026-10-09 Delta section (runner infrastructure self-tests).
 - IdentifierBuilderTests.cs -- tests IdentifierBuilder.Add() / CreateID() equality for null, bool, string, int, Delegate, lambda, object[], Type, and Expression.Constant. Note: two distinct lambda captures are NOT equal (false) because the C# compiler generates separate method instances.
 - NullabilityContextTests.cs -- directly constructs SelectQuery / SqlTableSource / SqlJoinedTable with FULL/RIGHT/INNER join types; verifies NullabilityContext.CanBeNullSource() propagation rules. Exercises SqlExpressionOptimizerVisitor, AliasesContext, OptimizationContext, SqlSelectStatement.BuildSql.
 - DataOptionsTests.cs -- WithDefaultNullsPositionTest (pure unit; SqlOptions/DataOptions DefaultNullsPosition builder chain) and ConfigurationSqlDefaultNullsPositionTest (static Configuration.Sql.DefaultNullsPosition global). **(updated, this delta)** gained WithDefaultEagerLoadingStrategyTest and WithImplicitCollectionLoadingTest (PR #5450 LinqOptions builder coverage) and OptimizeForSequentialAccessConfigurationIDTest (PR #5639 cache-key isolation for UseOptimizeForSequentialAccess); TestProviderAutoDetect gained a TestProvName.AllYdb -> UseYdb(...) case; ConfigurationSqlDefaultNullsPositionTest lost its [NonParallelizable] attribute.
@@ -402,6 +461,7 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - ConversionTypeTests.cs -- tests MappingSchema.SetConvertExpression<T1,T2>(., conversionType: ConversionType.FromDatabase / ToDatabase) asymmetric conversion; verifies DB stores trimmed value and read-back strips padding.
 - DynamicStoreTests.cs -- tests [DynamicColumnsStore] / fluent DynamicColumnsStore() on Dictionary<string,object> columns; configuration-scoped stores (SQLite vs default).
 - FluentDynamicMappingTests.cs -- tests FluentMappingBuilder.HasAttribute<T>(x => Sql.Property<int>(x, colName), attr) for adding attributes to dynamic columns.
+- DurationMappingTests.cs -- **(new, delta 2026-10-09)** [Duration(DurationUnit)] attribute and fluent declaration resolve `ColumnDescriptor.DurationUnit`, for TimeSpan columns of identical storage type.
 - FluentMappingAliasTests.cs -- tests FluentMappingBuilder.Member(e => e.Alias).IsAlias(e => e.Real) -- column alias mapping through [ColumnAlias] and fluent builder.
 - FluentMappingBuildTests.cs -- tests db.CreateTempTable(name, data, mb => mb.Property(.).IsPrimaryKey().) + InsertOrUpdate / Update on fluent-mapped temp tables.
 - FluentMappingExpressionMethodTests.cs -- tests FluentMappingBuilder.Member(e => e.Computed).IsExpression(e => .) with and without materialization (true flag). Active issue #4987 marks several providers as skipped.
@@ -431,6 +491,7 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 
 **Scaffold:**
 - SchemaProviderTests.cs -- issue #4444: PostgreSQL dblink extension schema-load does not crash LegacySchemaProvider. [ActiveIssue] so skipped in normal runs.
+- SqlServerDecimalOverflowProtectionTests.cs -- **(new, delta 2026-10-09)** scaffold option GenerateSqlServerDecimalOverflowProtection marks SQL Server decimal columns outside CLR decimal limits with UseGetSqlDecimal.
 - TypeParserTests.cs -- tests IType / TypeParser (scaffold code-model type) parsing; TestType implements IType for unit testing.
 
 **SchemaProvider:**
@@ -510,6 +571,7 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - PostgreSQLArrayTests.cs -- PostgreSQL array-parameter caching: Sql.Ext.PostgreSQL().ValueIsEqualToAny(col, arr) parameterization with arrays of int, long, double, decimal, string, bool, short, float, Guid, DateTime.
 - PostgreSQLExtensionsTests.cs -- PostgreSQL Unnest(array) / db.Unnest(col) table-valued function, PostgreSQLExtensions.ValueIsEqualToAny, array-column queries.
 - PostgreSQLTests.cs -- region Issue 5549 with NodaTime.Instant COALESCE via ?? operator and [Sql.Extension] / [Sql.Expression] approaches.
+- ProviderSpecificReaderValueTests.cs -- **(new, delta 2026-10-09)** provider-specific reader value matrix (non-NETFRAMEWORK) sharing the CLI QueryValueFormatter source.
 - SqlCeTests.cs -- SQL CE type mapping. BulkCopy. SqlCeTools.CreateDatabase / DropDatabase.
 - SQLiteParameterTests.cs -- SQLite: DateTime stored as Int64 via custom MappingSchema converter. double/float parameter pass-through; float.MaxValue round-trip.
 - SqlServerFunctionsTests.cs -- SQL Server SqlFn.* system functions: DbTS, LangID, Language, LockTimeout, MaxConnections, NestLevel, Options, RemServer, ServerName, ServiceName, Spid, TextSize, Version, and numerous date/string/math functions.
@@ -546,6 +608,11 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - ImplicitCollectionLoadingTests.cs -- **(new, this delta)** DataOptions.UseImplicitCollectionLoading(ImplicitCollectionLoading.Throw); un-LoadWith-ed collection projection throws LinqToDBException mentioning LoadWith.
 - PreferClientCalculationTests.cs -- **(new, this delta)** DataOptions.UsePreferClientCalculation(bool) interaction with [Sql.Function(PreferServerSide=)] / [Sql.Function(ServerSideOnly=)].
 - QueryCacheEvictionTests.cs -- **(new, this delta)** #if BUGCHECK-gated direct unit tests of QueryCache eviction mechanics (sweep/cap/ClearAll); not compiled in normal builds.
+- IntervalTranslationTests.*.cs -- **(new, delta 2026-10-09)** 7-file family for TimeSpan/interval translation with a declared [Duration] unit (see Delta section).
+- ParameterTests.Naming.cs / ParameterTests.Reuse.cs -- **(new, delta 2026-10-09)** parameter naming from value origin and shared-parameter reuse only for same-valued repeats.
+- ConcurrencyRefreshTests.cs -- **(new, delta 2026-10-09)** LinqToDB.Concurrency refresh API.
+- SqlRawSqlTableTests.cs -- **(new, delta 2026-10-09)** SqlRawSqlTable clone preserves IsScalar/SQL/SqlTableType.
+- WindowFunctionsTests.ConstantOrderBy.cs -- **(new, delta 2026-10-09)** constant window ORDER BY keys dropped (#5806).
 - StringConcatTests.cs -- SqlConcatExpression coverage: basic concat forms, nullable semantics, SELECT/ORDER BY positions, array form, aggregate (grouping) concat, AggregateExecute, association subquery, partial translation, string interpolation equivalence.
 - StringTrimTests.cs -- TrimStart(char[]) / TrimEnd(char[]) translation coverage: whitespace trim, single-char trim, multi-char set, cache semantics, legacy TrimLeft/TrimRight, provider-specific SQL-shape assertions.
 - TphInheritanceTests.cs -- **(new, this delta)** TphDeepPersonBase -> TphDeepPersonChild -> TphDeepPersonLeaf multi-level TPH discriminator chain; Find and polymorphic-result queries.
@@ -585,6 +652,15 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 - Issue5616Tests.cs -- UNION ALL mixing a built-in aggregate and a constant across branches, plus a custom [Sql.Extension(IsAggregate = true)]; previously threw InvalidCastException in VisitSqlReaderIsNullExpression.
 - Issue5625Tests.cs -- Entity/Item/Thing multi-table nullable-join shape (entity definitions only verified this delta -- see Delta section note).
 - Issue5666Tests.cs -- nullable-enum column plus nullable-FK [Association]; #nullable disable. SQLite.
+**UserTests (issues 5683-5935 -- new, delta 2026-10-09):**
+
+- Issue5683Tests.cs -- recursive CTE column loss when the recursive term projects a derived type.
+- Issue5684Tests.cs -- multiset-compared regression (header only read).
+- Issue5719Tests.cs -- constructor body embedded once, not per use site, in the mapper.
+- Issue5769Tests.cs -- Sql.IExtensionCallBuilder-read argument value is part of the query cache key.
+- Issue5916Tests.cs -- (object)-cast set-operation branch keeps client-side members.
+- Issue5935Tests.cs -- eager-load OrderBy/ThenBy with key not in projection.
+
 ## Cross-area validation map
 
 | Production area | Primary test subdirs |
@@ -612,20 +688,23 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 | IN-TREE-TOOLS | Tools/, Scaffold/ |
 | INTERNAL-API | Common/, Infrastructure/, Reflection/, Samples/, Data/DataConnectionTests.cs |
 | REMOTE-CLIENT | Linq/RemoteContextTests.cs |
+| TESTS-INFRA (runner self-tests) | Infrastructure/ActiveIssueTests.cs, Infrastructure/BaselinesManagerTests.cs, Infrastructure/ParallelExecutionTests.cs, Infrastructure/TestProgressStateTests.cs *(all new)* |
 ## Files (Tier 1 / Tier 2)
 
 **Tier 1: 4/4**
 
 | File | Role |
 |---|---|
-| Tests/Linq/TestsInitialization.cs | Assembly [SetUpFixture] -- provider registration, metrics, ClickHouse defaults, Linux DB2 native library resolver (issue #5538) |
+| Tests/Linq/TestsInitialization.cs | Assembly [SetUpFixture] -- provider registration, metrics, ClickHouse defaults, Linux DB2 native library resolver (issue #5538). **(updated, delta 2026-10-09)** also installs the ResourceLaneDispatcher (per-provider parallel lanes), query-cache cap, in-memory SQLite/DuckDB keep-alives and Access keep-alive connections |
 | Tests/Linq/TestRetryPolicy.cs | No-op IRetryPolicy implementation used in tests |
 | Tests/Linq/ExpectedExceptionAttribute.cs | NUnit IWrapTestMethod that replaces removed ExpectedExceptionAttribute |
 | Tests/Linq/YdbToDoAttributes.cs | **DELETED this delta** (sha b3340aa9d -> 36ee4f82f). Formerly held four Yandex DB-specific ThrowsForProvider attribute subclasses; the last one (YdbMemberNotFoundAttribute) was removed the prior delta and the remaining four now have zero usages, so the whole file was deleted. Retained here at 4/4 per the delta-mode never-regress rule -- see UNCLASSIFIED-FILE block; kb-areas.md needs a human update to drop this Tier-1 entry (no replacement file). |
 
-**Tier 2: 571/667 sampled** (see DEFERRED-COVERAGE fence for the 30 new files not individually read this delta; the pre-existing deferred queue is tracked separately in state/deferred-coverage.json)
+**Tier 2: 590/692 sampled** (see DEFERRED-COVERAGE fence for the 30 new files not individually read this delta; the pre-existing deferred queue is tracked separately in state/deferred-coverage.json)
 
 Representative reads (prior run): Linq/CteTests.cs, Linq/AnalyticTests.cs, Linq/EagerLoadingTests.cs, Linq/WindowFunctionsTests.cs, Linq/SubQueryTests.cs, Linq/FullTextTests.SqlServer.cs, Linq/ParameterTests.cs, Update/MergeTests.cs, Update/BulkCopyTests.cs, Update/UpdateFromTests.cs, DataProvider/SqlServerTests.cs, DataProvider/PostgreSQLTests.cs, DataProvider/OracleTests.cs, Extensions/QueryHintsTests.cs, Extensions/SqlServerTests.cs, Data/InterceptorsTests.cs, Data/DataConnectionTests.cs, Exceptions/CommonTests.cs, Infrastructure/ActiveIssueConfigurationTests.cs, Infrastructure/AnnotatableTests.cs, Mapping/FluentMappingTests.cs, Microsoft/MicrosoftODataTests.cs, OrmBattle/OrmBattleTests.cs, ThirdParty/LinqKitTests.cs, UserTests/Issue2296Tests.cs, Linq/JoinTests.cs, Linq/GroupByTests.cs, Linq/AssociationTests.cs, Linq/InheritanceTests.cs, DataProvider/MySqlTests.cs, DataProvider/SQLiteTests.cs, DataProvider/FirebirdTests.cs, DataProvider/SapHanaTests.cs, DataProvider/SybaseTests.cs, Update/InsertTests.cs, Update/DeleteTests.cs, Scaffold/NameGenerationTests.cs, TypeMapping/OracleWrappingTests.cs, Infrastructure/DataOptionsTests.cs.
+
+Delta reads (this run, 2026-10-09): see Coverage block below.
 
 Delta reads (this run, 2026-07-06): see Coverage block below.
 
@@ -664,6 +743,9 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - LinqToDB.Internal.DataProvider.Ydb.YdbRetryPolicy / YdbTransientExceptionDetector -- **(new, this delta)** cross-referenced by DataProvider/YdbRetryPolicyTests.cs, DataProvider/YdbTransientExceptionDetectorTests.cs.
 - LinqToDB.LinqExtensions entity-builder Insert/Update overloads (IEntityInsertSpec<T> / IEntityUpdateSpec<T>) and the Upsert<T> overload family -- **(new, this delta)** cross-referenced by Update/EntityInsertTests.cs, Update/EntityUpdateTests.cs, Update/EntityDmlApiParametersValidationTests.cs, Update/UpsertTests.*.cs.
 - LinqToDB.Linq.Translation.ITranslationContext / MemberTranslatorBase custom-translator extension points -- cross-referenced by UserTests/Issue5347Tests.cs (custom string.Contains override for jsonb).
+- NUnit.ParallelByResource (ResourceLaneDispatcher, DatabaseLaneStrategy) -- **(new, delta 2026-10-09)** third-party runner extension wired in TestsInitialization.cs and probed by Infrastructure/ParallelExecutionTests.cs.
+- LinqToDB.CLI QueryValueFormatter -- **(new, delta 2026-10-09)** source-linked into Tests.csproj (non-net462) and exercised by DataProvider/ProviderSpecificReaderValueTests.cs.
+- LinqToDB.Concurrency (optimistic-lock refresh) -- cross-referenced by Linq/ConcurrencyRefreshTests.cs. LinqToDB.Scaffold ScaffoldOptions -- cross-referenced by Scaffold/SqlServerDecimalOverflowProtectionTests.cs.
 ## Known issues / debt
 
 - **(resolved, this delta)** WindowFunctionsTests family (formerly 13 files, now 46) is no longer excluded from compilation -- the prior claim that these files exist on disk with no active test coverage is out of date. The Compile-Remove ItemGroup was deleted from Tests.csproj; see the Delta section above. (Corrected in place; the removal is also called out in an AUDIT-NOTE for this run.)
@@ -681,6 +763,10 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - UserTests/Issue5576Tests.cs: [ActiveIssue(5611, Configuration = TestProvName.AllSQLite)] -- SQLite integer-division causes decimal rate to be computed as integer, producing wrong result. Tracked in issue #5611.
 - Linq/QueryCacheEvictionTests.cs (new, this delta) is gated behind #if BUGCHECK -- not compiled or run in normal CI builds; BUGCHECK is a diagnostic-only symbol, so this coverage only exists when a developer builds with that symbol defined.
 - UserTests/Issue5625Tests.cs (new, this delta) was only skimmed to its entity definitions this delta -- the actual multi-table nullable-join test method bodies were not read; a future pass should verify the full scenario before citing specific assertions from this file.
+- **(delta 2026-10-09)** Tier-1 anchor YdbToDoAttributes.cs remains deleted, kb-areas.md still needs the human update noted earlier.
+- **(delta 2026-10-09)** Infrastructure/ActiveIssueConfigurationTests.cs and Infrastructure/ActiveIssueGenericTests.cs were deleted (replaced by ActiveIssueTests.cs). Earlier sections of this file (Representative reads list, Notable-findings entry) still name them as historical entries.
+- **(delta 2026-10-09)** About 190 modified fixtures in this delta were not read. The earlier claims in this file about their contents are from prior runs and may be stale.
+- **(delta 2026-10-09)** Linq/ConcurrencyRefreshTests.cs, Linq/IntervalTranslationTests.*.cs (6 of 7 partials), Mapping/DurationMappingTests.cs and DataProvider/ProviderSpecificReaderValueTests.cs were only partially read, so test-by-test claims about them are not verified.
 ## See also
 
 - [TESTS-INFRA INDEX](../TESTS-INFRA/INDEX.md) -- TestBase, TestConfiguration, shared infrastructure.
@@ -697,7 +783,33 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - Tests/Linq/ExpectedExceptionAttribute.cs -- read (prior run)
 - Tests/Linq/YdbToDoAttributes.cs -- read (prior run); **DELETED this delta** (sha b3340aa9d -> 36ee4f82f) -- confirmed via git show at the base sha plus a full-tree search for its four class names (zero remaining usages). See UNCLASSIFIED-FILE block.
 
-**Tier 2: 571/667 sampled**
+**Tier 2: 590/692 sampled**
+
+Read (this run -- delta, 2026-10-09):
+- Tests/Linq/TestsInitialization.cs -- Tier 1, re-read in full: ResourceLaneDispatcher, query-cache cap, in-memory SQLite/DuckDB and Access keep-alives
+- Tests/Linq/Tests.csproj -- diff read: ClickHouse T4 pair, QueryValueFormatter source link
+- Tests/Linq/Infrastructure/ActiveIssueTests.cs -- new, first 80 lines: ActiveIssueAttribute.Decide policy tests
+- Tests/Linq/Infrastructure/BaselinesManagerTests.cs -- new, full read
+- Tests/Linq/Infrastructure/ParallelExecutionTests.cs -- new, first 60 lines
+- Tests/Linq/Infrastructure/TestProgressStateTests.cs -- new, first 50 lines
+- Tests/Linq/Linq/IntervalTranslationTests.cs -- new, first 70 lines (root of 7-file family)
+- Tests/Linq/Linq/ParameterTests.Naming.cs -- new, first 60 lines
+- Tests/Linq/Linq/ParameterTests.Reuse.cs -- new, first 60 lines
+- Tests/Linq/Linq/ConcurrencyRefreshTests.cs -- new, first 60 lines
+- Tests/Linq/Linq/SqlRawSqlTableTests.cs -- new, full read
+- Tests/Linq/Linq/WindowFunctionsTests.ConstantOrderBy.cs -- new, first 60 lines
+- Tests/Linq/Mapping/DurationMappingTests.cs -- new, first 60 lines
+- Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs -- new, first 60 lines
+- Tests/Linq/Scaffold/SqlServerDecimalOverflowProtectionTests.cs -- new, first 60 lines
+- Tests/Linq/UserTests/Issue5683Tests.cs -- new, comment/attribute skim
+- Tests/Linq/UserTests/Issue5684Tests.cs -- new, header skim
+- Tests/Linq/UserTests/Issue5719Tests.cs -- new, comment/attribute skim
+- Tests/Linq/UserTests/Issue5769Tests.cs -- new, comment/attribute skim
+- Tests/Linq/UserTests/Issue5916Tests.cs -- new, comment/attribute skim
+- Tests/Linq/UserTests/Issue5935Tests.cs -- new, comment/attribute skim
+- Tests/Linq/Infrastructure/ActiveIssueConfigurationTests.cs, Tests/Linq/Infrastructure/ActiveIssueGenericTests.cs -- deleted (not read), replaced by ActiveIssueTests.cs
+- Tests/Linq/AssemblyInfo.TestProgress.cs -- not in changedFiles this delta, prior --test-progress description stands
+- Remaining changed entries (about 230 modified or added files) -- not read, queued in DEFERRED-COVERAGE. Tier 2 numerator counts only the 19 newly read Tier-2 files (the 2 deleted files stay counted so the numerator does not regress), denominator is 667 + 27 added - 2 deleted = 692.
 
 Read (this run -- delta, 2026-07-06):
 - Tests/Linq/Tests.csproj -- project file, not a Tier-2 fixture; Compile-Remove block for WindowFunctionsTests family deleted, X86STUBS condition added for Sap.Data.Hana.Net.v8.0 reference

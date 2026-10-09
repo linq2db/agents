@@ -3,8 +3,8 @@ area: PROV-SYBASE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 10/10
 coverage_tier_2: 6/6
 ---
@@ -56,7 +56,7 @@ SAP Adaptive Server Enterprise (formerly Sybase ASE). **Not** SQL Anywhere. Sing
 - 
 - 
 - 
-- `SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false` -- Sybase's `InsertOrUpdate` emits a single-statement `UPDATE` followed by `IF @@ROWCOUNT=0 INSERT`, which cannot honor an extra UPDATE predicate (`Upsert.Update.When`); predicated upserts on this provider fall back to the alternative UPDATE-then-INSERT emulation instead (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs:58-61`).
+- `SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false` -- the Sybase `InsertOrUpdate` emits a single-statement `UPDATE` followed by `IF @@ROWCOUNT=0 INSERT`, which cannot honor an extra UPDATE predicate (`Upsert.Update.When`); predicated upserts on this provider fall back to the alternative UPDATE-then-INSERT emulation instead (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs:58-61`).
 
 
  overrides handle: , , , ,  (native client only), .
@@ -167,6 +167,14 @@ Extends .
 
  -- adds mandatory  for untyped numeric literals and parameters (, , , , , ) in column position to prevent type inference errors.
 
+**Date shift / elapsed-time lowering (PR #5750, `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:18-79`):**
+- `CanLowerIntervalDifference => true` -- date differences are lowered to elapsed-time arithmetic (tick decomposition) rather than left to the member translators.
+- `FinestDateUnit => SqlIntervalUnit.Millisecond` -- `DATEDIFF` counts milliseconds, finer than the 3.33 ms step of an ASE `datetime`, so the remainder completing an elapsed count is exact.
+- `IntervalResolution => SqlIntervalUnit.Millisecond` -- sub-millisecond components are not answered as zero; declining at build time leaves the member to .NET (same stance as SQLite), because the 3.33 ms datetime step means a stored difference can genuinely carry a sub-millisecond part.
+- `DatePartName(SqlIntervalUnit)` -- private map Day/Hour/Minute/Second/Millisecond to the `day`/`hour`/`minute`/`second`/`millisecond` part names; any other unit returns null (translation declined).
+- `ShiftDate` override -- emits `DateAdd(part, amount, date)` typed as the date own `DbDataType`, with the part name as a not-null string expression.
+- `CountDateBoundaries` override -- emits `CAST(DateDiff(part, start, end) AS bigint)` (mandatory cast). `DATEDIFF` returns a 32-bit int, so millisecond counts overflow past about 24 days; the base decomposition counts whole days first, so the millisecond count only spans the remainder of one day (at most 86,400,000).
+
 
 ### Mapping schema
 
@@ -227,7 +235,7 @@ Stored procedures: uses  system procedure. Parameters: uses . Procedure schema i
 Unicode size correction:  and  are read once via  and used to convert byte-lengths to character-lengths for / and / columns respectively.
 
 
- returns a manually constructed list (both native and managed) -- the native provider's  returns incomplete information. Includes ASE-specific extended types: , , , , , , , .
+ returns a manually constructed list (both native and managed) -- the native provider  returns incomplete information. Includes ASE-specific extended types: , , , , , , , .
 
 
  -- cannot be called inside a transaction; will throw  with a message directing the caller to disable  or remove the transaction.
@@ -277,6 +285,7 @@ Extends . Sub-translators:
 | String concat NULL | pipe does not propagate NULL;  wrapped in  |  |
 | TrimStart/TrimEnd chars | Custom trim-chars unsupported; returns null (no translation) |  |
 | InsertOrUpdate predicate | `Upsert.Update.When` unsupported in the single-statement UPDATE+INSERT emulation; falls back to UPDATE-then-INSERT emulation | `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs:61` |
+| Date shift / difference | `DateAdd` / `DateDiff` with day..millisecond parts; difference counted as bigint, ms only over a day remainder (32-bit DATEDIFF overflow) | `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:51-79` |
 
 ---
 
@@ -287,7 +296,7 @@ Extends . Sub-translators:
 | SybaseDataProvider | Internal/.../SybaseDataProvider.cs | Abstract base; SybaseDataProviderNative / SybaseDataProviderManaged are the concrete singletons; IsInsertOrUpdateWithPredicateSupported=false forces UPDATE-then-INSERT emulation for predicated upserts |
 | SybaseSqlBuilder | Internal/.../SybaseSqlBuilder.cs (+.Merge.cs) | SQL text generation; T-SQL/ASE dialect; ConcatBuildStyle.Pipes; SqlConcatExpression NULL-propagation guard (PR #5504) |
 | SybaseSqlOptimizer | Internal/.../SybaseSqlOptimizer.cs | Statement rewrites (UPDATE compatibility, CorrectMultiTableQueries) |
-| SybaseSqlExpressionConvertVisitor | Internal/.../SybaseSqlExpressionConvertVisitor.cs | Function name mapping, LIKE escapes, EXISTS wrapping, column type casts |
+| SybaseSqlExpressionConvertVisitor | Internal/.../SybaseSqlExpressionConvertVisitor.cs | Function name mapping, LIKE escapes, EXISTS wrapping, column type casts; date shift (DateAdd) and elapsed-time lowering (DateDiff, ms resolution) (PR #5750) |
 | SybaseMappingSchema | Internal/.../SybaseMappingSchema.cs | Type defaults, literal converters (string/char/TimeSpan/binary/DateTime/DateTimeOffset); sub-schemas for native/managed |
 | SybaseProviderAdapter | Internal/.../SybaseProviderAdapter.cs | Runtime ADO.NET type loading; AseDbType enum; BulkCopyAdapter (native only) |
 | SybaseProviderDetector | Internal/.../SybaseProviderDetector.cs | Auto-detect native vs managed driver |
@@ -325,7 +334,7 @@ Extends . Sub-translators:
 | File | Notes |
 |---|---|
 | Internal/DataProvider/Sybase/SybaseSqlBuilder.Merge.cs | MERGE partial -- identity insert wrapping, no VALUES syntax |
-| Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs | Function renames, EXISTS wrapping, column type casts, LIKE chars |
+| Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs | Function renames, EXISTS wrapping, column type casts, LIKE chars; ShiftDate / CountDateBoundaries / FinestDateUnit / IntervalResolution (PR #5750) |
 | Internal/DataProvider/Sybase/Translation/SybaseMemberTranslator.cs | Date/string/math/Guid LINQ translation; Now-split (PR #5467); Date truncation DbType preservation (PR #5517); TrimStart/TrimEnd char-guard (PR #5515); String.Join withoutSeparator (PR #5504); window-functions disabled via SybaseWindowFunctionsMemberTranslator (PR #5468) |
 | Internal/DataProvider/Sybase/SybaseSchemaProvider.cs | System-table schema queries |
 | Internal/DataProvider/Sybase/SybaseParametersNormalizer.cs | MaxLength=26 override |
@@ -348,7 +357,8 @@ Tier 3: none identified.
 - SchemaProviderBase -- [METADATA](../METADATA/INDEX.md)
 - ProviderMemberTranslatorDefault, DateFunctionsTranslatorBase, StringMemberTranslatorBase, MathMemberTranslatorBase -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md)
 - SqlConcatExpression (PR #5504) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseSqlBuilder.BuildSqlConcatExpression consumes the new AST node directly.
-- WindowFunctionsMemberTranslator (PR #5468's Sql.Window API) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseWindowFunctionsMemberTranslator subclasses it with IsWindowFunctionsSupported => false, keeping Sql.Window.* LINQ calls client-side-only, consistent with the SqlProviderFlags-level flag.
+- WindowFunctionsMemberTranslator (PR #5468 Sql.Window API) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseWindowFunctionsMemberTranslator subclasses it with IsWindowFunctionsSupported => false, keeping Sql.Window.* LINQ calls client-side-only, consistent with the SqlProviderFlags-level flag.
+- SqlExpressionConvertVisitor interval seams (CanLowerIntervalDifference, FinestDateUnit, IntervalResolution, ShiftDate, CountDateBoundaries; PR #5750) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseSqlExpressionConvertVisitor overrides them to provide DateAdd/DateDiff based date shifts and elapsed-time lowering.
 - T-SQL dialect heritage shared with [PROV-SQLSERVER](../PROV-SQLSERVER/INDEX.md): TOP, IDENTITY, @@IDENTITY, CONVERT, DatePart, DateAdd, temp-table #/## prefixes, OBJECT_ID() for existence checks, SET IDENTITY_INSERT ON/OFF.
 
 
@@ -357,7 +367,7 @@ Tier 3: none identified.
 ## Known issues / debt
 
 - IsDistinctSetOperationsSupported = false and IsWindowFunctionsSupported = false carry a TODO noting potential enablement at ASE 16SP3; no version detection is implemented. The `Sql.Window` API added in PR #5468 is disabled at the translator level too, via `SybaseWindowFunctionsMemberTranslator.IsWindowFunctionsSupported => false`, keeping window-function LINQ calls client-side-only consistent with the `SqlProviderFlags`-level flag.
-- SybaseSqlExpressionConvertVisitor.cs:13 has a commented-out SupportsDistinctAsExistsIntersect property guarded by the same SP03 caveat.
+- SybaseSqlExpressionConvertVisitor.cs:14-15 has a commented-out SupportsDistinctAsExistsIntersect property guarded by the same SP03 caveat.
 - Native driver bulk copy has known bugs with BIT and IDENTITY fields; SybaseOptions.BulkCopyType defaults to MultipleRows as a permanent defensive workaround rather than a version-gated fix.
 - GetProcedureParameters throws when called inside a transaction -- a hard limitation of sp_oledb_getprocedurecolumns. No workaround path exists; callers must disable GetSchemaOptions.GetProcedures.
 - Managed DataAction driver does not support AseBulkCopy; BulkCopy is null on that adapter, causing silent fallback to multi-row INSERT. Users expecting provider-specific bulk performance must use the native driver.
@@ -366,7 +376,8 @@ Tier 3: none identified.
 - TranslateNow returns null -- DateTime.Now has no ASE server-side equivalent and falls back to client-side evaluation. This is by design but may surprise callers who expect a server timestamp.
 - DateTimeOffset is stored as DateTime (offset stripped) at both the mapping-schema level (literal emission) and the SQL-types-translation level. Round-trip fidelity for non-UTC offsets is lost.
 - TranslateTrimStart / TranslateTrimEnd return null for the trimChars != null case -- ASE has no native trim-with-characters function. The LINQ expression will fall back to client-side evaluation. No server-side workaround is provided. (PR #5515)
-- `SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false` -- ASE's single-statement `UPDATE` + `IF @@ROWCOUNT=0 INSERT` idiom for `InsertOrUpdate` can't honor an `Upsert.Update.When` predicate; predicated upserts fall back to the UPDATE-then-INSERT emulation path instead of the native single-statement form, which costs an extra round trip / statement compared to the un-predicated case.
+- `SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false` -- the ASE single-statement `UPDATE` + `IF @@ROWCOUNT=0 INSERT` idiom for `InsertOrUpdate` can not honor an `Upsert.Update.When` predicate; predicated upserts fall back to the UPDATE-then-INSERT emulation path instead of the native single-statement form, which costs an extra round trip / statement compared to the un-predicated case.
+- Sub-millisecond date components are not translated (`IntervalResolution` = Millisecond): the member is left to client-side .NET evaluation, because the ASE `datetime` 3.33 ms step makes a stored difference carry a sub-millisecond part and answering zero would be wrong (PR #5750). `DATEDIFF` is 32-bit, so the lowering counts whole days first and milliseconds only over the remainder.
 
 ---
 
@@ -414,6 +425,9 @@ Tier 3: none identified.
 **Read (this run -- delta, sha 36ee4f82f06eaf242b052ade8c87121d251a6165):**
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs -- new `SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false` (line 61): Sybase's single-statement `UPDATE` + `IF @@ROWCOUNT=0 INSERT` `InsertOrUpdate` idiom can't honor an `Upsert.Update.When` predicate; predicated upserts route through the alternative UPDATE-then-INSERT emulation.
 - Source/LinqToDB/Internal/DataProvider/Sybase/Translation/SybaseMemberTranslator.cs -- new `SybaseWindowFunctionsMemberTranslator : WindowFunctionsMemberTranslator` with `IsWindowFunctionsSupported => false`, wired via a new `CreateWindowFunctionsMemberTranslator` override (lines 299-307, PR #5468); `TranslateNewGuidMethod` also had a no-op refactor (inlined local variable into the return statement, no behavior change).
+
+**Read (this run -- delta, sha 05150894edc2511f0dd0bc7829b2a309cec36ec9):**
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs -- new interval/date seams (PR #5750): `CanLowerIntervalDifference => true`, `FinestDateUnit` and `IntervalResolution` both Millisecond, `DatePartName` map, `ShiftDate` (emits `DateAdd`), `CountDateBoundaries` (emits `CAST(DateDiff(...) AS bigint)`, whole days first to avoid 32-bit overflow). Existing LIKE/EXISTS/ConvertSqlFunction/WrapColumnExpression logic unchanged.
 
 **Tier 3:** none.
 

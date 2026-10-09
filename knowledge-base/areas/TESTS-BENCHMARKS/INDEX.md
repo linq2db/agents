@@ -3,10 +3,10 @@ area: TESTS-BENCHMARKS
 kind: area-index
 sources: [code]
 confidence: low
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 0/0
-coverage_tier_2: 29/42
+coverage_tier_2: 33/45
 ---
 
 # TESTS-BENCHMARKS
@@ -48,6 +48,12 @@ Ten benchmark classes under `Tests/Tests.Benchmarks/Benchmarks/Queries/`. Each f
 - `VwSalesByYearMutation` -- same shape but year changes on each iteration (cache misses each iteration by design).
 - `VwSalesByCategoryContains` -- multi-join + `Contains` on category name (complex predicate, tested with JetBrains profiler support via `#if JETBRAINS`).
 
+Delta 2026-10-09 -- three more SQL-emission benchmarks live in the same folder, each paired with a `RunManually` Stopwatch runner (BDN's child-process toolchain cannot restore its generated project in this repo layout, NU1101 / PackageSourceMapping) dispatched from `Program.cs`:
+
+- `WeakJoinScanBenchmark` (`Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs:17`) -- Firebird v5 over `MockDbConnection(..., ConnectionState.Open)` with `.UseDisableQueryCache(true)` so every call rebuilds the query. `[Benchmark]` methods `DeepChain13` (13-level `LoadWith` self-association chain, the issue #5265 shape) and `Wide20` (20 one-to-one `LoadWith` associations on `WideRoot`) measure the cost of scanning many removable (weak) association joins. Returns `ToSqlQuery().Sql`; manual runner prints mean/median/min ms and SQL length, tag env var `WEAKJOIN_BENCH_TAG`.
+- `ParameterReuseBenchmark` (`Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs:16`) -- Access OleDb/Ace via `NorthwindDB`. Measures the cost of confirming that two occurrences of one expression evaluate to the same value (running the user expression at build time) before sharing one SQL parameter: `NoDuplicates` (baseline), `OneDuplicate`, `ManyDuplicates` (one captured value over four chained `Where` calls, eight predicates), `DivergingValues` (a `Counter.Next()` call returns a different value each time, so the pair is not merged and repeated builds also exercise cached-query rejection). Manual runner reports mean/median us and allocated KB/op, tag env var `PARAM_BENCH_TAG`.
+- `DeepJoinChainBenchmark` (`Benchmarks/QueryGeneration/DeepJoinChainBenchmark.cs:18`) -- SQL Server 2017 (Microsoft.Data.SqlClient) mock, query cache disabled. Query-generation cost of the `Tests.Linq` `JoinTests.StackOverflow` shape: `Child` joined to `Parent`, then `Parent` re-joined onto the previous `Parent` N times. `Parent` has no unique key so `JoinsOptimizer` cannot collapse the chain. It has **no `[Benchmark]` attributes on purpose** (one operation at depth 100 costs seconds, which would dominate the default `*.QueryGeneration.*` run) -- only `RunManually(warmups, iterations, onlyDepth)` sweeping depths 10/25/50/100 and printing ms/join to show whether cost is linear in join count.
+
 ### 3. TypeMapper/ -- expression-compilation micro-benchmarks
 
 Fourteen benchmark classes under `Tests/Tests.Benchmarks/Benchmarks/TypeMapper/`. All use `TypeMapper` from `LinqToDB.Internal.Expressions.Types` and `ExpressionGenerator` from `LinqToDB.Internal.Expressions`. Each pair compares the type-mapped indirection path against a direct call marked `[Benchmark(Baseline = true)]`.
@@ -76,7 +82,7 @@ All TypeMapper benchmarks use synthetic `Original.*` / `Wrapped.*` classes defin
 `TestClasses/ProviderMocks/` (namespace `LinqToDB.Benchmarks.TestProvider`) contains 7 classes that implement the full ADO.NET `DbConnection`/`DbCommand`/`DbDataReader`/`DbParameter`/`DbParameterCollection`/`DbTransaction` hierarchy against an in-memory `QueryResult`:
 
 - `QueryResult` -- payload: `Names[]`, `FieldTypes[]`, `DbTypes[]`, `Data object?[][]`, `Return int`, optional `Match Func<string,bool>` predicate for multi-result routing.
-- `MockDbConnection` -- supports single-result and multi-result (`QueryResult[]`) constructors; routes via `MockDbCommand`.
+- `MockDbConnection` -- supports single-result and multi-result (`QueryResult[]`) constructors; routes via `MockDbCommand`. The delta-added QueryGeneration benchmarks pass `(Array.Empty<QueryResult>(), ConnectionState.Open)` to hand linq2db an already-open connection.
 - `MockDbCommand` -- calls `GetResult()` which applies `Match` predicate for multi-result routing; `ExecuteNonQuery()` returns `QueryResult.Return`.
 - `MockDbDataReader` -- `Read()` increments row index into `Data`; `IsDBNull` checks for null; typed getters cast directly. `GetSchemaTable()` returns `QueryResult.Schema` (needed for column-metadata discovery).
 - `MockDbParameter` / `MockDbParameterCollection` / `MockDbTransaction` -- minimal stub implementations.
@@ -88,24 +94,28 @@ These mocks eliminate network and serialisation cost, making every `[Benchmark]`
 | Type | File | Role |
 |---|---|---|
 | `Config` | `Config.cs` | `IConfig` singleton; jobs: .NET 4.6.2 (baseline), 8.0, 9.0, 10.0; RyuJIT x64; MemoryDiagnoser; GitHub Markdown exporter; `FilteredColumnProvider` strips Job/Error/Median/Gen*/Ratio/StdDev columns |
-| `Program` | `Program.cs` | Entry point; `manual-cache [iterations] [warmups]` CLI arg bypasses BenchmarkDotNet entirely via `CacheActivityBenchmark.RunManually` (`Program.cs:24-30`); otherwise default filter `*.Queries.* *.QueryGeneration.*` (TypeMapper benchmarks opt-in only); `BenchmarkSwitcher.FromAssembly` |
+| `Program` | `Program.cs` | Entry point; four manual-runner CLI modes bypass BenchmarkDotNet entirely: `manual-cache [iterations] [warmups]` (`Program.cs:24-30`, `CacheActivityBenchmark.RunManually`), `manual-paramreuse [iterations] [warmups]` (`Program.cs:35-41`), `manual-weakjoin [iterations] [warmups]` (`Program.cs:44-50`), `manual-deepjoin [iterations] [warmups] [onlyDepth]` (`Program.cs:53-60`); otherwise default filter `*.Queries.* *.QueryGeneration.*` (TypeMapper benchmarks opt-in only); `BenchmarkSwitcher.FromAssembly` |
 | `MockDbConnection` | `TestClasses/ProviderMocks/MockDbConnection.cs` | Core mock entry point |
 | `QueryResult` | `TestClasses/ProviderMocks/QueryResult.cs` | Mock result payload |
-| `NorthwindDB` | `Models/Northwind/NorthwindDB.cs` | `DataConnection` subclass wired to `MockDbConnection(Array.Empty<QueryResult>())`; used exclusively by `QueryGenerationBenchmark` |
+| `NorthwindDB` | `Models/Northwind/NorthwindDB.cs` | `DataConnection` subclass wired to `MockDbConnection(Array.Empty<QueryResult>())`; used by `QueryGenerationBenchmark` and `ParameterReuseBenchmark` |
 | `NortwindExtensions` | `Models/Northwind/NortwindExtensions.cs` | LINQ-expressed Northwind views (`VwSalesByYear`, `VwSalesByCategory`, etc.) used as query generation targets |
+| `Northwind` | `Models/Northwind/Northwind.cs` | `public static partial class` holding Northwind entity classes (`Category`, `Customer`, `Product`, `ActiveProduct`/`DiscontinuedProduct` etc.); delta: the two Product subclasses now use C# 12 empty-body `class X : Product;` syntax (formatting only) |
 | `Db` | `TestClasses/RawDataAccessBencherMappings.cs` | `DataConnection` subclass for query benchmarks; `SalesOrderHeader`, `SalesOrderDetail`, `Customer`, `CreditCard` entity definitions with pre-built `SchemaTable`/`Names`/`FieldTypes`/`DbTypes`/`SampleRow` statics |
 | `TypeMapperWrappers` | `TestClasses/TypeMapperWrappers.cs` | `Original.*` / `Wrapped.*` type pairs for all TypeMapper benchmarks; `Wrapped.Helper.CreateTypeMapper()` centralises `TypeMapper` setup |
-| `CacheActivityBenchmark` | `Benchmarks/Queries/CacheActivityBenchmark.cs` | Nested `BenchmarkConfig : ManualConfig` forces `InProcessEmitToolchain`; 18 `[Benchmark]` methods exercising `LinqToDB.Internal.Linq.Query` cache internals; `RunManually()` static Stopwatch-based fallback runner reachable from `Program.cs`'s `manual-cache` mode |
+| `CacheActivityBenchmark` | `Benchmarks/Queries/CacheActivityBenchmark.cs` | Nested `BenchmarkConfig : ManualConfig` forces `InProcessEmitToolchain`; 18 `[Benchmark]` methods exercising `LinqToDB.Internal.Linq.Query` cache internals; `RunManually()` static Stopwatch-based fallback runner reachable from `Program.cs` `manual-cache` mode |
+| `WeakJoinScanBenchmark` | `Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs` | Delta: `DeepChain13` / `Wide20` weak-join scan cost; `manual-weakjoin` |
+| `ParameterReuseBenchmark` | `Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs` | Delta: cost of duplicate-parameter equality checks; `manual-paramreuse` |
+| `DeepJoinChainBenchmark` | `Benchmarks/QueryGeneration/DeepJoinChainBenchmark.cs` | Delta: deep self-join chain depth sweep, no `[Benchmark]` methods; `manual-deepjoin` |
 
 ## Files (Tier 1 / Tier 2)
 
-No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Tier 2.
+No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Tier 2 (42 prior + 3 added by delta 2026-10-09).
 
-**Read (29 / 42; +1 via delta 2026-07-05):**
+**Read (33 / 45; +1 via delta 2026-07-05, +4 via delta 2026-10-09):**
 
 | File | Notes |
 |---|---|
-| `Program.cs` | Entry point; default filter; `manual-cache` dispatch (delta 2026-07-05) |
+| `Program.cs` | Entry point; default filter; `manual-cache` dispatch (delta 2026-07-05); `manual-paramreuse`, `manual-weakjoin`, `manual-deepjoin` dispatch (delta 2026-10-09) |
 | `Config.cs` | Job matrix (net462/net80/net90/net10), exporters, columns |
 | `linq2db.Benchmarks.csproj` | OutputType=Exe; refs LinqToDB.csproj + BenchmarkDotNet; TFMs from `..\linq2db.Providers.props` |
 | `Benchmarks/Queries/SelectBenchmark.cs` | SELECT benchmark; representative Queries pattern |
@@ -118,6 +128,9 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Ti
 | `Benchmarks/Queries/Issue3268Benchmark.cs` | Issue #3268 nullable column overhead |
 | `Benchmarks/Queries/CacheActivityBenchmark.cs` | New (delta 2026-07-05): query-plan-cache benchmark suite, 18 methods; forces `InProcessEmitToolchain`; `RunManually` fallback runner |
 | `Benchmarks/QueryGeneration/QueryGenerationBenchmark.cs` | SQL emission only |
+| `Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs` | New (delta 2026-10-09): weak-association-join scan cost (Firebird v5 mock) |
+| `Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs` | New (delta 2026-10-09): shared-parameter equality-check cost (Access/Ace) |
+| `Benchmarks/QueryGeneration/DeepJoinChainBenchmark.cs` | New (delta 2026-10-09): deep self-join chain, manual runner only |
 | `Benchmarks/TypeMapper/BuildActionBenchmark.cs` | TypeMapper action overhead |
 | `Benchmarks/TypeMapper/CreateAndWrapBenchmark.cs` | Factory/constructor mapping |
 | `Benchmarks/TypeMapper/EnumConvertBenchmark.cs` | Enum conversion strategies |
@@ -136,8 +149,9 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Ti
 | `TestClasses/TypeMapperWrappers.cs` | `Original.*`/`Wrapped.*` synthetic type pairs |
 | `Models/Northwind/NorthwindDB.cs` | Northwind DataConnection |
 | `Models/Northwind/NortwindExtensions.cs` | LINQ-expressed Northwind views |
+| `Models/Northwind/Northwind.cs` | Delta 2026-10-09: entity definitions (read head and the delta diff); change is `ActiveProduct`/`DiscontinuedProduct` switched to `class X : Product;` (no behavioural change) |
 
-**Not read (13 / 42):**
+**Not read (12 / 45):**
 
 | File | Skip reason |
 |---|---|
@@ -150,7 +164,6 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Ti
 | `Benchmarks/TypeMapper/WrapSetterBenchmark.cs` | Same pattern as WrapGetterBenchmark; setter variant |
 | `TestClasses/ProviderMocks/MockDbParameterCollection.cs` | Minimal stub; same pattern as MockDbParameter |
 | `TestClasses/ProviderMocks/MockDbTransaction.cs` | Minimal stub; BeginTransaction only |
-| `Models/Northwind/Northwind.cs` | Entity definitions for Northwind model |
 | `Models/Northwind/Northwind.Views.cs` | View projections for Northwind model |
 
 ## Inbound / outbound dependencies
@@ -160,6 +173,8 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Ti
 - `Source/LinqToDB/LinqToDB.csproj` -- direct project reference (sole project dependency in csproj).
 - `LinqToDB.Internal.Linq.Query` (`Query.ClearCaches()`) -- used in `Issue3253Benchmark`, and extensively in `CacheActivityBenchmark` (bucket fill, tier promotion/decay, cap eviction, concurrent reader/writer paths).
 - `LinqToDB.Linq.NoLinqCache` (`NoLinqCache.Scope()`) -- used in `CacheActivityBenchmark.NoLinqCacheScope` to measure the do-not-cache short-circuit.
+- `DataOptions.UseDisableQueryCache(true)` -- used by `WeakJoinScanBenchmark` and `DeepJoinChainBenchmark` so each build re-translates the query (delta 2026-10-09).
+- `ToSqlQuery().Sql` -- SQL-emission entry used by the delta-added QueryGeneration benchmarks.
 - `LinqToDB.Internal.Expressions.Types.TypeMapper` + `LinqToDB.Internal.Expressions.ExpressionGenerator` -- used by all TypeMapper benchmarks.
 - `LinqToDB.DataProvider.PostgreSQL`, `.SqlServer`, `.SQLite`, `.Access`, `.Firebird` -- provider-specific `GetDataProvider()` calls in benchmark setups.
 - `LinqToDB.Async` -- `ToListAsync()` in `FetchGraphBenchmark`.
@@ -169,7 +184,10 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 42 files are Ti
 ## Known issues / debt
 
 - `QueryGenerationBenchmark` has most providers commented out -- only Access and Firebird are active. The commented block suggests intended multi-provider parameterisation that was never fully enabled. Any new provider added to the benchmark would produce richer regression data.
-- `Program.cs` contains a large commented-out manual-run block (lines 32-112, shifted from the previously-cited 22-97 by the delta-added `manual-cache` dispatch) that duplicates all benchmark class invocations. This is development scaffolding; it is not dead code (uncommenting enables profiler-guided runs) but it adds noise.
+- `Program.cs` contains a large commented-out manual-run block (now lines 62-139, shifted from 32-112 by the delta-added `manual-paramreuse` / `manual-weakjoin` / `manual-deepjoin` dispatches, and originally 22-97) that duplicates all benchmark class invocations. This is development scaffolding; it is not dead code (uncommenting enables profiler-guided runs) but it adds noise.
+- `Program.cs` now carries four near-identical `args[0] == "manual-*"` dispatch blocks, each re-declaring `iters`/`warmups` parsing; the fourth uses distinct local names (`dn`/`dw`/`dd`) to avoid pattern-variable clashes. Not yet factored into a table-driven dispatcher.
+- Three of the four manual runners (`WeakJoinScanBenchmark`, `ParameterReuseBenchmark`, `DeepJoinChainBenchmark`) duplicate the mean/median/Stopwatch/GC.Collect loop from `CacheActivityBenchmark.RunManually`. `DeepJoinChainBenchmark` and `WeakJoinScanBenchmark` explicitly cite BDN restore failure (NU1101), `ParameterReuseBenchmark` cites NuGet PackageSourceMapping.
+- `ParameterReuseBenchmark` has a public constructor that calls `Setup()` in addition to `[GlobalSetup]` (same pattern as `QueryGenerationBenchmark`), and `DivergingValues` mutates shared `_counter` state, so its results depend on call order within a process.
 - `OracleReaderExpressionsBenchmark` documents a workaround for issue #2032 (complex reader expressions) via double-compile. The issue link is `https://github.com/linq2db/linq2db/issues/2032` -- worth verifying if it has since been resolved.
 - No `results/` directory state documented -- BenchmarkDotNet artifacts path is set to `..\..\..\..\..\..\Tests\Tests.Benchmarks`, meaning results land in the project root, which is committed. The `.gitignore` status of this directory is not validated here.
 - `FetchIndividualBenchmark.cs` is structurally identical to `FetchSetBenchmark.cs` (single-entity form); deduplication with `[Params]` row count was not pursued.
@@ -196,5 +214,16 @@ Tier 2: 28 / 41 files read (68%). 13 files deferred -- all confirmed to follow t
 - `Tests/Tests.Benchmarks/Program.cs` -- modified: `Main` now special-cases `args[0] == "manual-cache"` to call `CacheActivityBenchmark.RunManually(warmups, iterations)` directly and return, before falling through to the existing `BenchmarkSwitcher.FromAssembly(...).Run(...)` path; shifts the pre-existing commented-out manual-run scaffolding block down to lines 32-112.
 
 Tier 2 (cumulative after delta): 29 / 42 files read (69%). Denominator increased by 1 for the new `CacheActivityBenchmark.cs` file. Confidence remains `medium` -- still below the 90% Tier-2 threshold; no claims rest on unread files.
+
+**Read (this run -- delta, 2026-10-09):**
+
+- `Tests/Tests.Benchmarks/Benchmarks/QueryGeneration/DeepJoinChainBenchmark.cs` -- added: deep self-join chain query-generation cost (`Build(depth)`), no `[Benchmark]` methods, `RunManually(warmups, iterations, onlyDepth)` sweeps depths 10/25/50/100 on a SQL Server 2017 mock with query cache disabled.
+- `Tests/Tests.Benchmarks/Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs` -- added: four `[Benchmark]` methods (`NoDuplicates` baseline, `OneDuplicate`, `ManyDuplicates`, `DivergingValues`) over `NorthwindDB` on Access/Ace; `RunManually` reports us and KB/op, `PARAM_BENCH_TAG`.
+- `Tests/Tests.Benchmarks/Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs` -- added: `DeepChain13` and `Wide20` on a Firebird v5 mock with cache disabled; `RunManually`, `WEAKJOIN_BENCH_TAG`.
+- `Tests/Tests.Benchmarks/Models/Northwind/Northwind.cs` -- modified (formatting only): `ActiveProduct` / `DiscontinuedProduct` use empty-body `class X : Product;` syntax. Previously listed as not read; now counted as read.
+- `Tests/Tests.Benchmarks/Program.cs` -- modified: added `manual-paramreuse`, `manual-weakjoin`, `manual-deepjoin` dispatch blocks (default iterations/warmups 2000/200, 8/2, 3/1 plus optional depth) and a `using LinqToDB.Benchmarks.QueryGeneration` import; commented scaffolding block now at lines 62-139. Already counted as read, no numerator change.
+- Citation re-verification: `QueryGenerationBenchmark.cs:1` anchors the file (class declared at line 15), `CacheActivityBenchmark.cs:35` (class), `:42` (`InProcessEmitToolchain`, inside the cited 41-44), `:481` (`RunManually`) all confirmed against current source.
+
+Tier 2 (cumulative after this delta): 33 / 45 files read (73%). Denominator +3 (three new files), numerator +4 (three new files + `Northwind.cs`). Confidence remains `low` per the prior audit demotion (not re-promoted by this delta); still below the 90% Tier-2 threshold.
 
 </details>

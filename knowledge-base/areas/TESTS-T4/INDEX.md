@@ -3,10 +3,10 @@ area: TESTS-T4
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 0/0
-coverage_tier_2: 59/2375
+coverage_tier_2: 62/2375
 ---
 
 # TESTS-T4
@@ -31,11 +31,17 @@ Key top-level T4 driver files (`Tests/Tests.T4/Cli/`):
 
 `Tests/Tests.T4/Default/` holds per-provider `.tt`/`.generated.cs` pairs using the legacy T4-template code path. `Tests/Tests.T4/Databases/` holds per-provider T4 templates with specific non-default options. `Tests/Tests.T4/Models/` has hand-coded partial classes plus `.tt` files that test `T4Model.ttinclude` features.
 
+`Tests/Tests.T4/Shared.ttinclude` (shared T4 prelude: `EnableNullableReferenceTypes = true`, `GenerateDatabaseInfo = false`) sets `PreLoadSQLite_BaseDirectory` for the SQLite native loader. **Delta (SHA 05150894e):** it now points at the resolved `$(LinqToDBT4SharedTools)` directory itself instead of its `sds` subfolder, because both SQLite clients share one native package and resolve `e_sqlite3` under `runtimes/`. The old "temporary, see SQLite.Runtime.props notes" comment was replaced accordingly.
+
+`Tests/Tests.T4/Databases/Model.cs` (hand-written partial for the `ModelDataContext` namespace) now declares the empty partial as `public partial class TestDataDB;` (C# 12+ semicolon body) instead of an empty `{ }` body -- no behavioural change. The same file still declares `ITestDataDB : IDataContext`.
+
 `Tests/Tests.T4/Compat/Stubs.cs` is a `#if !NET8_0_OR_GREATER` stub providing `System.Net.IPNetwork`, `System.DateOnly`, and `System.TimeOnly` as empty `readonly struct` declarations. **As of PR #5451, this file was consolidated**: the previously separate `IPNetwork.cs` stub was removed and folded into `Stubs.cs`.
 
 ### Tests/Tests.T4.Nugets
 
 Standalone solution under `Tests/Tests.T4.Nugets/`. Targets `net10.0` only. Uses central package management via `Directory.Packages.props`. **As of this delta, the pinned version is `6.3.0-local.2`** (previously `6.2.0-local.1`). No runtime test framework dependency -- purely a compile check.
+
+**Delta (SHA 05150894e):** `Directory.Packages.props` bumps `Npgsql` `10.0.2` -> `10.0.3` (provider group "Build: Providers", alongside `FirebirdSql.Data.FirebirdClient` 10.3.4 and `dotMorten.Microsoft.SqlServer.Types` 1.5.0). The `6.3.0-local.2` linq2db pin is unchanged in the diff range.
 
 - `Templates/<Provider>.tt` -- 16 templates. Each includes from `$(LinqToDBT4<Provider>TemplatesPath)`.
 - `Templates/<Provider>.generated.cs` -- 16 committed output baselines.
@@ -103,7 +109,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 <details><summary>Coverage</summary>
 
 - Tier 1: 0/0 (no Tier-1 files designated)
-- Tier 2: 59/2375 (2.5%) -- ~2316 deferred files are near-identical generated baselines
+- Tier 2: 62/2375 (2.6%) -- ~2313 deferred files are near-identical generated baselines
 - Tier 3: 0
 
 **Read (prior run -- SHA 4a478ff14):**
@@ -134,4 +140,9 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 - `Tests/Tests.T4/Cli/All/Ydb/TestDataDB.cs` -- sampled: per-entity `Find`/`FindAsync`/`FindQuery` extension methods, 13-table context, same shape as other `All/` providers
 - `Tests/Tests.T4/Cli/T4/Ydb/TestDataDB.cs` -- sampled: single-file T4-legacy layout (context + all 13 entities + shared `ExtensionMethods`); resolves the DuckDB "context-only vs partial regen" open question
 
+
+**Read (this run -- delta, SHA 05150894e):**
+- `Tests/Tests.T4.Nugets/Directory.Packages.props` -- `Npgsql` 10.0.2 -> 10.0.3
+- `Tests/Tests.T4/Databases/Model.cs` -- empty `TestDataDB` partial converted to `public partial class TestDataDB;`
+- `Tests/Tests.T4/Shared.ttinclude` -- `PreLoadSQLite_BaseDirectory` now the `$(LinqToDBT4SharedTools)` path itself (no `sds` subfolder), comment updated
 </details>

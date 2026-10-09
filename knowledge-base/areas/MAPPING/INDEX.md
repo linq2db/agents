@@ -3,10 +3,10 @@ area: MAPPING
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 3/3
-coverage_tier_2: 44/44
+coverage_tier_2: 46/46
 ---
 
 # MAPPING -- POCO <-> table/column metadata + the per-context conversion graph
@@ -26,11 +26,12 @@ coverage_tier_2: 44/44
 |---|---|---|
 | `MappingSchema` | Per-context registry: attribute lookup, conversion graph, scalar-type table, `EntityDescriptor` cache | `MappingSchema.cs` |
 | `EntityDescriptor` | Per-type table: name parts, columns, associations, inheritance, dynamic columns, query filters | `EntityDescriptor.cs` |
-| `ColumnDescriptor` | Per-column: storage, DataType/DbType/Length/Precision/Scale, IsIdentity/IsPrimaryKey/CanBeNull, value converter, lambda factories for `GetDbValueLambda` / `GetDbParamLambda` / `GetProviderValue` | `ColumnDescriptor.cs` |
+| `ColumnDescriptor` | Per-column: storage, DataType/DbType/Length/Precision/Scale, IsIdentity/IsPrimaryKey/CanBeNull, value converter, optional `DurationUnit`, lambda factories for `GetDbValueLambda` / `GetDbParamLambda` / `GetProviderValue` | `ColumnDescriptor.cs` |
 | `AssociationDescriptor` | Per-association: this/other keys, predicate or query expression, storage, alias, nullability inference | `AssociationDescriptor.cs` |
 | `InheritanceMapping` | Discriminator value -> concrete `Type` + reference to discriminator `ColumnDescriptor` | `InheritanceMapping.cs` |
 | `EntityQueryFilter` | Descriptor for one named, keyed query filter (predicate or `IQueryable`-transform delegate); `EntityDescriptor.QueryFilters` is the ordered, AND-combined set assembled from `[QueryFilter]` attributes | `EntityQueryFilter.cs` |
 | `MappingAttribute` (abstract) | Base class for every mapping attribute; carries `Configuration` (provider name filter) and `GetObjectID()` (mapping-schema config-id contributor) | `MappingAttribute.cs` |
+| `DurationAttribute` / `DurationUnit` | Opt-in declaration that a `TimeSpan` / `TimeSpan?` column stores a duration in a given unit (`Nanosecond`..`Day`); fluent form `PropertyMappingBuilder.HasDuration(unit)`; consumed by `ColumnDescriptor` (auto-converter) and by translation | `DurationAttribute.cs`, `DurationUnit.cs` |
 | `FluentMappingBuilder` / `EntityMappingBuilder<T>` / `PropertyMappingBuilder<T,P>` | Lambda-driven attribute synthesis; `Build()` registers a `FluentMetadataReader` (in `Internal.Mapping`) on the schema | `FluentMappingBuilder.cs`, `EntityMappingBuilder.cs`, `PropertyMappingBuilder.cs` |
 | `ValueToSqlConverter` | Per-type `Action<StringBuilder, DbDataType, DataOptions, object>` table for inlining literals into SQL (used by SQL-PROVIDER builders for constants/scalars); implements `IEquatable<ValueToSqlConverter>` | `ValueToSqlConverter.cs` |
 | `IValueConverter` / `ValueConverter<TModel,TProvider>` / `ValueConverterFunc<,>` | User-defined per-column conversion lambdas, opt-in via `ValueConverterAttribute` | `IValueConverter.cs`, `ValueConverter.cs`, `ValueConverterFunc.cs`, `ValueConverterAttribute.cs` |
@@ -54,9 +55,9 @@ coverage_tier_2: 44/44
 ### Tier 2 (read; mapping attributes + descriptors + builders + value-conversion plumbing)
 
 - Descriptors / interfaces: `AssociationDescriptor.cs`, `EntityQueryFilter.cs`, `InheritanceMapping.cs`, `IColumnChangeDescriptor.cs`, `IEntityChangeDescriptor.cs`, `IGenericInfoProvider.cs`, `IValueConverter.cs`, `IToSqlConverter.cs`, `MappingAttribute.cs`, `MapValue.cs`
-- Mapping attributes: `TableAttribute.cs`, `ColumnAttribute.cs`, `ColumnAliasAttribute.cs`, `NotColumnAttribute.cs`, `PrimaryKeyAttribute.cs`, `IdentityAttribute.cs`, `AssociationAttribute.cs`, `InheritanceMappingAttribute.cs`, `DataTypeAttribute.cs`, `NullableAttribute.cs`, `NotNullAttribute.cs`, `ScalarTypeAttribute.cs`, `SequenceNameAttribute.cs`, `MapValueAttribute.cs`, `DynamicColumnsStoreAttribute.cs`, `DynamicColumnAccessorAttribute.cs`, `OptimisticLockPropertyAttribute.cs`, `OptimisticLockPropertyBaseAttribute.cs`, `QueryFilterAttribute.cs` (**named/keyed filters, `AllowMultiple = true`**), `ResultSetIndexAttribute.cs`, `ServerSideOnlyAttribute.cs`, `IsQueryableAttribute.cs`, `SkipBaseAttribute.cs`, `SkipValuesByListAttribute.cs`, `SkipValuesOnInsertAttribute.cs`, `SkipValuesOnUpdateAttribute.cs`, `SqlQueryDependentAttribute.cs`, `SqlQueryDependentParamsAttribute.cs` (**[Obsolete] as of PR #5526 -- scheduled for v7 removal**), `ValueConverterAttribute.cs`
+- Mapping attributes: `TableAttribute.cs`, `ColumnAttribute.cs`, `ColumnAliasAttribute.cs`, `NotColumnAttribute.cs`, `PrimaryKeyAttribute.cs`, `IdentityAttribute.cs`, `AssociationAttribute.cs`, `InheritanceMappingAttribute.cs`, `DataTypeAttribute.cs`, `NullableAttribute.cs`, `NotNullAttribute.cs`, `ScalarTypeAttribute.cs`, `SequenceNameAttribute.cs`, `MapValueAttribute.cs`, `DynamicColumnsStoreAttribute.cs`, `DynamicColumnAccessorAttribute.cs`, `OptimisticLockPropertyAttribute.cs`, `OptimisticLockPropertyBaseAttribute.cs`, `QueryFilterAttribute.cs` (**named/keyed filters, `AllowMultiple = true`**), `ResultSetIndexAttribute.cs`, `ServerSideOnlyAttribute.cs`, `IsQueryableAttribute.cs`, `SkipBaseAttribute.cs`, `SkipValuesByListAttribute.cs`, `SkipValuesOnInsertAttribute.cs`, `SkipValuesOnUpdateAttribute.cs`, `SqlQueryDependentAttribute.cs`, `SqlQueryDependentParamsAttribute.cs` (**[Obsolete] as of PR #5526 -- scheduled for v7 removal**), `ValueConverterAttribute.cs`, `DurationAttribute.cs` (**new: declares the storage unit of a TimeSpan column**)
 - Fluent builder: `FluentMappingBuilder.cs`, `EntityMappingBuilder.cs`, `PropertyMappingBuilder.cs`
-- Value layer: `ValueConverter.cs`, `ValueConverterFunc.cs`, `ValueToSqlConverter.cs`, `DefaultValue.cs`, `ConversionType.cs`, `SkipModification.cs`, `VersionBehavior.cs`
+- Value layer: `ValueConverter.cs`, `ValueConverterFunc.cs`, `ValueToSqlConverter.cs`, `DefaultValue.cs`, `ConversionType.cs`, `SkipModification.cs`, `VersionBehavior.cs`, `DurationUnit.cs` (**new enum**)
 
 ### Tier 3
 
@@ -90,11 +91,17 @@ Constructed via `new MappingSchema(string? configuration, params MappingSchema[]
 
 `EntityDescriptor` instances are cached per `(Type, schemaConfigId)` in `EntityDescriptorsCache` (`MappingSchema.cs:1835-1857`). Cache invalidation is implicit -- `ResetID` bumps `ConfigurationID`, and the next `GetEntityDescriptor` call sees a cache miss.
 
+`EntityDescriptor.FindColumnDescriptor(MemberInfo)` (`EntityDescriptor.cs:~606-626`) no longer scans `Columns` linearly: it lazily builds a `Dictionary<MemberInfo, ColumnDescriptor>` (`_columnsByMember`, via `LazyInitializer.EnsureInitialized` and `BuildColumnsByMember`, first-wins through `TryAdd` to mirror the old `FirstOrDefault`). The query builder calls it once per column per generic assignment, so the linear scan was quadratic on wide entities (#5719).
+
 ### 3. `ColumnDescriptor` construction + lambda compilation
 
-Constructor (`ColumnDescriptor.cs:32-148`) resolves column metadata from three sources in priority order: explicit `ColumnAttribute` properties, the schema `GetDataType(MemberType)` / `GetUnderlyingDataType`, then per-member fallbacks (`[DataType]`, `[Nullable]`, nullability annotations, `[PrimaryKey]`, `[Sequence]`, `[ValueConverter]`, `[Skip*]`).
+Constructor (`ColumnDescriptor.cs:32-148`) resolves column metadata from three sources in priority order: explicit `ColumnAttribute` properties, the schema `GetDataType(MemberType)` / `GetUnderlyingDataType`, then per-member fallbacks (`[DataType]`, `[Nullable]`, nullability annotations, `[PrimaryKey]`, `[Sequence]`, `[ValueConverter]`, `[Duration]`, `[Skip*]`).
 
-`GetDbDataType(completeDataType)` (`ColumnDescriptor.cs:414-430`) resolves the DB type from `ValueConverter?.ToProviderExpression.Body.Type` when a `[ValueConverter]` is present (`:427`), rather than from `MemberType` -- a converter-backed member with no DB type of its own (e.g. an F# `decimal option`) picks up the provider type of its *converted* value instead of failing to resolve.
+**Duration columns.** After `[ValueConverter]` resolution the ctor reads `[Duration]` (`mappingSchema.GetAttribute<DurationAttribute>`, `ColumnDescriptor.cs:~144`). When present it (a) throws `LinqToDBException` if a `ValueConverter` is also declared -- a unit and a hand-written converter are two competing definitions of the stored form (the SQL is built on the unit, the value is read through the converter), so the pair is refused rather than letting one silently win; (b) assigns `ValueConverter = CreateDurationConverter(MemberType, unit)`, throwing `LinqToDBException` when the member is not `TimeSpan` / `TimeSpan?`; (c) sets the new public `ColumnDescriptor.DurationUnit` (`DurationUnit?`, null = not declared). `CreateDurationConverter` (`ColumnDescriptor.cs:~183-217`) uses `SqlIntervalUnits.TryGetTicksRatio(SqlIntervalType.ToIntervalUnit(unit), ...)` (`Internal.SqlQuery`) and returns a `ValueConverter<TimeSpan,long>` (or `<TimeSpan?,long?>` with `handlesNulls: true`) doing `checked` ticks <-> unit arithmetic, so overflow throws rather than wrapping; sub-unit precision truncates on write. Duration semantics are strictly opt-in: an undecorated `TimeSpan` column keeps its provider-defined meaning (e.g. time-of-day on `TIME` columns). `DurationAttribute` (`AllowMultiple = true`, `Inherited = true`, field/property only; `GetObjectID()` = `.{Configuration}.{Unit}.`) can be set through `PropertyMappingBuilder.HasDuration(DurationUnit)` or mapping-schema configuration. `DurationUnit` members, finest to coarsest: `Nanosecond`, `Tick`, `Microsecond`, `Millisecond`, `Second`, `Minute`, `Hour`, `Day` (no week/month/year; ordering of the underlying values carries no arithmetic meaning). `Nanosecond` is the only sub-tick unit: documented as not server-computable (no lowering does the division, as integer rounding of negatives differs per provider), so SQL member access and cross-unit comparison/membership on such a column is refused while plain projection is computed client-side.
+
+`HasValuesToSkipOnInsert` / `HasValuesToSkipOnUpdate` now test `Affects.HasFlag(SkipModification.X)` instead of a bitmask `!= 0` (behaviour-neutral).
+
+`GetDbDataType(completeDataType)` (`ColumnDescriptor.cs:414-430`) resolves the DB type from `ValueConverter?.ToProviderExpression.Body.Type` when a `[ValueConverter]` is present (`:427`), rather than from `MemberType` -- a converter-backed member with no DB type of its own (e.g. an F# `decimal option`) picks up the provider type of its *converted* value instead of failing to resolve. This also makes a duration column resolve to `long` / `long?` as its provider type.
 
 Lazily-compiled lambda factories (`ColumnDescriptor.cs:518-856`):
 
@@ -125,12 +132,12 @@ Dispatch in `TryConvertImpl` (`ValueToSqlConverter.cs:188-239`) is fast-path: fo
 
 ### 6. Fluent builder
 
-`FluentMappingBuilder` accumulates `Type -> List<MappingAttribute>` and `MemberInfo -> List<MappingAttribute>`; `Build()` packages them into a `FluentMetadataReader` pushed onto the schema reader chain via `MappingSchema.AddMetadataReader`. `EntityMappingBuilder<TEntity>` / `PropertyMappingBuilder<TEntity,TProperty>` synthesise attribute objects from member-accessor expressions. `EntityMappingBuilder.SetAttribute` (`EntityMappingBuilder.cs:725-753`) is the merge operation. `EntityMappingBuilder<TEntity>.HasQueryFilter` (`EntityMappingBuilder.cs:509-651`) has keyless overloads (targeting the `DefaultQueryFilterKey = ""` slot) and keyed overloads (`HasQueryFilter(string filterKey, ...)`) that each emit a `QueryFilterAttribute { FilterKey = filterKey, ... }`; passing a `null` filter/filterFunc to a keyed overload emits a key-only tombstone attribute that `EntityDescriptor.InitQueryFilters` uses to remove an inherited entry.
+`FluentMappingBuilder` accumulates `Type -> List<MappingAttribute>` and `MemberInfo -> List<MappingAttribute>`; `Build()` packages them into a `FluentMetadataReader` pushed onto the schema reader chain via `MappingSchema.AddMetadataReader`. `EntityMappingBuilder<TEntity>` / `PropertyMappingBuilder<TEntity,TProperty>` synthesise attribute objects from member-accessor expressions. `EntityMappingBuilder.SetAttribute` (`EntityMappingBuilder.cs:725-753`) is the merge operation. `EntityMappingBuilder<TEntity>.HasQueryFilter` (`EntityMappingBuilder.cs:509-651`) has keyless overloads (targeting the `DefaultQueryFilterKey = ""` slot) and keyed overloads (`HasQueryFilter(string filterKey, ...)`) that each emit a `QueryFilterAttribute { FilterKey = filterKey, ... }`; passing a `null` filter/filterFunc to a keyed overload emits a key-only tombstone attribute that `EntityDescriptor.InitQueryFilters` uses to remove an inherited entry. `PropertyMappingBuilder.HasDuration(DurationUnit)` (`PropertyMappingBuilder.cs:~285-296`) adds a `DurationAttribute` via `HasAttribute`.
 
 ## Interactions
 
 - **METADATA -> MAPPING.** `Source/LinqToDB/Metadata/**` provides `IMetadataReader`. `MappingSchema.AddMetadataReader` (`MappingSchema.cs:1162-1183`) prepends a reader; `_cache`/`_firstOnlyCache` memoise per-`(type, member, attrType)` filtered-by-`ConfigurationList` results.
-- **MAPPING -> EXPR-TRANS.** Translation looks up `dataContext.MappingSchema.GetEntityDescriptor(type)`; `EntityDescriptor.this[memberName]` and `FindColumnDescriptor(MemberInfo)` are the lookup APIs.
+- **MAPPING -> EXPR-TRANS.** Translation looks up `dataContext.MappingSchema.GetEntityDescriptor(type)`; `EntityDescriptor.this[memberName]` and `FindColumnDescriptor(MemberInfo)` are the lookup APIs. `ColumnDescriptor.DurationUnit` is what duration-aware translation reads to build SQL on the declared unit.
 - **MAPPING -> LINQ.** Materialization compiles column readers from `ColumnDescriptor.GetDbDataType` + `FromDatabase` converters, and uses `EntityDescriptor.InheritanceMapping` for discriminator dispatch. `EntityDescriptor.QueryFilters` (keyed, AND-combined) is read by `IgnoreFiltersBuilder` / `FilterIgnoreScope` (`Internal.Linq.Builder`, see [LINQ area](../LINQ/INDEX.md)) to apply or selectively suppress filters per query.
 - **MAPPING -> DATA.** `DataConnection`/`DataParameter` paths call `ColumnDescriptor.GetDbParamLambda()` (or static `ApplyConversions`) at execution time.
 - **MAPPING -> SQL-PROVIDER.** SQL builders consume `MappingSchema.ValueToSqlConverter` and `GetDataType` / `ColumnDescriptor.DataType` / `DbType`.
@@ -152,6 +159,7 @@ Dispatch in `TryConvertImpl` (`ValueToSqlConverter.cs:188-239`) is fast-path: fo
 - `LinqToDB.Internal.Mapping.MappingSchemaInfo` / `LockedMappingSchemaInfo` / `LockedMappingSchema` / `FluentMetadataReader`.
 - `LinqToDB.Reflection.TypeAccessor` / `MemberAccessor`.
 - `LinqToDB.SqlQuery.SqlObjectName` / `SqlDataType` / `DbDataType`.
+- `LinqToDB.Internal.SqlQuery.SqlIntervalUnits` / `SqlIntervalType` -- duration unit -> tick ratio for the auto-generated duration converter.
 - `LinqToDB.Common.Configuration` flags.
 
 ## Known issues / debt
@@ -163,6 +171,7 @@ Dispatch in `TryConvertImpl` (`ValueToSqlConverter.cs:188-239`) is fast-path: fo
 - **`SetDefaultValue` enum branch lazily mutates `Schemas[0]` from inside `GetDefaultValue`** (`MappingSchema.cs:243-274`); same pattern in `GetCanBeNull` (`:300-331`).
 - **`SqlQueryDependentParamsAttribute` is deprecated** (`SqlQueryDependentParamsAttribute.cs:27`). Marked `[Obsolete]` in PR #5526; scheduled for removal in v7. Its `ExpressionsEqual<TContext>` / `SplitExpression` overrides are unsafe when the parameter expression captures outer-scope transparent identifiers in multi-level eager-loaded projections (issue #5154). The default structural cache-compare path now covers the intended use cases.
 - **TPH sibling-column value writing assumes declaring-type widening and value-siblings are mutually exclusive** (`ColumnDescriptor.cs:825-831`). A future mapping that combines both on one physical column (an inherited member shared by all subtypes *and* distinct value-sibling members) would make the value-sibling branch unreachable, silently writing the default for non-primary sibling rows. Not yet hit by any model; flagged in-code as a revisit-then item.
+- **`[Duration]` write path truncates sub-unit precision** (e.g. 1.5 s into a `Second` column stores 1) and the generated converter uses `checked` arithmetic, so extreme values throw `OverflowException` at conversion time rather than wrapping. `[Duration]` plus an explicit `[ValueConverter]` on one member is rejected at descriptor construction.
 
 ## See also
 
@@ -181,12 +190,13 @@ Dispatch in `TryConvertImpl` (`ValueToSqlConverter.cs:188-239`) is fast-path: fo
 - Touching `EntityDescriptor.Init`? The two-pass member-then-type ordering is load-bearing.
 - Adding a keyed query filter? Use `EntityMappingBuilder<T>.HasQueryFilter(filterKey, ...)`; passing `filter: null`/`filterFunc: null` removes (tombstones) a previously-registered key. The empty string is the default (anonymous) slot mirrored by `EntityDescriptor.QueryFilterLambda` / `QueryFilterFunc`.
 - Touching TPH sibling-column writes? `ColumnDescriptor.AddValueSibling` / `GetProviderValue`'s declaring-type-widening logic assume the two paths never combine on one physical column (`ColumnDescriptor.cs:825-831`) -- verify that invariant still holds before changing either.
+- Storing a `TimeSpan` as an integral duration? Declare `[Duration(DurationUnit.X)]` (or `HasDuration`); do not also add a `[ValueConverter]`. Adding a unit means extending `DurationUnit` and the `SqlIntervalUnits` ratio table.
 
 <details><summary>Coverage</summary>
 
 Tier 1: 3/3 visited (read in full): `MappingSchema.cs`, `EntityDescriptor.cs`, `ColumnDescriptor.cs`.
 
-Tier 2: 44/44 visited. One file read partially (repetitive registration code): `ValueToSqlConverter.cs`. All others read in full, including `EntityQueryFilter.cs` (new file, added this run) and `PropertyMappingBuilder.cs` (now read in full).
+Tier 2: 46/46 visited. One file read partially (repetitive registration code): `ValueToSqlConverter.cs`. All others read in full, including `EntityQueryFilter.cs` (new file, added this run) and `PropertyMappingBuilder.cs` (now read in full). `DurationAttribute.cs` and `DurationUnit.cs` added and read in full (this delta).
 
 Tier 3: 0/0.
 
@@ -204,5 +214,15 @@ Read (this run -- delta):
 - `Source/LinqToDB/Mapping/EntityQueryFilter.cs` -- new file. Sealed `EntityQueryFilter` class (`FilterKey`, `FilterLambda`, `FilterFunc`) is the runtime record for one named filter entry, constructed by `EntityDescriptor.InitQueryFilters` from `QueryFilterAttribute` instances.
 - `Source/LinqToDB/Mapping/PropertyMappingBuilder.cs` -- `IsExpression<TR>` now rebases the lambda's parameter from `TEntity` to the member's `ReflectedType` when the property lives on a nested/complex type (e.g. `c => c.Address.Postcode`), so materialization-time substitution binds to the correct root instead of throwing in `ExposeExpressionVisitor.ConvertMemberExpression`.
 - `Source/LinqToDB/Mapping/QueryFilterAttribute.cs` -- new `FilterKey` property (`:17-30`) identifies a named filter slot (empty/`null` = default slot); `GetObjectID()` length-prefixes `FilterKey` in the id string (`:52-57`) so a key containing `.` can't collide with segment boundaries; XML doc updated to describe multiple-instance (`AllowMultiple = true`), AND-combined, keyed filters.
+
+Read (this run -- delta):
+- `Source/LinqToDB/Mapping/ColumnDescriptor.cs` (M) -- ctor reads `[Duration]`: rejects it together with a `ValueConverter` and on non-`TimeSpan` members (`LinqToDBException`), otherwise installs a generated `checked` ticks<->unit converter via new `CreateDurationConverter` and exposes new `DurationUnit? DurationUnit` property; `HasValuesToSkipOnInsert/Update` use `HasFlag`.
+- `Source/LinqToDB/Mapping/DurationAttribute.cs` (A) -- new `DurationAttribute(DurationUnit)` mapping attribute (field/property, `AllowMultiple`, inherited); `GetObjectID()` = `.{Configuration}.{Unit}.`.
+- `Source/LinqToDB/Mapping/DurationUnit.cs` (A) -- new enum `Nanosecond, Tick, Microsecond, Millisecond, Second, Minute, Hour, Day`; `Nanosecond` documented as not server-computable.
+- `Source/LinqToDB/Mapping/EntityDescriptor.cs` (M) -- `FindColumnDescriptor(MemberInfo)` backed by lazily built `Dictionary<MemberInfo, ColumnDescriptor>` (`_columnsByMember`, first-wins) instead of a linear scan (#5719).
+- `Source/LinqToDB/Mapping/EntityMappingBuilder.cs` (M) -- `HasTableOptions` flag test switched to `HasFlag` (behaviour-neutral).
+- `Source/LinqToDB/Mapping/IsQueryableAttribute.cs` (M) -- body-less class declaration (`: Attribute;`); no behaviour change.
+- `Source/LinqToDB/Mapping/MappingSchema.cs` (M) -- `GetMapValues` enum-field filter switched to `HasFlag`; no behaviour change.
+- `Source/LinqToDB/Mapping/PropertyMappingBuilder.cs` (M) -- new `HasDuration(DurationUnit)` fluent method adding a `DurationAttribute`.
 
 </details>

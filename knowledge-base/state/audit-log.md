@@ -2584,3 +2584,190 @@ INDEX-PATCH fences emitted this run -- coverage-summary only.
 - audit: 5 sampled, 1 stale -> TESTS-BENCHMARKS/INDEX.md confidence demoted medium->low (QueryGenerationBenchmark citation drift)
 - new detected-issues: DI-1228..DI-1481 across ~15 areas (incl. TESTS-LINQ 24 [ActiveIssue] gates, PG missing-v13 mapping arm, YDB sync-over-async, SQL-AST weak structural equality)
 
+## 2026-10-09T20:39:40Z — agent audit notes
+- reason: delta list shows ~82 D entries under .claude/{agents,docs,hooks,scripts,skills} because .claude/ became a git submodule (linq2db/agents); files remain on disk, so no claims were removed. Prior claim "root CLAUDE.md states Build/BannedSymbols.txt" was updated in place (now Source/BannedSymbols.txt). kb-areas.md AGENTS-INFRA row likely needs new Tier entries (work-plan, split-pr, merge-milestone, create-analyzer, dogfood-analyzer, plan-critic, review-gap-attributor, require-test-progress, bootstrap-worktree-corpus, root AGENTS.md, .claude/AGENTS.md, .claude/CLAUDE.md) and the audit-claude names in the delta list do not match on-disk audit-agents.
+
+## 2026-10-09T20:39:41Z — agent audit notes
+- area: BUILD
+reason: existing claims contradicted by the delta and updated in place -- (1) "No GitHub Actions workflows exist" (now 4 workflows); (2) global.json SDK pin recorded as 10.0.200/minor, now 10.0.100/latestFeature; (3) PostgreSQL19/YDB entries, pgsql19.sh, mac.pgsql19.sh, ydb.sh and the macOS template/scripts no longer exist (replaced by pgsql2.sh, ydbsybase.sh, consolidated legs); (4) Version 6.4.0 -> 6.6.0 and EF versions bumped; (5) default.yml no longer passes mac_enabled and db_filter [all][metrics] became [all].
+- area: BUILD
+reason: coverage_tier_2 denominator (115) is not allowed to fall below the prior 93 by contract, although about 80 Tier-2 per-version scripts/configs were deleted and about 22 new files added; the true on-disk Tier-2 count differs and the kb-areas.md BUILD patterns should be re-baselined. Build/BannedSymbols.txt Tier-1 pin is still missing (pre-existing).
+
+## 2026-10-09T20:39:43Z — agent audit notes
+- area: CLI
+note: Contradictions resolved in place: LinqToDBCliController now registers 10 commands (was 3); Program.Main is async with cancellation; Help/Template/Scaffold files moved under per-command folders; PublicAPI.Shipped/Unshipped.txt deleted; ScaffoldCommand line refs updated (DatabaseType enum 1932 -> 1929, Ydb mapping 67 -> 73, Ydb case 186-192 -> 197). Line numbers of the TODO items in Interceptors/Execute/HelpCommand were not re-verified after the moves. Tier-2 coverage is 59/76 (below 90 percent); 16 files deferred. Confidence kept at high on the basis of full Tier-1 coverage, but a coverage-fill run is advisable.
+
+## 2026-10-09T20:39:44Z — agent audit notes
+- area: CODEGEN
+reason: area description widened in place -- project now also hosts three internal DiagnosticAnalyzers (LINQ2DB0001..0006). kb-areas.md Tier-1 list for CODEGEN likely needs the three new analyzer files added.
+
+## 2026-10-09T20:48:30Z — agent audit notes
+- area: DATA
+reason: delta contradicted prior claims, updated in place -- (1) BulkCopyOptions now 22 params and two obsolete compat ctors (was 21 / one), (2) QueryRunner parameter binding no longer calls IDataProvider.SetParameter directly (now IDataProvider.CreateParameter), (3) parameter-dependent queries no longer defer all conversion to BuildSql
+
+## 2026-10-09T20:48:31Z — agent audit notes
+- reason: EFCORE INDEX claim that the accessor-based GetMappingSchema simply delegates to Implementation.GetMappingSchema was updated in place; it now goes through a per-model _mappingSchemas cache when accessor is a DbContext.
+
+## 2026-10-09T20:48:33Z — agent audit notes
+- area: EXPR-TRANS delta 05150894e. Contradictions updated in place: TranslationProviderFlags now has 7 properties (was 2); ExposeExpressionVisitor no longer rewrites TimeSpan.TotalX over DateTime subtraction to Sql.DateDiff. Tier counts unchanged (68/68, 86/86): all 35 changed files were already counted.
+
+## 2026-10-09T20:48:34Z — agent audit notes
+- reason: ToSqlQuery claim updated in place -- it no longer unwraps LoadWithQueryableBase directly. That GetLinqToDBSource() resolves the wrapper via IQueryableWrapper<T> is inferred from the diff, not verified in the Internal.Linq source.
+
+## 2026-10-09T20:56:59Z — agent audit notes
+- reason: ConcurrencyExtensions.cs grew by ~450 lines, older line citations in INDEX.md for that file are approximate (not re-pinned). AsyncExtensions dispatch claim updated in place to AsLinqToDBQuery.
+
+## 2026-10-09T20:57:00Z — agent audit notes
+- reason: delta updated two existing claims in place: (1) WrapParametersVisitor no longer sets SqlParameter.NeedsCast, it wraps in SqlParameterCastExpression; (2) MemberTranslatorBase binary arm no longer requires BinaryExpression.Method. Also the 1083-line root PublicAPI.Unshipped.txt claim is now historical (promoted to Shipped; Unshipped is 14 lines). Tier-1 list in INDEX body enumerates 27 files vs coverage_tier_1 23/23 (pre-existing inconsistency, left as is).
+
+## 2026-10-09T20:57:00Z — deferred-coverage queue updated
+- INTERNAL-API: +157 deferred
+
+## 2026-10-09T20:57:02Z — agent audit notes
+- area: LINQ
+reason: CompiledTable<T> contradicted prior INDEX claims (ReplaceAsyncWithSync rewrite, structural expression key, preambles parameter on Create/Execute); updated in place in Key types, Pointers and new Subsystems section 6. Also 34 Builder/** files in changedFiles are EXPR-TRANS-owned and were not integrated into this area.
+
+## 2026-10-09T21:04:30Z — agent audit notes
+- reason: delta updated in place -- Pack.csproj Description now lists DuckDB/YDB (known issue marked resolved), Pack.csproj no longer carries DuckDB/Ydb.Sdk PackageReferences (earlier coverage bullets retained verbatim as history), .lpx6 pack target removed (lpx-only).
+
+## 2026-10-09T21:04:31Z — agent audit notes
+- area: MAPPING
+reason: Delta covered 8 changed files (2 added, 6 modified). Line numbers marked with ~ for the ColumnDescriptor duration block and EntityDescriptor.FindColumnDescriptor were derived from the diff, not re-counted.
+
+## 2026-10-09T21:04:32Z — agent audit notes
+- area: PROV-ACCESS
+reason: AccessMemberTranslator.TranslateRoundToEven isEven predicate still compares Int(v) Mod 2 to literal 2 at AccessMemberTranslator.cs:237 (was :239) -- known issue item 8 unchanged.
+
+## 2026-10-09T21:04:33Z — agent audit notes
+- reason: delta changes appended to PROV-CLICKHOUSE INDEX; ClickHouseHints.generated.cs characterised from the template/hand-written diff (not re-read line by line); existing Join hints builder paragraph updated in place for the removed ALL branch (PR #5555)
+
+## 2026-10-09T21:04:34Z — agent audit notes
+- reason: DB2SqlBuilderBase.BuildParameter override (Known issue 4, Firebird-copy TODO) was removed upstream; replaced by ParameterCastResolvesUndefinedType/ParameterCastMaxLength/GetParameterCastType hooks. Known issue 4 updated in place.
+
+## 2026-10-09T21:13:41Z — agent audit notes
+- area: PROV-DUCKDB
+reason: delta replaced the BuildParameter/NeedsCast claim in the SQL builder subsection with GetParameterCastType plus optimizer-side TuneParameters casts (updated in place). The prior-delta Coverage header "Read (this run -- delta)" was renamed "Read (prior delta run, 2026-07-05)" with bullets verbatim.
+
+## 2026-10-09T21:13:42Z — agent audit notes
+- area: PROV-FIREBIRD
+reason: Delta contradicted prior claims -- FirebirdSqlBuilder.BuildParameter override (and its Known issues #3/#4 TODOs) no longer exists; replaced by GetParameterCastType => GetValueBasedParameterCastType. Updated in place and marked #3/#4 RESOLVED. Line citations in the body (e.g. FirebirdSqlBuilder.cs:*, FirebirdSqlExpressionConvertVisitor.cs:167) predate the edits and may have shifted; not re-verified.
+
+## 2026-10-09T21:13:44Z — agent audit notes
+- reason: contradiction resolved in place -- VisitExprPredicate no longer sets p.NeedsCast = true (now replaces the predicate with QueryHelper.EnsureParameterCast), and the BuildParameter override in InformixSqlBuilder was removed in favour of base hooks. Prior-run Coverage bullets (2026-06-14 delta) describing NeedsCast mutation are kept verbatim as history.
+
+## 2026-10-09T21:13:45Z — agent audit notes
+- reason: prior claim that all six providers use MySqlSqlOptimizer (CreateConvertVisitor always returns MySqlSqlExpressionConvertVisitor) is now false for MariaDB10; updated in place (MariaDBSqlOptimizer / MariaDBSqlExpressionConvertVisitor).
+
+## 2026-10-09T21:13:47Z — agent audit notes
+- reason: "updated in place: long-string NText promotion moved from OracleDataProvider.SetParameter (hardcoded >=4000 chars) to InferParameterDataType driven by OracleOptions.MaxStringParameterLength; OracleBulkCopy.MaxSqlLength changed 65535 -> 393216"
+
+## 2026-10-09T21:13:51Z — agent audit notes
+- FirebirdSqlExpressionConvertVisitor.cs:280 has "//TODO: check default precision and scale" (no space after //); the catalog regex requires a space, so it was not emitted. Consider relaxing the regex to "//\s*TODO".
+
+## 2026-10-09T21:24:05Z — agent audit notes
+- reason: "PROV-POSTGRES delta: updated existing claims in place -- CreateSqlBuilder gate moved from v13 to v12 (PostgreSQL13SqlBuilder renamed PostgreSQL12SqlBuilder), the single window-function translator was split into baseline/95/11 tiers (previously documented as enabling FILTER/ordered-set unconditionally), and the GetMappingSchema known issue now covers v11/v12/v13. PostgreSQLHints.cs (Tier 2, not in changedFiles) was not re-read to confirm SKIP LOCKED handling of v11/v12 configurations."
+
+## 2026-10-09T21:24:07Z — agent audit notes
+- area: PROV-SQLCE
+reason: existing claim "CanSkipRootAliases returns false" updated in place -- override removed, replaced by RequiresUniqueRootColumnNames => true (SqlCeSqlBuilder.cs). Behavior narrowed: aliases forced only on collisions.
+
+## 2026-10-09T21:24:10Z — agent audit notes
+- area: PROV-SQLSERVER
+reason: existing claim updated in place -- SqlServer2014SqlOptimizer ctor bug (passed v2016) is fixed in this delta, Known issues entry and optimizer matrix row rewritten as historical.
+
+## 2026-10-09T21:31:15Z — agent audit notes
+- reason: YdbSqlBuilder ORDER BY alias lookup changed from col.Alias to AliasesContext.GetColumnAlias; claim updated in place. Date-shift lowering now partly engine-side (PR 5987); noted alongside member-translator ShiftYears/ShiftMonths claims.
+
+## 2026-10-09T21:31:16Z — agent audit notes
+- area: REMOTE-CLIENT
+reason: updated in place -- LinqService deserialization now uses db.MappingSchema (was MappingSchema ?? SerializationMappingSchema); GetSqlText aliasing moved after PrepareStatementForSql; new OwnsClient virtual. Transport packages (REMOTE area) with shared clients may need an OwnsClient override.
+
+## 2026-10-09T21:31:17Z — agent audit notes
+- reason: prior frontmatter coverage_tier_1 was 18/18 but prior body said 23/23, set to 25/25 (23 + GrpcLinqServiceProxies + GrpcLinqServiceTypeModel). Known-issues line ref for SignalRLinqServiceClient.DisposeAsync updated 58 to 61.
+
+## 2026-10-09T21:39:11Z — agent audit notes
+- reason: line anchors updated in place (Directory.Build.props 192-194 -> 210-212, Tests.csproj 75 -> 65, UsedImplicitlyAttribute 48 -> 47)
+
+## 2026-10-09T21:39:12Z — agent audit notes
+- area: SQL-AST
+reason: Updated in place -- QueryElementType tail-append rationale (was "LinqService wire-compat", source now says public API / ApiCompat CP0011); SqlParameter.NeedsCast / $Cast$ claim removed (replaced by SqlParameterCastExpression); SqlRawSqlTable copy constructor claim replaced by the internal field-list constructor.
+
+## 2026-10-09T21:39:14Z — agent audit notes
+- reason: "SHA 05150894e delta: line-number anchors in older delta bullets (Concat/Window/Step) are stale; Step and ConcatBuildStyle updated, others flagged in-body. Base ConvertSqlExtendedFunction MAX/MIN bool rewrite was removed (now identity); SqlParameter.NeedsCast and OptimizationContext.TransformationInfo removed."
+
+## 2026-10-09T21:39:17Z — agent audit notes
+- area: TESTS-BENCHMARKS
+reason: Prior "not read" count (13/42) listed only 11 rows. This delta lists 10 unread rows and states 12/45 from the numerator arithmetic. The table should be reconciled on a full rebuild. Citations for CacheActivityBenchmark (35, 41-44, 481) and QueryGenerationBenchmark (1) were re-verified and still hold, so the audit citation drift was not reproduced.
+
+## 2026-10-09T21:52:15Z — agent audit notes
+- area: TESTS-EFCORE
+reason: delta contradicted prior claims, updated in place: (1) Pomelo-based MySQL tests were EF10-excluded, now run on EF10 via Microting.EntityFrameworkCore.MySql and `Pomelo/` folders/namespaces were renamed to `MySql/`; (2) `[ActiveIssue(#4669, AllMySql)]` gates on ToolsTests.TestGlobalQueryFilters and 4 EF10 named-filter tests were removed after NorthwindContextBase soft-delete filter fix (prior Coverage bullet for sha 36ee4f82 left verbatim and now stale); (3) FSharpTests discovered to be dead code behind `#if EF8`. Prior-run Coverage bullets mention `PomeloMySqlTests.cs` and `Pomelo/` paths verbatim, those files were renamed.
+
+## 2026-10-09T21:52:17Z — agent audit notes
+- reason: "Issue1813.fs claim updated in place: prior INDEX said 7 test cases, file now has Test1-11 plus Issue5794Test, Issue5790Test and Issue5790RefusalTest. Gate attribution for 5794 and 5790 is inferred from in-file comments, the ActiveIssue attribute lives in the C# caller and was not read."
+
+## 2026-10-09T21:52:19Z — agent audit notes
+- reason: "ActiveIssueAttribute behavior contradicted prior INDEX (was RunState.Explicit marker, now run-and-assert-still-fails with Inconclusive rewrite); CustomTestContext no longer a single global instance; SupportsRowcount now reads SqlProviderFlags; AssertState now env-driven; DuckDB reseed now 4 statements. Updated in place. Prior delta header relabelled with bullets verbatim."
+
+## 2026-10-09T21:52:20Z — agent audit notes
+- TESTS-LINQ delta 2026-10-09: Infrastructure/ActiveIssueConfigurationTests.cs and Infrastructure/ActiveIssueGenericTests.cs were deleted and replaced by Infrastructure/ActiveIssueTests.cs. Earlier body sections still mention them as historical entries (left in place per delta rules). Tier-1 anchor YdbToDoAttributes.cs is still deleted (kb-areas.md needs a human update). kb-areas.md should also gain Infrastructure/ActiveIssueTests.cs patterns if the Tier-2 file list is enumerated explicitly. Roughly 190 modified fixtures were not read, so earlier per-fixture claims about them may be stale.
+
+## 2026-10-09T21:52:20Z — deferred-coverage queue updated
+- TESTS-LINQ: +233 deferred
+
+## 2026-10-09T21:52:26Z — agent audit notes
+- Delta TESTS-EFCORE: no new issues. Existing DI entries for this area (InheritanceTests.cs, JsonConvertTests.cs, TestsInitialization.cs) are not in changedFiles, so left untouched. Possible refinement: the broken-test pattern does not cover Assert.Ignore("Incomplete") calls without issue refs in Tests/EntityFrameworkCore/Tests/IdTests.cs (lines 44, 75, 131, 150, 169). Not emitted because the catalog regex is attribute-based.
+
+## 2026-10-09T21:52:56Z — agent audit notes
+- Obsolete v7 heuristic would fire on UniqueParametersNormalizerTests.cs:372 but v7 is a future milestone: suppressed. Pairing of existing entries to current matches is by order within file and pattern.
+
+## 2026-10-09T21:55:57Z — agent audit notes
+- discussions: no area keyword match for #5389, #5722, #5849; defaulted to GLOBAL per kb-indexer rules. Reclassify via labels or title keywords if needed.
+
+## 2026-10-09T21:57:59Z — deferred-coverage queue updated
+- CLI: +16 deferred
+
+## 2026-10-09T22:00:04Z — agent audit notes
+- PRs with no label, changed-path or title area match, defaulted to GLOBAL (94): #5685, #5686, #5691, #5378, #5709, #5093, #5723, #5736, #5693, #5721, #5724, #5726, #5735, #5732, #5703, #5720, #5690, #5741, #5742, #5755, #4392, #5213, #5681, #5711, #5804, #5728, #5839, #5847, #5746, #5752, #5753, #5761, #5767, #5770, #5785, #5820, #5821, #5864, #5766, #5737, #5783, #5791, #5870, #5892, #5334, #5877, #5740, #5833, #5844, #5884, #5873, #5817, #5841, #5840, #5831, #5808, #5764, #5774, #5863, #5733, #5850, #5893, #5809, #5727, #5801, #5802, #5813, #5905, #5907, #5908, #5909, #5910, #5902, #5919, #5913, #5882, #5947, #5640, #5708, #5942, #5944, #5956, #5969, #5946, #5939, #5934, #5772, #5938, #5763, #6003, #6007, #6005, #5983, #6008
+
+## 2026-10-09T22:01:58Z — agent audit notes
+- Issues classified GLOBAL (no provider/area label, linked file or title keyword match):
+- #5684 SQL generation error for query with nested UnionAll and sorting
+- #5699 Breaking change in 6.3: parasite coalesce for aggregates
+- #5435 Regression v6: can't sort on DateTimeOffset.DateTime property
+- #5576 In-memory AsQueryable() LEFT JOIN emits a spurious whole-object [item] column -> "Failed to convert parameter value from a <Type> to a Decimal"
+- #5781 Wrong predicate on left join when nullable is used
+- #5793 Query cache ignores closure state in a `LoadWith` filter lambda, so the first call's eager-load SQL is reused
+- #5782 New Window API's COUNT(*) translation breaks when used with another window function
+- #5692 Rework MappingSchema attribute caching -- unbounded growth (drives NETFX multi-config OOM)
+- #5796 Set operation cannot carry a computed difference and a declared duration in one position
+- #5803 Public IInterceptable?
+- #5799 JoinsOptimizer throws "Cannot get field for SqlFunction" when removing a left join onto a grouping with a computed key
+- #5805 LoadWith() forces ToListAsync() to use thread pool
+- #5826 UpCastDbDataTypeToFit overwrites configured Length for string/byte[] parameters instead of respecting it (unlike decimal)
+- #5787 Aggregate with an untranslatable selector inside a projection fails with "There is no method 'AggregateExecute'"
+- #5792 Entity query filter causes a left-join null-check to be dropped in the second operand of a set operation
+- #5642 ConcurrencyExtensions: UpdateOptimistic/DeleteOptimistic overloads returning the regenerated version via OUTPUT/RETURNING
+- #5714 Update lock and Row lock are not generated if used chained
+- #5719 Query compilation performance regression since Version 6
+- #5729 Issue with InheritanceMapping
+- #5842 Compiled query with sql function and LoadWith
+- #5798 Arithmetic between value-converted columns adds the stored numbers even when the converters disagree
+- #5945 Examples solution does not build in Release
+- #4735 System.InvalidCastException: Unable to cast object of type 'Microsoft.Data.ProviderBase.DbConnectionClosedConnecting' to type 'Microsoft.Data.SqlClient.SqlInternalConnectionTds
+- #5964 Test progress heartbeat: report the filtered test count as total under --filter
+- #5993 Access: "Query is too complex" for several members of one date difference
+- #5997 Date/time literal compared with a coarser column loses its sub-second part
+- #5990 Rename sqlserver2016.cmd to sqlserver2016-win.cmd: it starts a Windows container
+- #5935 InvalidOperationException when using OrderBy / OrderByDescending / ThenBy / ThenByDescending
+- #6002 Query builders evaluate SQL-shaping values without registering them with the query cache
+
+## 2026-10-09T22:18:58Z — kb-refresh
+- code: 2240 files (47 areas) re-scanned 36ee4f82..05150894; 47 INDEX.md delta artifacts; detected-issues: ~25 new (DI-2050..DI-3800 sparse ranges), ~560 patches incl. ~40 fixed
+- coverage: skipped this run; deferred queue now TESTS-LINQ 263, INTERNAL-API 157, CLI 16 (all queued by this delta)
+- commits: 141 new (2026); history/by-year/2026.md updated; 5 decision records
+- issues: 177 upserted, prs: 245, discussions: 7; themes regenerated for 32 areas
+- wiki: 6 artifacts (4 added L2DB100x, 1 modified, 1 renamed; old double-dash slug removed); cursor -> 685d82cd
+- audit: 5 sampled, 0 stale
+- unclassified changed paths (no kb-areas row): Source/LinqToDB.Analyzers*, Tests/Tests.Analyzers*, Tests/LinqToDB.CLI/*, Source/LinqToDB/DataProvider/*.cs (top-level), root config files
+

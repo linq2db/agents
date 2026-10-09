@@ -3,8 +3,8 @@ area: TESTS-MODEL
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 4/4
 coverage_tier_2: 22/22
 ---
@@ -22,15 +22,16 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 **Inheritance variants** -- Two separate inheritance hierarchies:
 - `ParentChild.cs` `#region Inheritance*`: four discriminator hierarchies (`ParentInheritanceBase`/`Base2`/`Base3`/`Base4`) all mapping to the `Parent` table, exercising null-code defaults, enum discriminators, and abstract base types.
 - `InheritanceParentChild.cs`: separate `InheritanceParent` / `InheritanceChild` tables with their own `[InheritanceMapping]` chains; `TInheritance` interface enforces `TypeDiscriminator` contract.
+- Empty derived types (`ParentInheritanceNull`, `InheritanceParent1`, `InheritanceChild1`, `Northwind.ActiveProduct`) are declared with C# 12 body-less class syntax (`class X : Base;`) -- stylistic only, no mapping change.
 
 **Northwind schema** -- `Northwind.cs` static container class holding 12 entity types (`Category`, `Customer`, `Employee`, `Order`, `OrderDetail`, `Product`/`ActiveProduct`/`DiscontinuedProduct`, `Region`, `Shipper`, `Supplier`, `Territory`, `EmployeeTerritory`). `Product` uses bool-discriminator inheritance (`Discontinued` column). `NorthwindDB` is a `DataConnection` subclass exposing all 13 Northwind tables plus `FreeTextTable<>` (SQL Server full-text) and `[Sql.TableExpression]` `WithUpdateLock<T>`.
 
 **ITestDataContext / concrete contexts** -- `ITestDataContext` extends `IDataContext` with 20 typed `ITable<T>` properties and one `[Sql.TableFunction]` method (`GetParentByID`). Implemented by:
-- `TestDataConnection` -- direct `DataConnection` subclass; also implements `ISystemSchemaData` (exposes `SystemSchemaModel` from `LinqToDB.Tools`).
-- `TestDataCustomConnection` -- wraps `TestDataConnection` via composition, implementing `IDataContext` manually; used to test non-`DataConnection` code paths.
+- `TestDataConnection` -- direct `DataConnection` subclass, also implements `ISystemSchemaData` (exposes `SystemSchemaModel` from `LinqToDB.Tools`).
+- `TestDataCustomConnection` -- wraps `TestDataConnection` via composition, implementing `IDataContext` manually, used to test non-`DataConnection` code paths. It now also explicitly implements `IInfrastructure<IServiceProvider>` and `IInterceptable<IEntityServiceInterceptor>`, forwarding `Instance` / `Interceptor` (get and set) to the wrapped `Connection`, so the service provider and entity-service interception work through the wrapper.
 - Four remote contexts (see below).
 
-**Remote data contexts** -- Each subclasses the transport's base class and implements `ITestDataContext` by delegating `GetTable<T>()`. `GetParentByID` throws `NotImplementedException` on all remote contexts (table functions are not supported over remote transports).
+**Remote data contexts** -- Each subclasses the transport base class and implements `ITestDataContext` by delegating `GetTable<T>()`. `GetParentByID` throws `NotImplementedException` on all remote contexts (table functions are not supported over remote transports).
 
 | Class | Base | TFM |
 |---|---|---|
@@ -44,23 +45,23 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 - `OracleSpecific.SequenceTest` -- uppercase table/sequence names, `SEQUENCETESTSEQ`. `OracleSpecific.StringTest` -- equality helper for Oracle empty-string-equals-NULL semantics.
 - `PostgreSQLSpecific` -- four sequence/identity variants (`SequenceTest1`-`3`, `SequenceCustomNamingTest`) covering `[SequenceName]` + schema-qualified sequences, plus `TestSchemaIdentity` / `TestSerialIdentity` for schema-prefixed tables.
 
-**Auxiliary types** -- `IPerson` interface (5 members); `Gender` enum with `[MapValue]` single-char mappings (`M/F/U/O`); `TypeValue` enum with `[MapValue(null)]` for `Value0` (tests null-enum mapping); `Interfaces.cs` (`IIssue4031`, `IIssue4031<T>`, `Issue4031BaseExternal`) for interface-inheritance mapping issue regression; `Extensions.cs` (`BeginTransaction` extension on `ITestDataContext`).
+**Auxiliary types** -- `IPerson` interface (5 members), `Gender` enum with `[MapValue]` single-char mappings (`M/F/U/O`), `TypeValue` enum with `[MapValue(null)]` for `Value0` (tests null-enum mapping), `Interfaces.cs` (`IIssue4031`, `IIssue4031<T>`, `Issue4031BaseExternal`) for interface-inheritance mapping issue regression, `Extensions.cs` (`BeginTransaction` extension on `ITestDataContext`).
 
 ## Key types
 
 | Type | File | Role |
 |---|---|---|
-| `ITestDataContext` | `ITestDataContext.cs` | Contract for all test data contexts; 20 `ITable<T>` + `GetParentByID` |
-| `TestDataConnection` | `TestDataConnection.cs` | Primary `DataConnection` impl; also `ISystemSchemaData` |
-| `TestDataCustomConnection` | `TestDataCustomConnection.cs` | Composition-based impl; exercises non-`DataConnection` `IDataContext` paths |
-| `Person` | `Person.cs` | Core test entity; `[Column(Configuration=...)]` per-provider overrides, `[Association]` to `Patient` |
+| `ITestDataContext` | `ITestDataContext.cs` | Contract for all test data contexts, 20 `ITable<T>` + `GetParentByID` |
+| `TestDataConnection` | `TestDataConnection.cs` | Primary `DataConnection` impl, also `ISystemSchemaData` |
+| `TestDataCustomConnection` | `TestDataCustomConnection.cs` | Composition-based impl, exercises non-`DataConnection` `IDataContext` paths, forwards `IInfrastructure<IServiceProvider>` and `IInterceptable<IEntityServiceInterceptor>` to the wrapped connection |
+| `Person` | `Person.cs` | Core test entity, `[Column(Configuration=...)]` per-provider overrides, `[Association]` to `Patient` |
 | `ComplexPerson` | `ComplexPerson.cs` | Nested-record mapping (`[Column("FirstName","Name.FirstName")]`) via `FullName` value object |
 | `LinqDataTypes` | `LinqDataTypes.cs` | Type-coverage table: `decimal`, `DateTime`, `bool`, `Guid`, `Binary`, `short`, `string` with provider-specific `DataType` and `PrimaryKey` overrides (ClickHouse, Ydb) |
-| `ParentInheritanceBase` | `ParentChild.cs:413` | Abstract root of `Parent`-table inheritance; null-code + value-code + default mappings |
-| `InheritanceParentBase` | `InheritanceParentChild.cs:14` | Root of `InheritanceParent` table hierarchy; `TInheritance` interface |
-| `NorthwindDB` | `NorthwindDB.cs` | `DataConnection` for Northwind; includes `FreeTextTable<>` and `WithUpdateLock<T>` helpers |
-| `TestGrpcDataContext` | `Remote/Grpc/TestGrpcDataContext.cs` | gRPC remote context; skips cert validation for local test servers |
-| `TestWcfDataContext` | `Remote/WCF/TestWcfDataContext.cs` | WCF remote context (`net462` only); `NetTcpBinding` with extended timeouts |
+| `ParentInheritanceBase` | `ParentChild.cs:413` | Abstract root of `Parent`-table inheritance, null-code + value-code + default mappings |
+| `InheritanceParentBase` | `InheritanceParentChild.cs:14` | Root of `InheritanceParent` table hierarchy, `TInheritance` interface |
+| `NorthwindDB` | `NorthwindDB.cs` | `DataConnection` for Northwind, includes `FreeTextTable<>` and `WithUpdateLock<T>` helpers |
+| `TestGrpcDataContext` | `Remote/Grpc/TestGrpcDataContext.cs` | gRPC remote context, skips cert validation for local test servers |
+| `TestWcfDataContext` | `Remote/WCF/TestWcfDataContext.cs` | WCF remote context (`net462` only), `NetTcpBinding` with extended timeouts |
 
 ## Files (Tier 1 / Tier 2)
 
@@ -70,7 +71,7 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 |---|---|
 | `ITestDataContext.cs` | Defines the shared data-context contract for all test fixtures |
 | `TestDataConnection.cs` | Primary concrete `DataConnection` used in 95%+ of tests |
-| `Person.cs` | Core entity; exercises `[Column(Configuration)]`, `[Association]`, `IPerson` |
+| `Person.cs` | Core entity, exercises `[Column(Configuration)]`, `[Association]`, `IPerson` |
 | `Tests.Model.csproj` | Project references reveal all remote transport dependencies |
 
 **Tier 2** (all read, 22/22):
@@ -81,16 +82,17 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 
 **Outbound (this area depends on):**
 - `LinqToDB` (core) -- `IDataContext`, `DataConnection`, `ITable<T>`, `DataOptions`, `MappingSchema`, `Sql.*` attributes
+- `LinqToDB.Internal.Infrastructure` / `LinqToDB.Internal.Interceptors` -- `IInfrastructure<T>`, `IInterceptable<IEntityServiceInterceptor>` (used by `TestDataCustomConnection`)
 - `LinqToDB.Mapping` -- `[Table]`, `[Column]`, `[PrimaryKey]`, `[Identity]`, `[Association]`, `[InheritanceMapping]`, `[SequenceName]`, `[MapValue]`, `[NotColumn]`, `[Nullable]`, `[NotNull]`
 - `LinqToDB.Remote.SignalR` / `LinqToDB.Remote.SignalR.Client` -- `SignalRDataContext`
 - `LinqToDB.Remote.Grpc` -- `GrpcDataContext` (`!NETFRAMEWORK`)
 - `LinqToDB.Remote.HttpClient.Client` -- `HttpClientDataContext` (`!NETFRAMEWORK`)
 - `LinqToDB.Remote.Wcf` -- `WcfDataContext` (`NETFRAMEWORK`)
-- `LinqToDB.Scaffold` -- referenced in csproj; `TestDataConnection` uses `SystemSchemaModel` from `LinqToDB.Tools`
+- `LinqToDB.Scaffold` -- referenced in csproj, `TestDataConnection` uses `SystemSchemaModel` from `LinqToDB.Tools`
 - `LinqToDB.DataProvider.SqlServer` -- `SqlServerExtensions.FreeTextTable` in `NorthwindDB`
 
 **Inbound (consumers):**
-- TESTS-INFRA (`Tests.Base`) -- `TestBase` uses `ITestDataContext`; `TestBase.Tables.cs` seeds via `TestDataConnection`
+- TESTS-INFRA (`Tests.Base`) -- `TestBase` uses `ITestDataContext`, `TestBase.Tables.cs` seeds via `TestDataConnection`
 - TESTS-LINQ (`Tests/Tests.Linq`) -- every fixture queries through `ITestDataContext` / `TestDataConnection`
 - TESTS-EFCORE -- some fixtures use `NorthwindDB` for Northwind tests
 - TESTS-VB -- imports `Tests.Model` for VB LINQ tests
@@ -99,7 +101,7 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 ## Known issues / debt
 
 - `TestDataCustomConnection` partially stubs `IDataContext` -- `UseOptions`, `UseMappingSchema`, `AddMappingSchema`, `SetMappingSchema` are no-ops (return `null` / do nothing). This means tests using `TestDataCustomConnection` cannot exercise per-scope mapping overrides.
-- `TestWcfDataContext` and `FirebirdSpecific` are `NETFRAMEWORK`-only; the rest of the remote contexts are `!NETFRAMEWORK`. There is no `net462`-compatible HTTP remote context variant.
+- `TestWcfDataContext` and `FirebirdSpecific` are `NETFRAMEWORK`-only, the rest of the remote contexts are `!NETFRAMEWORK`. There is no `net462`-compatible HTTP remote context variant.
 - `GetParentByID` on all four remote contexts throws `NotImplementedException` -- table-valued function tests implicitly require `TestDataConnection` and will silently skip on remote test runs unless the fixture guards on context type.
 
 ## See also
@@ -145,6 +147,12 @@ Tier 2 (22/22 read):
 Tier 3: none
 
 Read (this run -- delta):
-- `Tests/Model/LinqDataTypes.cs` -- added `[PrimaryKey(Configuration = ProviderName.Ydb)]` on `LinqDataTypes.ID` (`LinqDataTypes.cs:13`), alongside the existing ClickHouse-scoped `[PrimaryKey]` (`LinqDataTypes.cs:12`); satisfies YDB's every-table-needs-a-PK requirement.
-- `Tests/Model/ParentChild.cs` -- added `[PrimaryKey(Configuration = ProviderName.Ydb)]` (with an explanatory `// YDB requires every table to have a primary key` comment) on `Parent.ParentID` (`ParentChild.cs:23`) and `GrandChild.GrandChildID` (`ParentChild.cs:171`); same YDB PK requirement.
+- `Tests/Model/LinqDataTypes.cs` -- added `[PrimaryKey(Configuration = ProviderName.Ydb)]` on `LinqDataTypes.ID` (`LinqDataTypes.cs:13`), alongside the existing ClickHouse-scoped `[PrimaryKey]` (`LinqDataTypes.cs:12`), satisfies the YDB every-table-needs-a-PK requirement.
+- `Tests/Model/ParentChild.cs` -- added `[PrimaryKey(Configuration = ProviderName.Ydb)]` (with an explanatory `// YDB requires every table to have a primary key` comment) on `Parent.ParentID` (`ParentChild.cs:23`) and `GrandChild.GrandChildID` (`ParentChild.cs:171`), same YDB PK requirement.
+
+Read (this run -- delta, 2026-10-09):
+- `Tests/Model/InheritanceParentChild.cs` -- `InheritanceParent1` / `InheritanceChild1` converted to body-less class declarations, no mapping change.
+- `Tests/Model/Northwind.cs` -- `ActiveProduct` converted to body-less class declaration, no mapping change.
+- `Tests/Model/ParentChild.cs` -- `ParentInheritanceNull` converted to body-less class declaration, no mapping change.
+- `Tests/Model/TestDataCustomConnection.cs` -- now implements `IInfrastructure<IServiceProvider>` and `IInterceptable<IEntityServiceInterceptor>` by forwarding to the wrapped `TestDataConnection`.
 </details>

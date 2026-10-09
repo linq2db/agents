@@ -3,17 +3,17 @@ area: SCAFFOLD
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-06-01
-last_verified_sha: 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 14/14
-coverage_tier_2: 267/267
+coverage_tier_2: 268/268
 ---
 
 # SCAFFOLD
 
 Model scaffolding library (`linq2db.Scaffold` NuGet package, assembly `linq2db.Scaffold`). Converts a live database connection into C# source code representing the data model. Consumers: [CLI](../CLI/INDEX.md) (`ScaffoldCommand`), [LINQPAD](../LINQPAD/INDEX.md) (`DynamicSchemaGenerator`), and T4 templates (via `ScaffoldOptions.T4()` preset).
 
-TFMs: `net462`, `netstandard2.0`, `net8.0`, `net9.0`, `net10.0`. Depends on `LinqToDB.Tools` (via `ProjectReference`) and `Humanizer.Core` (pluralization). Root namespace `LinqToDB`; assembly name `linq2db.Scaffold`.
+TFMs: `net462`, `netstandard2.0`, `net8.0`, `net9.0`, `net10.0`. Depends on `LinqToDB.Tools` (via `ProjectReference`, now with `PrivateAssets="contentfiles;build"` so the Tools package's content/build assets do not flow to Scaffold consumers) and `Humanizer.Core` (pluralization). Root namespace `LinqToDB`, assembly name `linq2db.Scaffold`.
 
 ## Pipeline
 
@@ -25,92 +25,96 @@ The three-phase public entry point lives in `Scaffolder` (`Source/LinqToDB.Scaff
 
 ## Subsystems
 
-### `Scaffold/` -- Public entry point (15 files)
-`Scaffolder` orchestrator, `ScaffoldOptions` (Default/T4 factories with three sub-options: SchemaOptions / DataModelOptions / CodeGenerationOptions), `ScaffoldInterceptors` abstract base, `NoOpScaffoldInterceptors` (internal sealed singleton null-object), `DataModelLoader` (5-file partial), `FinalDataModel`, `SourceCodeFile` `(string FileName, string Code)` final output record, `NameGenerationServices` static helper isolating association-name generation logic for unit-testability.
+### `Scaffold/` -- Public entry point (16 files)
+`Scaffolder` orchestrator, `ScaffoldOptions` (Default/T4 factories with three sub-options: SchemaOptions / DataModelOptions / CodeGenerationOptions), `ScaffoldInterceptors` abstract base, `NoOpScaffoldInterceptors` (internal sealed singleton null-object), `DataModelLoader` (5-file partial), `FinalDataModel`, `SourceCodeFile` `(string FileName, string Code)` final output record, `NameGenerationServices` static helper isolating association-name generation logic for unit-testability, `SqlServerDecimalOverflow` (internal static, namespace `LinqToDB.Scaffold.Internal`) -- see below.
+
+**SQL Server decimal overflow protection (opt-in).** `DataModelOptions.GenerateSqlServerDecimalOverflowProtection` (default `false`, also `false` in `ScaffoldOptions.T4()`) makes the scaffold emit `[GetSqlDecimal]` (`LinqToDB.DataProvider.SqlServer.GetSqlDecimalAttribute`) on `decimal` columns whose precision/scale can exceed CLR `decimal`. Reads through the attribute reduce scale to fit and can round least-significant digits, values above `decimal.MaxValue` still throw. The boundary is defined once in `SqlServerDecimalOverflow.ExceedsClrLimits(int? precision, int? scale)` = `precision >= 29 || scale > 28` (`Scaffold/SqlServerDecimalOverflow.cs`), shared by the new `DataModelLoader` path and the legacy T4 `ModelGenerator` path.
 
 **`DataModelLoader` partial files:**
 - `DataModelLoader.DataContext.cs` -- `BuildDataContext()`: creates `DataContextModel` with class name from options or `{DatabaseName}DB`, sets base type to `DataConnection`, populates constructors, adds optional XML-doc summary.
-- `DataModelLoader.Entities.cs` -- `BuildEntity()` / `BuildEntityColumns()` / `BuildAssociations()`: maps schema -> DataModel; computes cardinality from PK/FK overlap; delegates name generation to `NameGenerationServices.GenerateAssociationName()`.
+- `DataModelLoader.Entities.cs` -- `BuildEntity()` / `BuildEntityColumns()` / `BuildAssociations()`: maps schema -> DataModel, computes cardinality from PK/FK overlap, delegates name generation to `NameGenerationServices.GenerateAssociationName()`. `BuildEntityColumns` sets `ColumnMetadata.UseGetSqlDecimal` via private `ShouldUseGetSqlDecimal(Column, TypeMapping)`: true only when the option is on, `_schemaProvider.DatabaseOptions is SqlServerDatabaseOptions`, the mapped CLR type equals `WellKnownTypes.System.Decimal` (NRT-insensitive compare) and `SqlServerDecimalOverflow.ExceedsClrLimits` holds for the column precision/scale.
 - `DataModelLoader.Functions.cs` -- `BuildAggregateFunction()`/`BuildScalarFunction()`/`BuildTableFunction()`/`BuildStoredProcedure()`: each converts a schema `CallableObject` descendant into its DataModel counterpart. Multi-result stored procedures throw `NotImplementedException`.
-- `DataModelLoader.Generic.cs` -- `ProcessObjectName()` strips default schema/database; `GetOrAddAdditionalSchema()` lazily creates `AdditionalSchemaModel` wrapper.
+- `DataModelLoader.Generic.cs` -- `ProcessObjectName()` strips default schema/database. `GetOrAddAdditionalSchema()` lazily creates `AdditionalSchemaModel` wrapper.
 
 ### `Schema/` -- DB schema discovery contracts and adapters (33 files)
-`ISchemaProvider` primary contract; `ITypeMappingProvider` for type mapping; `LegacySchemaProvider` adapter over the legacy `IDataProvider.GetSchemaProvider().GetSchema()` API; `MergedAccessSchemaProvider` for multi-file Access (uses OLE DB as primary source, patches `COUNTER` column nullability + identity from ODBC); `AggregateTypeMappingsProvider` chains multiple `ITypeMappingProvider` instances (first non-null wins).
+`ISchemaProvider` primary contract. `ITypeMappingProvider` for type mapping. `LegacySchemaProvider` adapter over the legacy `IDataProvider.GetSchemaProvider().GetSchema()` API (its `ParseCallable` consistency checks for `IsLoaded` / `ResultTable` on scalar/aggregate functions were rewritten as the equivalent `proc.IsFunction && !proc.IsTableFunction` -- logic-neutral De Morgan simplification). `MergedAccessSchemaProvider` for multi-file Access (uses OLE DB as primary source, patches `COUNTER` column nullability + identity from ODBC). `AggregateTypeMappingsProvider` chains multiple `ITypeMappingProvider` instances (first non-null wins).
 
-**Common DTOs (`Schema/Common/`):** `DatabaseType` `(string? Name, int? Length, int? Precision, int? Scale)`; `TypeMapping` `(IType CLRType, DataType? DataType)`; `Sequence` `(SqlObjectName? Name)` -- sequence load not yet implemented (TODO).
+**Common DTOs (`Schema/Common/`):** `DatabaseType` `(string? Name, int? Length, int? Precision, int? Scale)`, `TypeMapping` `(IType CLRType, DataType? DataType)`, `Sequence` `(SqlObjectName? Name)` -- sequence load not yet implemented (TODO).
 
-**`DatabaseOptions`** base -- `ScalarFunctionSchemaRequired` (default `false`); `SqlServerDatabaseOptions` overrides to `true`. `DatabaseOptions.Default` singleton.
+**`DatabaseOptions`** base -- `ScalarFunctionSchemaRequired` (default `false`). `SqlServerDatabaseOptions` overrides to `true`. `DatabaseOptions.Default` singleton. `SqlServerDatabaseOptions` is also the discriminator for decimal-overflow protection.
 
-**Table DTOs (`Schema/Tables/`):** `TableLikeObject` abstract base `(SqlObjectName Name, string? Description, IReadOnlyCollection<Column> Columns, Identity? Identity, PrimaryKey? PrimaryKey)`; `Table`/`View` extend it; `Column` `(Name, Description, DatabaseType Type, bool Nullable, bool Insertable, bool Updatable, int? Ordinal)`; `ForeignKey` `(Name, Source, Target, IReadOnlyList<ForeignKeyColumnMapping> Relation)`; `ForeignKeyColumnMapping` `(SourceColumn, TargetColumn)`; `Identity` `(Column, Sequence?)`; `PrimaryKey` `(Name?, IReadOnlyCollection<string> Columns)` with `GetColumnPositionInKey(Column)`.
+**Table DTOs (`Schema/Tables/`):** `TableLikeObject` abstract base `(SqlObjectName Name, string? Description, IReadOnlyCollection<Column> Columns, Identity? Identity, PrimaryKey? PrimaryKey)`. `Table`/`View` extend it. `Column` `(Name, Description, DatabaseType Type, bool Nullable, bool Insertable, bool Updatable, int? Ordinal)`. `ForeignKey` `(Name, Source, Target, IReadOnlyList<ForeignKeyColumnMapping> Relation)`. `ForeignKeyColumnMapping` `(SourceColumn, TargetColumn)`. `Identity` `(Column, Sequence?)`. `PrimaryKey` `(Name?, IReadOnlyCollection<string> Columns)` with `GetColumnPositionInKey(Column)`.
 
-**Function DTOs (`Schema/Functions/`):** `CallableObject` base `(CallableKind Kind, SqlObjectName Name, string? Description, IReadOnlyCollection<Parameter> Parameters)`; `CallableKind` enum (ScalarFunction/AggregateFunction/TableFunction/StoredProcedure); `AggregateFunction` with `ScalarResult`; `ScalarFunction` with `Result`; `TableFunction` with `SchemaError?` + `IReadOnlyCollection<ResultColumn>?`; `StoredProcedure` with `SchemaError?` + `IReadOnlyList<IReadOnlyList<ResultColumn>>? ResultSets` + `Result`; `Parameter` `(Name, Description, DatabaseType Type, bool Nullable, ParameterDirection Direction)`; `Result`/`ResultKind` (Void/Tuple/Scalar; Dynamic commented out); `ScalarResult`; `TupleResult` (PostgreSQL tuple-returning); `VoidResult` (-> `object?`); `ResultColumn`.
+**Function DTOs (`Schema/Functions/`):** `CallableObject` base `(CallableKind Kind, SqlObjectName Name, string? Description, IReadOnlyCollection<Parameter> Parameters)`. `CallableKind` enum (ScalarFunction/AggregateFunction/TableFunction/StoredProcedure). `AggregateFunction` with `ScalarResult`. `ScalarFunction` with `Result`. `TableFunction` with `SchemaError?` + `IReadOnlyCollection<ResultColumn>?`. `StoredProcedure` with `SchemaError?` + `IReadOnlyList<IReadOnlyList<ResultColumn>>? ResultSets` + `Result`. `Parameter` `(Name, Description, DatabaseType Type, bool Nullable, ParameterDirection Direction)`. `Result`/`ResultKind` (Void/Tuple/Scalar, Dynamic commented out). `ScalarResult`. `TupleResult` (PostgreSQL tuple-returning). `VoidResult` (-> `object?`). `ResultColumn`.
 
 ### `DataModel/` -- Logical model layer (41 files)
-`DatabaseModel` root; `DataContextModel`; `EntityModel`; function model hierarchy (`FunctionModelBase` -> `ScalarFunctionModelBase` -> `ScalarFunctionModel`/`AggregateFunctionModel`; `TableFunctionModelBase` -> `TableFunctionModel`/`StoredProcedureModel`); `TupleModel`+`TupleFieldModel`; `SchemaModelBase`; `DataModelGenerator` (9-file partial); `IDataModelGenerationContext`.
+`DatabaseModel` root. `DataContextModel`. `EntityModel`. Function model hierarchy (`FunctionModelBase` -> `ScalarFunctionModelBase` -> `ScalarFunctionModel`/`AggregateFunctionModel`, `TableFunctionModelBase` -> `TableFunctionModel`/`StoredProcedureModel`). `TupleModel`+`TupleFieldModel`. `SchemaModelBase`. `DataModelGenerator` (9-file partial). `IDataModelGenerationContext`.
 
 #### DataModel / Context (5 files)
-`IDataModelGenerationContext` threaded through all generator partials. `DataModelGenerationContext` is root-context impl; `NestedSchemaGenerationContext` wraps for additional-schema contexts. `FileData` is a `sealed record(CodeFile File, Dictionary<string, ClassGroup> ClassesPerNamespace)` -- carries the per-output-file CodeModel AST node together with a map from namespace name to the `ClassGroup` within that file, used by generator partials to route entity/function class definitions to the correct file and namespace bucket. `CodeGenerationExtensions` provides static AST-builder bridge helpers.
+`IDataModelGenerationContext` threaded through all generator partials. `DataModelGenerationContext` is root-context impl. `NestedSchemaGenerationContext` wraps for additional-schema contexts. `FileData` is a `sealed record(CodeFile File, Dictionary<string, ClassGroup> ClassesPerNamespace)` -- carries the per-output-file CodeModel AST node together with a map from namespace name to the `ClassGroup` within that file, used by generator partials to route entity/function class definitions to the correct file and namespace bucket. `CodeGenerationExtensions` provides static AST-builder bridge helpers.
 
 #### DataModel / Entity generation (`DataModelGenerator.Entities.cs`)
 `DataModelGenerator` (partial) entity-generation methods -- all private static, called from `ConvertToCodeModel`:
-- **`BuildEntities(context, entities, defineEntityClass)`** -- iterates `EntityModel` list; registers each entity's `ClassBuilder` via `context.RegisterEntityBuilder`, delegates to `BuildEntity`.
+- **`BuildEntities(context, entities, defineEntityClass)`** -- iterates `EntityModel` list. Registers each entity's `ClassBuilder` via `context.RegisterEntityBuilder`, delegates to `BuildEntity`.
 - **`BuildEntity(context, entity)`** -- calls metadata builder, emits column properties via `context.DefineProperty`, registers each via `context.RegisterColumnProperty`, then calls `BuildEntityIEquatable` / `BuildEntityContextProperty` / `BuildFindExtensions`.
 - **`BuildEntityIEquatable(context, entity)`** -- conditional on `entity.ImplementsIEquatable` + PK columns. Generates a `private static readonly IEqualityComparer<TEntity>` via `ComparerBuilder.GetEqualityComparer(keySelectors[])`. Emits `IEquatable<T>.Equals`, `object.Equals` override, `object.GetHashCode` override in a `DataModelConstants.ENTITY_IEQUATABLE_REGION`.
 - **`BuildEntityContextProperty(context, model)`** -- skipped when `model.ContextProperty == null`. Emits an `ITable<TEntity>` property on the data context whose getter calls `DataExtensions.GetTable<TEntity>(this)`.
 - **`BuildFindExtensions(context, model)`** -- skipped when no PK. Dispatches to `BuildFindExtension` for all 12 `FindTypes` flag combinations (Find/FindAsync/FindQuery x ByPk/ByRecord x OnTable/OnContext).
-- **`BuildFindExtension(context, model, methodType)`** -- generates a single `public static extension` method. PK parameter order governed by `OrderFindParametersByColumnOrdinal` (ordinal) vs alphabetical. Filter lambda typed `Expression<Func<TEntity, bool>>`; comparisons ordered by `PrimaryKeyOrder`.
+- **`BuildFindExtension(context, model, methodType)`** -- generates a single `public static extension` method. The entry guard is now `!model.FindExtensions.HasFlag(methodType)` (was a manual mask compare `(FindExtensions & methodType) != methodType`, same semantics). PK parameter order governed by `OrderFindParametersByColumnOrdinal` (ordinal) vs alphabetical. Filter lambda typed `Expression<Func<TEntity, bool>>`, comparisons ordered by `PrimaryKeyOrder`.
 
 ### `CodeModel/AST/` -- Language-agnostic code AST (~80 files)
 All nodes implement `ICodeElement`. Marker interfaces: `ICodeExpression`, `ICodeStatement`, `ILValue`, `ITopLevelElement`, `ITypedName`. Abstract bases: `AttributeOwner`, `TypeBase`, `MethodBase`, `CodeTypedName`, `CodeAssignmentBase`, `CodeCallBase`, `CodeThrowBase`, `CodeElementList<T>`. Enums: `BinaryOperation`, `UnaryOperation`, `Modifiers`, `PragmaType`, `CodeParameterDirection`.
 
-Concrete nodes: Declaration (CodeClass/CodeMethod/CodeConstructor/CodeTypeInitializer/CodeProperty/CodeField/CodeParameter/CodeVariable); Structure (CodeFile/CodeNamespace/CodeBlock/CodeRegion); Expressions (CodeConstant/CodeDefault/CodeBinary/CodeUnary/CodeTernary/CodeAsOperator/CodeTypeCast/CodeSuppressNull/CodeAwaitExpression/CodeCallExpression/CodeNew/CodeNewArray/CodeLambda/CodeMember/CodeReference/CodeAssignmentExpression/CodeIndex/CodeNameOf/CodeThis/CodeTypeReference/CodeTypeToken/CodeIdentifier/CodeExternalPropertyOrField); Statements (CodeAssignmentStatement/CodeAwaitStatement/CodeCallStatement/CodeReturn/CodeThrowStatement/CodeThrowExpression); Annotation (CodeAttribute/CodeImport/CodePragma/CodeComment/CodeXmlComment/CodeEmptyLine).
+Concrete nodes: Declaration (CodeClass/CodeMethod/CodeConstructor/CodeTypeInitializer/CodeProperty/CodeField/CodeParameter/CodeVariable). Structure (CodeFile/CodeNamespace/CodeBlock/CodeRegion). Expressions (CodeConstant/CodeDefault/CodeBinary/CodeUnary/CodeTernary/CodeAsOperator/CodeTypeCast/CodeSuppressNull/CodeAwaitExpression/CodeCallExpression/CodeNew/CodeNewArray/CodeLambda/CodeMember/CodeReference/CodeAssignmentExpression/CodeIndex/CodeNameOf/CodeThis/CodeTypeReference/CodeTypeToken/CodeIdentifier/CodeExternalPropertyOrField). Statements (CodeAssignmentStatement/CodeAwaitStatement/CodeCallStatement/CodeReturn/CodeThrowStatement/CodeThrowExpression). Annotation (CodeAttribute/CodeImport/CodePragma/CodeComment/CodeXmlComment/CodeEmptyLine).
 
-Notable: `CodeUnary` only supports `Not`; `CodeIdentifier` is mutable with `OnChange` event; `TypeBase.ChangeHandler` wired to `IType.SetNameChangeHandler`; `SimpleTrivia` enum attached via `Before`/`After`.
+Notable: `CodeUnary` only supports `Not`, `CodeIdentifier` is mutable with `OnChange` event, `TypeBase.ChangeHandler` wired to `IType.SetNameChangeHandler`, `SimpleTrivia` enum attached via `Before`/`After`.
 
 #### AST / Groups (9 files)
-`IMemberGroup` (`IsEmpty`); `MemberGroup<TMember>` base; concrete `ClassGroup`, `ConstructorGroup`, `FieldGroup`, `MethodGroup`, `PropertyGroup`, `RegionGroup`, `PragmaGroup`. `Field/Property/MethodGroup.TableLayout` bool drives column-aligned output.
+`IMemberGroup` (`IsEmpty`), `MemberGroup<TMember>` base, concrete `ClassGroup`, `ConstructorGroup`, `FieldGroup`, `MethodGroup`, `PropertyGroup`, `RegionGroup`, `PragmaGroup`. `Field/Property/MethodGroup.TableLayout` bool drives column-aligned output.
 
 ### `CodeModel/Builders/` -- Fluent AST construction (15 files)
-`CodeBuilder` central factory. `TypeBuilder<TBuilder,TType>` -> `ClassBuilder`; `MethodBaseBuilder<...>` -> `MethodBuilder`/`ConstructorBuilder`/`LambdaMethodBuilder`/`TypeInitializerBuilder`; `PropertyBuilder`, `FieldBuilder`, `BlockBuilder`, `AttributeBuilder`, `XmlDocBuilder`, `NamespaceBuilder`, `RegionBuilder`.
+`CodeBuilder` central factory. `TypeBuilder<TBuilder,TType>` -> `ClassBuilder`. `MethodBaseBuilder<...>` -> `MethodBuilder`/`ConstructorBuilder`/`LambdaMethodBuilder`/`TypeInitializerBuilder`. `PropertyBuilder`, `FieldBuilder`, `BlockBuilder`, `AttributeBuilder`, `XmlDocBuilder`, `NamespaceBuilder`, `RegionBuilder`.
 
 ### `CodeModel/CodeGeneration/` -- Emission infrastructure (7 files)
-`IndentedWriter` (StringBuilder-backed, indent-tracked); `NameFixOptions` + `NameFixType`; `TableLayoutBuilder` (4-file partial) two-phase Layout+Data column-aligned generator.
+`IndentedWriter` (StringBuilder-backed, indent-tracked). `NameFixOptions` + `NameFixType`. `TableLayoutBuilder` (4-file partial) two-phase Layout+Data column-aligned generator.
 
 ### `CodeModel/Comparers/` (2 files)
-`CodeIdentifierComparer`; `TypeEqualityComparer` (configurable ignoreNRT/ignoreNullability).
+`CodeIdentifierComparer`, `TypeEqualityComparer` (configurable ignoreNRT/ignoreNullability).
 
 ### `CodeModel/Languages/CSharp/` (3 files)
-`CSharpLanguageProvider` singleton; `CSharpCodeGenerator` extends `CodeGenerationVisitor<>`, static `KeyWords` set (104); `CSharpNameNormalizationVisitor` fixes `CodeIdentifier` instances in-place.
+`CSharpLanguageProvider` singleton. `CSharpCodeGenerator` extends `CodeGenerationVisitor<>`, static `KeyWords` set (104). `CSharpNameNormalizationVisitor` fixes `CodeIdentifier` instances in-place.
 
 ### `CodeModel/Visitors/` (8 files)
-`CodeModelVisitor` 42-case dispatch; `NoopCodeModelVisitor`; `CodeGenerationVisitor`; `ConvertCodeModelVisitor`. Concrete: `ImportsCollector`, `NameScopesCollector`, `ProviderSpecificStructsEqualityFixer`.
+`CodeModelVisitor` 42-case dispatch. `NoopCodeModelVisitor`. `CodeGenerationVisitor`. `ConvertCodeModelVisitor`. Concrete: `ImportsCollector`, `NameScopesCollector`, `ProviderSpecificStructsEqualityFixer`.
 
 ### `CodeModel/Types/` (11 files)
-`IType` hierarchy: `RegularType`/`GenericType`/`OpenGenericType`/`ArrayType`/`TypeArgument`. `ITypeParser`/`TypeParser`. `WellKnownTypes` registry. `TypeExtensions.SetNameChangeHandler` walks the type graph.
+`IType` hierarchy: `RegularType`/`GenericType`/`OpenGenericType`/`ArrayType`/`TypeArgument`. `ITypeParser`/`TypeParser`. `WellKnownTypes` registry (now also exposes `WellKnownTypes.System.Decimal` and a new nested `WellKnownTypes.LinqToDB.DataProvider.SqlServer.GetSqlDecimalAttribute`, both public API additions in `PublicAPI.Shipped.txt`). `TypeExtensions.SetNameChangeHandler` walks the type graph.
 
 ### `CodeModel/Utils/` (1 file)
 `AstExtensions` -- recursive `EnumerateMemberGroups<TGroup>` / `EnumerateMembers<...>`.
 
 ### `Naming/` -- Identifier normalization (8 files)
-`NamingServices` core. `NameCasing` enum (None/Pascal/CamelCase/SnakeCase/LowerCase/UpperCase/T4CompatPluralized/T4CompatNonPluralized). `Pluralization` enum. `NameTransformation` enum (None/SplitByUnderscore/Association). `NormalizationOptions` (optional-override `_set` pattern, `MergeInto`, `.None` identity). `NameConverterBase` (`NormalizeName`/`GetLastWord` via `StringUtilities.EnumerateCharacters`). `HumanizerNameConverter` (Humanizer.Core Singularize/Pluralize; `"all"` uncountable).
+`NamingServices` core. `NameCasing` enum (None/Pascal/CamelCase/SnakeCase/LowerCase/UpperCase/T4CompatPluralized/T4CompatNonPluralized). `Pluralization` enum. `NameTransformation` enum (None/SplitByUnderscore/Association). `NormalizationOptions` (optional-override `_set` pattern, `MergeInto`, `.None` identity). `NameConverterBase` (`NormalizeName`/`GetLastWord` via `StringUtilities.EnumerateCharacters`). `HumanizerNameConverter` (Humanizer.Core Singularize/Pluralize, `"all"` uncountable).
 
 ### `Helpers/` (1 file)
 `StringUtilities.EnumerateCharacters` yields `(string codePoint, UnicodeCategory)` (surrogate-aware).
 
 ### `Metadata/` -- Mapping attribute/fluent generation (10 files)
-`IMetadataBuilder`; `MetadataSource` enum (None/Attributes/FluentMapping); `AttributeBasedMetadataBuilder` (eager); `FluentMetadataBuilder` (stateful, emits `FluentMappingBuilder` chain in `Complete`). DTOs: `EntityMetadata`, `ColumnMetadata`, `AssociationMetadata` (legacy `Alias`/`Storage` planned obsolete in v4), `FunctionMetadata`, `TableFunctionMetadata`.
+`IMetadataBuilder`, `MetadataSource` enum (None/Attributes/FluentMapping), `AttributeBasedMetadataBuilder` (eager), `FluentMetadataBuilder` (stateful, emits `FluentMappingBuilder` chain in `Complete`). DTOs: `EntityMetadata`, `ColumnMetadata`, `AssociationMetadata` (legacy `Alias`/`Storage` planned obsolete in v4), `FunctionMetadata`, `TableFunctionMetadata`.
+
+`ColumnMetadata.UseGetSqlDecimal` (new public bool) flags a column for the SQL Server decimal-overflow attribute. `AttributeBasedMetadataBuilder.BuildColumnMetadata` adds `GetSqlDecimalAttribute` to the property via `propertyBuilder.AddAttribute` when set. `FluentMetadataBuilder` per-member storage changed from a single attribute expression to `List<ICodeExpression>?` (null still means `.IsNotColumn()`): the column attribute plus optional `GetSqlDecimalAttribute` are each emitted as a separate `.HasAttribute(...)` call on the member chain, and the last-call terminator logic keys on the last attribute of the last member. Association metadata stores a single-element list.
 
 ### `ModelGeneration/` -- Legacy T4-compat generation layer (45 files)
-Older framework predating `DataModelGenerator` + CodeModel AST. **Not called by `Scaffolder`**; consumed by T4 templates directly. Namespace `LinqToDB.Tools.ModelGeneration`. See [T4-TEMPLATES](../T4-TEMPLATES/INDEX.md).
+Older framework predating `DataModelGenerator` + CodeModel AST. **Not called by `Scaffolder`**, consumed by T4 templates directly. Namespace `LinqToDB.Tools.ModelGeneration`. See [T4-TEMPLATES](../T4-TEMPLATES/INDEX.md).
 
-19 interfaces (`ITree`, `IClassMember`, `ITypeBase`, `IClass`, `ITable`, `IMemberBase`, `IMemberGroup`, `IField`, `IEvent`, `IMethod`, `IProcedure<TTable>`, `IProperty`, `IColumn`, `IForeignKey`, `IEditableObjectProperty`, `INotifyingPropertyProperty`, `IPropertyValidation`, `IModelSource`, `INamespace`, `IAttribute`); enums `AccessModifier`, `AssociationType`.
+19 interfaces (`ITree`, `IClassMember`, `ITypeBase`, `IClass`, `ITable`, `IMemberBase`, `IMemberGroup`, `IField`, `IEvent`, `IMethod`, `IProcedure<TTable>`, `IProperty`, `IColumn`, `IForeignKey`, `IEditableObjectProperty`, `INotifyingPropertyProperty`, `IPropertyValidation`, `IModelSource`, `INamespace`, `IAttribute`), enums `AccessModifier`, `AssociationType`.
 
-Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `Event<T>`, `Field<T>`, `Method<T>`, `ForeignKey<T>` (extends `Property<T>`), `ModelSource<TModel,TNamespace>`; plus `ModelType`, `NameChangedArgs` `(string OldName, string? NewName)`, `Namespace<T>`, `Parameter` (T4-layer SP parameter; distinct from `Schema/Functions/Parameter.cs`), `Property<T>`, `TableContext<TTable,TProcedure>`, `TypeBase`.
+Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `Event<T>`, `Field<T>`, `Method<T>`, `ForeignKey<T>` (extends `Property<T>`), `ModelSource<TModel,TNamespace>`, plus `ModelType`, `NameChangedArgs` `(string OldName, string? NewName)`, `Namespace<T>`, `Parameter` (T4-layer SP parameter, distinct from `Schema/Functions/Parameter.cs`), `Property<T>`, `TableContext<TTable,TProcedure>`, `TypeBase`.
 
 `ModelGenerator` (7 files: base + 6 partials), abstract partial `ModelGenerator` + `ModelGenerator<TTable,TProcedure>`:
-- `ModelGenerator.cs` -- base; `GenerateModel()`; static `KeyWords` (80) + replaceable delegates.
-- `ModelGenerator.DataModel.cs` -- `LoadServerMetadata` + `LoadMetadata`.
-- `ModelGenerator.LinqToDB.cs` -- `GenerateTypesFromMetadata` main entry. Public property defaults: `GenerateDataOptionsConstructors`=true, `GenerateFindExtensions`=true, `IsCompactColumns`=true, `IsCompactColumnAliases`=true, `GenerateViews`=true, `GenerateProceduresOnTypedContext`=true, `GenerateNameOf`=true, `GenerateTableRegion`=true, `GenerateSchemaAsType`=false, `SchemaNameSuffix`="Schema", `SchemaDataContextTypeName`="DataContext", `PrefixTableMappingWithSchema`=true, `PrefixTableMappingForDefaultSchema`=false. `BuildColumnComparison` replaceable `Func<...>`; `GetConstructors` replaceable factory.
+- `ModelGenerator.cs` -- base, `GenerateModel()`, static `KeyWords` (80) + replaceable delegates.
+- `ModelGenerator.DataModel.cs` -- `LoadServerMetadata` + `LoadMetadata`. `LoadServerMetadata` now captures `dataConnection.DataProvider.Name` into a `private protected string? DataProviderName` (used to detect SQL Server).
+- `ModelGenerator.LinqToDB.cs` -- `GenerateTypesFromMetadata` main entry. Public property defaults: `GenerateDataOptionsConstructors`=true, `GenerateFindExtensions`=true, `IsCompactColumns`=true, `IsCompactColumnAliases`=true, `GenerateViews`=true, `GenerateProceduresOnTypedContext`=true, `GenerateNameOf`=true, `GenerateTableRegion`=true, `GenerateSchemaAsType`=false, `SchemaNameSuffix`="Schema", `SchemaDataContextTypeName`="DataContext", `PrefixTableMappingWithSchema`=true, `PrefixTableMappingForDefaultSchema`=false, and new `GenerateSqlServerDecimalOverflowProtection`=false (public, T4-layer mirror of the DataModelOptions flag). When on, `IsSqlServerBuilder()` (`DataProviderName` starts with `ProviderName.SqlServer`) and `ShouldUseGetSqlDecimal(column)` (`BuildType()` is `decimal`/`decimal?` and `SqlServerDecimalOverflow.ExceedsClrLimits`) add `using LinqToDB.DataProvider.SqlServer` and a `GetSqlDecimal` attribute to the column. `BuildColumnComparison` replaceable `Func<...>`, `GetConstructors` replaceable factory.
 - `ModelGenerator.NotifyPropertyChanged.cs` -- `INotifyPropertyChanged`/`INotifyPropertyChanging`.
 - `ModelGenerator.EditableObject.cs` -- `IEditableObject`.
 - `ModelGenerator.NotifyDataErrorInfo.cs` -- `INotifyDataErrorInfo`. **WPF `Application.Current.Dispatcher` baked into generated body.**
@@ -122,6 +126,8 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 |---|---|---|
 | `Scaffolder` | `Scaffold/Scaffolder.cs:18` | Public 3-method orchestrator |
 | `ScaffoldOptions` | `Scaffold/Options/ScaffoldOptions.cs:8` | Root options (Default/T4 factories) |
+| `DataModelOptions.GenerateSqlServerDecimalOverflowProtection` | `Scaffold/Options/DataModelOptions.cs` | Opt-in `[GetSqlDecimal]` emission for SQL Server decimal columns |
+| `SqlServerDecimalOverflow` | `Scaffold/SqlServerDecimalOverflow.cs` | Internal static `ExceedsClrLimits(precision, scale)` shared by loader and T4 generator |
 | `ScaffoldInterceptors` | `Scaffold/Customization/ScaffoldInterceptors.cs:19` | Abstract extensibility base |
 | `NoOpScaffoldInterceptors` | `Scaffold/Customization/NoOpScaffoldInterceptors.cs` | Internal null-object default |
 | `DataModelLoader` | `Scaffold/DataModel/DataModelLoader.cs:18` | Schema -> DataModel (5-part partial) |
@@ -151,6 +157,7 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 | `NormalizationOptions` | `Naming/NormalizationOptions.cs` | Per-element normalization config |
 | `NameCasing`/`Pluralization`/`NameTransformation` | `Naming/` | Naming enums |
 | `IMetadataBuilder`/`AttributeBasedMetadataBuilder`/`FluentMetadataBuilder` | `Metadata/` | Mapping emission strategies |
+| `ColumnMetadata` (`UseGetSqlDecimal`) | `Metadata/Model/ColumnMetadata.cs` | Column mapping DTO, carries the decimal-overflow flag |
 | `ModelGenerator`/`ModelGenerator<TTable,TProcedure>` | `ModelGeneration/` | Legacy T4-compat generation root |
 | `ModelType`/`TypeBase`/`Namespace<T>`/`Property<T>`/`Parameter`/`TableContext<...>`/`NameChangedArgs` | `ModelGeneration/` | Legacy T4-compat concrete types |
 
@@ -158,20 +165,20 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 
 **Tier 1 (14 files -- read in full):** Scaffolder.cs, ScaffoldInterceptors.cs, ScaffoldOptions.cs, SchemaOptions.cs, DataModelOptions.cs (sampled), DataModelLoader.cs, DatabaseModel.cs, EntityModel.cs, DataModelGenerator.cs, ISchemaProvider.cs, LegacySchemaProvider.cs, ICodeElement.cs, CodeElementType.cs, ILanguageProvider.cs.
 
-**Tier 2 (267 / 267 -- 100%):** All files read across batches 1-5. See Coverage block.
+**Tier 2 (268 / 268 -- 100%):** All files read across batches 1-5, plus the new `Scaffold/SqlServerDecimalOverflow.cs` (delta). See Coverage block.
 
 ## Inbound / outbound dependencies
 
 **Consumers (inbound):**
 - [CLI](../CLI/INDEX.md) -- `ScaffoldCommand` constructs `Scaffolder` -> 3-method pipeline.
-- [LINQPAD](../LINQPAD/INDEX.md) -- `DynamicSchemaGenerator` constructs `Scaffolder`; `ModelProviderInterceptor` implements `ScaffoldInterceptors`; `DataModelAugmentor` implements `ConvertCodeModelVisitor`.
+- [LINQPAD](../LINQPAD/INDEX.md) -- `DynamicSchemaGenerator` constructs `Scaffolder`, `ModelProviderInterceptor` implements `ScaffoldInterceptors`, `DataModelAugmentor` implements `ConvertCodeModelVisitor`.
 - T4 templates -- use `ModelGeneration/` layer (legacy, separate from `Scaffolder`).
 
 **Dependencies (outbound):**
 - [METADATA / CORE](../METADATA/INDEX.md) -- `LegacySchemaProvider` calls legacy `IDataProvider.GetSchemaProvider().GetSchema()`.
-- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- `Scaffolder.GenerateCodeModel` and `DataModelGenerator` accept `ISqlBuilder` for full function-name generation.
+- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- `Scaffolder.GenerateCodeModel` and `DataModelGenerator` accept `ISqlBuilder` for full function-name generation. `WellKnownTypes` now references `LinqToDB.DataProvider.SqlServer.GetSqlDecimalAttribute` (core SQL Server provider).
 - [METADATA attributes](../METADATA/INDEX.md) -- `AttributeBasedMetadataBuilder`/`FluentMetadataBuilder` emit attributes / fluent calls.
-- `LinqToDB.Tools` (ProjectReference); `Humanizer.Core` (PackageReference); `System.Windows` (WPF) for `ModelGenerator.NotifyDataErrorInfo.cs` generated body.
+- `LinqToDB.Tools` (ProjectReference, `PrivateAssets="contentfiles;build"`), `Humanizer.Core` (PackageReference), `System.Windows` (WPF) for `ModelGenerator.NotifyDataErrorInfo.cs` generated body.
 
 ## Known issues / debt
 
@@ -191,8 +198,9 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 - **Multi-result stored procedures not supported** -- `DataModelLoader.BuildStoredProcedure` throws `NotImplementedException` for `ResultSets.Count > 1`.
 - **`ResultKind.Dynamic`** commented out -- not yet supported.
 - **`MergedAccessSchemaProvider.GetProcedures`** has commented-out `|| safeSchemaOnly` (line 53).
-- **`BuildFindExtension` duplicate sort block** (`DataModelGenerator.Entities.cs:289`, DI-0783): the `OrderFindParametersByColumnOrdinal` ordinal-sort is applied twice with no intervening by-name path executed; the second `OrderBy` is a no-op residue from an earlier two-sort design.
+- **`BuildFindExtension` duplicate sort block** (`DataModelGenerator.Entities.cs:289`, DI-0783): the `OrderFindParametersByColumnOrdinal` ordinal-sort is applied twice with no intervening by-name path executed, the second `OrderBy` is a no-op residue from an earlier two-sort design.
 - **`NormalizeStringName` kept without `[Obsolete]`** (`ModelGenerator.LinqToDB.cs:179`, DI-0784): public method explicitly annotated `// unused: left for backward API compatibility`.
+- **Decimal-overflow protection is opt-in and SQL Server only.** `GetSqlDecimal` reduces scale on read (can round least-significant digits) and values above `decimal.MaxValue` still throw. Off by default and off in `ScaffoldOptions.T4()`.
 
 ## See also
 
@@ -205,7 +213,7 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 14 / 14
-- Tier 2 (visited / total): 267 / 267 (100%)
+- Tier 2 (visited / total): 268 / 268 (100%)
 
 Read across batches 1-5: full `Source/LinqToDB.Scaffold/` source tree -- Scaffold/* + Schema/* + DataModel/* + CodeModel/* + Naming/* + Helpers/* + Metadata/* + ModelGeneration/* (legacy T4-compat layer).
 
@@ -216,4 +224,20 @@ Read (this run -- delta):
 - `DataModel/DataModelGenerator.Entities.cs` -- entity-generation partial; documented `BuildEntities`/`BuildEntity`/`BuildEntityIEquatable`/`BuildEntityContextProperty`/`BuildFindExtensions`/`BuildFindExtension` in new `#### DataModel / Entity generation` subsection; flagged duplicate-sort debt (DI-0783).
 - `ModelGeneration/ModelGenerator.LinqToDB.cs` -- `GenerateTypesFromMetadata` main entry; added public property default values; flagged `NormalizeStringName` dead-code (DI-0784).
 - `PublicAPI/PublicAPI.Shipped.txt` -- release-promotion churn (>256 KB); not read in full. No structural changes to INDEX.md body warranted.
+
+Read (this run -- delta):
+- `CodeModel/Types/WellKnownTypes.cs` -- added `System.Decimal` and `LinqToDB.DataProvider.SqlServer.GetSqlDecimalAttribute` descriptors.
+- `DataModel/DataModelGenerator.Entities.cs` -- `BuildFindExtension` guard switched to `HasFlag`, no behavior change.
+- `LinqToDB.Scaffold.csproj` -- `LinqToDB.Tools` ProjectReference gained `PrivateAssets="contentfiles;build"`.
+- `Metadata/AttributeBasedMetadataBuilder.cs` -- adds `GetSqlDecimalAttribute` when `UseGetSqlDecimal`.
+- `Metadata/FluentMetadataBuilder.cs` -- member map now holds attribute lists, emits multiple `.HasAttribute` calls.
+- `Metadata/Model/ColumnMetadata.cs` -- new `UseGetSqlDecimal` property.
+- `ModelGeneration/ModelGenerator.DataModel.cs` -- new `DataProviderName` captured in `LoadServerMetadata`.
+- `ModelGeneration/ModelGenerator.LinqToDB.cs` -- new `GenerateSqlServerDecimalOverflowProtection`, `IsSqlServerBuilder`, `ShouldUseGetSqlDecimal` column handling.
+- `PublicAPI/PublicAPI.Shipped.txt` -- +10 lines: `UseGetSqlDecimal`, `GenerateSqlServerDecimalOverflowProtection` (two), `WellKnownTypes` additions.
+- `Scaffold/DataModel/DataModelLoader.Entities.cs` -- `ShouldUseGetSqlDecimal` sets `ColumnMetadata.UseGetSqlDecimal`.
+- `Scaffold/Options/DataModelOptions.cs` -- new `GenerateSqlServerDecimalOverflowProtection` option, rest is doc typo fixes (compability to compatibility).
+- `Scaffold/Options/ScaffoldOptions.cs` -- T4 preset sets the new option to `false`.
+- `Scaffold/SqlServerDecimalOverflow.cs` (new) -- `ExceedsClrLimits` shared boundary (precision >= 29 or scale > 28).
+- `Schema/LegacySchemaProvider.cs` -- `ParseCallable` guard conditions simplified, logic-neutral.
 </details>

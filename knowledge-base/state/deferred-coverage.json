@@ -2,12 +2,552 @@
   "schema": 1,
   "areas": {
     "TESTS-LINQ": {
-      "deferred_at": "2026-07-06",
+      "deferred_at": "2026-10-09",
       "deferred_at_sha": "",
       "files": [
         {
+          "path": "Tests/Linq/Common/ConvertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Common/DefaultValueTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Data/DataConnectionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Data/MiniProfilerTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Data/RetryPolicyTest.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Data/TraceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/AccessTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/DB2Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/FirebirdTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/InformixTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/MySqlTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/OracleTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/PostgreSQLArrayTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/PostgreSQLExtensionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/PostgreSQLTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SapHanaTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SqlCeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SQLiteTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SqlServerFunctionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SqlServerTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SqlServerTypesTests.TVP.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/SqlServerVectorTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/Types/ClickHouseTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/Types/PostgreSQLTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/Types/YdbTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/DataProvider/UniqueParametersNormalizerTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Exceptions/StackUseTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/ClickHouseTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/ClickHouseTests.generated.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/ClickHouseTests.tt",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/OracleTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/PostgreSQLTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/SqlCeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/SqlServerTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/SqlServerTests.generated.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/SqlServerTests.tt",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Extensions/TableIDTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Infrastructure/DataOptionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AbstractionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AggregationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AK107Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AllAnyTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AnalyticTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ArrayTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AssociationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/AsyncTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/BooleanTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CachingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CalculatedColumnTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CommonTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CompileTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CompileTestsAsync.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ComplexTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ComplexTests2.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConcatUnionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConcurrencyTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConflictActionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConstantTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ContainsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConvertExpressionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ConvertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CountTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CteMaterializedTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/CteTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DataContextTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DataTypesTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DateTimeFunctionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DateTimeOffsetTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DistinctByMethodTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DistinctTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/DynamicResultTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EagerLoadingStrategyKeyedQueryTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EagerLoadingStrategyUnionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EagerLoadingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EnumerableSourceTests.AsQueryable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EnumerableSourceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EnumMappingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/EvaluationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ExpressionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ExpressionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/FromSqlTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/FSharpTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/FullTextTests.SQLite.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/FullTextTests.SqlServer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/FunctionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/GenerateExpressionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/GenericExtensionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/GroupByTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/InheritanceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/InSubqueryTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/InterfaceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Arithmetic.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Difference.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Mapping.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Members.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Queries.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IntervalTranslationTests.Write.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/IssueTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/JoinOptimizeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/JoinTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/L2SAttributeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/LoadWithTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/MappingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/MathFunctionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ParameterTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/PredicateTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/PreferClientCalculationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/QueryableAssociationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/QueryExpressionInterceptorTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/QueryFilterTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/QueryGenerationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/QueryInheritanceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/RemoteContextTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SelectQueryOptimizationTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SelectQueryTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SelectTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SpecialFunctionsTest.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SqlRowTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/StringConcatTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/StringFunctionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/StringJoinTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/StringTrimTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/SubQueryTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/TableOptionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/TakeSkipTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/TestQueryCache.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/TphInheritanceTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/TypesTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/ValueConversionTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/VisualBasicTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WhereTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Average.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Combinations.cs",
+          "reason": "budget"
+        },
+        {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Count.cs",
-          "reason": "new this delta; same Sql.Window.<Fn> + [ThrowsForProvider(ErrorHelper.Error_WindowFunction_*)] pattern as 4 sampled siblings (Combinations/Corr/HypotheticalSet/RegrSlope)"
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.CovarPop.cs",
@@ -16,6 +556,14 @@
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.CovarSamp.cs",
           "reason": "new this delta; same formulaic pattern as sampled siblings"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.DenseRank.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Equality.cs",
@@ -27,43 +575,67 @@
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.FirstValue.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Frame.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.FrameExclusion.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.HypotheticalSet.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Keep.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Lag.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.LastValue.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Lead.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Max.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Median.cs",
           "reason": "new this delta; same formulaic pattern as sampled siblings"
         },
         {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Min.cs",
+          "reason": "budget"
+        },
+        {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.NthValue.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.PercentileCont.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.PercentileDisc.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Rank.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.RatioToReport.cs",
-          "reason": "new this delta; same formulaic pattern as sampled siblings"
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.RegrAvgX.cs",
@@ -98,6 +670,10 @@
           "reason": "new this delta; same formulaic pattern as sampled siblings"
         },
         {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.RowNumber.cs",
+          "reason": "budget"
+        },
+        {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.StdDev.cs",
           "reason": "new this delta; same formulaic pattern as sampled siblings"
         },
@@ -108,6 +684,10 @@
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.StdDevSamp.cs",
           "reason": "new this delta; same formulaic pattern as sampled siblings"
+        },
+        {
+          "path": "Tests/Linq/Linq/WindowFunctionsTests.Sum.cs",
+          "reason": "budget"
         },
         {
           "path": "Tests/Linq/Linq/WindowFunctionsTests.Variance.cs",
@@ -122,8 +702,1064 @@
           "reason": "new this delta; same formulaic pattern as sampled siblings"
         },
         {
+          "path": "Tests/Linq/Mapping/CanBeNullTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/DynamicStoreTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/FluentDynamicMappingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/FluentMappingBuildTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/FluentMappingExpressionMethodTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/FluentMappingTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/MappingSchemaTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Mapping/ValueConverterColumnDbTypeTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Microsoft/MicrosoftODataTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/OrmBattle/OrmBattleTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Reflection/AttributesTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Samples/ConcurrencyCheckTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Samples/JsonConvertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Scaffold/SchemaProviderTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/SchemaProvider/PostgreSQLSchemaProviderTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/SchemaProvider/SchemaProviderTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Tools/ComparerBuilderTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Tools/Mapper/MapperTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/BulkCopyTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/CreateTableTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/CreateTempTableTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/DeleteTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/DropTableTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/EntityInsertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/EntityUpdateTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/InsertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.ApiParametersValidation.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Caching.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.IQueryableSource.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Issues.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.Combined.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.Delete.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.DeleteBySource.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.Insert.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.Parameters.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.UpdateBySource.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Operations.UpdateWithDelete.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MergeTests.Types.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/MultiInsertTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/UpdateFromTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/UpdateFromTests.Row.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/UpdateTests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/Update/UpdateWithOutputTests.cs",
+          "reason": "budget"
+        },
+        {
           "path": "Tests/Linq/Update/UpsertTests.ApiParametersValidation.cs",
           "reason": "new this delta; not individually read -- same ApiParametersValidation shape as 3 sampled Upsert siblings (Single/Enumerable/Queryable) and EntityDmlApiParametersValidationTests.cs"
+        },
+        {
+          "path": "Tests/Linq/Update/UpsertTests.Single.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1238Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1284Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1307Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue133Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1347Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1363Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1373Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1403Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1412Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1564Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1700Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1736Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue1869Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue2052Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue2161Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue228Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue2596Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue2743Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue2832Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3089Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3148Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3230Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3257Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3259Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3305Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3475Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3548Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue3926Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue4336Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue4383Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue447Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5283Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5302Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5336Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5347Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5505Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5576Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue5616Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue693Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue773Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue822Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue973Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/Issue975Tests.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Tests/Linq/UserTests/VeryLongRunningTest.cs",
+          "reason": "budget"
+        }
+      ]
+    },
+    "INTERNAL-API": {
+      "deferred_at": "2026-10-09",
+      "deferred_at_sha": "",
+      "files": [
+        {
+          "path": "Source/LinqToDB/Internal/Async/SafeAwaiter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Common/ObjectPool.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Access/AccessOleDbSchemaProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Access/AccessSqlBuilderBase.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DatabaseSpecificQueryable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DatabaseSpecificTable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DB2/DB2SqlBuilderBase.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DB2/DB2SqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DB2/Translation/DB2MemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlOptimizer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Firebird/Firebird3SqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdProviderAdapter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/MySql/MySqlDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/MySql/MySqlProviderAdapter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Oracle/OracleBulkCopy.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQL12SqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLBulkCopy.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLProviderDetector.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSchemaProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQL13MemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQL19MemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQLMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlCe/SqlCeSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteSchemaProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2014SqlOptimizer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSchemaProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Translation/MathMemberTranslatorBase.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Ydb/YdbDataProvider.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Ydb/YdbProviderAdapter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Ydb/YdbSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Expressions/ExpressionEqualityComparer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Expressions/ExpressionVisitors/EqualsToVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Expressions/InternalExtensions.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Expressions/SkipIfConstantAttribute.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Interceptors/AggregatedConnectionInterceptor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Interceptors/AggregatedDataContextInterceptor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Interceptors/IInterceptable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/AssociationHelper.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/Attributes.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/BuildProxyBase{TOwner}.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ContainsBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/CteContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/DistinctBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/DistinctByBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/EntityConstructorBase.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.EagerLoad.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.EagerLoadKeyedQuery.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.Generation.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.QueryBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.SqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ExpressionTreeOptimizationContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/FirstSingleBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/GroupByBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/GroupJoinBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/MergeProjectionHelper.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/MethodChainBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ParametersContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ProjectFlagExtensions.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/ProjectFlags.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/QueryExtensionBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/SelectContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/SequenceHelper.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/SetOperationBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/SubQueryContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/TableBuilder.TableContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/TableLikeQueryContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Builder/Visitors/ExposeExpressionVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/CompiledTable{T}.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/EagerEvaluationAttribute.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/ExpressionCacheManager.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/ExpressionQuery.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/IQueryContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/LimitResultEnumerable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/LinqInternalExtensions.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Query.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/Query{T}.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/QueryInfo.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/Linq/QueryRunner.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.Merge.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/BasicSqlOptimizer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/JoinsOptimizer.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/OptimizationContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/SqlProviderFlags.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlProvider/TableOptionsExtensions.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/AliasesContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/NullabilityContext.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/QueryHelper.Evaluate.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlArgumentDomain.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlArgumentDomains.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlCastExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlColumn.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlExtendedFunction.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalDifferenceExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalDomain.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalPartExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalPartKind.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalType.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalUnit.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlIntervalUnits.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlParameter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlParameterCastExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlParameterizedExpressionBase.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlParameterValue.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlParameterValues.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlRawSqlTable.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlTableSource.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/SqlTemporalArithmeticExpression.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/Visitors/SelectQueryOptimizerVisitor.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/Visitors/SqlQueryColumnNestingCorrector.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB/Internal/SqlQuery/Visitors/SqlQueryParentFirstVisitor{TContext}.cs",
+          "reason": "budget"
+        }
+      ]
+    },
+    "CLI": {
+      "deferred_at": "2026-10-09",
+      "deferred_at_sha": "",
+      "files": [
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Connection/ConnectionExecutionResult.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Connection/ConnectionOptionValues.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Connection/ConnectionSettings.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Credentials/CredentialProfile.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Credentials/ICredentialStore.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Help/HelpCommand.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/Mcp/McpQueryStartupOptions.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryExecutionConfiguration.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryExecutionMode.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryExecutionOptionValues.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryExecutionResult.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryExecutionSettings.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryTruncationReason.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryValueFormatter.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/SqlGuardResult.cs",
+          "reason": "budget"
+        },
+        {
+          "path": "Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/WindowsImpersonationMode.cs",
+          "reason": "budget"
         }
       ]
     }

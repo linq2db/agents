@@ -3,8 +3,8 @@ area: REMOTE-CLIENT
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 9/9
 coverage_tier_2: 4/4
 ---
@@ -37,7 +37,7 @@ In-tree contracts and base implementations for the linq2db remote-execution faci
 
 - **Context creation.** `CreateDataContext(string? configuration)` (virtual, `:64`) constructs a `DataConnection`, applies `RemoteClientTag`, optionally overlays `MappingSchema`.
 - **Policy guard.** `ValidateQuery(LinqServiceQuery query)` (virtual, `:73`) throws `LinqToDBException` if `AllowUpdates == false` and the statement isn't a `SELECT`.
-- **Deserialization.** Each handler deserializes the wire payload via `LinqServiceSerializer.Deserialize` (see [INTERNAL-API](../INTERNAL-API/INDEX.md)) into a `LinqServiceQuery`, executes against a fresh `DataConnection`, re-serializes.
+- **Deserialization.** Each handler deserializes the wire payload via `LinqServiceSerializer.Deserialize` (see [INTERNAL-API](../INTERNAL-API/INDEX.md)) into a `LinqServiceQuery`, executes against a fresh `DataConnection`, re-serializes. The mapping schema passed to the deserializer is the created context's own `db.MappingSchema` (`:114`, `:146`, `:209`, `:244--245`), no longer the service-level `MappingSchema ?? SerializationMappingSchema` fallback -- so a schema supplied by a `CreateDataContext` override (e.g. via `IDataContextFactory<T>`) is honoured when resolving types on the wire.
 - **Batch execution.** `ExecuteBatchAsync` deserializes a string array (`LinqServiceSerializer.DeserializeStringArray`), validates each, runs them in a single transaction, returns the byte-count of the raw input string as a sentinel (`:266`).
 - **Scalar serialization.** `ProcessScalar` wraps a raw scalar in a single-row `LinqServiceResult` (`:172--197`).
 - **Data reader materialization.** `ProcessDataReaderWrapper` handles column-type inference for enums/value converters from `SelectQuery.Columns` or DML `Output.OutputColumns` (`:277--388`).
@@ -60,6 +60,8 @@ In-tree contracts and base implementations for the linq2db remote-execution faci
 
 **Configuration bootstrap.** On first use `PreloadConfigurationInfoAsync` (`:248`) calls `GetInfoAsync`, resolves assembly-qualified type names from `LinqServiceInfo`, hydrates a `ConfigurationInfo` record (`:106`) held in a static `ConcurrentDictionary<string,ConfigurationInfo>` keyed by `ConfigurationString` (`:115`). Subsequent contexts reuse the cached record. Public entry point: `ConfigureAsync(CancellationToken)` (`:295`).
 
+**Client ownership.** `protected virtual bool OwnsClient => true` (`RemoteDataContextBase.cs:308`) tells the base whether the `ILinqService` returned by the abstract `GetClient()` belongs to the caller. When `true` (default), the client is disposed after bootstrap (`:285`), after `CommitBatchAsync` (`:585`) and when a `QueryRunner` is disposed. A transport that hands out one shared client overrides it to `false` so a single query cannot dispose the client shared by every other query.
+
 **Service provider.** Implements `IInfrastructure<IServiceProvider>` (`:83--104`) via double-checked lock (`Lock _guard`, `:81`, `System.Threading.Lock`). The backing field is lazily initialized via `InitServiceProvider` (`:69--79`), populating a `SimpleServiceProvider` with the `IMemberTranslator`, `IMemberConverter`, and (if present) `IDmlService` from the resolved `ConfigurationInfo`.
 
 **Remote wrapper types.** Three nested sealed classes wrap server-resolved service types with per-type `MemoryCache`-based caches, each keyed by the resolved `Type` and bound to `Common.Configuration.Linq.CacheSlidingExpiration`:
@@ -74,7 +76,7 @@ All three are instantiated via `ActivatorExt.CreateInstance<T>(resolvedType)` an
 
 **Mapping schema chain.** `RemoteMappingSchema` (nested, `:117`) caches per-`(contextIDPrefix, mappingSchemaType)`. SQL Server, Firebird, Oracle receive special `GetRemoteMappingSchema` treatment to inject provider-specific type converters (`:138--140`); others use `ActivatorExt.CreateInstance`. `SerializationMappingSchema` (`:357`) combines `Internal.Remote.SerializationMappingSchema.Instance` with the resolved provider schema.
 
-**Batch mode.** `BeginBatch()` / `CommitBatchAsync()` (`:544--580`) accumulate serialized query strings in `_queryBatch` and flush via `ExecuteBatchAsync`. `QueryRunner.ExecuteNonQueryAsync` short-circuits into the batch queue (`.QueryRunner.cs:259--261`).
+**Batch mode.** `BeginBatch()` / `CommitBatchAsync()` (`:544--580`) accumulate serialized query strings in `_queryBatch` and flush via `ExecuteBatchAsync`. `QueryRunner.ExecuteNonQueryAsync` short-circuits into the batch queue (`.QueryRunner.cs:259--261`). The flush disposes the client only when `OwnsClient` is true (`:585`).
 
 **Scoped options / schema override.** `UseOptions(Func<DataOptions,DataOptions>)` (`:755`) and `UseMappingSchema(MappingSchema)` (`:780`) return `IDisposable?` tokens restoring prior state on disposal.
 
@@ -88,11 +90,13 @@ All three are instantiated via `ActivatorExt.CreateInstance<T>(resolvedType)` an
 
 1. Call `ISqlOptimizer.PrepareStatementForRemoting` to finalize the AST.
 2. Serialize via `LinqServiceSerializer.Serialize`.
-3. Call the appropriate `ILinqService` method on a `_client` from `RemoteDataContextBase.GetClient()` (abstract).
+3. Call the appropriate `ILinqService` method on a `_client` from `RemoteDataContextBase.GetClient()` (abstract). The field is assigned with `_client ??= _dataContext.GetClient()` (`.QueryRunner.cs:203`, `:235`, `:276`), so a runner reuses one client across several executions instead of fetching (and leaking) a new one each time.
 4. Deserialize the response.
 5. Wrap in a `RemoteDataReader` (internal), exposed as `IDataReaderAsync`.
 
-Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.cs:145--149`). `GetSqlText()` reconstructs the full SQL locally without a request (`.QueryRunner.cs:51--125`).
+`Dispose` / `DisposeAsync` (`.QueryRunner.cs:132--156`) null out `_client` first and dispose it only when `_dataContext.OwnsClient` is true (`:138`, `:150`), then call the base.
+
+Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.cs:145--149`). `GetSqlText()` reconstructs the full SQL locally without a request (`.QueryRunner.cs:51--125`): per command it builds an `OptimizationContext`, runs `PrepareStatementForSql`, and only then calls `AliasesHelper.PrepareQueryAndAliases(new IdentifierServiceSimple(128), statement, out var aliases)` on the prepared statement (`:85--89`). Aliasing the post-prepare statement is deliberate: `PrepareStatementForSql` can produce new nodes and the alias context is keyed to visited nodes, so aliasing the pre-prepare `query.Statement` (the earlier behaviour) left rendered nodes unresolved.
 
 ### Interceptors (partial)
 
@@ -110,7 +114,7 @@ Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.c
 
 ### DataService (legacy, NETFRAMEWORK only)
 
-`DataService<T>` (`Source/LinqToDB/Remote/DataService.cs`) compiled only under `#if NETFRAMEWORK`. Extends `System.Data.Services.DataService<T>` (WCF Data Services / OData v3). Update/open-property operations all `throw new NotSupportedException()`. Legacy integration path; no new development targets it.
+`DataService<T>` (`Source/LinqToDB/Remote/DataService.cs`) compiled only under `#if NETFRAMEWORK`. Extends `System.Data.Services.DataService<T>` (WCF Data Services / OData v3). Update/open-property operations all `throw new NotSupportedException()`. Legacy integration path; no new development targets it. Only change since the prior sha is cosmetic: the `ResourceAction` nested `Create`/`Delete`/`Reset` classes now use empty-body `;` syntax instead of braces (`:338--340`).
 
 ## Key types
 
@@ -122,7 +126,7 @@ Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.c
 | `LinqService<T>` | class | `LinqService{T}.cs` |
 | `IDataContextFactory<TContext>` | interface | `IDataContextFactory.cs` |
 | `DataContextFactory<TContext>` | class | `DataContextFactory.cs` |
-| `RemoteDataContextBase` | abstract class | `RemoteDataContextBase.cs` + partials |
+| `RemoteDataContextBase` | abstract class (protected virtual `OwnsClient`, `:308`) | `RemoteDataContextBase.cs` + partials |
 | `RemoteMemberTranslator` | nested sealed class | `RemoteDataContextBase.cs:151` |
 | `RemoteMemberConverter` | nested sealed class | `RemoteDataContextBase.cs:177` |
 | `RemoteDmlService` | nested sealed class | `RemoteDataContextBase.cs:203` |
@@ -146,14 +150,14 @@ Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.c
 - [INTERNAL-API](../INTERNAL-API/INDEX.md) -- `LinqServiceSerializer`, `SerializationMappingSchema`, `SerializationConverter`, `RemoteDataReader`, `QueryRunnerBase`, `SafeAwaiter`, `SimpleServiceProvider`, `IdentifierBuilder`, `MemoryCache<K,V>`.
 - [INTERCEPTORS](../INTERCEPTORS/INDEX.md) -- `IInterceptable<T>` slot pattern, `AddInterceptorImpl` / `RemoveInterceptorImpl`; all six `I*Interceptor` interfaces.
 - [LINQ](../LINQ/INDEX.md) -- `QueryRunnerBase`, `IQueryRunner`, `IQueryExpressions`.
-- [SQL-AST](../SQL-AST/INDEX.md) -- `SqlStatement`, `SqlInsertStatement`, `SqlDeleteStatement`, `SqlUpdateStatement`, `SqlMergeStatement`, `QueryType`.
+- [SQL-AST](../SQL-AST/INDEX.md) -- `SqlStatement`, `SqlInsertStatement`, `SqlDeleteStatement`, `SqlUpdateStatement`, `SqlMergeStatement`, `QueryType`, `AliasesHelper`.
 - [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- `ISqlBuilder`, `ISqlOptimizer`, `SqlProviderFlags`, `OptimizationContext`.
 - [MAPPING](../MAPPING/INDEX.md) -- `MappingSchema`, `EntityDescriptor`.
 - [DATA](../DATA/INDEX.md) -- `DataConnection`, `DataOptions`.
 
 **Inbound (depends on this area):**
 
-- [REMOTE](../REMOTE/INDEX.md) -- every transport package implements `ILinqService` (server) and subclasses `RemoteDataContextBase` (client).
+- [REMOTE](../REMOTE/INDEX.md) -- every transport package implements `ILinqService` (server) and subclasses `RemoteDataContextBase` (client); transports sharing one client instance should override `OwnsClient`.
 
 ## Known issues / debt
 
@@ -163,6 +167,7 @@ Synchronous variants are shims over `SafeAwaiter.Run(...Async)` (`.QueryRunner.c
 - Only `IDataContextInterceptor` is actively dispatched on the client (Close/CloseAsync). The other five interceptor slots exist for API compatibility but are never invoked -- `IQueryExpressionInterceptor` / `IExceptionInterceptor` registered on a remote context are silently ignored.
 - DI-0241 / DI-0242: the `[Obsolete]`-setter TODOs on `RemoteDataContextBase.cs:50` and `:337` (tracked detected-issues).
 - DI-0733: six public members on `RemoteDataContextBase` (`AddMappingSchema`, `BeginBatch`, `CommitBatch`, `CommitBatchAsync`, `Dispose`, `DisposeAsync`) lack `<summary>` XML docs.
+- `OwnsClient` defaults to `true`; a transport whose `GetClient()` returns a shared instance and forgets the override will have it disposed by the first query's runner.
 
 ## See also
 
@@ -183,4 +188,10 @@ Read (this run -- delta):
 
 Read (this run -- delta):
   - `Source/LinqToDB/Remote/RemoteDataContextBase.cs` -- `RemoteMemberConverter.Convert` (`:199--200`) gained a new `IConvertContext context` parameter, matching the updated `IMemberConverter.Convert(Expression, IConvertContext, out bool)` signature (`Source/LinqToDB/Internal/DataProvider/Translation/IMemberConverter.cs:15`); the wrapper forwards `context` unchanged. `IConvertContext` (`Source/LinqToDB/Internal/DataProvider/Translation/IConvertContext.cs:8`) exposes `DataOptions` for options that affect a conversion (e.g. legacy-analytic `ORDER BY` NULLS-ordering defaults). Confirmed via `git diff` against the prior `last_verified_sha` that this 2-line replacement is the only change in the file -- no other line number shifted, all other citations in this INDEX re-verified unchanged at the new sha.
+
+Read (this run -- delta):
+  - `Source/LinqToDB/Remote/DataService.cs` -- cosmetic: `ResourceAction.Create/Delete/Reset` nested classes switched from braces to `;` bodies.
+  - `Source/LinqToDB/Remote/LinqService.cs` -- all four handlers (`ExecuteNonQueryAsync`, `ExecuteScalarAsync`, `ExecuteReaderAsync`, `ExecuteBatchAsync`) now deserialize with `db.MappingSchema` instead of `MappingSchema ?? SerializationMappingSchema`.
+  - `Source/LinqToDB/Remote/RemoteDataContextBase.QueryRunner.cs` -- `GetSqlTextImpl` aliases the prepared statement (after `PrepareStatementForSql`); `Dispose`/`DisposeAsync` null `_client` and honour `OwnsClient`; `_client ??=` in reader/scalar/non-query paths.
+  - `Source/LinqToDB/Remote/RemoteDataContextBase.cs` -- new `protected virtual bool OwnsClient => true` (`:308`); client disposal after bootstrap (`:285`) and `CommitBatchAsync` (`:585`) made conditional on it.
 </details>

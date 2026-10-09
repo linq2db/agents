@@ -3,8 +3,8 @@ area: PROV-SQLITE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 10/10
 coverage_tier_2: 10/10
 ---
@@ -76,6 +76,8 @@ Key overrides:
 - **DateTime comparisons**: wraps operands in `strftime('%Y-%m-%d %H:%M:%f', expr)` casts when either side is a date/datetime type (`SQLiteSqlExpressionConvertVisitor.cs:132-168`).
 - **CAST of Guid**: strips the `CAST` entirely -- SQLite has no GUID affinity, so casting would infer the wrong affinity (`SQLiteSqlExpressionConvertVisitor.cs:189-192`).
 - **DateTime/DateOnly conversions**: routes through `Date(expr)` for date-only or `strftime('%Y-%m-%d %H:%M:%f', expr)` for datetime, wrapped in `DoNotOptimize = true` guards to prevent double-wrapping (`SQLiteSqlExpressionConvertVisitor.cs:173-196`).
+- **Interval lowering** (delta 05150894e): `CanLowerIntervalDifference => true`, `IntervalResolution => SqlIntervalUnit.Millisecond` (`SQLiteSqlExpressionConvertVisitor.cs:20`, `:27`). `julianday` returns a double (spacing near 47 microseconds at present-day dates), so millisecond is the finest exact quantum -- also the resolution `strftime('%f')` date arithmetic already had. `ElapsedTicks` (`:43`) emits `Cast(Round((JulianDay(End) - JulianDay(Start)) * ms_per_day) AS long) * TicksPerMillisecond`; rounded, not truncated.
+- **Interval shift lowering**: `CanLowerIntervalShift => true` (`:60`) and `LowerTemporalArithmetic` (`:77`) turn `SqlTemporalArithmeticExpression` into `Strftime('%Y-%m-%d %H:%M:%f', JulianDay(temporal) + Round(ticks / TicksPerMillisecond) / 86400000)`, negating ticks for subtract. It does not go through `FinestDateUnit`. `DateTimeOffset` operands return `null` (not lowered, refused by name) because `julianday` reads them as UTC and `strftime` writes no offset. Result is typed `DataType.DateTime` built from the CLR type (never `Date`) so later comparisons do not strip the added time of day. Helper `JulianDay` at `:100`.
 
 ### Type mapping and dynamic typing
 
@@ -203,6 +205,8 @@ Both are applied via `ISQLiteSpecificTable<TSource>.TableHint(hint)` using `Sql.
 
 All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side-only evaluation. Admin commands use raw `dc.Execute()` / `dc.ExecuteAsync()`.
 
+Delta 05150894e: the FTS3/FTS5 admin `*Async` methods were changed from `async Task` + `await ... ConfigureAwait(false)` to non-async methods that return the `dc.ExecuteAsync(...)` task directly (same SQL, no behaviour change). Synchronous forms unchanged.
+
 ## Supported table options
 
 `SupportedTableOptions` (`SQLiteDataProvider.cs:198-203`): `IsTemporary`, `IsLocalTemporaryStructure`, `IsLocalTemporaryData`, `CreateIfNotExists`, `DropIfExists`. Temporary tables emit `CREATE TEMPORARY TABLE` (`SQLiteSqlBuilder.cs:173-192`).
@@ -219,12 +223,13 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 | `DefaultNullsOrdering` | `Smallest` (NULL sorts as smallest value) | `SQLiteDataProvider.cs:48-49` |
 | `IsUnionAllOrderBySupported` | `true` | `SQLiteDataProvider.cs:50` |
 | `IsDistinctFromSupported` | `true` (3.39.0+) | `SQLiteDataProvider.cs:51` |
-| `SupportsPredicatesComparison` | `true` | `SQLiteDataProvider.cs:52` |
-| `DefaultMultiQueryIsolationLevel` | `Serializable` | `SQLiteDataProvider.cs:53` |
-| `RowConstructorSupport` | Equality, Comparisons, UpdateLiteral, CompareToSelect, Between, Update | `SQLiteDataProvider.cs:64-65` |
-| `SupportedCorrelatedSubqueriesLevel` | `null` (unlimited) | `SQLiteDataProvider.cs:61` |
-| `MaxColumnCount` | `2000` | `SQLiteDataProvider.cs:54` |
-| `IsUpsertWithMergeLoweringSupported` | `false` | `SQLiteDataProvider.cs:70` |
+| `IsUpdateOutputRowsSupported` | `true` (RETURNING, 3.35.0+) | `SQLiteDataProvider.cs:52` |
+| `SupportsPredicatesComparison` | `true` | `SQLiteDataProvider.cs:53` |
+| `DefaultMultiQueryIsolationLevel` | `Serializable` | `SQLiteDataProvider.cs:54` |
+| `RowConstructorSupport` | Equality, Comparisons, UpdateLiteral, CompareToSelect, Between, Update | `SQLiteDataProvider.cs:74-75` |
+| `SupportedCorrelatedSubqueriesLevel` | `null` (unlimited) | `SQLiteDataProvider.cs:67` |
+| `MaxColumnCount` | `2000` | `SQLiteDataProvider.cs:55` |
+| `IsUpsertWithMergeLoweringSupported` | `false` | `SQLiteDataProvider.cs:71` |
 
 ## Files (Tier 1 / Tier 2)
 
@@ -269,9 +274,9 @@ All function wrappers use `[ExpressionMethod]` and `Sql.Expr<T>` for server-side
 
 ## Known issues / debt
 
-- `UPDATE TAKE/SKIP` is commented out (`SQLiteDataProvider.cs:52-59`): the flag `IsUpdateTakeSupported` / `IsUpdateSkipTakeSupported` is intentionally disabled because Microsoft.Data.Sqlite's runtime does not enable the needed SQLite compilation flag. System.Data.SQLite has it, but enabling it for only one provider adds no value when the other can't use it.
+- `UPDATE TAKE/SKIP` is commented out (`SQLiteDataProvider.cs:64-65`): the flag `IsUpdateTakeSupported` / `IsUpdateSkipTakeSupported` is intentionally disabled because Microsoft.Data.Sqlite's runtime does not enable the needed SQLite compilation flag. System.Data.SQLite has it, but enabling it for only one provider adds no value when the other can't use it.
 - `IS DISTINCT` emulation is kept as `IS` / `IS NOT` rather than migrating to standard `DISTINCT FROM` (SQLite 3.39.0+). The comment (`SQLiteSqlBuilder.cs:201`) says "keep older implementation for now".
-- SQLite does not support `MERGE`; any attempt to use `MergeStatement` throws at runtime (`SQLiteSqlBuilder.cs:166-168`). No compile-time guard exists on `SqlProviderFlags` for a direct `MergeStatement`. As of this delta, `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (`SQLiteDataProvider.cs:70`) gives upsert configurations that would require MERGE lowering a descriptive `Error_Upsert_MergeLowering_NotSupported` failure ahead of query build -- narrower coverage than the raw builder throw, but only for the upsert-lowering path, not direct `MergeStatement` use.
+- SQLite does not support `MERGE`; any attempt to use `MergeStatement` throws at runtime (`SQLiteSqlBuilder.cs:166-168`). No compile-time guard exists on `SqlProviderFlags` for a direct `MergeStatement`. As of this delta, `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (`SQLiteDataProvider.cs:71`) gives upsert configurations that would require MERGE lowering a descriptive `Error_Upsert_MergeLowering_NotSupported` failure ahead of query build -- narrower coverage than the raw builder throw, but only for the upsert-lowering path, not direct `MergeStatement` use.
 - `GetDataType` in `SQLiteSchemaProvider` throws `NotSupportedException` -- it is expected not to be called because type inference bypasses the base infrastructure entirely (`SQLiteSchemaProvider.cs:258-261`).
 - FTS return types (e.g. `FTS5Delete` column list construction, `SQLiteExtensions.cs:630-635`) use `DataParameter.VarChar` hardcoded for all columns -- FTS tables are always TEXT-typed but the code bypasses any provider-specific parameter binding.
 - `// TODO: V7: update applicable methods to return affected rows count instead of void/Task` (`SQLiteExtensions.cs:1`) -- bulk FTS command methods return `void`/`Task` rather than affected-row counts.
@@ -309,5 +314,12 @@ Read (this run -- delta sha 36ee4f82f):
 - `SQLiteDataProvider.cs` -- Added `SqlProviderFlags.MaxColumnCount = 2000` (line 54). Added `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (line 70), with inline comment: SQLite has no MERGE, so upsert-with-merge-lowering configurations surface `Error_Upsert_MergeLowering_NotSupported` instead of attempting to lower to MERGE.
 - `SQLiteSqlBuilder.cs` -- `BuildUpdateTableName` narrowed its guard from `if (updateClause.Table != null)` to `if (updateClause.Table is SqlTable sqlTable)` (lines 261-262) -- `SqlUpdateClause.Table` is typed `ISqlNamedTable?`, and `BuildTableExtensions(SqlTable, string)` only accepts `SqlTable`; the pattern match is now required for the call to type-check / to skip table-hint re-application for non-`SqlTable` named-table targets.
 - `SQLiteMemberTranslator.cs` -- Added `SQLiteWindowFunctionsMemberTranslator` inner class (extends `WindowFunctionsMemberTranslator`) overriding `IsPercentileContSupported` / `IsPercentileDiscSupported` to `false`, and a `CreateWindowFunctionsMemberTranslator` override returning it (lines 394-403) -- SQLite has no `PERCENTILE_CONT`/`PERCENTILE_DISC`; base class default for both flags is `true`.
+
+Read (this run -- delta sha 05150894e):
+- `SQLiteSqlExpressionConvertVisitor.cs` -- Added interval lowering: `CanLowerIntervalDifference`, `IntervalResolution = Millisecond`, `ElapsedTicks` (julianday difference, rounded to ms), `CanLowerIntervalShift`, `LowerTemporalArithmetic` (julianday + strftime shift, DateTimeOffset refused), `JulianDay` helper.
+- `SQLiteDataProvider.cs` -- Added `SqlProviderFlags.IsUpdateOutputRowsSupported = true` (line 52, RETURNING since 3.35.0). Subsequent flag line numbers shifted by +1 (MaxColumnCount 55, IsUpsertWithMergeLoweringSupported 71).
+- `SQLiteExtensions.cs` -- FTS3/FTS5 admin `*Async` methods now return the `ExecuteAsync` task directly instead of `async`/`await` (no behaviour change).
+- `SQLiteSchemaProvider.cs` -- BOM removal only, no behavioural change.
+- `SQLiteMemberTranslator.cs` -- Nested `SqlTypesTranslation` declaration changed to semicolon-bodied class syntax, no behavioural change.
 
 </details>

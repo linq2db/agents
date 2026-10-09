@@ -3,8 +3,8 @@ area: PROV-ORACLE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 12/12
 coverage_tier_2: 20/20
 ---
@@ -112,9 +112,12 @@ SqlExpressionConvertVisitor
 - `ConvertSqlBinaryExpression` -- maps `%` -> `MOD`, `&` -> `BITAND`, `|` -> `a + b - BITAND(a,b)`, `^` -> XOR equivalent, `+` on strings -> `||`.
 - `ConvertSqlUnaryExpression` -- bitwise NOT -> `-1 - expr`.
 - `ConvertSqlExpression` -- rewrites `To_Number(To_Char(... 'FF'))` millisecond fragments by lower-casing the `To_Number` prefix and dividing by 1000 (`OracleSqlExpressionConvertVisitor.cs:144-149`).
+- **Temporal lowering (date-difference / date-shift fix, PR #5987)** -- `CanLowerIntervalDifference => true`; `IntervalResolution => SqlIntervalUnit.Microsecond` (operands are cast via `AsTimestamp` to a bare `timestamp`, six fractional digits, so sub-microsecond ticks are declined and fall back to .NET). `ElapsedTicks(SqlIntervalDifferenceExpression)` subtracts the two timestamps and sums `EXTRACT(Day/Hour/Minute/Second FROM interval)` field by field (a day count is a floating number and cannot carry a tick over a long range; seconds go through `Round(... * TicksPerSecond)` cast to long). `CanLowerIntervalShift => true`; `LowerTemporalArithmetic(SqlTemporalArithmeticExpression)` splits the tick count into whole days (`TruncateDivide`) and leftover seconds (`TruncateRemainder / TicksPerSecond`), each through `NumToDSInterval(.., 'DAY'|'SECOND')` (it refuses 2^31 or more of its unit, hence the split), added natively to the temporal; a `DateTime` operand is first forced to `CAST(.. AS timestamp(7))` because `date + interval` stays a `date` and loses the fraction. `TruncateDivide(value, divisor)` is overridden to `Trunc(value / divisor)` (base composes `FLOOR`/`CEILING`; Oracle spells it `CEIL`, so that does not parse).
 - `ConvertSqlFunction` -- maps `CharIndex(p0, p1)` -> `InStr(p1, p0)` and `CharIndex(p0, p1, p2)` -> `InStr(p1, p0, p2)` (`OracleSqlExpressionConvertVisitor.cs:151-169`).
 - `ConvertConversion` -- date/time cast routing: `Trunc(x,'DD')` for date, `TO_DATE`, `TO_TIMESTAMP`, `TO_TIMESTAMP_TZ`, `To_Char` with format masks.
 - `ConvertCoalesce` / `ConvertSqlCondition` / `ConvertSqlCaseExpression` / `VisitSqlValuesTable` -- fix mixed CHAR/NCHAR charsets via `FixCharset` (wraps with `To_NChar` or `CAST ... AS NCHAR`).
+- **`IsWindowOrderByRequired(SqlExtendedFunction)`** -- extends the base: true also for any function with a `FrameClause`, for order-dependent functions (`IsOrderDependentWindowFunction`: ranking, `LAG`/`LEAD`) and `NTILE`, since Oracle raises ORA-30485 when ORDER BY is missing in those windows; `FIRST_VALUE`/`LAST_VALUE` and unframed aggregates may stay unordered.
+- **Cached-statement safety** -- `ConvertCoalesce` no longer writes `FixCharset` results into `element.Expressions`; it builds a new `SqlCoalesceExpression` when any operand was replaced. `VisitSqlValuesTable` first collects columns with inconsistent charsets, then branches on `GetVisitMode(element)`: `ReadOnly` -> no rewrite; `Modify` -> in-place `FixCharset` on the rows; otherwise builds a new `SqlValuesTable` (copied fields, new rows) and returns it via `NotifyReplaced`. Reason: on a Transform pass the element belongs to the query's cached statement and a write corrupts later renders and the remote path.
 - **`ConcatRequiresExplicitStringCast`** -- returns `false`; Oracle's `||` auto-coerces non-string operands so explicit `CAST` wraps are not needed (`OracleSqlExpressionConvertVisitor.cs:183`). Added by PR #5504.
 - **`ConvertConcat(SqlConcatExpression)`** -- overrides base to skip the `Coalesce(x, '')` wrap that the base emits when `PreserveNull=false`. Rationale: on Oracle `''` IS NULL, so `Coalesce(x,'')` is a no-op AND causes ORA-12704 character-set mismatches when wrapping NVARCHAR operands. Single-expression concat returns the sole expression directly; multi-expression returns `element` unchanged for `||` emission via `ConcatStyle.Pipes` (`OracleSqlExpressionConvertVisitor.cs:185-201`). Added by PR #5504.
 
@@ -147,12 +150,14 @@ Both normalizers also check `ReservedWords.IsReserved(name, ProviderName.Oracle)
 |---|---|
 | `ProviderSpecific` | `OracleBulkCopy` (ADO.NET, ODP.NET-only). Falls back to `MultipleRows` if adapter has no bulk copy or columns need escaping (`OracleBulkCopy.cs:51-134`). |
 | `MultipleRows` + `InsertAll` | `INSERT ALL ... INTO t VALUES(...) ... SELECT * FROM dual` (`OracleBulkCopy.cs:188-232`). |
-| `MultipleRows` + `InsertInto` | `INSERT INTO t(cols) VALUES(:p1, ...)` with `SetArrayBindCount` / `ExecuteArray` oracle extension (`OracleBulkCopy.cs:234-431`). |
+| `MultipleRows` + `InsertInto` | `INSERT INTO t(cols) VALUES(:p1, ...)` with `SetArrayBindCount` / `ExecuteArray` oracle extension (`OracleBulkCopy.cs:234-431`). Single fixed row template: bounded only by `BulkCopyOptions.MaxBatchSize`; does not consult `MaxSqlLengthForBatch` / `MaxParametersForBatch` (documented on `AlternativeBulkCopy.InsertInto`). |
 | `MultipleRows` + `InsertDual` | `INSERT INTO t ... SELECT ... FROM DUAL UNION ALL SELECT ...` (`OracleBulkCopy.cs:432-484`). |
 
 `ProviderSpecificCopyAsync` for `IEnumerable<T>` (`:137-141`) calls `Task.FromResult(ProviderSpecificCopy(...))` because ODP.NET `BulkCopy.WriteToServer` has no async overload. The `IAsyncEnumerable<T>` overload (`:144-153`) materialises the async enumerator via `EnumerableHelper.AsyncToSyncEnumerable` then delegates to the same synchronous path.
 
 `MultipleRowsConvertToParameter` (`OracleBulkCopy.cs:194-199`) is a static lambda that forces a value to a parameter when `BulkCopyOptions.UseParameters` is set or when the column data type is `Text`, `NText`, `Binary`, or `VarBinary` -- ensuring large/blob-typed values are always parameterised rather than inlined into the SQL string.
+
+Batch limits: `OracleBulkCopy.MaxParameters` is `32766`; `MaxSqlLength` was raised from the Oracle 8-derived `65535` to `384 * 1024` UTF-16 characters of generated SQL (issue #5825: measured on Oracle 11 and 23, `INSERT ALL` and `INSERT ... SELECT FROM DUAL UNION ALL` of inlined literals parsed correctly up to 4M characters; 384K keeps >10x headroom and bounds hard-parse cost, since every inlined-literal batch is a distinct statement). Both are now plain property overrides, and the `OracleMultipleRowsCopy1` / `OracleMultipleRowsCopy3` helpers (sync + both async) became instance methods passing `MaxParameters` / `MaxSqlLength` instead of static consts. Users can raise the SQL cap via `BulkCopyOptions.MaxSqlLengthForBatch`.
 
 Known limitation: ODP.NET bulk copy fails when any column name requires quoting. The check at `OracleBulkCopy.cs:67-77` detects this and falls back to `MultipleRows`.
 
@@ -232,7 +237,7 @@ On runtimes supporting `SUPPORTS_COMPOSITE_FORMAT` (net8+), format strings for D
 | `OracleTools` (partial `OracleXmlTable.cs`) | `static partial class` | `OracleXmlTable<T>` extension -- passes an in-memory collection or XML string as a virtual relational table via `XMLType(...) COLUMNS ...` |
 | `OracleVersion` | `enum` | `AutoDetect`, `v11 = 11`, `v12 = 12` |
 | `OracleProvider` | `enum` | `AutoDetect`, `Managed`, `Native`, `Devart` |
-| `OracleOptions` | `sealed record` | `BulkCopyType`, `AlternativeBulkCopy`, `DontEscapeLowercaseIdentifiers` |
+| `OracleOptions` | `sealed record` | `BulkCopyType`, `AlternativeBulkCopy`, `DontEscapeLowercaseIdentifiers`, `MaxStringParameterLength` (`int?`, default 4000; NCLOB-inference threshold; included in `CreateID`; binary-compat 3-arg ctor and `Deconstruct` overloads marked `EditorBrowsable.Never`, `TODO: remove in v7`) |
 | `AlternativeBulkCopy` | `enum` | `InsertAll` (default), `InsertInto`, `InsertDual` |
 | `OracleHints.Hint` | `static class` | String constants + parameterized helpers for all Oracle optimizer hints |
 | `OracleHints` (`.generated.cs`) | `static partial class` | Generated typed extension methods (e.g. `AllRowsHint`, `FullHint`, `IndexHint`) on `IOracleSpecificQueryable<T>` / `IOracleSpecificTable<T>` |
@@ -311,7 +316,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 - `Guid` -> `byte[]` / `Raw(16)`.
 - `DateTimeOffset` -> constructed `OracleTimeStampTZ` with explicit offset string.
 - `DateTime` precision truncated: `DateTime` -> 0 decimals, `DateTime2` -> `Precision ?? 6`.
-- Long strings (>= 4000 chars) -> `NText` data type to route to `NClob`.
+- Long strings -> `NText` data type to route to `NClob`: no longer done inside `SetParameter`; `OracleDataProvider.InferParameterDataType` override now promotes an `Undefined`-typed string parameter to `DataType.NText` when its length is `>= OracleOptions.MaxStringParameterLength` (default `4000`, measured in .NET characters, a heuristic with no byte-exact check). `null` disables the inference. Option is read via `dataConnection.Options.FindOrDefault(OracleOptions.Default)`.
 
 ### `SqlProviderFlags` notable settings
 
@@ -433,5 +438,11 @@ Read (this run -- delta, sha 36ee4f82f):
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` -- added `SqlProviderFlags.MaxColumnCount = 1000` alongside the pre-existing `MaxInListValuesCount` setting; no other substantive changes since the `b3340aa9` delta read.
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.Merge.cs` -- added `IsUpsertUpdateWhereAfterSet => true` override: Oracle MERGE only accepts `WHEN MATCHED THEN UPDATE SET ... WHERE cond`, not `WHEN MATCHED AND cond THEN UPDATE SET ...`.
 - `Source/LinqToDB/Internal/DataProvider/Oracle/Translation/OracleMemberTranslator.cs` -- added `OracleWindowFunctionsMemberTranslator` (extends `WindowFunctionsMemberTranslator`) plus the `CreateWindowFunctionsMemberTranslator` override wiring it in; enables the Oracle full statistical/regression/ordered-set/hypothetical-set window-function surface (variance, correlation, linear regression, median, `KEEP`, `LEAD`/`LAG`/`VALUE` null-treatment, `NTH_VALUE FROM`, aggregate `DISTINCT`, windowed `PERCENTILE_CONT`/`DISC`, hypothetical-set `RANK` family) while excluding `GROUPS` frame mode and frame `EXCLUDE`; `TranslateRatioToReport` delegates to `TranslateRatioToReportNative`. Also includes a cosmetic no-op simplification of `TranslateNewGuidMethod` (inlined the local variable, no behavior change).
+Read (this run -- delta, sha 05150894e):
+- `Source/LinqToDB/DataProvider/Oracle/AlternativeBulkCopy.cs` -- XML doc fix (`BulkCopyType.MultipleRows`, not `RowByRow`) and note that `InsertInto` is bounded only by `MaxBatchSize`, not by `MaxSqlLengthForBatch` / `MaxParametersForBatch`.
+- `Source/LinqToDB/DataProvider/Oracle/OracleOptions.cs` -- new `int? MaxStringParameterLength = 4000` positional parameter (copy ctor, `CreateID`), plus binary-compat 3-arg ctor and `Deconstruct` overloads (`EditorBrowsable.Never`, remove in v7).
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleBulkCopy.cs` -- `MaxSqlLength` 65535 -> 384*1024 chars (issue #5825 measurement); `MaxParameters`/`MaxSqlLength` are property overrides; multi-row copy helpers 1 and 3 became instance methods.
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` -- removed the `string.Length >= 4000` -> `NText` promotion from `SetParameter`; added `InferParameterDataType` override driven by `OracleOptions.MaxStringParameterLength`.
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlExpressionConvertVisitor.cs` -- interval-difference / shift lowering (`CanLowerIntervalDifference`, `IntervalResolution`, `ElapsedTicks`, `CanLowerIntervalShift`, `LowerTemporalArithmetic`, `TruncateDivide` -> `Trunc`), non-mutating `ConvertCoalesce` / `VisitSqlValuesTable` charset fixes, `IsWindowOrderByRequired` override.
 
 </details>

@@ -3,8 +3,8 @@ area: COMPAT
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-06-01
-last_verified_sha: 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 2/2
 coverage_tier_2: 10/10
 ---
@@ -21,7 +21,7 @@ Entry point for users: `DataConnection.DefaultSettings = LinqToDBSection.Instanc
 
 ## Type forwarding mechanism
 
-The csproj uses `<Compile Include>` with `Link` to pull five source files from `Source/LinqToDB/Configuration/` into the `linq2db.Compat` assembly under the `COMPAT` compile constant (`LinqToDB.Compat.csproj:25-29`):
+The csproj uses `<Compile Include>` with `Link` to pull five source files from `Source/LinqToDB/Configuration/` into the `linq2db.Compat` assembly under the `COMPAT` compile constant (`LinqToDB.Compat.csproj:25-29`, constant defined at `LinqToDB.Compat.csproj:7`):
 
 - `LinqToDBSection.cs`
 - `DataProviderElementCollection.cs`
@@ -31,7 +31,9 @@ The csproj uses `<Compile Include>` with `Link` to pull five source files from `
 
 Each source file is guarded by `#if NETFRAMEWORK && COMPAT` / `#elif NETFRAMEWORK || COMPAT` logic (`LinqToDBSection.cs:1-3`). On `net462`, the `NETFRAMEWORK` constant is also active, so the file emits `[assembly: TypeForwardedTo(typeof(LinqToDBSection))]` instead of redefining the type -- the type lives in `linq2db.dll` and `linq2db.Compat.dll` just forwards. On modern .NET TFMs only `COMPAT` is active, so the types are compiled in full into `linq2db.Compat.dll`.
 
-This explains the `PublicAPI.Shipped.txt` annotation difference: `net462` entries are marked `(forwarded, contained in linq2db)`; all other TFMs have bare entries (types owned by this assembly).
+This explains the `PublicAPI.Shipped.txt` annotation difference: `net462` entries are marked `(forwarded, contained in linq2db)`, all other TFMs have bare entries (types owned by this assembly).
+
+The csproj declares no `TargetFramework(s)` of its own (the TFM list comes from shared build props), and the `ProjectReference` to `LinqToDB.csproj` limits flow of the core package content and build assets via `PrivateAssets` (`LinqToDB.Compat.csproj:21`). The `System.Configuration.ConfigurationManager` `PackageReference` has no inline version (central package management). The package readme is packed from `readme.md` (`LinqToDB.Compat.csproj:17`).
 
 ## Public surface (per TFM)
 
@@ -39,13 +41,13 @@ All five TFMs expose an identical surface -- 14 public members in `LinqToDB.Conf
 
 | Type | Purpose |
 |---|---|
-| `LinqToDBSection` | `ConfigurationSection` implementation; `Instance` singleton reads the `<linq2db>` config section |
+| `LinqToDBSection` | `ConfigurationSection` implementation, `Instance` singleton reads the `<linq2db>` config section |
 | `DataProviderElementCollection` | Collection of `<dataProvider>` elements |
 | `DataProviderElement` | Single data-provider element (`Name`, `TypeName`, `Default`) |
-| `ElementBase` | Base for config elements; dynamic `Attributes` bag |
+| `ElementBase` | Base for config elements, dynamic `Attributes` bag |
 | `ElementCollectionBase<T>` | Generic keyed collection base |
 
-No TFM-specific surface differences exist -- only the `(forwarded, contained in linq2db)` annotation on `net462`. Root `PublicAPI/PublicAPI.Shipped.txt` and `PublicAPI/PublicAPI.Unshipped.txt` are empty (header only); all surface is tracked per-TFM.
+No TFM-specific surface differences exist -- only the `(forwarded, contained in linq2db)` annotation on `net462`. Root `PublicAPI/PublicAPI.Shipped.txt` and `PublicAPI/PublicAPI.Unshipped.txt` are empty (header only), all surface is tracked per-TFM (`AdditionalFiles` globs at `LinqToDB.Compat.csproj:33-34`).
 
 ## Files
 
@@ -60,7 +62,7 @@ No TFM-specific surface differences exist -- only the `(forwarded, contained in 
 
 | File | Notes |
 |---|---|
-| `PublicAPI/PublicAPI.Shipped.txt` | Empty; surface tracked per-TFM only |
+| `PublicAPI/PublicAPI.Shipped.txt` | Empty, surface tracked per-TFM only |
 | `PublicAPI/PublicAPI.Unshipped.txt` | Empty |
 | `PublicAPI/net10.0/PublicAPI.Shipped.txt` | Identical surface to other modern TFMs |
 | `PublicAPI/net10.0/PublicAPI.Unshipped.txt` | Empty |
@@ -84,20 +86,20 @@ No TFM-specific surface differences exist -- only the `(forwarded, contained in 
 
 ## Inbound / outbound dependencies
 
-- **Outbound**: `ProjectReference` to `Source/LinqToDB/LinqToDB.csproj`; `PackageReference` to `System.Configuration.ConfigurationManager` (the BCL shim for non-Framework TFMs).
+- **Outbound**: `ProjectReference` to `Source/LinqToDB/LinqToDB.csproj` (private content/build assets), `PackageReference` to `System.Configuration.ConfigurationManager` (the BCL shim for non-Framework TFMs).
 - **Inbound**: Applications migrating from .NET Framework that relied on `<linq2db>` config-section wiring. No other linq2db projects reference this package.
-- **Relationship to `Source/Default/`**: `Source/Default/` provided historical default-symbol stubs and is marked deprecated in `kb-areas.md`. COMPAT does not replace `Source/Default/`; they solve different problems (COMPAT = `System.Configuration` wiring; `Default` = default-namespace symbol injection).
-- **Relationship to `Source/LinqToDB.LegacySnapshot/`**: no cross-reference found in this codebase; `LegacySnapshot` is a separate deprecated area.
+- **Relationship to `Source/Default/`**: `Source/Default/` provided historical default-symbol stubs and is marked deprecated in `kb-areas.md`. COMPAT does not replace `Source/Default/`, they solve different problems (COMPAT = `System.Configuration` wiring, `Default` = default-namespace symbol injection).
+- **Relationship to `Source/LinqToDB.LegacySnapshot/`**: no cross-reference found in this codebase, `LegacySnapshot` is a separate deprecated area.
 
 ## Known issues / debt
 
-- Root `PublicAPI/PublicAPI.Shipped.txt` is empty; the analyzer picks up per-TFM files via `AdditionalFiles`. This is intentional but non-obvious -- a future maintainer may wonder why the root file is empty.
+- Root `PublicAPI/PublicAPI.Shipped.txt` is empty, the analyzer picks up per-TFM files via `AdditionalFiles`. This is intentional but non-obvious -- a future maintainer may wonder why the root file is empty.
 - Unshipped files for all TFMs are empty -- no pending API additions.
 
 ## See also
 
 - `Source/LinqToDB/Configuration/` -- owns the source files compiled in via link.
-- `Source/Default/` -- deprecated sibling; different purpose.
+- `Source/Default/` -- deprecated sibling, different purpose.
 
 <details><summary>Coverage</summary>
 
@@ -107,5 +109,7 @@ Tier 2 (10/10 read this run): root `PublicAPI.Shipped.txt`, root `PublicAPI.Unsh
 
 No Tier-3 files. No unclassified files.
 
-Read (this run -- delta): `PublicAPI/net10.0/PublicAPI.Shipped.txt`, `PublicAPI/net462/PublicAPI.Shipped.txt`, `PublicAPI/net8.0/PublicAPI.Shipped.txt`, `PublicAPI/net9.0/PublicAPI.Shipped.txt`, `PublicAPI/netstandard2.0/PublicAPI.Shipped.txt` -- v6 release-cut promotion: `PublicAPI.Unshipped.txt` entries moved into `PublicAPI.Shipped.txt` across all per-TFM baseline files; no surface change to document.
+Read (this run -- delta): `PublicAPI/net10.0/PublicAPI.Shipped.txt`, `PublicAPI/net462/PublicAPI.Shipped.txt`, `PublicAPI/net8.0/PublicAPI.Shipped.txt`, `PublicAPI/net9.0/PublicAPI.Shipped.txt`, `PublicAPI/netstandard2.0/PublicAPI.Shipped.txt` -- v6 release-cut promotion: `PublicAPI.Unshipped.txt` entries moved into `PublicAPI.Shipped.txt` across all per-TFM baseline files, no surface change to document.
+
+Read (this run -- delta, 2026-10-09): `Source/LinqToDB.Compat/LinqToDB.Compat.csproj` (M) -- re-read in full, compile links still at lines 25-29, `COMPAT` define at line 7, core `ProjectReference` is PrivateAssets-limited, versionless central `PackageReference`, no local TFM list. No surface change.
 </details>

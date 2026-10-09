@@ -3,8 +3,8 @@ area: PROV-ACCESS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 11/11
 coverage_tier_2: 16/16
 ---
@@ -40,7 +40,7 @@ All four are `sealed` primary-constructor classes in `AccessDataProvider.cs:22-2
 
 **`IAccessSpecificQueryable<TSource>`**, **`IAccessSpecificTable<TSource>`** -- provider-specific query/table marker interfaces. Implemented internally by `AccessSpecificQueryable<T>` and `AccessSpecificTable<T>`.
 
-**`AccessSpecificExtensions`** -- `AsAccess<T>(ITable<T>)` and `AsAccess<T>(IQueryable<T>)` to obtain provider-specific wrappers.
+**`AccessSpecificExtensions`** -- `AsAccess<T>(ITable<T>)` and `AsAccess<T>(IQueryable<T>)` to obtain provider-specific wrappers. Both are `[LinqTunnel, Pure, IsQueryable]` with a no-op `Sql.QueryExtension(null, QueryExtensionScope.None, typeof(NoneExtensionBuilder))`, the class is `static partial`. `AccessSpecificExtensions.cs:16-41`.
 
 **`AccessHints`** -- single hint: `WITH OWNERACCESS OPTION` (emitted as a sub-query hint via `Sql.QueryExtensionScope.SubQueryHint`). No table hints, no join hints.
 
@@ -51,18 +51,18 @@ All four are `sealed` primary-constructor classes in `AccessDataProvider.cs:22-2
 | Type | File | Role |
 |---|---|---|
 | `AccessDataProvider` | `Internal/DataProvider/Access/AccessDataProvider.cs` | Abstract provider base; 4 concrete subclasses; `SqlProviderFlags` incl. Upsert-merge-lowering gate; dispatch to OleDb/ODBC SQL builders and schema providers |
-| `AccessSqlBuilderBase` | `Internal/DataProvider/Access/AccessSqlBuilderBase.cs` | Abstract SQL builder; TOP syntax, IIF-based conditionals, IDENTITY reset via `ALTER COLUMN COUNTER` |
+| `AccessSqlBuilderBase` | `Internal/DataProvider/Access/AccessSqlBuilderBase.cs` | Abstract SQL builder; TOP syntax, IIF-based conditionals, IDENTITY reset via `ALTER COLUMN COUNTER`; `RequiresUniqueRootColumnNames = true` (#5599 / #5657); `SqlParameterCastExpression` rendered as `CVar`/`CSng`; sub-second `DateTime` values forced to parameters |
 | `AccessOleDbSqlBuilder` | `...AccessOleDbSqlBuilder.cs` | Concrete OLE DB builder; passes through to base, adds `GetProviderTypeName` via OLE DB type enum |
 | `AccessODBCSqlBuilder` | `...AccessODBCSqlBuilder.cs` | Concrete ODBC builder; overrides `Convert` to emit `?` placeholders; forces GUID values to parameters |
 | `AccessSqlOptimizer` | `...AccessSqlOptimizer.cs` | Statement rewriter: multi-table query correction, inner-join normalization, EXISTS/IN rewrite, parameter wrapping |
-| `AccessSqlExpressionConvertVisitor` | `...AccessSqlExpressionConvertVisitor.cs` | Expression-level rewrites: function names, COALESCE->IIF chain, LIKE escaping, bitwise ops, type casts; `SupportsNullIf = false` |
+| `AccessSqlExpressionConvertVisitor` | `...AccessSqlExpressionConvertVisitor.cs` | Expression-level rewrites: function names, COALESCE->IIF chain, LIKE escaping, bitwise ops, type casts; `SupportsNullIf = false`; interval-part lowering through `DateDiff`/`DateAdd` (second resolution, no tick counts, interval shifts refused), `Fix`-based `TruncateDivide` |
 | `AccessMappingSchema` | `...AccessMappingSchema.cs` | Type mappings; date literals as `#yyyy-MM-dd#`; string concatenation via `+`; decimal/float as `AnsiString`; string->numeric and string->bool parsers scoped to `ConversionType.FromDatabase` |
 | `AccessProviderAdapter` | `...AccessProviderAdapter.cs` | Thin wrapper unifying OleDb/ODBC adapter instances; exposes `GetOleDbSchemaTable` for schema introspection |
 | `AccessProviderDetector` | `...AccessProviderDetector.cs` | Auto-detect from connection string tokens, `ProviderName`, config string, or fallback to file probing |
 | `AccessBulkCopy` | `...AccessBulkCopy.cs` | `BasicBulkCopy` subclass; caps at 767 parameters and 64 000-character SQL |
 | `AccessDmlService` | `...AccessDmlService.cs` | `DmlServiceBase` subclass; `IsTableNotFoundException` matching for OleDb `DB_E_NOTABLE` (0x80040E37) and ODBC SQLSTATE 42S02 |
 | `AccessSchemaProviderBase` | `...AccessSchemaProviderBase.cs` | Shared data-type mapping, database-name from file path, `GetSystemType` text-length->char specialization |
-| `AccessOleDbSchemaProvider` | `...AccessOleDbSchemaProvider.cs` | OLE DB schema: uses `GetOleDbSchemaTable` for FKs, separate connection workaround for provider bug; procedures from `GetSchema("Procedures")` |
+| `AccessOleDbSchemaProvider` | `...AccessOleDbSchemaProvider.cs` | OLE DB schema: uses `GetOleDbSchemaTable` for FKs, separate connection workaround (`ExecuteOnNewConnection`) for provider bug; procedures from `GetSchema("Procedures")` |
 | `AccessODBCSchemaProvider` | `...AccessODBCSchemaProvider.cs` | ODBC schema: no FKs (runtime bug), no PKs (runtime bug); views merged with tables via `TABLE_TYPE` |
 | `AccessMemberTranslator` | `...Translation/AccessMemberTranslator.cs` | ACE/base translator; date functions (`DatePart`/`DateAdd`/`DateSerial`/`Now`), math (`Round`/`Int`/`^`), string (`Mid`, `String`, `InStr`, whitespace-only `TrimStart`/`TrimEnd`, `IsNullOrWhiteSpace`, `Join`), GUID (`IIF` null-guard + `CStr`+`Mid`+`LCase`), nested window-translator stub |
 | `AccessJetMemberTranslator` | `...Translation/AccessJetMemberTranslator.cs` | JET override; `TranslateReplace` returns `null` (JET has no `REPLACE` function) |
@@ -74,7 +74,7 @@ Set in `AccessDataProvider.cs:37-67`:
 - `IsParameterOrderDependent = true` -- forced for both drivers (OLE DB has complex-query parameter order bugs; `AccessDataProvider.cs:52-55`).
 - `IsSkipSupported = false`, `IsSubQuerySkipSupported = false` -- no `OFFSET` in Access.
 - `TakeHintsSupported = TakeHints.Percent` -- `TOP {n} PERCENT` is the only limit form.
-- `IsCrossJoinSupported = false`, `IsNestedJoinSupported = false` (builder), `IsMultiTablesSupportsJoins = false`.
+- `IsCrossJoinSupported = false`, `IsNestedJoinSupported = false` (builder, `AccessSqlBuilderBase.cs:54`), `IsMultiTablesSupportsJoins = false`.
 - `IsInsertOrUpdateSupported = false` -- no MERGE or `INSERT OR REPLACE`.
 - `IsUpsertWithMergeLoweringSupported = false` -- Access has no MERGE statement; `Upsert` shapes that need two-branch MERGE lowering (bulk source, non-PK match, conditional Insert, or SkipInsert) are rejected up front by `UpsertBuilder` (`Internal/Linq/Builder/UpsertBuilder.cs:262`) via `ErrorHelper.Error_Upsert_MergeLowering_NotSupported` rather than reaching `BuildMergeStatement`. `AccessDataProvider.cs:43-45`. Cross-provider flag -- also `false` on MySQL, PostgreSQL, SAP HANA, SQLite, SqlCe, SQL Server.
 - `IsWindowFunctionsSupported = false`.
@@ -97,38 +97,41 @@ Set in `AccessDataProvider.cs:37-67`:
 ## SQL dialect specifics
 
 ### Identifier quoting
-Square brackets `[name]` for all identifiers (fields, tables, aliases, databases). `AccessSqlBuilderBase.cs:141-175`. No schema component emitted -- `BuildObjectName` strips schema, supports only database + name.
+Square brackets `[name]` for all identifiers (fields, tables, aliases, databases). `AccessSqlBuilderBase.cs:161-195`. No schema component emitted -- `BuildObjectName` strips schema, supports only database + name (`:210-226`).
 
 ### Parameters
-- OLE DB: `@name` placeholders, named parameters (inherits `BasicSqlBuilder` default). `AccessSqlBuilderBase.cs:145-147`.
+- OLE DB: `@name` placeholders, named parameters (inherits `BasicSqlBuilder` default). `AccessSqlBuilderBase.cs:166-169`.
 - ODBC: positional `?` placeholders, all parameter names collapsed. `AccessODBCSqlBuilder.cs:30-37`. `GetQueryParameterNormalizer` returns `NoopQueryParametersNormalizer` for ODBC to suppress name-based normalization. `AccessDataProvider.cs:123-126`.
 
 ### Date literals
-`#yyyy-MM-dd#` for date-only values; `#yyyy-MM-dd HH:mm:ss#` for datetime. `AccessMappingSchema.cs:15-30`. Sub-second precision not representable as literals -- `AccessSqlBuilderBase.cs:278-297` forces such values to parameters.
+`#yyyy-MM-dd#` for date-only values; `#yyyy-MM-dd HH:mm:ss#` for datetime. `AccessMappingSchema.cs:15-30`. Sub-second precision not representable as literals -- a `DateTime` with non-zero `Millisecond` is rendered as a parameter in `BuildValue` (`AccessSqlBuilderBase.cs:309-319`) and `TryConvertParameterToSql` returns `false` for it (`:299-307`), so inlined parameters stay parameters.
 
 ### Conditional expressions
-`CASE` is absent; `SqlCaseExpression` is converted to `ConvertCaseToConditions` chains (reduces to nested `IIF`). `AccessSqlBuilderBase.cs:120-128`. `SqlConditionExpression` -> `IIF(cond, t, f)`. `SupportsNullIf = false` override in `AccessSqlExpressionConvertVisitor` prevents NULLIF emission. `AccessSqlExpressionConvertVisitor.cs:23`.
+`CASE` is absent; `SqlCaseExpression` is converted to `ConvertCaseToConditions` chains (reduces to nested `IIF`). `AccessSqlBuilderBase.cs:141-144`. `SqlConditionExpression` -> `IIF(cond, t, f)` (`:146-149`). `SupportsNullIf = false` override in `AccessSqlExpressionConvertVisitor` prevents NULLIF emission. `AccessSqlExpressionConvertVisitor.cs:311`.
 
 ### NULL column typization
-`IIF(False, <typed-default>, NULL)` for NULL literals in SELECT, ensuring UNION column type resolution. `AccessSqlBuilderBase.cs:71-95`.
+`IIF(False, <typed-default>, NULL)` for NULL literals in SELECT, ensuring UNION column type resolution. `AccessSqlBuilderBase.cs:79-116`. The default's type is taken from the value's declared `DataType` (the stored type) when it is set and not `object`, rather than from the CLR model type -- a converted column (e.g. a duration stored as seconds) would otherwise get `default(TimeSpan)`, which the Access driver cannot bind (`:88-98`). Strings default to an empty string.
+
+### Unique root column names (#5599 / #5657)
+`RequiresUniqueRootColumnNames => true` (`AccessSqlBuilderBase.cs:66`). Access renders duplicate root result-column names fine (auto-qualifies as `p.ID` / `d.ID`), but a raw `ToSqlQuery` -> `Query<T>` round-trip maps by name and cannot map the qualified columns back, returning defaults. Forcing final aliases on any root collision (`PersonID` / `PersonID_1`) fixes that. Only matters for exported SQL (normal execution reads by ordinal), but there is no builder signal to scope it, so it is forced on every root collision.
 
 ### IS DISTINCT FROM
-Emitted as `IIF(e1 = e2 OR e1 IS NULL AND e2 IS NULL, 0, 1) = 0/1`. `AccessSqlBuilderBase.cs:97-111`.
+Emitted as `IIF(e1 = e2 OR e1 IS NULL AND e2 IS NULL, 0, 1) = 0/1`. `AccessSqlBuilderBase.cs:118-131`.
 
 ### MERGE / CTE / window functions
-All unsupported. `BuildMergeStatement` throws `LinqToDBException`. `AccessSqlBuilderBase.cs:207-210`. No CTE support in Access JET/ACE engine. Most non-trivial `Upsert` call shapes never reach this throw -- `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (see SqlProviderFlags highlights) makes `UpsertBuilder` fail fast with a descriptive error before SQL generation; the builder-level throw here only covers a direct `Merge()`-API statement.
+All unsupported. `BuildMergeStatement` throws `LinqToDBException`. `AccessSqlBuilderBase.cs:228-231`. No CTE support in Access JET/ACE engine. Most non-trivial `Upsert` call shapes never reach this throw -- `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (see SqlProviderFlags highlights) makes `UpsertBuilder` fail fast with a descriptive error before SQL generation; the builder-level throw here only covers a direct `Merge()`-API statement. `IsValuesSyntaxSupported` and `SupportsColumnAliasesInSource` are also `false` (`:56-57`).
 
 ### Comments
-SQL comments stripped entirely -- `BuildSqlComment` returns without appending. `AccessSqlBuilderBase.cs:212-215`.
+SQL comments stripped entirely -- `BuildSqlComment` returns without appending. `AccessSqlBuilderBase.cs:233-237`.
 
 ### IDENTITY reset after TRUNCATE
 `CommandCount` returns `count + 1` for `SqlTruncateTableStatement` with identity fields. `BuildCommand` emits `ALTER TABLE [t] ALTER COLUMN [f] COUNTER(1, 1)` for each identity field, and `SELECT @@IDENTITY` for INSERT identity retrieval. `AccessSqlBuilderBase.cs:25-52`.
 
 ### UPDATE syntax
-`BuildUpdateClause` builds `FROM` clause then rewrites prefix to `UPDATE` (Access uses `UPDATE t ... FROM t ...` style). `AccessSqlBuilderBase.cs:112-118`.
+`BuildUpdateClause` builds `FROM` clause then rewrites prefix to `UPDATE` (Access uses `UPDATE t ... FROM t ...` style). `AccessSqlBuilderBase.cs:133-139`.
 
 ### Bitwise operations
-`&` -> `BAND`, `|` -> `BOR`, bitwise NOT `~x` -> `-1 - x`. `AccessSqlExpressionConvertVisitor.cs:224-233`, `:183-186`.
+`&` -> `BAND`, `|` -> `BOR`, bitwise NOT `~x` -> `-1 - x`. `AccessSqlExpressionConvertVisitor.cs:525-528`, `:478-484`.
 
 ### Function remapping (`AccessSqlExpressionConvertVisitor`)
 | linq2db pseudo | Access |
@@ -139,18 +142,30 @@ SQL comments stripped entirely -- `BuildSqlComment` returns without appending. `
 | `CharIndex(p,s)` | `InStr(1, s, p, 1)` |
 | `%` modulo | `MOD` |
 
+(`ConvertSqlFunction` `:454-476`, `ConvertSqlBinaryExpression` `:521-530`.)
+
 ### Type casts (`ConvertConversion`)
-`CStr`, `CBool`, `CDate`, `DateValue`, `TimeValue` -- all wrapped in `IIF(x IS NOT NULL, CFunc(x), NULL)` to preserve nullability. `AccessSqlExpressionConvertVisitor.cs:189-222`.
+`CStr`, `CBool`, `CDate`, `DateValue`, `TimeValue` -- all wrapped in `IIF(x IS NOT NULL, CFunc(x), NULL)` to preserve nullability. `AccessSqlExpressionConvertVisitor.cs:486-519`.
 
 ### COALESCE -> IIF rewrite
-`ConvertCoalesce` in `AccessSqlExpressionConvertVisitor` first calls `RemoveNullValues` to strip NULL-literal operands before folding to nested `IIF` chains -- prevents `Coalesce(x, NULL)` from generating `IIF(x IS NULL, NULL, x)` (issue #5531). `AccessSqlExpressionConvertVisitor.cs:132-164`.
+`ConvertCoalesce` in `AccessSqlExpressionConvertVisitor` first calls `RemoveNullValues` to strip NULL-literal operands before folding to nested `IIF` chains -- prevents `Coalesce(x, NULL)` from generating `IIF(x IS NULL, NULL, x)` (issue #5531). `AccessSqlExpressionConvertVisitor.cs:420-452`.
 
 ### LIKE escaping
-Access LIKE metacharacters: `_`, `?`, `*`, `%`, `#`, `-`, `!`. Escape via bracket notation `[c]`. No `ESCAPE` clause support. `AccessSqlExpressionConvertVisitor.cs:17-44`.
-`EscapeLikeCharacters` (for dynamic patterns with `REPLACE`) throws `LinqToDBException` -- Access ACE lacks `REPLACE` in this code path; `TODO` exists for ACE. `:50-52`.
+Access LIKE metacharacters: `_`, `?`, `*`, `%`, `#`, `-`, `!`. Escape via bracket notation `[c]`. No `ESCAPE` clause support. `AccessSqlExpressionConvertVisitor.cs:305-333`.
+`EscapeLikeCharacters` (for dynamic patterns with `REPLACE`) throws `LinqToDBException` -- Access ACE lacks `REPLACE` in this code path; `TODO` exists for ACE. `:335-339`.
 
 ### Case-sensitive string search
-`InStr(1, expr, pattern, 0)` with `Compare = 0` (binary) used for case-sensitive `StartsWith`/`EndsWith`/`Contains`. `AccessSqlExpressionConvertVisitor.cs:53-130`.
+`InStr(1, expr, pattern, 0)` with `Compare = 0` (binary) used for case-sensitive `StartsWith`/`EndsWith`/`Contains`. `AccessSqlExpressionConvertVisitor.cs:341-418`.
+
+### Interval / date-difference lowering (`AccessSqlExpressionConvertVisitor`)
+Access has no tick-resolution date arithmetic, so the visitor opts into the shared interval-lowering hooks with a second-resolution profile (`AccessSqlExpressionConvertVisitor.cs:17-303`):
+- `FinestDateUnit` and `IntervalResolution` are `SqlIntervalUnit.Second` (`:40`, `:53`); `CanLowerIntervalPart = true` (`:68`).
+- `ElapsedTicks` returns `null` and `CanMeasureDifferenceInTicks = false` (`:65`, `:78-81`) because `DateDiff` returns a 32-bit count and scaling seconds to ticks overflows after about 3.5 minutes (driver error `Numeric value out of range`). `ElapsedTicksResolveMembers = false` (`:59`) so interval members are counted directly, not derived from ticks. Only this provider overrides it to `false`.
+- Interval shifts are refused: `CanLowerIntervalShift = false` (`:88`) and `LowerTemporalArithmetic` returns `null` (`:102-105`), because the amount reaches a shift as a tick count. Declining during expression building lets a projection fall back to client-side .NET evaluation.
+- `TruncateDivide` is `Fix(value / divisor)` (`:25-30`) -- `Fix` truncates toward zero, `Int` would round down.
+- `ShiftDate` maps `Day`/`Hour`/`Minute`/`Second` to `DateAdd("d"/"h"/"n"/"s", amount, date)` (`:235-242`); other units return `null`.
+- `CountDateBoundaries` (`:277-303`) uses `DateDiff(part, start, end)` cast to long for all units except `Second`. For seconds it counts days first, anchors with `DateAdd("d", days, start)`, counts the sub-day remainder, and sums `CDbl(days) * 86400 + remainder`, avoiding the 32-bit overflow after about 68 years. `CDbl` prevents the 32-bit product overflow.
+- `LowerIntervalPart` (`:148-221`) does two things. First, if either difference operand may be null (checked bare and in-query via `MayBeNull`), it substitutes `IIF(IsNull(x), #1899-12-30#, x)` built from `DoNotOptimize` `SqlFunction`s, lowers the guarded difference, and wraps the result in a condition returning typed `NULL` when either operand is null. Reason: Access raises "Data type mismatch in criteria expression" on a derived null passed into `DateAdd`/`DateDiff`/`IS NULL`, and the optimizer would otherwise fold a plain guard away beside a `.Value` filter IS NOT NULL. Second, for `Hour`/`Minute`/`Second` components of a difference it first moves the start by the elapsed whole-day count (`IntervalLowering.ElapsedUnits` + `ShiftDate`) so the remaining span is under a day and `MOD` stays within 32 bits.
 
 ### Decimal / VarNumeric parameters
 Passed as `DbType.AnsiString` (OLE DB) or `DbType.AnsiString` (ODBC) to avoid culture-aware decimal separator bugs. `AccessDataProvider.cs:201-202`, `237-240`. Corresponding `SetConvertExpression` calls in `AccessMappingSchema.cs:57-63` parse strings back using culture-default `Parse` (no `IFormatProvider`) and are scoped to `ConversionType.FromDatabase` -- see PR #5520 / issue #5519.
@@ -168,8 +183,8 @@ All four carry `conversionType: ConversionType.FromDatabase`. Without this const
 - OLE DB: `{guid {B-format}}` with NETFX/NETCORE difference. `AccessMappingSchema.cs:98-103`.
 - ODBC: forced to parameter always (`{}` conflicts with ODBC escape syntax). `AccessODBCSqlBuilder.cs:52-77`.
 
-### Parameter type casting (`BuildParameter`)
-When `NeedsCast` is set, wraps in `CSng(...)` for `DataType.Single`, otherwise `CVar(...)`. `AccessSqlBuilderBase.cs:251-275`.
+### Parameter type casting (`BuildSqlParameterCastExpression`)
+Access has no `CAST`, so `AccessSqlBuilderBase` overrides `BuildSqlParameterCastExpression` (`AccessSqlBuilderBase.cs:272-297`) instead of using the base type hook. A parameter that a later conversion turned into a non-query parameter is rendered as its literal via `BuildExpression` (re-parameterising it inside `CVar` would diverge from base). Otherwise the parameter value is read from `OptimizationContext.EvaluationContext.ParameterValues` and wrapped in `CSng(...)` when the provider value is non-null and the type is `DataType.Single` (single loses precision through `CVar`), else `CVar(...)` (only `CVar` accepts NULL).
 
 ## Optimizer transforms (`AccessSqlOptimizer`)
 
@@ -207,6 +222,8 @@ When `NeedsCast` is set, wraps in `CSng(...)` for `DataType.Single`, otherwise `
 | Separate connection | Opens new `DataConnection` per `GetSchema` call to workaround provider bug | Uses current connection |
 | Procedure schema | `ExecuteReader(CommandBehavior.KeyInfo)` -> `GetSchemaTable()` | `GetSchema("ProcedureColumns", [null, null, name])` |
 
+OLE DB separate-connection detail (`AccessOleDbSchemaProvider.cs:27-44`): `ExecuteOnNewConnection` is used by `GetTables`, `GetPrimaryKeys`, `GetColumns`, `GetProcedures` and `GetDataTypes`. It falls back to the caller's connection when a transaction is active or when the new connection resolves to the same `DbConnection` instance (user-supplied external connection). `GetForeignKeys` instead uses the caller's provider connection via `GetOleDbSchemaTable` (`:46-70`). `GetProcedureSchemaExecutesProcedure => true` (`:20`), required by the `KeyInfo` reader path (`:324-330`).
+
 ## DML service (`AccessDmlService`)
 
 `AccessDmlService` overrides only `IsTableNotFoundExceptionCore`. It covers both driver paths:
@@ -221,40 +238,40 @@ This is not a multi-statement splitter -- Access commands execute one statement 
 
 ### Date/time
 
-- **DatePart**: `DatePart("x", e)` for all parts except millisecond (returns `null`). `AccessMemberTranslator.cs:50-75`.
-- **DateAdd**: `DateAdd("x", n, e)` for year/quarter/month/day/week/hour/minute/second. `AccessMemberTranslator.cs:82-105`.
-- **MakeDateTime (date-only)**: `DateSerial(y, m, d)`. `AccessMemberTranslator.cs:122-124`.
-- **MakeDateTime (with time, no millisecond)**: string-concat of zero-padded parts cast to `DateTime`. Millisecond must evaluate to 0 at compile time or the call returns `null`. `AccessMemberTranslator.cs:126-179`.
-- **DateTime.Date truncation**: `CAST(expr AS Date)` -- emits a direct SQL `CAST` to the `Date` data type. `AccessMemberTranslator.cs:182-188`. Added in PR #5517.
-- **DateTime.TimeOfDay**: `TimeValue(expr)`. `AccessMemberTranslator.cs:190-195`.
-- **Now / DateTime.Now**: `TranslateNow` and `TranslateServerNow` both emit the no-arg `Now` function. `AccessMemberTranslator.cs:198-208`. `TranslateServerNow` delegates directly to `TranslateNow` -- no separate server-clock override.
-- **UTC now / DateTimeOffset.UtcNow**: `TranslateZonedNow` also emits `Now` (Access has no UTC clock function; `DateTimeOffset` "zoned now" is silently local time). `AccessMemberTranslator.cs:210-213`. Added/clarified in PR #5467.
+- **DatePart**: `DatePart("x", e)` for all parts except millisecond (returns `null`). `AccessMemberTranslator.cs:48-73`.
+- **DateAdd**: `DateAdd("x", n, e)` for year/quarter/month/day/week/hour/minute/second. `AccessMemberTranslator.cs:80-103`.
+- **MakeDateTime (date-only)**: `DateSerial(y, m, d)`. `AccessMemberTranslator.cs:120-122`.
+- **MakeDateTime (with time, no millisecond)**: string-concat of zero-padded parts cast to `DateTime`. Millisecond must evaluate to 0 at compile time or the call returns `null`. `AccessMemberTranslator.cs:124-177`.
+- **DateTime.Date truncation**: `CAST(expr AS Date)` -- emits a direct SQL `CAST` to the `Date` data type. `AccessMemberTranslator.cs:180-186`. Added in PR #5517.
+- **DateTime.TimeOfDay**: `TimeValue(expr)`. `AccessMemberTranslator.cs:188-194`.
+- **Now / DateTime.Now**: `TranslateNow` and `TranslateServerNow` both emit the no-arg `Now` function. `AccessMemberTranslator.cs:196-206`. `TranslateServerNow` delegates directly to `TranslateNow` -- no separate server-clock override.
+- **UTC now / DateTimeOffset.UtcNow**: `TranslateZonedNow` also emits `Now` (Access has no UTC clock function; `DateTimeOffset` "zoned now" is silently local time). `AccessMemberTranslator.cs:208-211`. Added/clarified in PR #5467.
 
 ### Math
 
-- **Round (banker's, precision 0)**: `TranslateRoundToEven` builds `IIF(Abs(v*10 Mod 10) = 5 And Int(v) Mod 2 = 0, Int(v), Round(v))` per its source comment (`AccessMemberTranslator.cs:226-231`), but the generated `isEven` predicate at `AccessMemberTranslator.cs:239` literally compares `Int(v) Mod 2` to the value `2`, not `0` -- see Known issues / debt.
-- **Round (away-from-zero, precision 0)**: `IIF(v >= 0, Int(v + 0.5), Int(v - 0.5))`. `AccessMemberTranslator.cs:266-283`.
-- **Round (away-from-zero, non-zero precision)**: `Int(v * 10^p + IIF(v >= 0, 0.5, -0.5)) / 10^p`. `AccessMemberTranslator.cs:285-315`.
-- **Pow**: `x ^ y` binary expression; `decimal` base is cast to `double` first. `AccessMemberTranslator.cs:318-346`.
+- **Round (banker's, precision 0)**: `TranslateRoundToEven` builds `IIF(Abs(v*10 Mod 10) = 5 And Int(v) Mod 2 = 0, Int(v), Round(v))` per its source comment (`AccessMemberTranslator.cs:224-229`), but the generated `isEven` predicate at `AccessMemberTranslator.cs:237` literally compares `Int(v) Mod 2` to the value `2`, not `0` -- see Known issues / debt.
+- **Round (away-from-zero, precision 0)**: `IIF(v >= 0, Int(v + 0.5), Int(v - 0.5))`. `AccessMemberTranslator.cs:262-282`.
+- **Round (away-from-zero, non-zero precision)**: `Int(v * 10^p + IIF(v >= 0, 0.5, -0.5)) / 10^p`. `AccessMemberTranslator.cs:283-313`.
+- **Pow**: `x ^ y` binary expression; `decimal` base is cast to `double` first. `AccessMemberTranslator.cs:316-344`.
 
 ### String
 
-- **LPad**: `String(n, char) + value`. `AccessMemberTranslator.cs:368-383`.
-- **Join**: `Mid`-based concat-with-separator emulation via `AggregateFunctionBuilder` + `ConfigureConcatWsEmulation` when a separator is present; the no-separator overload (e.g. `string.Concat`-style Join) instead configures plain `ConfigureConcat(wrapByCoalesce: true)`. `AccessMemberTranslator.cs:385-407`.
-- **TrimStart / TrimEnd (whitespace-only)**: delegates to `StringMemberTranslatorBase`; returns `null` when a `trimChars` argument is present (custom char-set trim is unsupported). `AccessMemberTranslator.cs:352-366`. Added in PR #5515.
-- **IsNullOrWhiteSpace**: `{value} IS NULL OR LTRIM({value}) = ''` -- uses Access `LTRIM` (space-only trim; full Unicode whitespace handling is not available without REPLACE chains). `AccessMemberTranslator.cs:412-421`.
+- **LPad**: `String(n, char) + value`. `AccessMemberTranslator.cs:366-381`.
+- **Join**: `Mid`-based concat-with-separator emulation via `AggregateFunctionBuilder` + `ConfigureConcatWsEmulation` when a separator is present; the no-separator overload (e.g. `string.Concat`-style Join) instead configures plain `ConfigureConcat(wrapByCoalesce: true)`. `AccessMemberTranslator.cs:383-405`.
+- **TrimStart / TrimEnd (whitespace-only)**: delegates to `StringMemberTranslatorBase`; returns `null` when a `trimChars` argument is present (custom char-set trim is unsupported). `AccessMemberTranslator.cs:350-364`. Added in PR #5515.
+- **IsNullOrWhiteSpace**: `{value} IS NULL OR LTRIM({value}) = <empty string literal>` -- uses Access `LTRIM` (space-only trim, full Unicode whitespace handling is not available without REPLACE chains). `AccessMemberTranslator.cs:407-419`.
 
 ### GUID
 
-- **ToString()**: `IIF(IsNull(g), NULL, LCase(Mid(CStr(g), 2, 36)))`. Explicit null-guard via `IIF` because Access `CStr(NULL)` throws Invalid use of Null at the ODBC layer rather than propagating NULL. Jet/ACE SQL `IIF` short-circuits (only evaluates the selected branch), so the false branch `CStr(g)` is skipped when `g IS NULL`. `AccessMemberTranslator.cs:426-449`.
+- **ToString()**: `IIF(IsNull(g), NULL, LCase(Mid(CStr(g), 2, 36)))`. Explicit null-guard via `IIF` because Access `CStr(NULL)` throws Invalid use of Null at the ODBC layer rather than propagating NULL. Jet/ACE SQL `IIF` short-circuits (only evaluates the selected branch), so the false branch `CStr(g)` is skipped when `g IS NULL`. `AccessMemberTranslator.cs:424-447`.
 
 ### Aggregates
 
-- `COUNT DISTINCT` and aggregation `DISTINCT` both unsupported (`IsCountDistinctSupported = false`, `IsAggregationDistinctSupported = false`). `AccessMemberTranslator.cs:452-456`.
+- `COUNT DISTINCT` and aggregation `DISTINCT` both unsupported (`IsCountDistinctSupported = false`, `IsAggregationDistinctSupported = false`). `AccessMemberTranslator.cs:450-454`.
 
 ### Window functions
 
-`CreateWindowFunctionsMemberTranslator` returns a nested `AccessWindowFunctionsMemberTranslator : WindowFunctionsMemberTranslator` overriding `IsWindowFunctionsSupported => false`, consistent with `SqlProviderFlags.IsWindowFunctionsSupported = false` set in the provider constructor. `AccessMemberTranslator.cs:458-466`.
+`CreateWindowFunctionsMemberTranslator` returns a nested `AccessWindowFunctionsMemberTranslator : WindowFunctionsMemberTranslator` overriding `IsWindowFunctionsSupported => false`, consistent with `SqlProviderFlags.IsWindowFunctionsSupported = false` set in the provider constructor. `AccessMemberTranslator.cs:456-464`.
 
 `AccessJetMemberTranslator` overrides string translator: `TranslateReplace` returns `null` (JET has no `REPLACE`). `AccessJetMemberTranslator.cs:17-21`.
 
@@ -265,29 +282,31 @@ This is not a multi-statement splitter -- Access commands execute one statement 
 - Test infrastructure (`Tests/Linq/`) uses `AccessTools.CreateDataConnection`.
 
 **Outbound** (this area depends on):
-- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- `BasicSqlBuilder`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`, `WrapParametersVisitor`.
-- [INTERNAL-API](../INTERNAL-API/INDEX.md) -- `DynamicDataProviderBase`, `ProviderDetectorBase`, `BasicBulkCopy`, `DmlServiceBase`, `MemberTranslatorBase`, `ProviderMemberTranslatorDefault`, `UpsertBuilder` (Upsert-with-merge-lowering gating via `IsUpsertWithMergeLoweringSupported`).
+- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- `BasicSqlBuilder`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor` (incl. its interval-lowering virtuals), `WrapParametersVisitor`.
+- [INTERNAL-API](../INTERNAL-API/INDEX.md) -- `DynamicDataProviderBase`, `ProviderDetectorBase`, `BasicBulkCopy`, `DmlServiceBase`, `MemberTranslatorBase`, `ProviderMemberTranslatorDefault`, `UpsertBuilder` (Upsert-with-merge-lowering gating via `IsUpsertWithMergeLoweringSupported`), `IntervalLowering`.
 - [MAPPING](../MAPPING/INDEX.md) -- `LockedMappingSchema`, `MappingSchema`.
 - [METADATA](../METADATA/INDEX.md) -- `SchemaProviderBase`.
 - Framework adapters: `OleDbProviderAdapter`, `OdbcProviderAdapter` -- both defined in `Internal/DataProvider/` root (INTERNAL-API area).
 
 ## Known issues / debt
 
-1. **OLE DB identity reporting bug (issue #3149)**: `AccessOleDbSchemaProvider.GetColumns` always sets `IsIdentity = false` because the OLE DB provider incorrectly flags all `INT NOT NULL` columns as identity. `AccessOleDbSchemaProvider.cs:138`.
+1. **OLE DB identity reporting bug (issue #3149)**: `AccessOleDbSchemaProvider.GetColumns` always sets `IsIdentity = false` because the OLE DB provider incorrectly flags all `INT NOT NULL` columns as identity. `AccessOleDbSchemaProvider.cs:139`.
 
 2. **ODBC FK and PK gaps**: `AccessODBCSchemaProvider.GetForeignKeys` and `GetPrimaryKeys` return empty collections due to a .NET runtime bug (`dotnet/runtime#35442`). Schema scaffolding produces no FK/PK metadata over ODBC. `AccessODBCSchemaProvider.cs:26-29`, `:70-73`.
 
-3. **`EscapeLikeCharacters` throws for dynamic patterns**: A `TODO` comment in `AccessSqlExpressionConvertVisitor.cs:49` notes ACE does have `REPLACE`, so dynamic LIKE escaping could be supported for ACE but is not yet implemented.
+3. **`EscapeLikeCharacters` throws for dynamic patterns**: A `TODO` comment in `AccessSqlExpressionConvertVisitor.cs:337` notes ACE does have `REPLACE`, so dynamic LIKE escaping could be supported for ACE but is not yet implemented.
 
 4. **`DeleteIfExists` overload on `CreateDatabase` deprecated**: The `string provider` overload is marked `[Obsolete]` for removal in v7. `AccessTools.cs:102`.
 
-5. **`IsParameterOrderDependent = true` applies to both drivers**: The comment at `AccessDataProvider.cs:52-55` acknowledges OLE DB has complex-query parameter order bugs; a stricter per-driver flag (`should be: provider == ODBC`) was traded for a blanket `true`.
+5. **`IsParameterOrderDependent = true` applies to both drivers**: The comment at `AccessDataProvider.cs:52-55` acknowledges OLE DB has complex-query parameter order bugs. A stricter per-driver flag (`should be: provider == ODBC`) was traded for a blanket `true`.
 
-6. **OLE DB `GetOleDbSchemaTable` hard-crash risk**: The comment at `AccessOleDbSchemaProvider.cs:52-55` notes this call can trigger an unhandled native AV (issue #23 in linq2db.LINQPad). No mitigation is possible in managed code.
+6. **OLE DB `GetOleDbSchemaTable` hard-crash risk**: The comment at `AccessOleDbSchemaProvider.cs:53-55` notes this call can trigger an unhandled native AV (issue #23 in linq2db.LINQPad). No mitigation is possible in managed code.
 
-7. **UTC now silently returns local time**: `TranslateZonedNow` in `AccessMemberTranslator.cs:210-213` emits `Now` for `DateTimeOffset.UtcNow`/zoned-now queries because Access has no UTC clock function. Callers expecting UTC semantics get local system time instead. No warning or fallback is emitted. Added in PR #5467.
+7. **UTC now silently returns local time**: `TranslateZonedNow` in `AccessMemberTranslator.cs:208-211` emits `Now` for `DateTimeOffset.UtcNow`/zoned-now queries because Access has no UTC clock function. Callers expecting UTC semantics get local system time instead. No warning or fallback is emitted. Added in PR #5467.
 
-8. **`TranslateRoundToEven`'s `isEven` predicate compares against the wrong literal**: the source comment at `AccessMemberTranslator.cs:226-230` documents the tie-break as `Int(v) Mod 2 = 0`, but the generated predicate at `AccessMemberTranslator.cs:239` is `factory.Equal(factory.Mod(intCast, factory.Value(2)), factory.Value(2))` -- comparing to the literal `2`, a value `Mod 2` never produces. The `Int(v)` tie-break branch is therefore never selected; execution always falls through to the `Round(v)` false-branch. Likely benign in practice -- Access/Jet's native `Round()` already implements round-half-to-even -- but the custom tie-break code path is dead. Not confirmed against a failing test; flagged for `kb-issue-detector` triage.
+8. **`TranslateRoundToEven` isEven predicate compares against the wrong literal**: the source comment at `AccessMemberTranslator.cs:224-228` documents the tie-break as `Int(v) Mod 2 = 0`, but the generated predicate at `AccessMemberTranslator.cs:237` is `factory.Equal(factory.Mod(intCast, factory.Value(2)), factory.Value(2))` -- comparing to the literal `2`, a value `Mod 2` never produces. The `Int(v)` tie-break branch is therefore never selected. Execution always falls through to the `Round(v)` false-branch. Likely benign in practice -- Access/Jet native `Round()` already implements round-half-to-even -- but the custom tie-break code path is dead. Not confirmed against a failing test, flagged for `kb-issue-detector` triage. Still present at sha 05150894e.
+
+9. **No interval shifts and no tick counts on Access**: `LowerTemporalArithmetic` returns `null`, `CanLowerIntervalShift = false` and `ElapsedTicks` returns `null` (`AccessSqlExpressionConvertVisitor.cs:78-105`), because `DateDiff` is 32-bit and a tick-scaled amount overflows. Queries shifting a date by an interval, or measuring sub-second / tick totals, are refused with a named error (or fall back to client-side evaluation in a projection). Sub-second `DateTime` constants always travel as parameters since literals have second precision (`AccessSqlBuilderBase.cs:299-319`).
 
 ## See also
 
@@ -303,7 +322,7 @@ This is not a multi-statement splitter -- Access commands execute one statement 
 | File | Role |
 |---|---|
 | `Internal/DataProvider/Access/AccessDataProvider.cs` | Abstract provider base; 4 concrete subclasses; `SqlProviderFlags` incl. Upsert-merge-lowering gate; dispatch |
-| `Internal/DataProvider/Access/AccessSqlBuilderBase.cs` | SQL generation base; TOP/IIF/IDENTITY/UPDATE/JOIN/parameter quirks |
+| `Internal/DataProvider/Access/AccessSqlBuilderBase.cs` | SQL generation base; TOP/IIF/IDENTITY/UPDATE/JOIN/parameter quirks, unique root column names, `CVar`/`CSng` parameter casts, sub-second DateTime parameters |
 | `Internal/DataProvider/Access/AccessSqlOptimizer.cs` | Statement rewriting pipeline |
 | `DataProvider/Access/AccessTools.cs` | Public entry point; `CreateDatabase` via ADOX |
 | `DataProvider/Access/AccessVersion.cs` | Engine version enum |
@@ -320,10 +339,10 @@ This is not a multi-statement splitter -- Access commands execute one statement 
 |---|---|
 | `Internal/DataProvider/Access/AccessOleDbSqlBuilder.cs` | OLE DB concrete builder |
 | `Internal/DataProvider/Access/AccessODBCSqlBuilder.cs` | ODBC concrete builder; `?` parameters; GUID->parameter |
-| `Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs` | Expression rewrites (functions, LIKE, COALESCE->IIF with NULL-strip, casts, bitwise); `SupportsNullIf = false` |
+| `Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs` | Expression rewrites (functions, LIKE, COALESCE->IIF with NULL-strip, casts, bitwise); `SupportsNullIf = false`; second-resolution interval lowering (`DateDiff`/`DateAdd`, null guard, no ticks / shifts) |
 | `Internal/DataProvider/Access/AccessDmlService.cs` | Table-not-found exception detection |
 | `Internal/DataProvider/Access/AccessSchemaProviderBase.cs` | Shared schema provider base; data-type map |
-| `Internal/DataProvider/Access/AccessOleDbSchemaProvider.cs` | OLE DB schema introspection |
+| `Internal/DataProvider/Access/AccessOleDbSchemaProvider.cs` | OLE DB schema introspection (`ExecuteOnNewConnection` workaround) |
 | `Internal/DataProvider/Access/AccessODBCSchemaProvider.cs` | ODBC schema introspection |
 | `Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs` | ACE/base member translations; whitespace-only TrimStart/TrimEnd (PR #5515); IsNullOrWhiteSpace via LTRIM; GUID null-guard IIF; Join no-separator branch; nested window-translator override |
 | `Internal/DataProvider/Access/Translation/AccessJetMemberTranslator.cs` | JET override (no REPLACE) |
@@ -358,7 +377,14 @@ Read (this run -- delta sha b3340aa9):
 - `Translation/AccessMemberTranslator.cs` -- `GuidMemberTranslator.TranslateGuildToString` now wraps result in explicit `IIF(IsNull(g), NULL, LCase(Mid(CStr(g), 2, 36)))` null-guard (Access `CStr(NULL)` throws at ODBC layer; Jet/ACE SQL IIF short-circuits so false branch is skipped when predicate is true); `AccessStringMemberTranslator.TranslateIsNullOrWhiteSpace` added (emits `{v} IS NULL OR LTRIM({v}) = ''` using Access space-only LTRIM); `TranslateDateTimeTruncationToTime` delegates to `TimeValue(expr)` (confirms existing INDEX.md claim).
 
 Read (this run -- delta sha 36ee4f82f):
-- `AccessDataProvider.cs` -- new `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (`AccessDataProvider.cs:43-45`), part of a cross-provider Upsert-with-merge-lowering capability (same flag also `false` on MySQL, PostgreSQL, SAP HANA, SQLite, SqlCe, SQL Server; gated in `UpsertBuilder.cs:262` via `ErrorHelper.Error_Upsert_MergeLowering_NotSupported`); this insertion shifted the constructor's `SqlProviderFlags` block to lines 37-67, the `IsParameterOrderDependent` comment to lines 52-55, and the OLE DB/ODBC `Decimal`/`VarNumeric` -> `AnsiString` branches in `SetParameterType` to lines 201-202 / 237-240 -- citations updated accordingly. No other structural changes.
+- `AccessDataProvider.cs` -- new `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (`AccessDataProvider.cs:43-45`), part of a cross-provider Upsert-with-merge-lowering capability (same flag also `false` on MySQL, PostgreSQL, SAP HANA, SQLite, SqlCe, SQL Server); gated in `UpsertBuilder.cs:262` via `ErrorHelper.Error_Upsert_MergeLowering_NotSupported`); this insertion shifted the constructor's `SqlProviderFlags` block to lines 37-67, the `IsParameterOrderDependent` comment to lines 52-55, and the OLE DB/ODBC `Decimal`/`VarNumeric` -> `AnsiString` branches in `SetParameterType` to lines 201-202 / 237-240 -- citations updated accordingly. No other structural changes.
 - `Translation/AccessMemberTranslator.cs` -- `TranslateStringJoin` now branches on `withoutSeparator`: plain `ConfigureConcat(wrapByCoalesce: true)` when there's no separator, `ConfigureConcatWsEmulation` (unchanged Mid-based emulation) otherwise -- previously only the separator path was documented. Confirmed nested `AccessWindowFunctionsMemberTranslator : WindowFunctionsMemberTranslator` (`IsWindowFunctionsSupported => false`, lines 458-466), not previously called out. While verifying `TranslateRoundToEven` (unchanged logic, re-read in full per Tier-2 scan), found the `isEven` predicate at line 239 compares against the literal `2` instead of `0`, contradicting both the adjacent source comment and this file's prior "Round (banker's)" claim -- claim corrected in place, discrepancy logged as Known issues / debt item 8 and flagged via AUDIT-NOTE. Also corrected stale citations discovered during the full re-read: `LPad` (`352-367` -> `368-383`) and `Aggregates`/`AccessAggregateFunctionsMemberTranslator` (`405-409` -> `452-456`), both drifted from earlier additive PRs (#5515 etc.) that were never reflected in these two citations.
+
+Read (this run -- delta):
+- `DataProvider/Access/AccessSpecificExtensions.cs` -- no behavioral change found: `AsAccess<T>` overloads for `ITable<T>` and `IQueryable<T>` unchanged in shape.
+- `Internal/DataProvider/Access/AccessSqlBuilderBase.cs` -- `RequiresUniqueRootColumnNames => true` (#5599 / #5657); NULL-literal typization now uses the stored `DataType` default rather than the model CLR type; `BuildSqlParameterCastExpression` override renders `CVar`/`CSng` and passes non-query parameters through as literals; `TryConvertParameterToSql`/`BuildValue` force sub-second `DateTime` to parameters; dialect citations shifted and refreshed.
+- `Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs` -- large addition: second-resolution interval lowering (`FinestDateUnit`, `IntervalResolution`, `CanLowerIntervalPart`, `ElapsedTicks` = null, `CanMeasureDifferenceInTicks` = false, `CanLowerIntervalShift` = false, `LowerTemporalArithmetic` = null, `TruncateDivide` via `Fix`, `ShiftDate`, `CountDateBoundaries`, null-guarded `LowerIntervalPart`); LIKE, search-string, coalesce, function, conversion and binary rewrites unchanged in behavior with shifted line numbers.
+- `Internal/DataProvider/Access/AccessOleDbSchemaProvider.cs` -- re-read in full: `ExecuteOnNewConnection` skips when a transaction is active or the connection is external; `GetProcedureSchemaExecutesProcedure = true`; identity flag now at line 139, AV comment at 53-55; no change to the OLE DB / ODBC divergence matrix.
+- `Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs` -- no behavioral change; line numbers shifted by about -2 from the date section onward and citations refreshed; `isEven` literal `2` issue (item 8) still present, now at line 237.
 
 </details>

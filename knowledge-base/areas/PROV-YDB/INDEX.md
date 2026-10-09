@@ -3,8 +3,8 @@ area: PROV-YDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 15/15
 coverage_tier_2: 8/8
 ---
@@ -43,6 +43,7 @@ For schema introspection, `YdbProviderAdapter` also wraps `Ydb.Sdk.Ado.Session.I
 - `RowConstructorSupport = RowFeature.Equality | Comparisons | Between | In | UpdateLiteral`.
 - `SupportsPredicatesComparison = true`, `IsDistinctFromSupported = true`.
 - `IsSupportsJoinWithoutCondition = false` -- YQL rejects a `JOIN ON` without a real input-dependent predicate ("each equality predicate argument must depend on exactly one JOIN input"), so the engine must not emit `JOIN ON 1=1` (`YdbDataProvider.cs:59`).
+- `IsUpdateOutputRowsSupported = true` and `IsAffectedRowsCountSupported = false` -- YDB returns rows via `RETURNING` but does not report affected-row counts (`YdbDataProvider.cs:34-35`).
 
 `YdbDataProvider` overrides `SetParameter` with extensive numeric type coercion covering all integer widths (`sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`) and floating-point types (`float`, `double`, `decimal` coercions also cover `DataType.Single`, `DataType.Double`, `DataType.DecFloat`). `SetParameterType` maps linq2db `DataType` values to `YdbDbType` enum members. The `DataType.Array` flag is handled inline: if set, the `YdbDbType.List` flag is OR-ed into the resulting type.
 
@@ -85,7 +86,7 @@ Identity field DDL uses PostgreSQL-style serials: `SMALLSERIAL`, `SERIAL`, `BIGS
 
 `BuildMergeStatement` throws `LinqToDBException` -- YDB does not support SQL MERGE.
 
-`ORDER BY` skips constant expressions and sorts by alias name when the column has an alias (documented in code as a YDB bug). When an `SqlOrderByItem` has `NullsPosition != Sql.NullsPosition.None`, `NULLS FIRST` or `NULLS LAST` is appended to the order expression (`YdbSqlBuilder.cs:544-549`); this path is only reached when the engine leaves a native nulls-position directive rather than emitting a CASE-key rewrite.
+`ORDER BY` skips constant expressions and sorts by alias name when the column has an alias (documented in code as a YDB bug); under DISTINCT or GROUP BY the alias is now resolved via `AliasesContext.GetColumnAlias(col)` rather than `col.Alias` (`YdbSqlBuilder.cs:635-640`). When an `SqlOrderByItem` has `NullsPosition != Sql.NullsPosition.None`, `NULLS FIRST` or `NULLS LAST` is appended to the order expression (`YdbSqlBuilder.cs:544-549`); this path is only reached when the engine leaves a native nulls-position directive rather than emitting a CASE-key rewrite.
 
 `CanSkipRootAliases` returns `false` -- duplicate aliases in the final SELECT are not supported by YDB (`YdbSqlBuilder.cs:100`).
 
@@ -133,6 +134,8 @@ The rewrite itself now lives in a dedicated visitor, `YdbScalarSubQueryToCteVisi
 - `ConcatRequiresExplicitStringCast => false` -- YQL's `||` auto-coerces non-string operands to text, so an explicit `CAST(x AS String)` on concat operands is redundant.
 - `SupportsNullIf => false` -- YQL has no `NULLIF` builtin; the `CASE WHEN a = b THEN NULL ELSE a END` form is kept instead of folding to `NULLIF`.
 - `SupportsNullInColumn` returns `false`.
+- **Interval-difference and temporal-shift lowering (PR #5987).** `CanLowerIntervalDifference => true` with an `ElapsedTicks(SqlIntervalDifferenceExpression)` override: the two temporals are subtracted into a typed `Interval`, cast to `Int64` (microseconds, YDB's finest resolution) and multiplied up to ticks. The subtraction must carry the `Interval` type or the cast reads as an `Int64`->`Int64` no-op and is pruned.
+- `CanLowerIntervalShift => true` with a `LowerTemporalArithmetic(SqlTemporalArithmeticExpression)` override: the tick count (negated when `IsSubtract`) is divided to microseconds, wrapped in `DateTime::IntervalFromMicroseconds`, and added natively to the temporal. A `DateTime`-typed operand is first cast to `Timestamp` (`DataType.DateTime2`), or `Timestamp64` when `IsWide` / `IsWideDateType` detects `Date32`/`DateTime64`/`Timestamp64` (including a `DbType` string starting with those names, and chained shifts via recursion into the inner `SqlTemporalArithmeticExpression`). The sum is cast back to its own type because YQL's `+` result is optional; the builder unwraps that cast where the value cannot be null. This bypasses the `FinestDateUnit` path and the `DateTime::ShiftYears/ShiftMonths` member-translator route for these engine-lowered shifts.
 
 ### Member translator (`YdbMemberTranslator`)
 
@@ -391,4 +394,11 @@ The provider-specific decimal wire encoding in `YdbProviderAdapter.MakeDecimalFr
 - `DataProvider/Ydb/YdbTools.cs` -- no change from prior description.
 - `DataProvider/Ydb/YdbHints.cs` -- no change from prior description (`QueryHint` overloads, `Unique`/`Distinct` constants, `--+ hint(...)` builder).
 - `DataProvider/Ydb/IYdbSpecificQueryable.cs`, `DataProvider/Ydb/IYdbSpecificTable.cs`, `DataProvider/Ydb/YdbSpecificExtensions.cs` -- re-confirmed, no change (marker interfaces / `AsYdb<T>` extensions).
+
+**Read (this run -- delta sha 05150894e):**
+- `Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs` -- PR #5987: added `CanLowerIntervalDifference`/`ElapsedTicks` and `CanLowerIntervalShift`/`LowerTemporalArithmetic` (+ `IsWide`/`IsWideDateType` helpers) -- native `Interval` arithmetic via `DateTime::IntervalFromMicroseconds`, Timestamp/Timestamp64 widening casts.
+- `Internal/DataProvider/Ydb/YdbDataProvider.cs` -- added `IsUpdateOutputRowsSupported = true`, `IsAffectedRowsCountSupported = false`.
+- `Internal/DataProvider/Ydb/YdbSqlBuilder.cs` -- `BuildOrderByClause` DISTINCT/GROUP BY alias lookup now via `AliasesContext.GetColumnAlias`.
+- `Internal/DataProvider/Ydb/YdbProviderAdapter.cs` -- cosmetic only: empty `IDriver` / `DescribeTableSettings` wrapper types converted to semicolon bodies.
+- `Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs` -- BOM-only change (no behavioural change).
 </details>

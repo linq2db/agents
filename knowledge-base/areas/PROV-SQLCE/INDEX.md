@@ -3,8 +3,8 @@ area: PROV-SQLCE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 11/11
 coverage_tier_2: 10/10
 ---
@@ -18,14 +18,14 @@ SQL Server Compact Edition (SQL CE 4.0) is a single-version, single-driver, file
 | Type | File | Role |
 |---|---|---|
 | `SqlCeDataProvider` | `Internal/DataProvider/SqlCe/SqlCeDataProvider.cs` | `DynamicDataProviderBase<SqlCeProviderAdapter>` entry point; configures `SqlProviderFlags`, wires bulk copy, schema provider, and member translator |
-| `SqlCeSqlBuilder` | `Internal/DataProvider/SqlCe/SqlCeSqlBuilder.cs` | `BasicSqlBuilder` override; implements CE-specific paging, identity reset, object quoting, MERGE rejection |
+| `SqlCeSqlBuilder` | `Internal/DataProvider/SqlCe/SqlCeSqlBuilder.cs` | `BasicSqlBuilder` override; implements CE-specific paging, identity reset, object quoting, MERGE rejection, forced unique root column names |
 | `SqlCeSqlOptimizer` | `Internal/DataProvider/SqlCe/SqlCeSqlOptimizer.cs` | `BasicSqlOptimizer` override; corrects SKIP/ORDER BY requirements, Boolean-comparison rewriting, UPDATE-JOIN detection |
 | `SqlCeProviderAdapter` | `Internal/DataProvider/SqlCe/SqlCeProviderAdapter.cs` | `IDynamicProviderAdapter` singleton; loads `System.Data.SqlServerCe` via reflection, wraps `SqlCeEngine`, `SqlCeParameter`, `SqlCeDataReader` |
 | `SqlCeMappingSchema` | `Internal/DataProvider/SqlCe/SqlCeMappingSchema.cs` | `LockedMappingSchema`; registers `SqlTypes` scalar types, forces `string` -> `NVarChar(255)`, `decimal` -> `Decimal(18,10)`, CE string/binary/datetime literal converters |
 | `SqlCeBulkCopy` | `Internal/DataProvider/SqlCe/SqlCeBulkCopy.cs` | `BasicBulkCopy` override; single-strategy (`MultipleRows` only via `MultipleRowsCopy2`), with `SET IDENTITY_INSERT ON/OFF` guard |
 | `SqlCeSchemaProvider` | `Internal/DataProvider/SqlCe/SqlCeSchemaProvider.cs` | `SchemaProviderBase` override; queries `INFORMATION_SCHEMA` views directly via `GetSchema()` and raw SQL; no stored-proc introspection |
 | `SqlCeDmlService` | `Internal/DataProvider/SqlCe/SqlCeDmlService.cs` | `DmlServiceBase` override; detects `DB_E_NOTABLE` (0x80040E37) for table-not-found via HResult or message fallback |
-| `SqlCeSqlExpressionConvertVisitor` | `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | `SqlExpressionConvertVisitor` override; handles `%` modulo cast, `LEN` LENGTH workaround, case-sensitive string predicates via `Convert(VARBINARY,...)`, datetime conversions |
+| `SqlCeSqlExpressionConvertVisitor` | `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | `SqlExpressionConvertVisitor` override; handles `%` modulo cast, `LEN` LENGTH workaround, case-sensitive string predicates via `Convert(VARBINARY,...)`, datetime conversions, BIGINT-typed `TruncateDivide`/`TruncateRemainder`, date shift (`DateAdd`) and interval-difference lowering (`DateDiff`) |
 | `SqlCeMemberTranslator` | `Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs` | `ProviderMemberTranslatorDefault` override; assembles date/math/string/guid/aggregate/window sub-translators; includes `Now`/`ServerNow`/`ZonedNow` and date-truncation overrides (PR #5467, #5517); `NewID()` non-pure function; `IsNullOrWhiteSpace` chained-REPLACE emulation |
 | `SqlCeTools` | `DataProvider/SqlCe/SqlCeTools.cs` | Public static entry point; `GetDataProvider()`, `CreateDataConnection()`, `CreateDatabase()` (via `SqlCeEngine`), `DropDatabase()`, provider detection |
 | `SqlCeOptions` | `DataProvider/SqlCe/SqlCeOptions.cs` | `DataProviderOptions<SqlCeOptions>` record; `BulkCopyType` (default `MultipleRows`), `InlineFunctionParameters` (SQL CE 3.0 workaround) |
@@ -54,7 +54,7 @@ A `SqlDecimal` -> `decimal` workaround (`ConvertToDecimal`, `SqlCeProviderAdapte
 - **Object quoting** (`SqlCeSqlBuilder.cs:128-163`): `[name]` brackets for fields and tables; no schema/catalog prefix -- `BuildObjectName` ignores schema and catalog (`SqlCeSqlBuilder.cs:171-181`).
 - **MERGE** (`SqlCeSqlBuilder.cs:195-198`): throws `LinqToDBException` -- CE has no MERGE statement.
 - **IS DISTINCT FROM** (`SqlCeSqlBuilder.cs:200`): falls back to `BuildIsDistinctPredicateFallback`.
-- **Multiple same-name columns** (`SqlCeSqlBuilder.cs:51-60`): `CanSkipRootAliases` returns `false` -- CE rejects duplicate column names in SELECT.
+- **Duplicate root column names** (`SqlCeSqlBuilder.cs:51-57`, delta sha `05150894e`): the former `CanSkipRootAliases` override (returned `false` whenever a `SelectQuery` was present) is replaced by `RequiresUniqueRootColumnNames => true`. CE resolves ORDER BY and other name references against the output projection, so two root columns with the same result-set name make the reference ambiguous. Final aliases are now forced only on a root column-name collision (`PersonID` / `PersonID_1`). A bare duplicate-name SELECT is accepted by CE -- the failure is the name reference over it (verified by full-suite run, #5657).
 - **VALUES syntax** (`SqlCeSqlBuilder.cs:47`): `IsValuesSyntaxSupported = false`.
 - **Data type mapping** (`SqlCeSqlBuilder.cs:89-126`): `Char`/`VarChar` -> `NChar`/`NVarChar`; `SmallMoney` -> `Decimal(10,4)`; `DateTime2`/`Time`/`Date`/`SmallDateTime` -> `DateTime`; `NVarChar` capped at 4000; `Binary`/`VarBinary` capped at 8000.
 
@@ -68,11 +68,13 @@ A `SqlDecimal` -> `decimal` workaround (`ConvertToDecimal`, `SqlCeProviderAdapte
 4. **`FinalizeUpdate`** (`SqlCeSqlOptimizer.cs:48-95`): Detects UPDATE-JOINs and throws `LinqToDBException("SqlCe does not support UPDATE query with JOIN.")` unless the query only touches one table. `GetAlternativeDelete` is applied for DELETE statements. The single-table alias reassignment now guards with `is SqlTable updateTable` (`SqlCeSqlOptimizer.cs:82-83`) since `SqlUpdateClause.Table` is typed `ISqlNamedTable?` and `Alias` is a `SqlTable`-only member (delta sha `36ee4f82f`).
 
 `SqlCeSqlExpressionConvertVisitor` handles expression-level rewrites:
-- `%` on non-integer type -> cast left operand to `int` first (`SqlCeSqlExpressionConvertVisitor.cs:28-47`).
+- `%` on non-integer type -> cast left operand to `int` first (`SqlCeSqlExpressionConvertVisitor.cs:28-47`). The integer test is now `IsRemainderable(DbDataType)` (delta sha `05150894e`): true when the read `SystemType` is integer OR the stored `DataType` maps to an integer system type. A column with a value converter (e.g. a duration read from a `BIGINT`) is therefore no longer cast to `INT` (which a tick-valued duration overflows after about 3 minutes).
 - `LENGTH` -> `LEN(value + ".") - 1` (LEN trims trailing spaces; appending "." avoids that) (`SqlCeSqlExpressionConvertVisitor.cs:56-70`). Implementation uses `Factory.Concat` / `Factory.Function` / `Factory.Sub` (IExpressionFactory API); logic unchanged.
 - Case-sensitive `StartsWith`/`EndsWith`/`Contains` -> `Convert(VARBINARY, SUBSTRING(...))` comparison (CE has no `COLLATE` clause) (`SqlCeSqlExpressionConvertVisitor.cs:76-152`).
 - `NULLIF` not supported (`SupportsNullIf = false`).
 - DateTime conversions: time-only extraction via `CAST(CONVERT(NChar, {0}, 114) as DateTime)`, date truncation via `CAST(Floor(Cast({0} as Float)) as DateTime)` (`SqlCeSqlExpressionConvertVisitor.cs:154-217`).
+- **Integer division/remainder by constant** (delta sha `05150894e`): `TruncateDivide` / `TruncateRemainder` overrides emit `Factory.Div` / `Factory.Mod` typed `long` with the divisor wrapped in an explicit `CAST(... AS BIGINT)` (`TypedDivisor`). CE types a literal beyond the `INT` range as `NUMERIC`, and `%` rejects numeric ("Modulo is not supported on real, float, money, and numeric data types").
+- **Interval/date arithmetic** (delta sha `05150894e`): `CanLowerIntervalDifference => true`, `FinestDateUnit => Millisecond`, `IntervalResolution => Millisecond` (a component asked below a millisecond is declined at build time so the member falls to client-side .NET evaluation, same limit as SQLite -- CE `datetime` counts in 3.33 ms steps, so answering zero would be wrong). `ShiftDate` emits `DateAdd(<part>, amount, date)` and `CountDateBoundaries` emits `CAST(DateDiff(<part>, start, end) AS BIGINT)` for units Day/Hour/Minute/Second/Millisecond (`DatePartName`; other units return `null` = unsupported). CE `DATEDIFF` is 32-bit (no wide form), so a total in milliseconds overflows beyond about 24 days and CE raises an overflow error rather than wrapping; whole-unit counts keep every other unit small.
 
 ### Mapping schema
 
@@ -164,7 +166,7 @@ Set in `SqlCeDataProvider` constructor (`SqlCeDataProvider.cs:32-44`):
 | `Internal/DataProvider/SqlCe/SqlCeBulkCopy.cs` | Bulk copy (MultipleRows only) |
 | `Internal/DataProvider/SqlCe/SqlCeSchemaProvider.cs` | Schema introspection |
 | `Internal/DataProvider/SqlCe/SqlCeDmlService.cs` | DML exception detection |
-| `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | Expression-level rewrites |
+| `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | Expression-level rewrites (incl. BIGINT divisor, DateAdd/DateDiff interval lowering) |
 | `Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs` | LINQ member translation |
 | `DataProvider/SqlCe/SqlCeTools.cs` | Public static API |
 
@@ -201,6 +203,7 @@ Set in `SqlCeDataProvider` constructor (`SqlCeDataProvider.cs:32-44`):
 - **Dual date-truncation paths**: `DateTime.Date` truncation is implemented in both `SqlCeSqlExpressionConvertVisitor` and `DateFunctionsTranslator.TranslateDateTimeTruncationToDate` (PR #5517).
 - **`TrimStart`/`TrimEnd` with custom chars unsupported**: `SqlCeStringMemberTranslator` returns `null` when `trimChars != null` (PR #5515); no fallback emulation.
 - **`IsNullOrWhiteSpace` uses 25-step REPLACE chain**: CE has no regex or multi-char trim; each Unicode whitespace codepoint is stripped individually (`SqlCeMemberTranslator.cs:325-338`); generates a long SQL expression.
+- **32-bit `DATEDIFF` (delta sha `05150894e`)**: a millisecond-unit interval total overflows beyond about 24 days and CE raises an overflow error (`SqlCeSqlExpressionConvertVisitor.CountDateBoundaries`); sub-millisecond interval components are declined (`IntervalResolution`) and fall back to client-side evaluation.
 
 ## See also
 
@@ -229,5 +232,9 @@ Read (this run -- delta sha `36ee4f82f`):
 - `SqlCeDataProvider.cs` -- added `SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false` (line 38), with inline comment: SQL CE has no MERGE statement, so Upsert configurations requiring MERGE lowering surface `Error_Upsert_MergeLowering_NotSupported` instead of attempting a MERGE-based rewrite. Not previously in flags table.
 - `SqlCeSqlOptimizer.cs` -- `FinalizeUpdate`'s alias-reassignment narrowed from unconditional `updateStatement.Update.Table.Alias = "$F"` to `if (updateStatement.Update.Table is SqlTable updateTable) updateTable.Alias = "$F";` (lines 82-83) -- `SqlUpdateClause.Table` is now typed `ISqlNamedTable?`, and `Alias` is a `SqlTable`-only member; the guard is required to type-check. No behavioral change on the reachable path (the enclosing branch already narrows the source to `SqlTable`).
 - `SqlCeMemberTranslator.cs` -- `TranslateNewGuidMethod` simplified (removed intermediate `timePart` local, direct `return`; no behavior change). Added `SqlCeWindowFunctionsMemberTranslator` inner class (extends `WindowFunctionsMemberTranslator`) overriding `IsWindowFunctionsSupported` to `false`, plus a `CreateWindowFunctionsMemberTranslator` override wiring it in (lines 370-378) -- mirrors the existing `SqlProviderFlags.IsWindowFunctionsSupported = false` at the translator layer; base class default for the flag is `true`.
+
+Read (this run -- delta sha `05150894e`):
+- `SqlCeSqlBuilder.cs` -- `CanSkipRootAliases` override (always `false` with a SelectQuery) replaced by `RequiresUniqueRootColumnNames => true`; aliases forced only on root column-name collisions (#5657)
+- `SqlCeSqlExpressionConvertVisitor.cs` -- added `TruncateDivide`/`TruncateRemainder` (BIGINT-typed divisor), `CanLowerIntervalDifference`/`FinestDateUnit`/`IntervalResolution` (Millisecond), `ShiftDate` (`DateAdd`), `CountDateBoundaries` (`DateDiff` cast to BIGINT), `IsRemainderable` (stored `DataType` considered for `%` int-cast)
 
 </details>

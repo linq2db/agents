@@ -3,8 +3,8 @@ area: EXTENSIONS-PKG
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-06-01
-last_verified_sha: 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 3/3
 coverage_tier_2: 0/0
 ---
@@ -37,6 +37,10 @@ Default lifetime for all methods: `ServiceLifetime.Scoped` (`ServiceConfiguratio
 - `UseLoggerFactory(DataOptions, ILoggerFactory)` -- instantiates `LinqToDBLoggerFactoryAdapter`, then calls `options.WithOptions<QueryTraceOptions>(o => o with { TraceLevel = TraceLevel.Verbose, WriteTrace = adapter.OnTrace })` (`OptionsBuilderExtensions.cs:34`). This wires the adapter into the `QueryTraceOptions` slot on `DataOptions`.
 - `UseDefaultLogging(DataOptions, IServiceProvider)` -- resolves `ILoggerFactory` from the container and delegates to `UseLoggerFactory`.
 
+### Package build wiring (`LinqToDB.Extensions.csproj`)
+
+The `ProjectReference` to `..\LinqToDB\LinqToDB.csproj` now carries `PrivateAssets="contentfiles;build"` (`Source/LinqToDB.Extensions/LinqToDB.Extensions.csproj:24`), so the core package's content files and build assets do not flow transitively to consumers of `linq2db.Extensions`; the `linq2db` dependency itself still flows. The project is AOT-compatible on net8.0+ (`IsAotCompatible`), uses PolySharp runtime-supported attributes, and packs `readme.md`.
+
 ## Key types
 
 | Type | File | Role |
@@ -56,7 +60,7 @@ Default lifetime for all methods: `ServiceLifetime.Scoped` (`ServiceConfiguratio
 | `Logging/OptionsBuilderExtensions.cs` | `UseLoggerFactory` / `UseDefaultLogging` on `DataOptions` |
 
 **Non-code** (read for package identity, not Tier classification):
-- `LinqToDB.Extensions.csproj` -- assembly name, NuGet metadata, package references
+- `LinqToDB.Extensions.csproj` -- assembly name, NuGet metadata, package references; core `ProjectReference` uses `PrivateAssets="contentfiles;build"`
 - `PublicAPI.Shipped.txt` -- confirmed shipped surface
 
 **Tier 2**: none (area has no .cs files beyond the 3 Tier-1 files).
@@ -88,4 +92,6 @@ Default lifetime for all methods: `ServiceLifetime.Scoped` (`ServiceConfiguratio
 Tier 1 (3/3 read): `ServiceConfigurationExtensions.cs`, `Logging/LinqToDbLoggerFactoryAdapter.cs`, `Logging/OptionsBuilderExtensions.cs`. Tier 2: 0 files (none exist beyond Tier 1). Non-code files read for package identity: `LinqToDB.Extensions.csproj`, `PublicAPI.Shipped.txt`.
 
 Read (this run -- delta): `PublicAPI/PublicAPI.Shipped.txt` -- v6 release-cut promotion of Unshipped -> Shipped entries; pure baseline churn, no API surface changes.
+
+Read (this run -- delta): `Source/LinqToDB.Extensions/LinqToDB.Extensions.csproj` -- core `ProjectReference` gained `PrivateAssets="contentfiles;build"`; no source/API change.
 </details>

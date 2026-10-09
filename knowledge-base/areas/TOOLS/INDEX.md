@@ -3,8 +3,8 @@ area: TOOLS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-06-01
-last_verified_sha: 2e67bafc9bfc8ae8ba573b93bde8671d9920c95d
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 15/15
 coverage_tier_2: 13/13
 ---
@@ -13,7 +13,7 @@ coverage_tier_2: 13/13
 
 Standalone `linq2db.Tools` NuGet package (`linq2db.Tools` assembly). Provides five opt-in utility subsystems -- Activity instrumentation, entity comparers, SQL Server system-schema queries, entity identity map, and object-to-object mapping -- that require the core `linq2db` package but are not shipped with it. No inbound runtime dependency from the core library; consumers add a `<PackageReference>` to `linq2db.Tools` alongside `linq2db`.
 
-Source tree: `Source/LinqToDB.Tools/` (28 `.cs` files + `Schemas.tt` + `Schemas.generated.cs`). Assembly name: `linq2db.Tools` (`LinqToDB.Tools.csproj`). Single `<ProjectReference>` to `LinqToDB.csproj`.
+Source tree: `Source/LinqToDB.Tools/` (28 `.cs` files + `Schemas.tt` + `Schemas.generated.cs`). Assembly name: `linq2db.Tools` (`LinqToDB.Tools.csproj`). Single `<ProjectReference>` to `LinqToDB.csproj`, declared with `PrivateAssets="contentfiles;build"` (does not flow the core package content files / build assets transitively to Tools consumers).
 
 ## Subsystems
 
@@ -30,6 +30,8 @@ Both depend on `LinqToDB.Metrics.ActivityID`/`ActivityService`/`ActivityBase` (I
 
 `ComparerBuilder` -- static factory for expression-compiled `IEqualityComparer<T>`. Entry points: `GetEqualityComparer<T>()` (reflects public members via `TypeAccessor`, skips `IgnoreComparisonAttribute`, cached in `Comparer<T>.DefaultInstance`); `GetEqualityComparer<T>(params Expression<Func<T,object?>>[])` (subset); `GetEqualityComparer(Type)` (non-generic). `GetEqualityComparerExpression(Type)` dispatches to `BitArrayEqualityComparer`, `EnumerableEqualityComparer<T>`/`EnumerableEqualityComparer`, recursive comparer, or `EqualityComparer<T>.Default`. Source: `Comparers/ComparerBuilder.cs`.
 
+`IgnoreComparisonAttribute` is a pure marker (`AttributeUsage` Property/Field) now declared as a body-less class (`public class IgnoreComparisonAttribute: Attribute;`) -- no behavioral change.
+
 `MappingSchemaExtensions` bridges to mapping: `GetKeyEqualityComparer<T>()`, `GetEntityEqualityComparer<T>()`, `GetEqualityComparer<T>(Func<ColumnDescriptor,bool>)` on `MappingSchema`, `IDataContext`, `ITable<T>`. Source: `MappingSchemaExtensions.cs`.
 
 ### DataProvider/SqlServer/Schemas (`DataProvider/SqlServer/Schemas/`)
@@ -38,7 +40,7 @@ Typed LINQ model over SQL Server system catalog views.
 - `Schemas.generated.cs` -- T4-generated (from `Schemas.tt`); ~30 typed schema models on `SystemSchemaModel`. Generated against SQL Server 2022 (`16.00.1135`). Tier 3.
 - `SystemDB : DataConnection, ISystemSchemaData` -- exposes `System` (`SystemSchemaModel`). Three ctors (`string`, `DataOptions`, `DataOptions<SystemDB>`).
 - `ISystemSchemaData : IDataContext` -- requires `System { get; }`.
-- `SystemSchemaExtensions.GetTableRowCountInfo(ISystemSchemaData)` -- `IQueryable<TableRowCountInfo>` over `sys.partitions` (index types 0/1, user tables), grouped by `ObjectID`, summing `Rows`; uses `SqlFn.ObjectSchemaName`/`ObjectName` + `.InlineParameters()`.
+- `SystemSchemaExtensions.GetTableRowCountInfo(ISystemSchemaData)` -- `IQueryable<TableRowCountInfo>` over `sys.partitions` (index types 0/1, user tables), grouped by `ObjectID`, summing `Rows`; uses `SqlFn.ObjectSchemaName`/`ObjectName` + `.InlineParameters()`. The nested `TableRowCountInfo` positional record (`ObjectID`, `SchemaName`, `TableName`, `RowCount`) now has no body block -- cosmetic.
 
 ### EntityServices (`EntityServices/`)
 
@@ -69,7 +71,7 @@ Object-to-object conversion via expression compilation.
 | `ActivityStatistics` | `Activity/ActivityStatistics.cs` | Static cumulative stats registry; factory delegate |
 | `ActivityHierarchy` | `Activity/ActivityHierarchy.cs` | Async-local tree recorder |
 | `ComparerBuilder` | `Comparers/ComparerBuilder.cs` | Expression-compiled `IEqualityComparer<T>` factory |
-| `IgnoreComparisonAttribute` | `Comparers/IgnoreComparisonAttribute.cs` | Opt-out of comparer scan |
+| `IgnoreComparisonAttribute` | `Comparers/IgnoreComparisonAttribute.cs` | Opt-out of comparer scan (body-less marker class) |
 | `SystemDB` | `DataProvider/SqlServer/Schemas/SystemDB.cs` | Typed SQL Server system catalog |
 | `ISystemSchemaData` | `DataProvider/SqlServer/Schemas/ISystemSchemaData.cs` | Catalog interface (testable) |
 | `SystemSchemaExtensions` | `DataProvider/SqlServer/Schemas/SystemSchemaExtensions.cs` | `GetTableRowCountInfo` query |
@@ -96,7 +98,7 @@ Object-to-object conversion via expression compilation.
 **Inbound:** end-user code opting in to `IdentityMap`, `ActivityStatistics`, or `Map`.
 
 **Outbound:**
-- `LinqToDB` (single `<ProjectReference>`) -- `IDataContext`, `DataConnection`, `MappingSchema`, `EntityDescriptor`, `TypeAccessor`, `MemberAccessor`, `ActivityID`, `ActivityService`, `ActivityBase`, `EntityServiceInterceptor`, `EntityCreatedEventData`, `ITable<T>`, `SqlFn`.
+- `LinqToDB` (single `<ProjectReference>`, `PrivateAssets="contentfiles;build"`) -- `IDataContext`, `DataConnection`, `MappingSchema`, `EntityDescriptor`, `TypeAccessor`, `MemberAccessor`, `ActivityID`, `ActivityService`, `ActivityBase`, `EntityServiceInterceptor`, `EntityCreatedEventData`, `ITable<T>`, `SqlFn`.
 - `LinqToDB.Metrics` (INTERCEPTORS): `IActivity`, `ActivityID`, `ActivityService`, `ActivityBase`.
 - `LinqToDB.Interceptors` (INTERCEPTORS): `EntityServiceInterceptor`.
 
@@ -122,4 +124,9 @@ Object-to-object conversion via expression compilation.
 - Tier 2 (visited / total): 13 / 13 (100%)
 - Tier 3 (skipped, logged): 1 -- DataProvider/SqlServer/Schemas/Schemas.generated.cs (T4 auto-generated)
 - Read (this run -- delta): Source/LinqToDB.Tools/PublicAPI/PublicAPI.Shipped.txt -- v6 release-promotion churn; Unshipped promoted to Shipped; no API surface changes.
+
+Read (this run -- delta):
+- Source/LinqToDB.Tools/Comparers/IgnoreComparisonAttribute.cs -- empty class body replaced by a semicolon terminator; no behavior change.
+- Source/LinqToDB.Tools/DataProvider/SqlServer/Schemas/SystemSchemaExtensions.cs -- `TableRowCountInfo` record empty body replaced by a semicolon terminator; no behavior change.
+- Source/LinqToDB.Tools/LinqToDB.Tools.csproj -- `ProjectReference` to `LinqToDB.csproj` gained `PrivateAssets="contentfiles;build"`.
 </details>

@@ -1,3 +1,5 @@
+- [Release 6.5.0](#release-650)
+- [Release 6.4.0](#release-640)
 - [Release 6.3.0](#release-630)
 - [Release 6.2.1](#release-621)
 - [Release 6.2.0](#release-620)
@@ -36,16 +38,852 @@
 
 ***
 
+### Release 6.5.0
+
+#### LinqToDB
+
+##### ⚠ Breaking changes
+
+- Subtracting two dates now measures **elapsed time** instead of counting calendar boundaries. `(end - start).TotalDays` / `TotalHours` / `TotalMinutes` / `TotalSeconds` / `TotalMilliseconds` on `DateTime` and `DateTimeOffset` previously lowered to `DATEDIFF`, which counts boundary crossings — `10:59` -> `11:01` answered `TotalHours == 1`. It now answers the value .NET gives. On most providers this is a silent result change, so review queries that depend on the old behaviour; on SQL Server 2014 and below and on Informix the expression is refused instead, since neither can express an elapsed difference as a value. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- A set operation whose branches do not read a column the same way is now rejected rather than answering wrong. `Union` / `Except` / `ExceptAll` / `Intersect` / `IntersectAll` throw `LinqToDBException` when the branches differ in how a column is read — different value converters, different declared duration units, or one side converted and the other not. Previously a constant compared against a converted column was compared against the raw stored value, returning two rows where .NET says one. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- `Concat` / `UnionAll` branches that read a column on different terms are now read per branch instead of through one shared conversion — previously a branch that dropped its conversion could come back off by a factor of ten million. Such a member stays readable, but is refused if used in SQL further down the query. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- `BulkCopyOptions` gained a `MaxSqlLengthForBatch` parameter on its primary constructor. The previous positional constructor is retained for binary compatibility but marked obsolete and slated for removal in version 7, so calling it positionally now warns — an error if you treat warnings as errors — and positional deconstruction of `BulkCopyOptions` no longer matches. Use the object-initialiser or `With…` forms. ([#5828](https://github.com/linq2db/linq2db/pull/5828))
+- `Union`, `Intersect` and `IntersectAll` over branches that project different but assignable types now report a clear error instead of returning rows. The rows they returned were wrong — unlike `UnionAll`, a distinct set operation has no way to tell the branches apart — so a silent data defect became a loud one. Add an explicit `Select(x => new Projection { ... })` to each branch to say which shape to build. ([#5833](https://github.com/linq2db/linq2db/pull/5833))
+- A scoped table hint now applies to tables in nested scopes too, instead of all but the innermost hint vanishing:
+
+  ```csharp
+  q.AsSqlServer().WithUpdLockInScope().WithRowLockInScope().WithHoldLockInScope()
+  // was:  [p] WITH (UpdLock)
+  // now:  [p] WITH (UpdLock, RowLock, HoldLock)
+  ```
+
+  Chaining is one instance of it; a hint applied in an outer query now also reaches tables inside a subquery, where previously an inner scope shielded them. Two consequences. A combination the server rejects now reaches it, surfacing as a provider error when the query runs — SQL CE, for instance, refuses `NoLock` alongside `PagLock`. And a CTE body is now a scope boundary: it no longer inherits an enclosing scope hint, which previously it sometimes did depending on the query's shape. This covers the generic `TablesInScopeHint`, SQL Server's and SQL CE's `With…InScope()` methods, Oracle's and MySQL's `…InScopeHint()` methods, and ClickHouse's `FinalInScopeHint()`. `TableHint`, `IndexHint`, `JoinHint`, `SubQueryHint` and `QueryHint` are unaffected. ([#5850](https://github.com/linq2db/linq2db/pull/5850))
+- Several server-side-only APIs now throw `ServerSideOnlyException` when called directly outside a query, where they previously threw `NotImplementedException` (`Sql.Row.Overlaps`) or `InvalidOperationException` (`Sql.Window.PercentileCont` and `PercentileDisc` in their grouping form, and `Sql.Like` outside .NET Framework). `ServerSideOnlyException` does not derive from either, so a `catch` written for the old type will no longer match. ([#5870](https://github.com/linq2db/linq2db/pull/5870))
+- `ForEachUntilAsync` now stops when the callback returns `false`, as its documentation always said. On a LinqToDB query it did the opposite — running the whole result set when the callback returned `true`, and stopping after the first row when it returned `false` — so the same callback behaved differently on a LinqToDB query than on any other sequence. Code written against the old behaviour needs its condition inverted. ([#5893](https://github.com/linq2db/linq2db/pull/5893))
+
+##### Added
+
+- `UpdateOptimisticWithRefresh` / `UpdateOptimisticWithRefreshAsync` — an optimistic update that writes the regenerated lock token back onto your entity, so the same instance can be updated again without a manual re-`SELECT`. `UpdateOptimistic` left the entity holding the old token, which made the next update fail as a false concurrency conflict. The new value is read from the same statement via `UPDATE … OUTPUT` / `RETURNING` on SQL Server, PostgreSQL, SQLite, DuckDB, YDB and Firebird 5+, and via a follow-up `SELECT` by primary key elsewhere; the return value is the number of updated rows, `0` meaning a concurrency failure with the entity left untouched. Not available on ClickHouse, which reports no affected-row count. ([#5643](https://github.com/linq2db/linq2db/pull/5643))
+- `TimeSpan` duration columns. Declare the unit an integral column counts in — `[Duration(DurationUnit.Second)]` or `.HasDuration(DurationUnit.Second)` — and `TimeSpan` members (`Hours`, `TotalMinutes`, `Ticks`, …), arithmetic (`±`, unary `-`, `TimeSpan / TimeSpan`, `date ± TimeSpan`) and all six comparisons translate to SQL, with reads and writes converted for you. Comparisons scale the *value* into the column's unit rather than the column into ticks, so an index on the column stays usable. Declaring a unit is opt-in — an undeclared `TimeSpan` column keeps its current provider-defined meaning. See [details](#timespan-columns-and-elapsed-time) below. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- Members of a date difference now translate. `Days`, `Hours`, `Minutes`, `Seconds`, `Milliseconds`, `Ticks` and the `Total*` family, unary `-`, `TimeSpan ± TimeSpan`, `TimeSpan / TimeSpan`, `date ± TimeSpan` and all six comparisons now lower to SQL for any `TimeSpan`, where before only five `Total*` members did and only in the literal `a - b` shape. So `(end - start).Ticks`, `(end - start).Days`, `date + (end - start)` and comparing two differences are computed on the server now. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- `IInterceptable` / `IInterceptable<T>` are public again, in the `LinqToDB.Internal.Interceptors` namespace, so a hand-written `IDataContext` can receive interceptors. Implement `IInterceptable<IEntityServiceInterceptor>` (and one per other interceptor kind you want) and store the interceptor; you will likely also need `IInfrastructure<IServiceProvider>` from `LinqToDB.Internal.Infrastructure`, which the reference implementation in this PR adds alongside it. Without them a context could accept an interceptor through `AddInterceptor` and never have it called. Thanks to [@cal-tlabwest](https://github.com/cal-tlabwest). ([#5813](https://github.com/linq2db/linq2db/pull/5813))
+- `BulkCopyOptions.MaxSqlLengthForBatch` sets the per-batch generated-SQL length limit for any provider using the `MultipleRows` bulk-copy path, where previously only the provider's own hardcoded limit applied:
+
+  ```csharp
+  new DataOptions().UseOracle(cs).UseBulkCopyMaxSqlLengthForBatch(1_000_000)   // connection-wide
+  db.BulkCopy(new BulkCopyOptions { MaxSqlLengthForBatch = 1_000_000 }, rows)  // per call
+  options.WithMaxSqlLengthForBatch(1_000_000)                                  // on an existing options object
+  ```
+
+  Measured in characters of generated SQL; `null` keeps the provider's limit. Not consulted by Oracle's `AlternativeBulkCopy.InsertInto`, nor by Access, Informix and SAP HANA, whose `MultipleRows` mode falls back to row-by-row. ([#5828](https://github.com/linq2db/linq2db/pull/5828))
+
+##### Improved
+
+- `PERCENTILE_CONT` with a boolean sort key is now refused when the query is translated, with a clear message, instead of producing SQL no database can evaluate meaningfully. ([#5725](https://github.com/linq2db/linq2db/pull/5725))
+- Query compilation for table-per-hierarchy mappings is no longer pathologically slow. A projection combining `InheritanceMapping` with `LoadWith` associations and many mapped columns had become dramatically slower on 6.x than on 5.4.1, and overflowed the stack outright on larger models; build times are back in line with 5.4.1. Entities with many mapped columns benefit independently of inheritance. ([#5737](https://github.com/linq2db/linq2db/pull/5737))
+- A generated SQL parameter is now named after the member its value came from where that is knowable - an array or list element (`values[0]` becomes `@values`) and a value-preserving call such as `Nullable<T>.GetValueOrDefault()`. Previously such a parameter took the name of the column it was compared against, or fell back to `@p`. Parameter counts, query shapes and caching are unchanged; only the names differ, which is visible in trace output and to command interceptors. ([#5740](https://github.com/linq2db/linq2db/pull/5740))
+- Queries with deep `LoadWith` association chains build substantially faster on first execution. ([#5774](https://github.com/linq2db/linq2db/pull/5774))
+- Async materialization now really uses async ADO.NET for queries carrying a wrapper. `await query.LoadWith(…).ToListAsync()` fell back to a synchronous read on a thread-pool thread — blocking it for the whole read, and only observing the `CancellationToken` between rows — and `ToArrayAsync`, `ToDictionaryAsync`, `ToLookupAsync`, `ForEachAsync` and `ForEachUntilAsync` behaved the same way. `AsAsyncEnumerable` was affected too, though it read synchronously on the calling thread rather than a pooled one; that improvement applies to `CreateTempTable` results and to queries carrying a provider hint such as `AsSqlServer()` / `AsSQLite()`. ([#5809](https://github.com/linq2db/linq2db/pull/5809))
+- A compiled query whose return type was inferred to a queryable wrapper interface now reports a clear error when invoked, naming both types and the remedy — declare `IQueryable<T>` or `IEnumerable<T>`. Such queries did not work before either; they just failed less helpfully. ([#5844](https://github.com/linq2db/linq2db/pull/5844))
+
+##### Fixed
+
+- A boolean expression used as a window function's `ORDER BY` or `PARTITION BY` key, as one of its arguments, or as a `WITHIN GROUP` / `KEEP` sort key now produces valid SQL on databases with no native boolean type. Previously the comparison was emitted raw into those clauses and the server rejected the statement. The same applies to a plain aggregate over a boolean, such as `Max(x => x.Id == 2)`. ([#5725](https://github.com/linq2db/linq2db/pull/5725))
+- Eager-loading an association off a `GroupBy` entity key did not work:
+
+  ```csharp
+  from d in db.Detail.LoadWith(x => x.Master.Details)
+  group d by d.Master into g
+  select new { g.Key.Id, Details = g.Key.Details.Select(x => x.DetailId).ToList() }
+  ```
+
+  This applies to a whole-entity group key, in plain LinqToDB and through the EF Core integration. A scalar group key follows a different path and is unchanged. ([#5727](https://github.com/linq2db/linq2db/pull/5727))
+- A repeated expression that returns a different value each time it is read was collapsed into a single SQL parameter, so the second occurrence silently filtered on the first one's value:
+
+  ```csharp
+  Where(t => t.Int1 == counter.Next() || t.Int2 == counter.Next())
+  ```
+
+  The same applied to two calls returning different `IN` collections, where the second call never ran. Two occurrences are now collapsed only when they really evaluate equal, so a captured local, property or method result that genuinely repeats still shares one parameter. Additionally, an exception thrown while evaluating your own expression is no longer swallowed and reported as *"could not be converted to SQL"* — the original exception surfaces.
+
+  Two consequences worth knowing. A repeated collection-returning expression is now evaluated while the query is built, so an expression with side effects runs at that point. And because values are compared with `Equals`, two occurrences yielding equal but distinct collection instances now get one parameter each rather than sharing one, which changes the parameter shape of an `IN` query. ([#5733](https://github.com/linq2db/linq2db/pull/5733))
+- A decimal bound placed beside a widening cast was written at the column's scale rather than its own, dropping decimal places and returning wrong rows in both directions. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- A recursive CTE whose outer projection computes over the CTE's own columns produced SQL the database rejected with a circular-reference error — `circular reference: x` on SQLite, with equivalents elsewhere. A recursive CTE whose body uses `UNION` rather than `UNION ALL` is still affected — tracked as [#5822](https://github.com/linq2db/linq2db/issues/5822). Thanks to [Ilya Chudin](https://github.com/ili). ([#5764](https://github.com/linq2db/linq2db/pull/5764))
+- Updating through a DTO whose member is declared as a **base type** (or an interface) of the entity the query actually projects failed with *"Cannot find target table for UPDATE statement"*:
+
+  ```csharp
+  class ChildDto { public required Child Child { get; set; } }   // member typed as the base
+  // query projects ChildView : Child
+  dtos.Where(d => d.Child.ChildID == id).Select(d => d.Child)
+      .Set(c => c.ParentID, c => c.ParentID)
+      .Update();
+  ```
+
+  A DTO whose member is typed as exactly the projected type already worked. Thanks to [Ilya Chudin](https://github.com/ili). ([#5766](https://github.com/linq2db/linq2db/pull/5766))
+- A `Sql.Window` function that references no table column threw `ServerSideOnlyException: 'Count' is server-side API` at execution instead of translating — `Sql.Window.Count(w => w) == 3`, and likewise `Count(1, …)`, `Sum(1, …)`, `RowNumber`, `Rank`, `NTile` and `Lead`. All window functions are now recognised as server-side, so they translate as written. ([#5783](https://github.com/linq2db/linq2db/pull/5783))
+- A `LoadWith` filter that closes over an optional value returned **wrong data** once both closure states had run in the same process:
+
+  ```csharp
+  db.GetTable<MainItem>()
+    .LoadWith(m => m.SubItems, q => q.Where(s => values == null || values.Contains(s.Value)))
+  ```
+
+  Whichever call ran first won: a later filtered call came back with unfiltered rows, or a later unfiltered call came back empty. No exception, and a single call in isolation was always correct. Applies to all three ways of filtering an association — `LoadWith(sel, q => …)`, `ThenLoad(sel, q => …)` and `LoadWith(m => m.Items.Where(…))` — and to the parent query's `EXISTS` as well as the eager-load query. ([#5801](https://github.com/linq2db/linq2db/pull/5801))
+- Calling `Count()` on a query that left-joins a grouping with a computed key crashed with `InvalidOperationException: Cannot get field for …`:
+
+  ```csharp
+  from item in t1
+  from g in t2.GroupBy(s => s.Code.Substring(0, 3)).LeftJoin(g => g.Key == item.No)
+  select new { item.No, Qty = g.Sum(s => s.Quantity) }
+  ```
+
+  `ToList()` on the same query worked, so a paging query failed only on the total. A grouping by a plain column was unaffected — the key had to be an expression. The same crash was reachable through `Distinct()` over a computed projection and through `HasUniqueKey`. ([#5802](https://github.com/linq2db/linq2db/pull/5802))
+- LinqToDB-only operations threw *"LinqToDB method 'X' called on non-LinqToDB IQueryable"* when applied to a query carrying `LoadWith` — `Insert`, `Update`, `Delete`, `Merge`, `MultiInsert`, `ElementAt` / `ElementAtOrDefault` and the analytic-function overloads. ([#5809](https://github.com/linq2db/linq2db/pull/5809))
+- A compiled query whose body ends in a client-side materializer failed on first invocation:
+
+  ```csharp
+  CompiledQuery.Compile((IDataContext db, int id) =>
+      db.GetTable<Person>().Where(p => p.Id == id).ToList());
+  ```
+
+  `ToArray`, `ToDictionary`, `ToLookup` and `ToHashSet` are covered too; the async forms already worked. ([#5813](https://github.com/linq2db/linq2db/pull/5813))
+- A constant sort key inside `OVER (...)` was emitted verbatim — `RowNumber(w => w.OrderByDesc(5))` produced `ORDER BY 5 DESC`, and a captured local produced `ORDER BY @p`. A constant is now dropped from the window's `ORDER BY`, and where the provider requires an ordering the key is wrapped as a scalar subquery (`ORDER BY (SELECT 5) DESC`) so the direction and NULLS position are kept. `WITHIN GROUP` and Oracle's `KEEP` order lists are built separately and still pass a constant through unchanged. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+- A window with no ordering — `DefineWindow(w => w.PartitionBy(x))` used through `UseWindow`, or a frame declared without an `ORDER BY` — now gets the same stand-in ordering. Previously it reached the server unordered, which every database rejects for at least some functions, and which none accepts for a `GROUPS` frame or a `RANGE` frame with a value offset. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+- A projected member inside a set-operation branch that mixes translatable parts with a part that has no SQL translation failed the whole query with *"The LINQ expression … could not be converted to SQL"*, where the same projection outside a set operation falls back to .NET:
+
+  ```csharp
+  t.Where(e => e.ParentId == null).Select(e => new { id = "p_" + e.Id.ToString("N"), e.Name })
+   .Concat(t.Where(e => e.ParentId != null).Select(e => new { id = "c_" + e.Id.ToString("N"), e.Name }))
+  ```
+
+  This applies to every set operation — `Concat` / `UnionAll`, `Union`, `Except`, `ExceptAll`, `Intersect` and `IntersectAll` — and to a projection over a row of an in-memory sequence. Regression in 6.3.0. A member the provider refuses outright — an interval it cannot measure, for instance — still fails rather than silently degrading. ([#5818](https://github.com/linq2db/linq2db/pull/5818))
+- A `LEFT JOIN` fallback inside a set-operation branch lost its null check, so it returned **wrong values** with no error. Every branch after the first was affected:
+
+  ```csharp
+  // the joined entity must carry a query filter whose predicate is not a compile-time constant
+  builder.Entity<Master>().HasQueryFilter<MyDataContext>((q, dc) => q.Where(m => m.TenantId == dc.TenantId));
+
+  IQueryable<string> Values(int id) =>
+      from d in db.Details.Where(d => d.Id == id)
+      from m in db.Masters.Select(x => new { x.Id, Value = x.Value + "!" }).LeftJoin(x => x.Id == d.MasterId)
+      select m != null ? m.Value : "Unknown";
+
+  Values(1).Concat(Values(2)).Concat(Values(3));   // "Unknown" came back as null
+  ```
+
+  A non-matching join produced `NULL` instead of the fallback, and where the fallback was a value type it materialised as the default (`0` for `int`). A two-level fallback chain collapsed to the first join's column entirely. Three things had to coincide: a query filter on the joined entity, a filter predicate that is not a compile-time constant, and a computed projected column. Regression in 6.4.0. Related: `EXCEPT` and `INTERSECT` branches no longer contribute nullability, so generated SQL for those operators may carry fewer null checks than before. ([#5831](https://github.com/linq2db/linq2db/pull/5831))
+- `Concat` and `UnionAll` where one branch projects a derived type read as the set operation's element type now generate valid SQL, including inside a recursive CTE. Previously every member was emitted twice — once filled, once padded with `NULL` — and the server rejected the statement. ([#5833](https://github.com/linq2db/linq2db/pull/5833))
+- `Except` and `ExceptAll` over such branches now actually remove rows. Previously the branches had no column in common, so the operation removed nothing and returned everything. ([#5833](https://github.com/linq2db/linq2db/pull/5833))
+- Projecting a whole constructed object through a base type — `select new Derived { ... } as Base` — no longer throws. This applies with or without a set operation involved. ([#5833](https://github.com/linq2db/linq2db/pull/5833))
+- Writing a derived-type entity through a base-mapped table threw `ArgumentException: Property 'X' is not defined for type 'Base'`:
+
+  ```csharp
+  db.GetTable<BaseClass>().Insert(() => new Child1 { Id = 1, Code = 1, Child1Field = 11 });
+  ```
+
+  The derived member's column now reaches the SQL. This covers `Insert`, `Update(setter)`, `InsertOrUpdate` and constructor-based (record-style) projections. A subtype with no `[InheritanceMapping]` entry still fails, but loudly rather than dropping the column. ([#5840](https://github.com/linq2db/linq2db/pull/5840))
+- Separately, `UpdateWithOutput` and `UpdateWithOutputInto` against an inheritance-mapped table now work without an explicit output expression. Previously any such call threw, whether or not a derived type was involved, because the default output projection builds whole `Deleted` / `Inserted` entities carrying every subtype's columns. ([#5840](https://github.com/linq2db/linq2db/pull/5840))
+- A custom `Sql.Extension` builder that **reads** an argument value — `builder.GetValue<T>(i)`, `GetObjectValue(i)`, or straight off `builder.Arguments[i]` — baked that value into the cached SQL, so a later query differing only in that value silently ran the first query's SQL and returned its results. Values a builder reads are now part of the query-cache key. This affected any scalar argument; a *collection* argument was affected only on providers that map the collection as a scalar or array type, such as PostgreSQL.
+
+  Note for extension authors: only the outermost call of a chained extension has its arguments registered, so a builder that reads an argument belonging to an inner element must mark that argument with `[SqlQueryDependent]` to keep its value in the key.
+
+  Three related fixes: capturing one query inside another no longer executes the captured query on every cache lookup, and two structurally identical captured queries now share a cache entry; a collection argument is compared by content rather than by identity, so a rebuilt list with the same items reuses the cached query; and `GetExpression(argName, unwrap, inlineParameters)` now honours `inlineParameters`, which the by-name overload silently dropped. ([#5841](https://github.com/linq2db/linq2db/pull/5841))
+- A compiled query ending in `LoadWith` or `ThenLoad` now runs. Previously it failed — usually with *The LINQ expression could not be converted to SQL* naming an unresolved `ps[0]`, and the `First()` / `FirstAsync()` forms failed while materialising rows instead. The eager-loading expression itself never had to use a compiled-query parameter; `LoadWith` only had to be the outermost call. `LoadWithAsTable` was never affected. ([#5844](https://github.com/linq2db/linq2db/pull/5844))
+- The same failure hit any compiled query whose outermost call returns a queryable wrapper — a provider chain such as `AsPostgreSQL().SubQueryTableHint(...)`, or your own extension method returning `IQueryable<T>`. These now work too. ([#5844](https://github.com/linq2db/linq2db/pull/5844))
+- A compiled query whose predicate closes over a captured local and joins four or more conditions with `&&` no longer fails. ([#5844](https://github.com/linq2db/linq2db/pull/5844))
+- `Sql.Property`, `Sql.StringAggregate`, `Sql.Like` and the `Sql.GroupBy` rollup, cube and grouping-set helpers are now declared server-side-only, so they are consistently recognised as SQL-only rather than being evaluated on the client in some query shapes. ([#5870](https://github.com/linq2db/linq2db/pull/5870))
+- A window function projected by an inner query and reused by the outer projection — typically as another window's `PARTITION BY` key — is now read as a column of the inner query instead of being nested inside the outer window function. Previously this produced SQL no database accepts. Regression in 6.4.0; both `Sql.Window` and the older `Sql.Ext` surface are affected. ([#5884](https://github.com/linq2db/linq2db/pull/5884))
+- Disposing an async enumerator that was never advanced no longer throws a `NullReferenceException`. The same fault also struck `await foreach` / `await using` over a query whose setup fails — a cancelled token, or an error in an eager-loading query — where the disposal error replaced the real one and hid it. ([#5893](https://github.com/linq2db/linq2db/pull/5893))
+- `ForEachUntilAsync` over a query using eager loading no longer fails while materialising rows, and no longer holds the reader and command open until the data context is disposed. ([#5893](https://github.com/linq2db/linq2db/pull/5893))
+- An implicit transaction opened for a multi-query eager load is now released even when disposing the underlying enumerator throws. ([#5893](https://github.com/linq2db/linq2db/pull/5893))
+- Reading `Current` before the first `MoveNextAsync` now throws `InvalidOperationException` with a clear message instead of a `NullReferenceException`. ([#5893](https://github.com/linq2db/linq2db/pull/5893))
+
+##### Changed
+
+- `MaxParametersForBatch` now overrides the provider's own parameter limit in **both** directions. Raising it above the provider limit previously had no effect; raising it past what the driver accepts now surfaces as a driver error rather than being clamped. ([#5828](https://github.com/linq2db/linq2db/pull/5828))
+
+##### Known limitations
+
+- Known limitation: a subtype that shadows an inherited member's name — `public new int Value` — is still written incorrectly, and does so silently rather than throwing. Tracked as [#5852](https://github.com/linq2db/linq2db/issues/5852). ([#5840](https://github.com/linq2db/linq2db/pull/5840))
+- When a query combines a keyed eager load with a window value projected by an inner query and reused by the parent, the keyed eager-loading strategy falls back to the default one. The rows returned are unaffected; the query plan and its performance are. ([#5884](https://github.com/linq2db/linq2db/pull/5884))
+
+#### LinqToDB F# Support
+
+##### Added
+
+- F# `option` and `voption` members now translate to SQL inside a query: `.IsSome` / `.IsNone` (and voption's `.IsValueSome` / `.IsValueNone`) become null checks, `.Value` reads the column, and the `Option.isSome` / `Option.isNone` / `Option.get` module functions and their `ValueOption` counterparts work the same way. Previously any of these inside a query failed to translate. See [details](#f-option-and-discriminated-union-support) below. ([#5704](https://github.com/linq2db/linq2db/pull/5704))
+- Single-case scalar discriminated unions such as `type UserId = UserId of int` are now mapped automatically, including comparing a column against a union literal. Previously the column type could not be determined. ([#5704](https://github.com/linq2db/linq2db/pull/5704))
+- An `option` over a single-case union, such as `UserId option`, is now mapped as a real column. Previously the member was silently dropped — it never appeared in the schema, was never written, and always read back as `None`. ([#5704](https://github.com/linq2db/linq2db/pull/5704))
+
+##### Fixed
+
+- Join and `Where` predicates that capture an outer range variable now translate. F# compiles such a lambda differently from C#, and LinqToDB failed on it with an `InvalidCastException`:
+
+  ```fsharp
+  for a in db.GetTable<Addresses>().Where(fun a1 -> n.Id = a1.Id).DefaultIfEmpty() do
+  ...
+  .LeftJoin(fun y -> y.ReceiptDealNumber = tr.DealNumber && y.ReceiptParcelID = tr.ParcelID)
+  ```
+
+  Chained `groupJoin … into g` followed by `for x in g.DefaultIfEmpty()` now emits real `LEFT JOIN`s as well — including three or more chained blocks — where it previously rendered as `INNER JOIN LATERAL` on providers supporting LATERAL, silently dropping unmatched rows, and did not translate at all elsewhere. Two shapes are still unsupported, and they behave differently: a `groupJoin` whose inner sequence is correlated with the outer row now fails with a clear message naming [#5790](https://github.com/linq2db/linq2db/issues/5790), while a chained `groupJoin` followed by a plain `join` is still emitted as an `INNER JOIN` and silently drops the rows it should keep — avoid that shape until [#5794](https://github.com/linq2db/linq2db/issues/5794) is fixed. On YDB two of the newly-translating shapes still fail, because of its existing restrictions on `JOIN … ON`. ([#5701](https://github.com/linq2db/linq2db/pull/5701))
+
+#### LinqToDB for EntityFramework
+
+##### Fixed
+
+- Using one `DbContext` type against **two different providers** in the same process — say SQLite for fast tests and SQL Server for the real ones — gave both of them whichever model was built first, so the second got the wrong column names and types wherever the two mappings differ. Contexts of the same type that differ only by a replaced EF service — `ReplaceService<IModelCustomizer, …>`, `UseNetTopologySuite()`, Npgsql's `MapEnum<T>()` or `UseNodaTime()` — were collapsed the same way. Regression in 6.4.0. ([#5780](https://github.com/linq2db/linq2db/pull/5780))
+- Long-lived caches no longer keep EF objects alive for the lifetime of the process on most providers. Under the default scoped `AddDbContext` registration this held the per-request dependency-injection scope; with service-provider caching disabled it added a permanent entry per `DbContext` instance. On Pomelo/MySQL the reference is still held, because its translator provider requires it. ([#5780](https://github.com/linq2db/linq2db/pull/5780))
+- Diagnostics raised while LinqToDB probes EF's translators no longer reach the creating context's `LogTo(...)` sink or its diagnostics interceptors. `UseLoggerFactory` and `DiagnosticSource` still receive them. ([#5780](https://github.com/linq2db/linq2db/pull/5780))
+- Two or more servers of the same provider family in one process shared a single cached provider when the context is configured with a `DbDataSource` or an externally supplied `DbConnection`. The dialect detected from whichever connected first was then used for all of them, silently and in first-wins order — so a server could be sent SQL for a version it does not support. The connection string is now taken from the data source or the supplied connection, falling back to the connection of an ambient transaction; where none of the three is available the collision remains. ([#5808](https://github.com/linq2db/linq2db/pull/5808))
+
+#### LinqToDB LINQPad Driver
+
+##### ⚠ Breaking changes
+
+- Database client libraries are no longer all installed with the driver. LINQPad now provisions only the client the connection actually uses, on first use — so connecting to a database type you have not used before needs an internet connection. A static context provisions every client unless its new **Database** field is set, and a context assembly that references a client must be able to load it from its own folder. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+
+##### Added
+
+- macOS support (LINQPad 9). The connection test now runs in the driver process, and errors the driver recovers from are written to a log file rather than only surfacing as a dialog — on macOS that is the sole reporting route, since the message box is unavailable there. The log lives under LINQPad's own log folder (`%localappdata%\LINQPad\Logs.LINQPad<version>` on Windows, `~/Library/Application Support/LINQPad` on macOS). ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- The static-context tab gains an optional **Database** field, restricting client provisioning to a single database instead of all of them. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- The **Context** field is now editable, so a context class name can be typed in when its assembly cannot be inspected. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- DuckDB and YDB are now listed among the supported providers. Both already worked; the driver's own description had not caught up. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+
+##### Fixed
+
+- The driver failed to load on LINQPad 8/9 with `Could not load file or assembly 'System.Collections.Immutable, Version=10.0.0.0'`, because it referenced a higher version than the host runtime supplies. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- On macOS, every connection failed with a `PresentationFramework` load error that also hid the real error underneath it. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- SQL Server `geometry`, `geography` and `hierarchyid` columns are readable on non-Windows hosts, and Microsoft Access and SQL CE are no longer offered on a host where they cannot work. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+- A static-context assembly that failed to fully load left the Context list empty; the contexts that did load are now listed.
+
+The LINQPad 5 `.lpx` build keeps its bundled clients and its own Roslyn; the per-connection provisioning above applies to the NuGet driver (LINQPad 8/9) only. Error logging and the fuller dialog text apply to both. ([#5786](https://github.com/linq2db/linq2db/pull/5786))
+
+##### Changed
+
+- A `System.Data.SQLite` connection now provisions `SQLitePCLRaw.lib.e_sqlite3` instead of `SourceGear.sqlite3`. Both SQLite clients run the same engine build as a result; it is SQLite 3.53.3, a patch below the 3.53.4 the classic client previously loaded. ([#5905](https://github.com/linq2db/linq2db/pull/5905))
+
+#### LinqToDB Packages
+
+##### Added
+
+- `THIRD-PARTY-NOTICES.txt` now ships in every package that carries a third-party binary — the 14 T4 packages, `linq2db.cli` (the pointer package and all seven RID packages) and the LINQPad 5 `.lpx`. No shipped binary changed. If you redistribute these packages, two entries are worth reading: the SAP HANA provider's redistribution terms are unresolved ([#5862](https://github.com/linq2db/linq2db/issues/5862)), and the bundled `Microsoft.SqlServer.Types` 170.1000.7 carries expired pre-release licence text, so the notices reproduce 160.1000.6's terms instead. The core `linq2db` package and the `linq2db.LINQPad` nuget bundle no third-party binaries and carry no notices file. ([#5863](https://github.com/linq2db/linq2db/pull/5863))
+
+##### Changed
+
+- The packages that redistribute a native SQLite build — `linq2db.SQLite`, `linq2db.t4models` and the LINQPad 5 `.lpx` — now carry a single native shared by both SQLite clients, rather than two copies kept at separate paths to stop them colliding. ([#5905](https://github.com/linq2db/linq2db/pull/5905))
+
+#### LinqToDB Remote Context
+
+##### Added
+
+- gRPC client proxies and their payload marshallers are now generated at compile time instead of being built by reflection, so a `GrpcDataContext` survives trimming and Native AOT. Server hosts are unaffected — `AddCodeFirstGrpc()` still binds the service as before. ([#5905](https://github.com/linq2db/linq2db/pull/5905))
+
+##### Fixed
+
+- A remote data context leaked one client — and the connection it holds — per `InsertOrReplace`, `InsertOrUpdate` or fluent `Upsert` that LinqToDB emulates as two statements. That happens on providers without native upsert support, and also on SAP HANA whenever the insert and update branches differ, which they routinely do for an entity with `SkipOnInsert` or `SkipOnUpdate` columns. Materially visible on the gRPC and WCF transports, which build a channel per call; the HTTP and SignalR clients are context-shared and were unaffected. ([#5762](https://github.com/linq2db/linq2db/pull/5762))
+- `SignalRDataContext(HubConnection, …)` now disposes the `HubConnection` you passed in when the context is disposed — it was documented as owning it but never released it. Note that the synchronous `Dispose()` now waits for the connection to tear down, where previously it released nothing; prefer `DisposeAsync()`. If you reuse that connection after disposing the context, wrap it instead: `new SignalRDataContext(new SignalRLinqServiceClient(hubConnection))`. Likewise, the `HttpClientDataContext(Uri, string)` constructor now disposes the `HttpClient` it created for you. ([#5762](https://github.com/linq2db/linq2db/pull/5762))
+- If you subclass `RemoteDataContextBase` and hand out a client you own — a shared `ILinqService` — override the new `OwnsClient` property to return `false`. It defaults to `true`, which is what makes the disposal above happen, so without the override your shared client is disposed after every query. ([#5762](https://github.com/linq2db/linq2db/pull/5762))
+
+#### LinqToDB CLI
+
+##### Added
+
+- The CLI's MCP server is now published to the MCP Registry as `io.github.linq2db/linq2db.cli`, so MCP-aware clients can discover and install it without a hand-written configuration entry. ([#5894](https://github.com/linq2db/linq2db/pull/5894))
+
+##### Improved
+
+- `credentials set` now shows a `*` for each character typed at the password prompts, so a pasted or typed entry is visibly registered before you commit to it, and `Esc` or `Ctrl+U` clears the entry and re-prompts. Previously the prompts gave no feedback at all, so an empty entry could be stored without warning. Masking is skipped when the error stream is redirected, leaving redirected output unchanged. ([#5889](https://github.com/linq2db/linq2db/pull/5889))
+
+#### Analyzers
+
+##### Added
+
+- Two rules check that a server-side-only API declares itself as one: `L2DB1003` flags a member whose body is only a `throw` but which carries no server-side-only marker, and `L2DB1004` flags a marked member that throws something other than `ServerSideOnlyException`. Both come with a code fix, and both report at `Info` level, so neither will fail a build unless you raise its severity. The exception types each rule accepts are configurable in `.editorconfig`. ([#5870](https://github.com/linq2db/linq2db/pull/5870))
+- New rule `L2DB1002` flags an equality comparison between a `[Duration]`-declared column and a constant `TimeSpan` the declared unit cannot represent — comparing a whole-second column against `TimeSpan.FromSeconds(1.5)`, for instance, can never match, and the `!=` form always does. It reports at `Info` level and has no code fix, since the intended value cannot be guessed. Only units declared by attribute are seen; a unit configured through the mapping schema is not diagnosed. ([#5873](https://github.com/linq2db/linq2db/pull/5873))
+
+#### ClickHouse
+
+##### Fixed
+
+- A remainder taken over a sum lost the sum's brackets, so `a % (b + c)` was sent as `a % b + c` and answered wrong. Separately, a decimal literal beside an aggregate — `g.Sum(x => x.MoneyValue) + 0.00005m` — was typed from the summed column's scale, so a small addend silently rounded to zero. A plain column-plus-literal was not affected. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- An unordered `NTILE` failed with *"Unsupported window frame type for function 'NTILE'"*; it now gets a stand-in ordering. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### DB2
+
+##### Improved
+
+- `PERCENTILE_DISC` with a boolean sort key is now refused when the query is translated, instead of failing later inside the driver. ([#5725](https://github.com/linq2db/linq2db/pull/5725))
+
+##### Fixed
+
+- An unordered window failed with `SQL0104N` / `SQL20117N` for the ranking functions, `LAG`/`LEAD` and `NTILE`; these now get a stand-in ordering. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### Informix
+
+##### Improved
+
+- `FIRST_VALUE` / `LAST_VALUE` over a boolean are now refused when the query is translated, instead of failing later inside the driver. ([#5725](https://github.com/linq2db/linq2db/pull/5725))
+
+##### Fixed
+
+- Every value converter (enums, `[ValueConverter]`) was lost inside a set operation, so the raw stored value was read back. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+- An unordered window failed with *"The ntile, lead, lag and ranking window functions require window order"*; these now get a stand-in ordering. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### MySQL
+
+##### ⚠ Breaking changes
+
+- A constant `ORDER BY` inside `OVER (...)` was read by MySQL 8 as a legacy output-column position, so the window ordered by that column instead of tying every row. ⚠ A query that relied on that reading, knowingly or not, now gets an unordered window. MariaDB keeps a stand-in ordering for the functions that require one — the ranking functions, `LAG` and `LEAD` — and drops the constant for the rest. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### Oracle
+
+##### Improved
+
+- The bulk-copy SQL length limit rises from 64 KB to 384 KB, so bulk copy can send up to six times fewer statements — less where the batch-size or parameter cap binds first. Oracle uses the `MultipleRows` path with `AlternativeBulkCopy.InsertAll` by default, so the new limit takes effect for every `db.BulkCopy(...)` call unless you have chosen another path. Where batches do get larger, `RowsCopiedCallback` fires correspondingly less often; set `MaxSqlLengthForBatch = 65535` to restore the old batching. ([#5828](https://github.com/linq2db/linq2db/pull/5828))
+
+##### Fixed
+
+- A window with no ordering failed with `ORA-30485`; it now gets a stand-in ordering. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### PostgreSQL
+
+##### Fixed
+
+- A remainder taken over a sum lost the sum's brackets, so `a % (b + c)` was sent as `a % b + c` and answered wrong. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+
+#### SAP HANA
+
+##### Fixed
+
+- `RowNumber(w => w.OrderBy(1))` failed with *"Constants are not allowed on ORDER BY clause of window functions"*. SAP HANA also requires an ordering for more functions than any other provider — the ranking family, `LAG`/`LEAD`, `NTILE`, `FIRST_VALUE`/`LAST_VALUE` and `NTH_VALUE` — all of which now get one. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+#### SQL CE
+
+##### Fixed
+
+- `%` on a 64-bit duration column was cast to 32-bit and overflowed. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+
+#### SQL Server
+
+##### ⚠ Breaking changes
+
+- ⚠ On 2014 and below, date-difference expressions no longer translate at all: a projection falls back to .NET, but `WHERE` / `ORDER BY` / aggregates throw `LinqToDBException`. ([#5750](https://github.com/linq2db/linq2db/pull/5750))
+
+##### Fixed
+
+- A constant window sort key failed with *"do not support constants"*, and a window with no ordering failed with *"The function 'ROW_NUMBER' must have an OVER clause with ORDER BY"*. ([#5817](https://github.com/linq2db/linq2db/pull/5817))
+
+<!-- rn:deepdive:#5704 -->
+#### F# option and discriminated union support
+
+Everything below is enabled by the existing `UseFSharp()` call — there is no new API to adopt.
+
+**Option and voption members in a query.** Both `'T option` and `'T voption` are supported, in
+every spelling:
+
+| Form | Members |
+|---|---|
+| Property access | `.IsSome`, `.IsNone`, `.Value`, and voption's `.IsValueSome` / `.IsValueNone` |
+| Module functions | `Option.isSome`, `Option.isNone`, `Option.get`, and the `ValueOption` counterparts |
+
+`.IsSome` / `.IsNone` become null checks; `.Value` reads the column. They work both as a
+predicate and in a projection.
+
+**Single-case scalar discriminated unions.** A union with one case wrapping one scalar field —
+`type UserId = UserId of int` — maps to a column holding the wrapped scalar, and comparing a
+column against a union literal (`x.Key = UserId 10`) translates to a plain comparison against
+the scalar. Reference unions, `[<Struct>]` unions and private-representation smart constructors
+(`type PrivateId = private PrivateId of int`) are all supported, as is `option` / `voption` over
+any of them. Multi-case unions, F# `list`, and single-case unions wrapping a non-scalar record
+are not mapped.
+
+**Two behaviours worth knowing about, both deliberate.**
+
+`.Value` becomes the column itself, so reading it from a row where the column is NULL yields the
+element type's default — `0` for an `int option` — rather than raising the way `Option.get None`
+does. This matches `Nullable<T>.Value`.
+
+A `[<Struct>]` single-case union cannot hold null, so reading a NULL column into one — an
+unmatched `LEFT JOIN` row, say — yields the union wrapping the element default (`Age 0`) rather
+than an absent value. Use `option` for a column that can be NULL.
+
+**Known limitation.** Comparing `.Value` on an option-over-union against a bare union value is
+not yet supported — the element reaches the provider unconverted. Tracked as
+[#5886](https://github.com/linq2db/linq2db/issues/5886).
+
+<!-- rn:deepdive:#5750 -->
+#### TimeSpan columns and elapsed time
+
+A `TimeSpan` stored as an integer — seconds, milliseconds, ticks — used to be opaque to LinqToDB: you could read and write it through a value converter, but nothing about it translated, so `.TotalMinutes` either silently disappeared from the SQL or failed to build. Declaring the unit the column counts in makes it a real duration:
+
+```csharp
+[Table("job")]
+class Job
+{
+    [Column] public int Id { get; set; }
+    [Column, Duration(DurationUnit.Second)] public TimeSpan  Elapsed  { get; set; }
+    [Column, Duration(DurationUnit.Millisecond)] public TimeSpan? Timeout { get; set; }
+}
+
+// or fluent
+builder.Entity<Job>().Property(e => e.Elapsed).HasDuration(DurationUnit.Second);
+```
+
+From that one declaration LinqToDB derives the read and write conversions and translates members, arithmetic and comparisons:
+
+```csharp
+db.Jobs.Where(j => j.Elapsed > TimeSpan.FromMinutes(90))
+       .Select(j => new { j.Id, Hours = j.Elapsed.TotalHours, Over = j.Elapsed - TimeSpan.FromHours(1) })
+```
+
+`DurationUnit` covers `Nanosecond`, `Tick`, `Microsecond`, `Millisecond`, `Second`, `Minute`, `Hour` and `Day`. Available members are `Days`, `Hours`, `Minutes`, `Seconds`, `Milliseconds`, `Ticks` and the `Total*` family, plus `Microseconds` / `Nanoseconds` / `TotalMicroseconds` / `TotalNanoseconds` on .NET 8+. Component members truncate toward zero, matching the CLR. Supported operators are unary `-`, `TimeSpan ± TimeSpan`, `TimeSpan / TimeSpan`, all six comparisons, and `DateTime`/`DateTimeOffset ± TimeSpan`.
+
+**The unit and the column type are separate decisions.** `[Duration]` says what the stored number *counts*; the database type it is stored in is declared the usual way, with `[Column(DataType = …)]` or `HasDataType(…)`:
+
+```csharp
+[Column(DataType = DataType.Int64), Duration(DurationUnit.Tick)]   public TimeSpan Precise { get; set; }
+[Column(DataType = DataType.Int32), Duration(DurationUnit.Second)] public TimeSpan Elapsed { get; set; }
+```
+
+That is what lets a duration live in a narrow column: seconds in an `INT` rather than ticks in a `BIGINT`. Writing a duration finer than the storage unit truncates — 1.5 seconds into a seconds column keeps 1 — which follows from the storage you chose, not from the conversion.
+
+**Comparisons stay index-friendly.** Rather than scaling the column up to ticks — which would make an index on it unusable — the *value* is scaled down into the column's declared unit, and a bound that falls between two storable values is moved outward in the direction the operator asks. `==` becomes a two-sided range, which is provably empty for a value the column cannot represent. Only `!=` scales the column.
+
+Declaring a unit is **opt-in**: an undeclared `TimeSpan` column keeps whatever meaning your provider already gives it (`TIME` as a time of day, for instance). Declaring both a unit and a value converter on the same member is a mapping error, as is declaring a unit on a member that is not a `TimeSpan`.
+
+**Date differences now measure elapsed time.** `(end - start).TotalHours` and friends used to lower to `DATEDIFF`, which counts boundary crossings rather than duration — `10:59` to `11:01` was one hour. They now lower to a real interval, so the answer matches .NET. On every provider that can express an elapsed difference this is a silent result change; the two that cannot — SQL Server 2014 and below, and Informix — refuse the expression instead, as the table below records.
+
+Where a provider cannot express something, LinqToDB **refuses it by name at query-build time** rather than emitting SQL that quietly answers wrong. A plain projection then falls back to evaluating in .NET, so it still gives an exact answer; `WHERE`, `ORDER BY` and aggregates throw, because they cannot be computed client-side.
+
+| | Providers |
+|---|---|
+| `end - start` lowers to an elapsed duration | ClickHouse, DB2, DuckDB, Firebird, MySQL / MariaDB, Oracle, PostgreSQL, SAP HANA, SQL CE, SQL Server 2016+, SQLite, Sybase ASE, YDB |
+| `end - start` refused, but members of it still lower | Access |
+| `end - start` refused entirely | SQL Server 2014 and below, Informix |
+| `date ± TimeSpan` lowers | ClickHouse, DuckDB, MySQL / MariaDB, PostgreSQL, SQL CE, SQL Server, Sybase ASE |
+| `date ± TimeSpan` refused | Access, DB2, Firebird, Informix, Oracle, SAP HANA, SQLite, YDB |
+
+Each provider also has a floor below which it cannot measure — a component finer than the floor is refused rather than answered as zero. Access measures to the second; SQLite, SQL CE and Sybase ASE to the millisecond (Firebird 2.5 likewise, Firebird 3+ to the tick); DB2 and Oracle to the microsecond; SQL Server 2008+ to the nanosecond; the rest to the tick.
+
+### Release 6.4.0
+
+#### LinqToDB
+
+##### Added
+
+- Two new eager-loading execution strategies for `LoadWith` / `ThenLoad` and inline child sub-query projections, alongside the existing default. **KeyedQuery** buffers the main query, extracts the parent keys client-side, and loads each child collection with `WHERE key IN (…)` — transferring far fewer columns for wide parent entities. **CteUnion** combines multiple same-level child collections into a single `UNION ALL` CTE, collapsing several pre-queries into one round-trip when a level has two or more collections. Choose per query with `WithKeyedLoadStrategy()`, `WithUnionLoadStrategy()`, or `WithSeparateLoadStrategy()` (the explicit default), or set a global default with `DataOptions.UseDefaultEagerLoadingStrategy(EagerLoadingStrategy.KeyedQuery)`. Strategies fall back automatically (CteUnion → KeyedQuery → Default) when a query can't be expressed by the chosen one. A companion `DataOptions.UseImplicitCollectionLoading(ImplicitCollectionLoading.Throw)` makes a collection projected in a `select` without an explicit `LoadWith`/`ThenLoad` or strategy marker fail at build time (default `Allow` keeps current behavior). See [details](#eager-loading-strategies-keyedquery--cteunion) below. ([#5450](https://github.com/linq2db/linq2db/pull/5450))
+- New `Sql.Window.*` fluent API for window functions, replacing the older `Sql.Ext.*().Over().ToValue()` pattern with a lambda-based builder that adds compile-time safety (ranking functions require `ORDER BY`, `FILTER` only on aggregates, frames only where valid). It covers ranking, offset (LEAD/LAG), value (FIRST_VALUE/LAST_VALUE/NTH_VALUE), aggregate, statistical, regression/covariance, ordered-set (PERCENTILE_CONT/DISC), hypothetical-set and distribution (MEDIAN, RATIO_TO_REPORT) functions, plus full ROWS/RANGE/GROUPS frames with BETWEEN and EXCLUDE, named windows (`DefineWindow`/`UseWindow`), a FILTER clause, NULLS FIRST/LAST, and Oracle KEEP. Existing code using the old `Sql.Ext.*` window API keeps working unchanged — it's translated onto the new pipeline internally at query time, with no source changes needed. Where a provider doesn't support a requested feature, a clear `LinqToDBException` is raised at translation time instead of sending invalid SQL. See [details](#window-functions) below. ([#5468](https://github.com/linq2db/linq2db/pull/5468))
+- New fluent entity-level DML APIs. `Upsert(item, …)` performs an insert-or-update from a single entity with one configure lambda — `.Match((t, s) => …)` to pick the key, `.Insert(…)` / `.Update(…)` to set insert-only vs update-only columns, plus `.When(…)`, `.DoNothing()`, `SkipInsert()` / `SkipUpdate()` — superseding the older three-expression `InsertOrUpdate` overloads, and it also accepts `IEnumerable<T>` and `IQueryable<T>` sources. New entity-based `Insert(item, …)` and `Update(item, …)` take an entity plus a builder where every mapped column is written from the entity by default and `.Set` / `.Ignore` overlay individual columns (`Update` matches on the primary key). All have sync and async variants. `Upsert` maps to each provider's native construct — `ON CONFLICT` (SQLite, PostgreSQL 9.5+), `MERGE` (SQL Server 2008+, Oracle, DB2, Firebird 2+), `ON DUPLICATE KEY UPDATE` (MySQL/MariaDB), native `UPSERT` (SAP HANA) — and falls back to a multi-statement emulation elsewhere; setting `LinqOptions.UpsertEmulationPolicy` to `Throw` rejects the emulated fallback. Resolves #2528, #4153, and #1480 (as an alternative design). See [details](#fluent-upsert--entity-updateinsert-apis) below. ([#5482](https://github.com/linq2db/linq2db/pull/5482))
+- Query filters can now be **named**, mirroring EF Core 10's keyed filters. New `HasQueryFilter(string filterKey, …)` overloads on the fluent `EntityMappingBuilder<T>` register multiple independent filters per entity (AND-combined at query time); passing `null` for a filter lambda (with a key) removes that filter. Named filters can also be declared **by attribute** via `QueryFilterAttribute.FilterKey`, alongside the fluent builder. The matching `IgnoreFilters(IEnumerable<string> filterKeys, params Type[] entityTypes)` overload disables filters selectively — by key, or by key×entity-type intersection — instead of all-or-nothing. Existing single (anonymous) filters and the parameterless `IgnoreFilters()` keep working. See [details](#named-query-filters) below. ([#5525](https://github.com/linq2db/linq2db/pull/5525))
+- Added `NULLS FIRST` / `NULLS LAST` control to LINQ ordering. New `OrderBy` / `OrderByDescending` / `ThenBy` / `ThenByDescending` overloads accept a `Sql.NullsPosition` (`First` / `Last` / `None`), and a default placement can be set via `new DataOptions().UseDefaultNullsPosition(...)` or `Configuration.Sql.DefaultNullsPosition`. Rendered natively where supported (PostgreSQL, Oracle, DB2, Firebird, SQLite, DuckDB, ClickHouse, SAP HANA) and emulated automatically elsewhere (SQL Server, MySQL, MariaDB, Access, Sybase, etc.), with consistent results; it also flows through `DISTINCT` / set operations, `DistinctBy` / `UnionBy` / `MinBy` / `MaxBy`, indexed `Select`, and aggregate ordering. The BCL `OrderBy` / `ThenBy(keySelector, IComparer<TKey>)` overloads - which have no SQL equivalent - are now rejected with a translation error instead of being silently ignored. See [details](#nulls-first--last-ordering) below. ([#5561](https://github.com/linq2db/linq2db/pull/5561))
+- New opt-in `LinqOptions.PreferClientCalculation` (default `false`; also `DataOptions.UsePreferClientCalculation(...)`, `LinqOptions.WithPreferClientCalculation(...)`, and the global `Configuration.Linq.PreferClientCalculation`). When enabled, computed expressions in the final projection — arithmetic, conditionals, unary operations, and mapped members/methods that don't require server-side evaluation — are evaluated client-side during materialization instead of being emitted as extra SQL columns, restoring the v5 projection behavior. Expressions that require server-side evaluation still translate to SQL. ([#5604](https://github.com/linq2db/linq2db/pull/5604))
+- Added server-side UUIDv7 generation — a new `Sql.NewGuid7()` extension and translation of .NET 9+ `Guid.CreateVersion7()`, mirroring the existing `Sql.NewGuid()` / `Guid.NewGuid()` (v4) mechanism. Providers with a native UUIDv7 function emit it server-side (PostgreSQL 18+, DuckDB, ClickHouse, MariaDB); every other provider generates a client-side RFC 9562 v7 GUID. See [details](#uuidv7-generation) below. ([#5648](https://github.com/linq2db/linq2db/pull/5648))
+
+##### Improved
+
+- The query cache is now bounded and self-managing. Previously each result type kept up to 100 compiled query plans with no global ceiling and no idle eviction, so a long-running application issuing many distinct queries — multi-tenant filters, user-built reports, or frequent `MappingSchema` swaps — could accumulate large numbers of stale cached plans and grow in memory without bound. The cache now enforces a global entry cap and evicts idle entries on a periodic background sweep (rarely-used queries expire within an hour; frequently-used ones are retained longer), keeping memory bounded in long-running and dynamic-query workloads. The cap, idle timeout, and sweep interval can be tuned via `QueryCache.Default` in the `LinqToDB.Internal.Linq` namespace. ([#5501](https://github.com/linq2db/linq2db/pull/5501))
+- ClickHouse and YDB now report an unsupported correlated subquery used in expression position (inside EXISTS / IN / a scalar comparison or function argument) with a clean `LinqToDBException` instead of letting the query reach the server and fail with a raw provider error. Simple correlated subqueries that ClickHouse does support continue to work. ([#5574](https://github.com/linq2db/linq2db/pull/5574))
+- `DistinctBy` now generates native `SELECT DISTINCT ON (...)` on PostgreSQL and DuckDB instead of the `ROW_NUMBER()` emulation, producing simpler SQL. The key selector becomes the `ON` list and the query's `OrderBy` is arranged to lead with those keys (as the syntax requires); other providers keep the existing emulation unchanged. ([#5630](https://github.com/linq2db/linq2db/pull/5630))
+- DB2, Firebird and Informix now apply a parameter cast per usage rather than marking the parameter as a whole, which removes a redundant nested cast from generated SQL — `Sql.Convert<string, int>(Sql.AsSql(x).Length)` on Firebird now renders `CAST(@p AS VARCHAR(8191))` instead of `CAST(CAST(@p AS Int) AS VARCHAR(8191))`. ([#5723](https://github.com/linq2db/linq2db/pull/5723))
+
+##### Fixed
+
+- A user-registered `IMemberTranslator` now takes priority over the built-in predicate translation for boolean method calls (`Contains`, `Equals`, `StartsWith`, …). Previously a custom translation for these could be ignored; the built-in translation remains as a structural fallback, so predicates inside generic helpers, `MergeInto` subqueries, and EF Core query filters still translate correctly. ([#5348](https://github.com/linq2db/linq2db/pull/5348))
+- Fixed an `ArgumentOutOfRangeException` during query build when a nested `UnionAll` reordered or augmented the projected columns — for example a constant column inserted ahead of a column that then has to move to a higher index. Set-operator column re-indexing now handles the reorder. Reported as [#5617](https://github.com/linq2db/linq2db/issues/5617). ([#5450](https://github.com/linq2db/linq2db/pull/5450))
+- Provider auto-detection now works in `PublishSingleFile` self-contained deployments. Previously, building an app with `dotnet publish --self-contained -p:PublishSingleFile=true` could break ADO.NET provider detection (for MySQL, SQL Server, SQLite, Oracle, ClickHouse, Access, Informix, Sybase ASE, and SAP HANA), surfacing errors such as `Cannot load assembly MySql.Data` even when the app referenced only `MySqlConnector`. Detection no longer relies on the empty `Assembly.Location` value that single-file bundles report. ([#5489](https://github.com/linq2db/linq2db/pull/5489))
+- Fixed a `NullReferenceException` thrown while building a query when a client-evaluated conditional (`?:`) expression — for example one using `string.IsNullOrWhiteSpace` — had an un-taken branch that would itself throw. The C# short-circuit semantics of `?:` are now preserved so the un-taken branch is no longer evaluated. ([#5544](https://github.com/linq2db/linq2db/pull/5544))
+- Server-side `string.IsNullOrWhiteSpace` translation now also recognizes U+202F (narrow no-break space) as whitespace, so a value containing only that character is treated as whitespace (matching .NET's whitespace set). ([#5544](https://github.com/linq2db/linq2db/pull/5544))
+- Fixed `InvalidOperationException` ("Member '...' not found") when a column is mapped through a nested member path (e.g. `Property(o => o.Sub.Field)` or `[Column(MemberName = "Sub.Field")]`). Such mappings now work in MERGE implicit setters (`UpdateWhenMatched` / `UpdateWhenMatchedAndThenDelete`), in `OnTargetKey()` when the primary key is nested-mapped, and when an inheritance discriminator is mapped via a nested path. ([#5545](https://github.com/linq2db/linq2db/pull/5545))
+- Fixed association resolution failing for interface / abstract-base member access reached through a `Select(...)` projection (e.g. `Contains()` over a projected interface filter); follow-up to [#5511](https://github.com/linq2db/linq2db/pull/5511) ([#5548](https://github.com/linq2db/linq2db/pull/5548))
+- Fixed a crash under Native AOT triggered by lambda closures used in queries ([#5552](https://github.com/linq2db/linq2db/pull/5552))
+- Fixed two problems with `ORDER BY` expressions that get lifted from a subquery up to the outer query:
+  - custom ordering built with `Sql.Expr` / `Sql.Fragment` that includes a trailing modifier such as `NULLS FIRST` (e.g. added via an `IExpressionPreprocessor`) produced invalid SQL — PostgreSQL rejected it with a syntax error;
+  - a computed expression reused in both a subquery column and the outer `ORDER BY` could be emitted referencing the wrong table alias. ([#5556](https://github.com/linq2db/linq2db/pull/5556))
+- Fixed aggregation methods (`Count`/`Sum`/`Min`/`Max`/`Average`) on a captured local collection being translated into a SQL aggregate subquery instead of evaluated on the client ([#5557](https://github.com/linq2db/linq2db/pull/5557))
+- Fixed an `InvalidCastException` thrown for a query containing a `Contains` (IN) call inside a correlated subquery whose source is filtered by an outer column. ([#5558](https://github.com/linq2db/linq2db/pull/5558))
+- Restored `IS NULL` simplification over string concatenation: a `WHERE (column + value) IS NULL` filter again generates the simpler `column IS NULL` on null-propagating-concat providers (e.g. SQL Server, Access), instead of testing the whole concatenation for null. ([#5567](https://github.com/linq2db/linq2db/pull/5567))
+- Fixed redundant nested case-conversion in generated SQL when calling `.ToLower()` or `.ToUpper()` on a Guid converted to string. The provider's own Guid-to-string conversion already lower-cases its result, so a user-supplied `.ToLower()` on top produced a doubled wrap (for example `LCase(LCase(...))` on Access or `Lower(Cast(Lower(...)))` on Firebird); the optimizer now collapses these to a single case call. ([#5570](https://github.com/linq2db/linq2db/pull/5570))
+- Fixed two problems with custom expression mappings registered through `Expressions.MapMember`. A mapped member used to project a correlated aggregate directly - for example a helper method mapped to `p.Children.Count(...)` - previously threw an error during query translation instead of producing the expected subquery; it now translates the same as the equivalent hand-written association aggregate. Separately, a mapped `string.CompareTo` / `string.Compare` with a null operand could return a wrong result when evaluated in memory (the generated SQL was already correct); that comparison is now correct. ([#5577](https://github.com/linq2db/linq2db/pull/5577))
+- Fixed a v6 regression where `[ExpressionMethod]` substitutions fired during entity materialization regardless of the attribute's `IsColumn` setting. An `[ExpressionMethod]` with `IsColumn = false` (the default) — meant for query-only rewrites that drive server-side SQL and are never evaluated on a materialized client value (e.g. `json_each`-style table forms, navigation chains, custom `Sql.*` helpers) — was incorrectly expanded at materialization and broke. Calculated columns (`IsColumn = true`) are now expanded specifically during entity construction, while `IsColumn = false` members are left as plain column reads (calculated columns declared on inheritance subtypes are expanded correctly too). ([#5578](https://github.com/linq2db/linq2db/pull/5578))
+- Fixed a regression where subtracting two `DateTime`/`DateTimeOffset` columns in a projection (e.g. `select new { Time = t.FinishedOn - t.StartedOn }`, yielding a `TimeSpan`/`TimeSpan?`) generated invalid SQL and failed at runtime (or returned wrong results, depending on the provider). The subtraction is now evaluated client-side, preserving full tick precision; the `(a - b).TotalDays`/`TotalHours`/... forms continue to translate server-side via `DateDiff`. Forcing such a subtraction server-side with `Sql.AsSql(...)` now reports a clear "could not be converted to SQL" error. ([#5581](https://github.com/linq2db/linq2db/pull/5581))
+- Fixed wrong results for `NOT IN` / negated `Contains` against a subquery on providers without correlated-subquery support (e.g. ClickHouse): when the subquery returned a `NULL` value, rows that should have been kept were incorrectly dropped. The subquery membership test now ignores `NULL` elements, matching LINQ's `Contains` semantics. ([#5582](https://github.com/linq2db/linq2db/pull/5582))
+- Fixed an `InvalidOperationException` ("Called when root is not initialized") thrown at query-build time when `Nullable<T>.HasValue` (or `.Value`) was used on a member left unbound by an earlier projection — for example a two-stage `Select` where the nullable member is never assigned and is then tested with `.HasValue` in the next projection. `HasValue` now correctly resolves to `false` for such an unassigned (null) member. ([#5586](https://github.com/linq2db/linq2db/pull/5586))
+- Fixed an `InvalidCastException` ("Failed to convert parameter value ... to a Decimal") thrown when a table is LEFT JOINed to a local in-memory collection (e.g. via `.AsQueryable()`) whose element is a multi-member class and one of its members feeds decimal arithmetic in a later projection. A spurious whole-object column was emitted in the generated `VALUES` clause; the join now builds correctly. ([#5587](https://github.com/linq2db/linq2db/pull/5587))
+- Fixed an `InvalidCastException` thrown when an aggregate — a custom `[Sql.Extension(IsAggregate = true)]` function (e.g. `count_if`) or an analytic `Average(…, Sql.AggregateModifier)` overload — appeared in one branch of a set operation (`UNION ALL` etc.) against a constant in the other branch. Such queries now build correctly. ([#5619](https://github.com/linq2db/linq2db/pull/5619))
+- The LINQ expression mapping registry (`Expressions.MapMember` / `MapBinary`) is now thread-safe. Registering a custom member/binary mapping concurrently with query compilation (or from multiple threads) could previously corrupt the internal registry; registrations and lookups are now safe under concurrent access. ([#5623](https://github.com/linq2db/linq2db/pull/5623))
+- Fixed a `LinqToDBException: Table not found` thrown while building SQL when a `.Concat(…)` (set-operation) result was `.Join(…)`-ed to another table used only for filtering — a regression from 5.x. The union now stays a proper derived table and the filtering join binds correctly. ([#5629](https://github.com/linq2db/linq2db/pull/5629))
+- Fixed `ORDER BY` being dropped from `OrderBy(...).Distinct().Take(n)` and `...GroupBy(...).Take(n)` queries, which let `Take` / `Skip` return arbitrary rows. The ordering is now preserved when every column it references is produced by the `DISTINCT` projection or the `GROUP BY` keys. ([#5632](https://github.com/linq2db/linq2db/pull/5632))
+- Fixed fluent `IsExpression` mapping on a nested property (e.g. `c => c.Address.Postcode`) throwing `LinqToDBException: Can't convert … to expression.` at query build. Nested-property computed columns now build and materialize correctly. ([#5635](https://github.com/linq2db/linq2db/pull/5635))
+- `OptimizeForSequentialAccess` is now a per-context option (`LinqOptions.OptimizeForSequentialAccess`, with `DataOptions.UseOptimizeForSequentialAccess(...)`) instead of only a process-global static. This fixes an `InvalidOperationException` ("Invalid attempt to read from column ordinal … With CommandBehavior.SequentialAccess …") that could occur when a cached materialization plan compiled with the option off was reused by a context reading with `SequentialAccess` (or vice-versa) — sequential and non-sequential plans now occupy distinct query-cache slots. The global `Configuration.OptimizeForSequentialAccess` is kept as a back-compat default. ([#5639](https://github.com/linq2db/linq2db/pull/5639))
+- Fixed the fluent `Sql.AnalyticFunctions.Lead(expr, nulls)` overload silently dropping its `IGNORE NULLS` / `RESPECT NULLS` argument (it emitted a plain `LEAD(expr)`); the modifier is now applied, matching the `FirstValue` / `LastValue` / `Lag` overloads that already did. ([#5644](https://github.com/linq2db/linq2db/pull/5644))
+- Fixed a column that has a `ValueConverter` but no explicit `DataType` resolving its database type from the model member type (which usually has none), so it fell back to `Undefined` and dropped precision/scale/length facets. The DB type is now resolved from the converter's provider type — for example an F# `decimal option` now maps to the provider's `decimal(18,10)` instead of collapsing to a bare `Decimal` and truncating scale. ([#5645](https://github.com/linq2db/linq2db/pull/5645))
+- Fixed an uncatchable `StackOverflowException` that could crash the process on deeply nested / recursive queries instead of recovering gracefully. The deep-recursion stack guard now probes the remaining stack more frequently, so it reliably switches to its thread-hop fallback (or throws a catchable `InsufficientExecutionStackException`) before the stack is exhausted. ([#5656](https://github.com/linq2db/linq2db/pull/5656))
+- Fixed a concurrency bug where executing the same cached, parameter-dependent query on multiple threads at once could render corrupted SQL — table aliases and column names could be swapped or duplicated, surfacing as `42703 column does not exist` on PostgreSQL or as wrong results on other databases. Query alias finalization no longer mutates the shared cached statement, so a cached query is now safe to render concurrently. ([#5657](https://github.com/linq2db/linq2db/pull/5657))
+- Fixed raw-SQL / `ToSqlQuery()` entity materialization that maps result columns by name returning defaults or failing on providers that force aliases on the root SELECT (SqlCe, YDB, Access): the root SELECT now keeps each column's physical name instead of renaming it to the member name, and colliding root columns are given unique aliases (e.g. `PersonID` / `PersonID_1`). ([#5657](https://github.com/linq2db/linq2db/pull/5657))
+- Fixed the generated SQL differing between the direct and remote (LinqService) execution paths; table aliases are now uniquified per logical source rather than per table-source wrapper, so both paths produce identical aliasing. ([#5657](https://github.com/linq2db/linq2db/pull/5657))
+- Fixed an `InvalidCastException` (a regression since 6.2.0) when `LoadWith` / `ThenLoad` was called on a plain `IQueryable` that isn't a linq2db query (e.g. `Enumerable.Empty<T>().AsQueryable()`). Synchronous enumeration of such a source now passes through to the original query (mirroring EF Core `Include`); async enumeration — and accessing the linq2db `DataContext`, `GetSqlQueries`, or the debug SQL view on it — now raises a clear `LinqToDBException` rather than the previous `InvalidCastException`. ([#5658](https://github.com/linq2db/linq2db/pull/5658))
+- Raw SQL queries materialized into a record or constructor-based type — `Query<T>(string)`, `QueryToList` / `QueryToListAsync`, etc. — now bind result columns by the same rules as LINQ queries: a member's `[Column("some_column")]` name is authoritative and a `[ValueConverter]` on a constructor-bound column is applied. Previously a constructor / positional-record parameter was matched to a result column **by parameter name only**, so a `[Column("some_column")]`-mapped member came back `null`/default and its `[ValueConverter]` was never applied. ⚠ Because binding now follows the mapped column name, the previous workaround of aliasing a column to the member name (`select some_column as SomeColumn`) no longer binds — select the column under its mapped name instead. Duplicate or empty column names in a raw result set are tolerated. ([#5659](https://github.com/linq2db/linq2db/pull/5659))
+- Fixed several table-per-hierarchy (single-table inheritance) defects, especially in hierarchies with an abstract intermediate class: sibling subtypes that map the same C# member to *different* physical columns now read and write correctly; an association declared on a derived type now emits the discriminator on its join (no spurious matches on non-matching rows); a base-typed insert writes shared and abstract-intermediate columns for every sibling subtype; and `OfType<TIntermediate>()` over an abstract intermediate now materializes the concrete subtypes instead of throwing "Cannot construct". ([#5661](https://github.com/linq2db/linq2db/pull/5661))
+- Fixed enum-column null handling in association joins: an optional association whose join condition involves an enum column emitted `column <> 0` instead of `column IS [NOT] NULL` (the enum-to-`int` conversion was compared against `0` rather than null-checked), which polluted the join condition and could silently drop rows whose enum value equals its zero-valued member. The conversion-wrapped enum null check now correctly generates `IS [NOT] NULL`. ([#5667](https://github.com/linq2db/linq2db/pull/5667))
+- Fixed a 6.x regression where a recursive CTE built with `db.GetCte<T>(anchor.Concat(recursive))` whose projection type had an `object`-typed member silently dropped columns from the CTE header — later references to the dropped columns then failed (`Invalid column name` on SQL Server, `no such column` on SQLite). A `string`-typed member worked; only `object`-typed members triggered it. Union-merged CTE columns now keep their tracking and resolve regardless of member type. ([#5680](https://github.com/linq2db/linq2db/pull/5680))
+- Provider version auto-detection (the `AutoDetect` dialect path) opened a caller-supplied `DbConnection` to probe the server version and then failed to close it, even though linq2db was the one that had opened it. A connection handed to linq2db closed — e.g. EF Core's shared connection obtained via `context.CreateLinqToDBConnection()` — was opened for the probe and left open, staying pinned, which could break the owner's later operations (for example an EF Core `EnsureDeleted`/`EnsureCreated` cycle failing with a broken/socket connection). linq2db now closes the probe connection only when it opened it, and leaves an already-open connection untouched. ([#5691](https://github.com/linq2db/linq2db/pull/5691))
+- Fixed cached queries producing wrong SQL on re-execution. Provider SQL rewrites could modify the cached statement in place instead of rebuilding it, so the second and later runs of a query saw an already-rewritten statement. Observed on Oracle (`COALESCE` character-set handling and `VALUES`-table queries, including through the remote `LinqService` context) and on Informix (casts on a parameter used more than once). ([#5723](https://github.com/linq2db/linq2db/pull/5723))
+- Fixed `DistinctBy` failing with `Table not found for '...'` when operators preceded it in the query — most commonly a `Where`. On the `ROW_NUMBER` emulation path the preceding query state was dropped, taking the filter with it, and query building then failed. ([#5732](https://github.com/linq2db/linq2db/pull/5732))
+
+#### LinqToDB F# Support
+
+##### Added
+
+- F# `'T option` and `'T voption` (value-option) columns now map automatically in the `linq2db.FSharp` package — after `.UseFSharp()`, option columns round-trip with no manual `MappingSchema` configuration: the *some* case (`Some`/`ValueSome`) stores the value and the *none* case (`None`/`ValueNone`) stores `NULL`. Value-typed options such as `int option` route through `Nullable<'T>`, so *none* is stored as `NULL` instead of the value-type default (previously an `int option` `None` was stored as `0`). Only options over a scalar element type are auto-mapped, and the column's DB type — including facets like decimal precision/scale and string length — is resolved from the element type against the connection's provider schema, so it matches the equivalent non-option column. Auto-mapping is a lower-priority fallback and never overrides mappings you've configured explicitly. ([#5624](https://github.com/linq2db/linq2db/pull/5624))
+
+##### Fixed
+
+- Fixed F# record-copy updates. Both `table.Update(fun r -> { r with Field = v })` and `query.Update(predicate, fun r -> { r with Field = v })` — including the async `UpdateAsync` variants — previously generated an `UPDATE` that wrote **every** column (including the primary key), which some providers reject. Only the changed (non-PK) column(s) are now written. ([#5627](https://github.com/linq2db/linq2db/pull/5627))
+
+#### LinqToDB for EntityFramework
+
+##### Added
+
+- EF Core 10 keyed query filters and `IgnoreQueryFilters(IReadOnlyCollection<string>)` now flow through to linq2db's named query filters. See [details](#named-query-filters) below. ([#5525](https://github.com/linq2db/linq2db/pull/5525))
+- Many-to-many (skip navigation) associations now translate to SQL. Queries over a many-to-many navigation backed by an implicit join table - e.g. `share.Users.Any(...)` and nested forms, plus `All`/`Count`/`SelectMany`, reverse-direction navigation, and `Include` eager loading - previously failed with "The LINQ expression could not be converted to SQL." Composite keys, self-referencing relationships, explicit join entities with payload, and multiple distinct relationships between the same entity pair are supported (multiple *implicit* relationships between the same pair throw a clear exception). EF Core 8/9/10; EF Core 3.1 unaffected. See [details](#ef-core-many-to-many-skip-navigation-translation) below. ([#5588](https://github.com/linq2db/linq2db/pull/5588))
+
+##### Fixed
+
+- Fixed a connection leak in the implicit EF Core helpers `ToLinqToDB()`, `DbSet.ToLinqToDBTable()` and `DbContext.GetTable<T>()`. These create an internal linq2db context that is never disposed, so it held the EF connection open until garbage collection. The internal context now releases the connection after each command (as EF Core itself does), closing only what linq2db opened, so an ambient transaction is unaffected. The public `CreateLinqToDBContext()` is unchanged. ([#5378](https://github.com/linq2db/linq2db/pull/5378))
+- Fixed a fatal crash on Mono / Android (Native AOT) when reading the EF Core model metadata. Thanks to [Tim Haasdyk](https://github.com/myieye) ([#5546](https://github.com/linq2db/linq2db/pull/5546))
+- Fixed linq2db's query cache missing on every `DbContext` when EF Core doesn't share its internal service provider across contexts — pooled contexts, `EnableServiceProviderCaching(false)`, or several providers in one app. Each context produced a fresh mapping-schema identity, so every query was recompiled per context instead of being reused. The schema is now shared across contexts of the same model, while different models — including custom `IModelCacheKeyFactory` and multi-tenant setups — still get separate schemas. ([#5695](https://github.com/linq2db/linq2db/pull/5695))
+
+#### LinqToDB LINQPad Driver
+
+##### Fixed
+
+- Fixed the `linq2db.LINQPad` driver failing to install from LINQPad's NuGet package manager on macOS/Linux (reported as "No compatible assemblies found"). The driver installs again on every OS; the regression was introduced in 6.2.0. ([#5571](https://github.com/linq2db/linq2db/pull/5571))
+- LINQPad driver: fixed the Database Type and Provider dropdowns in the dynamic-connection dialog being clipped on narrower dialog widths; they now fill the available row width instead of using a fixed size. ([#5579](https://github.com/linq2db/linq2db/pull/5579))
+
+#### LinqToDB CLI
+
+##### Added
+
+- Scaffolding can emit `[GetSqlDecimal]` for SQL Server `decimal` columns with precision or scale outside CLR `decimal` limits — `--sqlserver-decimal-overflow-protection` (off by default), or `DataModelOptions.GenerateSqlServerDecimalOverflowProtection` when driving the scaffolder in code. ([#5605](https://github.com/linq2db/linq2db/pull/5605))
+- New `linq2db.cli` commands for working against a database directly, aimed at AI agent hosts as well as interactive use: `query` (one read-only SQL statement → JSON, JSON-table or CSV), `execute` (one write-capable statement, refused unless the selected profile sets `enableExecute`), `schema` (provider-aware object metadata as JSON, with schema/catalog/table filters and a compact `names` detail level), `config-init` (create or update a JSON connection profile), `credentials` (encrypted credential profiles via Windows Credential Manager, scoped to the creating account), `skill` (prints agent-oriented usage), and `mcp` — a STDIO Model Context Protocol server exposing `linq2db_info`, `linq2db_schema`, `linq2db_query`, `linq2db_execute` and `linq2db_skill`. Safe defaults throughout: read-only SQL guardrails on `query`, `execute` off unless explicitly enabled at both MCP startup and in the profile, and an 8 MiB MCP response cap that truncates on a row boundary rather than emitting invalid JSON. See [details](#linq2db-cli-query-and-mcp-server) below. ([#5678](https://github.com/linq2db/linq2db/pull/5678))
+
+#### Analyzers
+
+##### Added
+
+- New analyzer package `linq2db.Analyzers`, with its first rule `L2DB1001`. It flags the legacy `Sql.Ext` window-function API — `Sql.Ext.<Fn>(...).Over()…ToValue()`, i.e. `LinqToDB.AnalyticFunctions` — as superseded by `Sql.Window`, which is slated for removal in a future major release. Reported at `Info` severity and enabled by default, with a companion code fix ("Convert to Sql.Window API") that rewrites mechanically-convertible chains and supports Fix-All across a document. Aggregates without `.Over()` are not reported — they aren't window functions, so there's no `Sql.Window` target to migrate to. Documented at [L2DB1001](https://github.com/linq2db/linq2db/wiki/L2DB1001). See [details](#linq2db-analyzers) below. ([#5703](https://github.com/linq2db/linq2db/pull/5703))
+- The analyzer rules ship with the library: `linq2db` now depends on `linq2db.Analyzers`, so they arrive with a direct `linq2db` reference or through any satellite package (`linq2db.Tools`, `linq2db.Remote.*`, `linq2db.Extensions`, `linq2db.Compat`, `linq2db.Scaffold`, `linq2db.EntityFrameworkCore`) with no extra reference — on by default. Requires .NET SDK 8.0+ or Visual Studio 2022 17.8+; older hosts skip the rules silently. Severity is configurable per rule, or for every linq2db rule at once via `dotnet_analyzer_diagnostic.category-LinqToDB.severity`, and `<EnableLinqToDBAnalyzers>false</EnableLinqToDBAnalyzers>` disables them entirely. Reference `linq2db.Analyzers` directly only to run the migration rule against an older linq2db (6.1–6.3) when planning an upgrade. ([#5720](https://github.com/linq2db/linq2db/pull/5720))
+
+#### ClickHouse
+
+##### Added
+
+- new ClickHouse `GLOBAL ALL` join hint (`JoinGlobalAllHint()` / `ClickHouseHints.Join.GlobalAll`), completing the GLOBAL + strictness join-hint combinations. ([#5555](https://github.com/linq2db/linq2db/pull/5555))
+
+##### Fixed
+
+- a standalone `ALL` ClickHouse join hint produced malformed SQL (it was matched as a compound prefix rather than a standalone strictness modifier); it now emits correctly. ([#5555](https://github.com/linq2db/linq2db/pull/5555))
+
+##### Deprecated
+
+- the compound `All*` join-hint aliases (`AllOuter`, `AllSemi`, `AllAnti`, …) are deprecated in favor of the standalone strictness hints (`OUTER`, `SEMI`, `ANTI`, …), matching ClickHouse's actual two-axis strictness (ALL/ANY/SEMI/ANTI/ASOF) + distribution (GLOBAL) syntax. The aliases still work for backward compatibility; recompiling maps them to the corrected standalone hints. ([#5555](https://github.com/linq2db/linq2db/pull/5555))
+
+#### DB2
+
+##### Fixed
+
+- Fixed reading a DB2 `DECFLOAT` column holding an IEEE special value (`Infinity` / `-Infinity` / `NaN`) throwing `LinqToDBConvertException` / `FormatException` — such values arise naturally from division by zero in `DECFLOAT` (e.g. `RATIO_TO_REPORT` over a zero-sum partition). They now materialize correctly: `double` / `float` targets keep the special value; `decimal` and integral targets yield `null` (nullable) or the default. Finite values still round-trip exactly. ([#5669](https://github.com/linq2db/linq2db/pull/5669))
+
+#### Firebird
+
+##### Added
+
+- Added `FirebirdTools.ClearPool(DbConnection)` and `FirebirdTools.ClearPool(string connectionString)` to clear the connection pool for a single Firebird database, complementing the existing process-wide `FirebirdTools.ClearAllPools()`. Use it to release one database's pooled connections — e.g. after a `DROP`/`CREATE` that Firebird would otherwise block with *object TABLE is in use* — without evicting every other Firebird pool in the process. ([#5689](https://github.com/linq2db/linq2db/pull/5689))
+
+#### Informix
+
+##### Fixed
+
+- Informix: fixed a nullable-projected `Sum` (e.g. `Sum(x => (decimal?)x)`) over a non-nullable column where the generated null-guard was a no-op (`Nvl(x, NULL)`) that didn't apply the intended default; the aggregate now behaves as intended. The same no-op null-guard was also fixed in the Access `IIF` fold. ([#5568](https://github.com/linq2db/linq2db/pull/5568))
+
+#### Oracle
+
+##### Fixed
+
+- Oracle: fixed `DateTimeOffset` value handling. The time-zone offset is now preserved when generating `TIMESTAMP WITH TIME ZONE` literals (previously the offset was discarded and replaced with `+00:00`, corrupting the stored instant), and casts that only change a date/timestamp's precision or add/remove a time zone now emit a plain `CAST` instead of malformed `TO_TIMESTAMP`/`TO_DATE` calls. `DateTimeOffset` values bound to a zone-less `TIMESTAMP` column are normalized to UTC. Date/datetime-to-string casts targeting an `NChar`/`NVarChar` type now emit `TO_NCHAR` (rather than `TO_CHAR`), and `DateOnly` is covered by the same cast path. ([#5466](https://github.com/linq2db/linq2db/pull/5466))
+- Fixed an Oracle `UPDATE` with a correlated row-subquery setter (e.g. a non-PK join narrowed by `.Single()`) generating invalid SQL. The correlated subquery now lifts cleanly instead of leaving a dangling self-reference. Thanks to [jods](https://github.com/jods4). ([#5584](https://github.com/linq2db/linq2db/pull/5584))
+- Fixed long string and XML values being bound as ordinary string parameters, which failed for `OracleXmlTable` and other long-string parameter scenarios. A string parameter with no explicit data type whose length reaches `OracleOptions.MaxStringParameterLength` (new, default `4000`) is now bound as `NText`/NCLOB; set it to `null` to disable the inference. This applies to raw SQL and `DataParameter` values — a LINQ-generated parameter is typed from its column or CLR type, so it never reaches the inference and is unaffected. ([#5600](https://github.com/linq2db/linq2db/pull/5600))
+
+#### PostgreSQL
+
+##### Added
+
+- Added PostgreSQL 19 support — new `v19` dialect (`ProviderName.PostgreSQL19`), server-version detection and config-string matching. On PostgreSQL 19 the `FIRST_VALUE`/`LAST_VALUE`/`LEAD`/`LAG`/`NTH_VALUE` window functions now emit `IGNORE NULLS` / `RESPECT NULLS` in PostgreSQL's SQL-standard outside-parens form (`FIRST_VALUE(x) IGNORE NULLS`), instead of the Oracle-style inside-parens form it rejects with a `42601` syntax error. ([#5644](https://github.com/linq2db/linq2db/pull/5644))
+- PostgreSQL 11 and 12 support — new `v11`/`v12` dialects (`ProviderName.PostgreSQL11`/`PostgreSQL12`), server-version detection and config-string matching, plus version-aware gating of window-function capabilities: constructs a given server doesn't support — frame `GROUPS`/`EXCLUDE` before 11, `WITHIN GROUP` ordered-set and hypothetical-set aggregates before 9.5, `AS [NOT] MATERIALIZED` CTEs before 12 — are now rejected up front with a descriptive `LinqToDBException` instead of emitting SQL the server rejects. ([#5687](https://github.com/linq2db/linq2db/pull/5687))
+
+##### Fixed
+
+- Fixed PostgreSQL schema discovery misclassifying identity columns: a `nextval(...)` call embedded in a larger default expression (e.g. `'PREFIX_' || nextval(...)`) is no longer treated as a native identity column — only a direct serial-style `DEFAULT nextval(...)` still is. A true identity column is preferred when present, and when a table has multiple sequence-backed defaults a primary-key column is selected first. ([#5647](https://github.com/linq2db/linq2db/pull/5647))
+
+#### SQL Server
+
+##### Added
+
+- New `[GetSqlDecimal]` attribute for SQL Server `decimal` columns whose precision or scale falls outside the CLR `decimal` range. Reading such a column previously threw `OverflowException`; with the attribute the value is read through SQL Server's own `SqlDecimal` and its scale reduced to fit, which can round away least-significant digits. A value whose magnitude still exceeds `decimal.MaxValue` continues to throw. Opt-in per column, and applied only when the provider is SQL Server. ([#5605](https://github.com/linq2db/linq2db/pull/5605))
+
+##### Fixed
+
+- Fixed schema load returning no views at all on SQL Server 2016+ when the `IgnoreSystemHistoryTables` option was enabled — the temporal-history filter excluded views along with history tables, so scaffolding, T4 and `linq2db.cli` produced a model with no views. Affects `GetSchemaOptions.IgnoreSystemHistoryTables`, the scaffold `--ignore-system-history-tables` option, and the CLI `schema` command. ([#5734](https://github.com/linq2db/linq2db/pull/5734))
+
+#### SQLite
+
+##### Fixed
+
+- SQLite schema provider (`GetSchema()`) now returns tables and views in a deterministic, platform-independent order; previously the order followed whatever the native SQLite library returned and could differ between platforms and SQLite versions. ([#5606](https://github.com/linq2db/linq2db/pull/5606))
+
+#### Sybase ASE
+
+##### Improved
+
+- Sybase ASE now emits the ANSI `||` operator for string concatenation instead of the Transact-SQL `+` operator, matching the SQL shape used by the other `||` providers. Results are unchanged - `||` behaves identically to `+` on ASE (neither propagates NULL, and both still cast non-character operands), so this is a SQL-text-only change. ([#5569](https://github.com/linq2db/linq2db/pull/5569))
+
+##### Fixed
+
+- Sybase ASE: `Sql.Concat` no longer emits redundant `IS NULL` guards on operands that can't be NULL (string literals, non-nullable columns), producing much cleaner SQL. Regression introduced in a 6.4.0 preview. ([#5566](https://github.com/linq2db/linq2db/pull/5566))
+
+#### YDB
+
+##### Added
+
+- The YDB provider is now fully implemented and supported (previously experimental) — schema API, CLI scaffolding, LINQPad driver, and broad LINQ/translation coverage. See [details](#ydb-data-provider) below. ([#5564](https://github.com/linq2db/linq2db/pull/5564))
+
+<!-- rn:deepdive:#5450 -->
+#### Eager-loading strategies (KeyedQuery / CteUnion)
+
+```csharp
+var query =
+    from c in db.Companies
+    orderby c.Id
+    select new
+    {
+        c.Id, c.Name,
+        Departments = db.Departments
+            .Where(d => d.CompanyId == c.Id)
+            .Select(d => new { d.Id, Employees = db.Employees.Where(e => e.DepartmentId == d.Id).ToList() })
+            .ToList(),
+    };
+
+query.WithKeyedLoadStrategy().ToList();  // buffer parents, load children by key
+query.WithUnionLoadStrategy().ToList();  // single UNION ALL CTE across all levels
+```
+With **KeyedQuery** the parent query runs once and each child level loads with `WHERE key IN (…)`:
+```sql
+SELECT [Id], [Name] FROM [Company]
+SELECT ... FROM [Department] WHERE [CompanyId]    IN (1)
+SELECT ... FROM [Employee]   WHERE [DepartmentId] IN (1, 2)
+```
+**CteUnion** instead emits a single query whose CTEs carry every level and are combined with `UNION ALL` (marked `AS MATERIALIZED` on PostgreSQL 12+, SQLite 3.35+, and ClickHouse where a CTE is referenced more than once).
+
+<!-- rn:deepdive:#5468 -->
+#### Window functions
+
+```csharp
+var query =
+    from t in db.Employees
+    let wnd = Sql.Window.DefineWindow(f => f.PartitionBy(t.Department).OrderBy(t.HireDate))
+    select new
+    {
+        RN         = Sql.Window.RowNumber(f => f.PartitionBy(t.Department).OrderBy(t.HireDate)),
+        RunningSum = Sql.Window.Sum(t.Salary, f => f.UseWindow(wnd)),
+        NextSalary = Sql.Window.Lead(t.Salary, 1, 0m, f => f.UseWindow(wnd)),
+        AvgActive  = Sql.Window.Average(t.Salary, f => f.Filter(t.IsActive).UseWindow(wnd)),
+        MinFirst   = Sql.Window.Min(t.Salary, f => f.KeepFirst().OrderBy(t.HireDate).PartitionBy(t.Department)),
+    };
+```
+
+Frames use explicit boundary direction, so same-direction frames are expressible:
+
+```csharp
+Sql.Window.Sum(t.Value, f => f.OrderBy(t.Id).RowsBetween.ValuePreceding(1).And.CurrentRow)
+Sql.Window.Sum(t.Value, f => f.OrderBy(t.Id).RowsBetween.Unbounded.And.Unbounded.ExcludeTies())
+```
+
+`FILTER (WHERE …)` is native on PostgreSQL and emulated via `CASE WHEN` elsewhere; `NULLS FIRST/LAST` is native on PostgreSQL, Oracle and Firebird 3+ and emulated elsewhere. Configured across SQL Server, PostgreSQL, Oracle, MySQL/MariaDB, ClickHouse, SQLite, Firebird, DB2, SAP HANA, Informix, YDB, Access, SqlCe and Sybase — unsupported features raise a descriptive exception rather than emitting invalid SQL.
+
+<!-- rn:deepdive:#5482 -->
+#### Fluent Upsert + entity Update/Insert APIs
+
+```csharp
+// Upsert — insert or update a single entity
+db.Users.Upsert(user, u => u
+    .Match ((t, s) => t.Id == s.Id)
+    .Insert(i => i.Set(x => x.CreatedAt, () => DateTime.UtcNow))
+    .Update(v => v.Set(x => x.UpdatedAt, () => DateTime.UtcNow)));
+
+// Upsert — bulk from a collection or query
+db.Users.Upsert(items, u => u.Match((t, s) => t.Id == s.Id));  // IEnumerable<T>
+db.Users.Upsert(query, u => u.Match((t, s) => t.Id == s.Id));  // IQueryable<T>
+
+// Entity Insert / Update — column values come from the entity; .Set / .Ignore overlay
+db.Users.Insert(user, b => b.Set(x => x.CreatedAt, () => DateTime.UtcNow).Ignore(x => x.Notes));
+db.Users.Update(user, b => b.Set(x => x.UpdatedAt, () => DateTime.UtcNow));  // PK match
+```
+The entity `Insert` / `Update` overloads compile to the existing single-statement `INSERT` / `UPDATE` and work on every provider, including entity types without a public parameterless constructor (positional records, ctor-only DTOs).
+
+<!-- rn:deepdive:#5525 -->
+#### Named query filters
+
+```csharp
+builder.Entity<Order>()
+    .HasQueryFilter("soft-delete", (o, dc) => !o.IsDeleted)
+    .HasQueryFilter("tenant",      (o, dc) => o.TenantId == ((MyDb)dc).TenantId);
+
+// disable just the tenant filter for this query
+db.Orders.IgnoreFilters(new[] { "tenant" }).ToList();
+
+// disable a filter only for specific entity types
+db.Orders.IgnoreFilters(new[] { "soft-delete" }, typeof(Order)).ToList();
+```
+
+<!-- rn:deepdive:#5561 -->
+#### NULLS FIRST / LAST ordering
+
+Control where `NULL` values sort, per ordering key:
+
+```cs
+// Place NULLs last for this key
+db.Table.OrderBy(x => x.Value, Sql.NullsPosition.Last)
+        .ThenBy(x => x.Id);
+
+// NULLs first on a descending key
+db.Table.OrderByDescending(x => x.Value, Sql.NullsPosition.First);
+
+// Default placement for every ordering key that doesn't specify one
+var options = new DataOptions().UseDefaultNullsPosition(Sql.NullsPosition.Last);
+// or globally:
+Configuration.Sql.DefaultNullsPosition = Sql.NullsPosition.Last;
+```
+
+Use `Sql.NullsPosition.None` to opt a single key out of the configured default. The position is rendered as a native `NULLS FIRST` / `NULLS LAST` token where supported and emulated with a leading `CASE` key elsewhere, so the result is the same regardless of provider.
+
+<!-- rn:deepdive:#5564 -->
+#### YDB data provider
+
+The experimental YDB provider is now first-class. Provider name: `YDB`. Supported on `net8.0`, `net9.0`, `net10.0`.
+
+**Supported features:**
+
+- Full CRUD with the usual LINQ surface
+- CTE, window/analytic functions, `IS DISTINCT FROM`, row-constructor comparisons (equality / comparison / `BETWEEN` / `IN`)
+- `RETURNING` for identity columns
+- Schema introspection (tables, columns, primary keys)
+- Bulk copy: native appender (`BulkUpsert`) with automatic fallback to multi-row `INSERT`
+- `string.Join` / `StringAggregate` translation
+- Temporary tables (`CREATE ... IF NOT EXISTS` / `DROP ... IF EXISTS`)
+- Scaffold using the `linq2db.cli` tool
+- LINQPad support
+
+<!-- rn:deepdive:#5588 -->
+#### EF Core many-to-many (skip navigation) translation
+
+Skip navigations backed by an implicit join table now work through `ToLinqToDB()`:
+
+```cs
+// EF Core model: Share <-> User many-to-many via skip navigation
+var shares = ctx.Shares
+    .Where(share => share.Users.Any(u => u.Name == "admin"))
+    .ToLinqToDB()
+    .ToList();
+```
+
+Previously threw "The LINQ expression could not be converted to SQL." `Include` eager loading of the navigation is also supported. Known limitation: an entity whose key is field-mapped or shadow (no CLR property) cannot be used as the query root for eager loading.
+
+<!-- rn:deepdive:#5648 -->
+#### UUIDv7 generation
+
+```cs
+var id  = db.GetTable<Person>().Select(_ => Sql.NewGuid7()).First();
+var id2 = db.GetTable<Person>().Select(_ => Guid.CreateVersion7()).First(); // .NET 9+
+```
+
+Native server-side functions: PostgreSQL 18+ `uuidv7()`, DuckDB 1.3.0+ `uuidv7()`, ClickHouse 24.5+ `generateUUIDv7()`, MariaDB 11.7+ `UUID_v7()`. PostgreSQL is version-aware — below 18 it falls back to client-side generation. For DuckDB, ClickHouse and MariaDB the native function is emitted unconditionally (linq2db doesn't probe the server version), so targeting a server older than the function's introduction raises a server-side error rather than falling back. Providers without any native generator always produce the v7 GUID client-side.
+
+<!-- rn:deepdive:#5678 -->
+#### linq2db CLI query and MCP server
+
+`linq2db.cli` can now read and query a database directly. For agent hosts, `mcp` is the intended integration; `query` covers direct invocation where MCP isn't available or allowed.
+
+Point the MCP server at a config file that names the database profiles:
+
+```json
+{
+  "mcp": {
+    "title": "Audiobooks Database",
+    "description": "Application database containing audiobooks, authors, narrators, users, and listening history."
+  },
+  "default": {
+    "provider": "PostgreSQL",
+    "connectionStringEnv": "AUDIOBOOKS_CONNECTION_STRING"
+  }
+}
+```
+
+Agents work `linq2db_info` (profiles, providers, dialects, safety rules, response limit) → `linq2db_schema` (tables, views, columns, keys, relationships) → `linq2db_query` (one read-only statement), with `linq2db_skill` returning the full guide. The same profiles drive direct use:
+
+```
+dotnet linq2db schema --detail-level names
+dotnet linq2db query --sql "select count(*) from Orders" --output json-table
+```
+
+Prefer `connectionStringEnv` to a literal connection string — a literal is written into the generated config and warns on `stderr`. Register the executable once per project or database domain, each with its own `--config`, so agents get a clear boundary. `execute` is refused unless the profile sets `enableExecute` *and* MCP was started with `--enable-execute-tool`. CSV output is for machine processing only and deliberately does no spreadsheet escaping, so a value starting with `=`, `+`, `-` or `@` may be read as a formula — use `json` or `json-table` for untrusted data.
+
+<!-- rn:deepdive:#5703 -->
+#### linq2db analyzers
+
+linq2db now ships Roslyn analyzers with the library. The first rule, `L2DB1001`, flags the legacy `Sql.Ext` window-function API, and a code fix migrates it:
+
+```cs
+// reported by L2DB1001
+long M(int x) => Sql.Ext.RowNumber().Over().PartitionBy(x).OrderBy(x).ToValue();
+
+// after "Convert to Sql.Window API"
+long M(int x) => Sql.Window.RowNumber(f => f.PartitionBy(x).OrderBy(x));
+```
+
+The rule reports at `Info` and only fires on chains containing `.Over()` — a plain `Sql.Ext.Sum(x).ToValue()` aggregate is not a window function and has no migration target, so it is left alone. Fix-All rewrites every flagged chain in a document in one pass. A chain that has no mechanical equivalent, such as one carrying `.Filter(...)`, is reported but not rewritten.
+
+Severity is settable per rule, or for every linq2db rule at once:
+
+```editorconfig
+dotnet_diagnostic.L2DB1001.severity = warning
+dotnet_analyzer_diagnostic.category-LinqToDB.severity = error
+```
+
+To turn the rules off entirely:
+
+```xml
+<PropertyGroup>
+  <EnableLinqToDBAnalyzers>false</EnableLinqToDBAnalyzers>
+</PropertyGroup>
+```
+
+Requires .NET SDK 8.0+ or Visual Studio 2022 17.8+; older hosts skip the analyzers silently rather than failing the build. Referencing `linq2db.Analyzers` directly is only needed to run the migration rule against linq2db 6.1–6.3 when planning an upgrade.
+
 ### Release 6.3.0
 
 **LinqToDB**
 
+- [#3040](https://github.com/linq2db/linq2db/pull/3040): added `Enum.HasFlag` translation to SQL
 - [#4325](https://github.com/linq2db/linq2db/pull/4325): [@darko1979](https://github.com/darko1979) added [support](https://github.com/linq2db/linq2db/pull/5395) for `IgnoreConflicts` option to `MultipleRows` mode of `BulkCopy` API for `MySql`, `MariaDB`, `PostgreSQL` and `SQLite`
+- [#5154](https://github.com/linq2db/linq2db/pull/5154): fix `InvalidOperationException` from `ToSqlQuery` when `SqlQueryDependentParams` attribute used in mappings, obsolete `SqlQueryDependentParamsAttribute`
 - [#5302](https://github.com/linq2db/linq2db/pull/5302): fix query caching issue for `PostgreSQL` with array parameters. Array, `List<T>` and `IReadOnlyList<T>` types now recognized as scalars for `PostgreSQL`
+- [#5309](https://github.com/linq2db/linq2db/pull/5309): [SQL Server][Firebird] fix conversion to date for expression with `DbType="some_type"` set in mappings
 - [#5323](https://github.com/linq2db/linq2db/pull/5323): [PostgreSQL, ClickHouse, DuckDB, SQLite] add explicit configuration API for `CTE` materialization using `AsCte` overload with configuration builder parameter. Examples:
   - `AsCte(c => c.IsMaterialized())`
   - `AsCte(c => c.IsMaterialized(false))`
   - `AsCte(c => c.IsMaterialized().HasName("custom_cte_name"))`
+- [#5355](https://github.com/linq2db/linq2db/pull/5355): fix issue with associations discovery on interfaces
+- [#5404](https://github.com/linq2db/linq2db/pull/5404): fix SQL generation for subqueries, that select nullable aggregates using non-null returning API
 - [#5413](https://github.com/linq2db/linq2db/pull/5413): fix `UPDATE FROM` translation regressions
 - [#5427](https://github.com/linq2db/linq2db/pull/5427): fix remaining issues with `null` handling by `ValueConverter` for non-nullable value type
 - [#5429](https://github.com/linq2db/linq2db/pull/5429): fix `StackOverflowException` due to use of `AsQueryable` calls
@@ -63,6 +901,72 @@
   - [SAP HANA] handle table not found errors on drop on SQL level for `throwExceptionIfNotExists: false`
   - [DB2][Firebird][SAP HANA][Oracle] properly escape sql statements in `EXECUTE` blocks, generated on table create/drop operations
 - [#5480](https://github.com/linq2db/linq2db/pull/5480): fix query caching issues with `FromSql` queries
+- [#5504](https://github.com/linq2db/linq2db/pull/5504): internal refactoring of string concatenation. Many translation bugs fixed, added support for missing `string.Concat` overloads
+- [#5505](https://github.com/linq2db/linq2db/pull/5505): don't apply `ValueConverter` to database-sourced values in UPDATE setters
+- [#5510](https://github.com/linq2db/linq2db/pull/5510): fix interface member access translation issue
+- [#5515](https://github.com/linq2db/linq2db/pull/5515): review and improve `TrimStart`/`TrimEnd` overloads mappings for all providers
+- [#5519](https://github.com/linq2db/linq2db/pull/5519): [Access] fix re-surfaced compatibility issues with non-EN locales, fix issue for boolean conversion for read from DB could be applied in wrong places
+- [#5522](https://github.com/linq2db/linq2db/pull/5522): fix exists over set (e.g. `EXISTS (... UNION ...)`) queries generation
+
+##### `AsQueryable` parameterization control
+
+Closes [#5424](https://github.com/linq2db/linq2db/pull/5424).
+
+New overload of `AsQueryable` lets you choose how each column of an `IEnumerable<T>` is rendered into the `VALUES (...)` clause - as SQL parameters or inlined literals - with per-column overrides:
+
+```cs
+data.AsQueryable(db, b => b.Parameterize())
+data.AsQueryable(db, b => b.Inline())
+data.AsQueryable(db, b => b.Parameterize().Except(p => p.Id))
+data.AsQueryable(db, b => b.Inline().Except(p => p.Address.Zip))
+```
+
+The builder is type-safe: `Parameterize()` / `Inline()` must come first, after which only `Except(...)` is available - invalid combinations don't compile.
+
+Provider notes:
+- **DB2**: parameter cells inside `VALUES` are wrapped in `CAST(@p AS <type>)` to satisfy SQL0418N.
+- **ClickHouse**: parameterized `VALUES` is not supported and is skipped.
+
+##### Improved `Now` / `UtcNow` translation with timezone awareness
+
+Closes [#5436](https://github.com/linq2db/linq2db/pull/5436).
+
+Server-side translation of `DateTime.Now`, `DateTime.UtcNow`, `DateTimeOffset.Now`, and `DateTimeOffset.UtcNow` is now distinct per variant, so providers that store offset (Oracle, PostgreSQL, Firebird 4+, DB2 z/OS, …) preserve timezone information instead of silently dropping it.
+
+Behavior:
+
+- Providers with native timezone support emit the correct expression for each of the four variants.
+- Providers without timezone support don't error — `DateTimeOffset.Now` / `UtcNow` are gracefully downgraded to their `DateTime` equivalents.
+- `Sql.CurrentTimestamp` / `Sql.CurrentTimestamp2` are now XML-documented.
+
+Bug fixes uncovered along the way:
+
+- **Oracle**: `DateTimeOffset.Now` no longer round-trips through `sys_extract_utc`, which was discarding the offset and corrupting `TIMESTAMP WITH TIME ZONE` writes.
+- **SQLite**: `DateTime.Now` previously produced UTC time; now correctly returns local.
+
+##### DuckDB data provider
+
+Thanks to [@stdray](https://github.com/stdray) for implementing it.
+
+Closes [#5451](https://github.com/linq2db/linq2db/pull/5451).
+
+New first-class provider for [DuckDB](https://duckdb.org/) — an in-process analytical database with PostgreSQL-compatible SQL — built on top of [DuckDB.NET](https://github.com/Giorgi/DuckDB.NET).
+
+Provider name: `DuckDB`. Supported on `net8.0`, `net9.0`, `net10.0`.
+
+**Supported features:**
+
+- Full CRUD with the usual LINQ surface
+- CTE, window/analytic functions, `LATERAL` (CROSS/OUTER APPLY), `IS DISTINCT FROM`, row-constructor comparisons
+- SQL `MERGE` (WHEN MATCHED / WHEN NOT MATCHED)
+- `INSERT ... ON CONFLICT DO UPDATE/NOTHING` (`InsertOrUpdate`)
+- `RETURNING` for identity columns
+- Schema introspection (tables, columns, primary keys)
+- Bulk copy: multi-row `INSERT` and native `DuckDBAppender` (provider-specific) with automatic fallback
+- `STRING_AGG` translation for `string.Join` / `StringAggregate`
+- Temporary tables (`CREATE IF NOT EXISTS` / `DROP IF EXISTS`)
+- Scaffold using `linq2db.cli` tool
+- LinqPAD support
 
 **LinqToDB for EntityFramework**
 
@@ -73,6 +977,22 @@
 - [#5430](https://github.com/linq2db/linq2db/pull/5430):
   - [#5428](https://github.com/linq2db/linq2db/pull/5428): fix compatibility with `FSharp.Core` 10.1.x
   - fix record mapping issues for members with case-only name distinctions
+
+**LinqToDB CLI**
+
+PR [#5539](https://github.com/linq2db/linq2db/pull/5539).
+
+### Per-RID packaging
+
+`linq2db.cli` now ships as **per-RID tool packages** ([.NET 10 SDK feature](https://learn.microsoft.com/en-us/dotnet/core/tools/rid-specific-tools)). `dotnet tool install -g linq2db.cli` auto-selects the variant matching your SDK architecture. RIDs: `win-x64`, `win-x86`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64`.
+
+### Breaking: `--architecture` scaffold option removed
+
+Bitness is fixed at install time, not per-invocation. Use `dotnet tool install -g linq2db.cli --arch x86` for 32-bit. Only `Microsoft.Jet.OLEDB` strictly requires `win-x86`; `Microsoft.ACE.OLEDB`, SQL Server Compact Edition, and SAP HANA just need the tool bitness to match the installed driver bitness. To keep both x86 and x64 available, install each via `--tool-path <dir>` (`-g` allows only one).
+
+### New: `Microsoft.Jet.OLEDB` x86 detection
+
+The Access scaffold now errors with a clear x86-variant hint when the connection string requests Jet and the current process isn't 32-bit, instead of failing deep inside the OLE DB factory load.
 
 ***
 

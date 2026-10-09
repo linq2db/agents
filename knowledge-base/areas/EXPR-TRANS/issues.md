@@ -3,27 +3,31 @@ area: EXPR-TRANS
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-07-06
-last_verified_sha: d3061c6d7315303a86dfdd67bb7728d4736f6506
+last_verified: 2026-10-10
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 ---
 
 # EXPR-TRANS -- GitHub themes
 
 ## Open themes
 
-- **Member/Method translation refactoring** -- Migration of expression methods from the legacy `Sql.Extension` + expose-mapping system into the member-translator pipeline (`StringMemberTranslatorBase` and related). #5613 (Migrate string.CompareTo), #5577 (expand member/method mappings), #5541 / #5578 (ExpressionMethodAttribute.IsColumn handling). Six PRs landed; remaining translation consolidation (binary/unary from #3994) in #5212.
-- **Projection computation & client-side evaluation** -- #5604 (PreferClientCalculation option) addresses the v6 behavior change that forces projection expressions through server-side SQL translation; allows opting back to v5's client-side evaluation for computed columns. Open for review.
-- **Nullable type handling in subqueries & correlated contexts** -- #5586 (Nullable<T>.HasValue over unbound members), #5582 (null-safe IN/NOT IN emulation on providers without correlated-subquery support). Fixes for null propagation in complex query shapes.
-- **Type translation & casting** -- #5605 (SqlServer decimal overflow fallback via SqlDecimal), #5466 (DateTimeOffset.DateTime as cast), #5581 (nullable DateTime subtraction). Ongoing coverage for edge cases in CLR↔SQL type bridging.
-- **Window Functions API** -- #5468 (new Sql.Window fluent API for window functions) replaces the older `Sql.Ext().Over().ToValue()` pattern; includes legacy converter. Open for review.
+- **Member/Method translation refactoring** -- Migration of expression methods from the legacy `Sql.Extension` + expose-mapping system into the member-translator pipeline. Landed since last refresh: #5613 (string.CompareTo, merged 2026-06-14), #5544 (string.IsNullOrWhiteSpace, merged 2026-06-09), #5577 (expand member/method mappings at expose, merged 2026-06-07). Still open: #5716 -- `IMemberTranslator` public surface is unusable without `LinqToDB.Internal.*` types (open since 2026-07-13). #5541 (ExpressionMethodAttribute.IsColumn=false at materialization) is closed without a merge record in the index.
+- **Projection computation & client-side evaluation** -- #5604 (PreferClientCalculation option, merged 2026-06-26) keeps projection computations client-side, restoring v5 behavior for computed columns. Follow-up #5926 (honour it for string interpolation via declarable optional translation) is closed without a merge record. Open: #5901 (refuse an untranslatable aggregate inside a projection) -- open PR.
+- **Lateral / APPLY join emulation** -- #5396 (emulate Lateral/Apply join for SQLite and other providers, open issue) and #5397 (lateral join emulation, open PR). Two items; listed as a recurring topic because the same gap blocks correlated projections on providers without native APPLY.
+- **Expression/query cache correctness** -- #6000 (query cache reuses stale SQL when FromSqlScalar is nested inside an IN expression, open since 2026-10-08, label needs-tests) and #5769 (expression caching issue with Sql.IExtensionCallBuilder, closed 2026-09-03). Both are cache-key defects where translated SQL outlives the expression shape that produced it.
 
 ## Resolved themes
 
-- **String method translation consolidation** -- #5613 (string.CompareTo), #5544 (string.IsNullOrWhiteSpace), #5504 (string.Concat, string.TrimStart/End) — all moved from legacy `Sql.Extension` into the member-translator pipeline with per-provider overrides.
-- **Expression optimization post-AST refactor** -- #5570 (collapse nested case-conversion wraps in Guid→string translation), #5567 (restore IS NULL pushdown through SqlConcatExpression), #5566 (skip bogus IS NULL guards on non-null Sybase concat operands), #5569 (migrate Sybase concatenation to ANSI ||). All post-#5504 string-concat AST refactor.
-- **Correlated subquery detection & validation** -- #5574 (reject unsupported correlated subqueries in expression position on ClickHouse/YDB), #5558 (fix InvalidCastException in APPLY→JOIN conversion with correlated Contains). Fixes for providers with limited or no correlated-subquery support.
-- **Binary/unary operator translation** -- #5212 (merge binary/unary translation fixes from #3994); #5573 (Meziantou analyzer rules).
-- **Projection & materialization edge cases** -- #5587 (spurious [item] column on local-collection LEFT JOIN with decimal projection), #5577 (expand member/method mappings during initial expose instead of at build time), #5581 (nullable DateTime subtraction in final projection).
+- **String method translation consolidation** -- #5613 (string.CompareTo), #5544 (string.IsNullOrWhiteSpace), #5504 (string.Concat across all providers, merged 2026-05-15) -- moved from legacy `Sql.Extension` into the member-translator pipeline with per-provider overrides.
+- **Expression optimization post-AST refactor** -- #5570 (collapse nested case-conversion wraps in Guid-to-string translation), #5567 (restore IS NULL pushdown through SqlConcatExpression), #5566 (skip bogus IS NULL guards on non-null Sybase concat operands), #5569 (Sybase concatenation to ANSI ||), #5602 (MA0006/MA0154 fixes for #5570). All post-#5504 string-concat AST refactor.
+- **Correlated subquery detection & validation** -- #5574 (reject unsupported correlated subqueries in expression position on ClickHouse/YDB), #5558 (fix InvalidCastException in APPLY-to-JOIN conversion with correlated Contains).
+- **Nullable type handling in subqueries & correlated contexts** -- #5586 (Nullable<T>.HasValue over unbound members, merged 2026-06-19), #5582 (null-safe IN/NOT IN emulation, merged 2026-06-04).
+- **Type translation & casting** -- #5605 (SqlServer decimal overflow fallback via SqlDecimal, merged 2026-07-11), #5466 (DateTimeOffset.DateTime as cast, merged 2026-06-05), #5581 (nullable DateTime subtraction, merged 2026-06-12).
+- **TimeSpan & date-difference translation** -- #5750 (TimeSpan members and date differences as elapsed time, merged 2026-08-21), #5739 (native TimeSpan translation, closed), #3994 (original TimeSpan WIP, closed; its binary/unary fixes were carried by #5212).
+- **Binary/unary operator translation** -- #5212 (merge binary/unary translation fixes from #3994), closed 2026-08-19 without a merge record in the index.
+- **Window Functions API** -- #5468 (new Sql.Window fluent API, merged 2026-07-03) replaces the older `Sql.Ext().Over().ToValue()` pattern. #5725 (fold boolean expressions used in window clauses and arguments, merged 2026-09-05).
+- **Projection & materialization edge cases** -- #5587 (spurious [item] column on local-collection LEFT JOIN with decimal projection), #5577 (expand member/method mappings during initial expose), #5581 (nullable DateTime subtraction in final projection), #5818 (set-operation projection rejecting an untranslatable concat operand, merged 2026-08-30).
+
 
 ## Active discussions
 
@@ -38,15 +42,15 @@ last_verified_sha: d3061c6d7315303a86dfdd67bb7728d4736f6506
 
 ## Stats
 
-- Open issues: 36
-- Closed issues: 730
-- Open PRs: 8 (EXPR-TRANS focused)
-- Total PRs: 29 EXPR-TRANS (8 open, 21 merged)
+- Open issues: 3 (#5716, #1014, #6000)
+- Closed issues: 734
+- Open PRs: 2 (#5397, #5901)
+- Total PRs: 345 (2 open, 303 merged)
 - Discussions: 68
-- Last fetched: 2026-07-06
+- Last fetched: 2026-10-10
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 29 EXPR-TRANS PRs (since last theme refresh)
-- Themes extracted: 5 open, 5 resolved
+- Index entries scanned: 1150 (737 issues + 345 PRs + 68 discussions), EXPR-TRANS area filter over issues-index.json, prs-index.json, discussions-index.json
+- Themes extracted: 4 open, 9 resolved
 </details>

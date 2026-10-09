@@ -3,10 +3,10 @@ area: PROV-MYSQL
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 11/11
-coverage_tier_2: 19/19
+coverage_tier_2: 21/21
 ---
 
 # PROV-MYSQL
@@ -46,11 +46,13 @@ Capability flags on the base class that differ between clients:
 - IsDateOnlySupported -- true for MySqlConnector >= 2.0.
 - GetDateTimeOffsetMethodName -- non-null only for MySqlConnector.
 
+(delta 05150894e: the only change in MySqlProviderAdapter.cs is syntactic -- the empty wrapper class MySqlTransaction became a body-less `internal sealed class MySqlTransaction;`. No behavior change.)
+
 ### Product/version matrix
 
 MySqlDataProvider (Source/LinqToDB/Internal/DataProvider/MySql/MySqlDataProvider.cs:28) is the abstract base, extending DynamicDataProviderBase<MySqlProviderAdapter>. It holds Version and Provider properties.
 
-Six sealed subclasses at MySqlDataProvider.cs:20--25 cover all (version, client) combinations:
+Six sealed subclasses at MySqlDataProvider.cs:20--25 cover all (version, client) combinations (delta 05150894e: declarations now use the body-less `;` form instead of an empty `{ }` body; no behavior change):
 
 | Class | ProviderName constant | Version | Client |
 |---|---|---|---|
@@ -71,6 +73,8 @@ SqlProviderFlags per version (MySqlDataProvider.cs:36--72):
 - IsInsertOrUpdateWithPredicateSupported = false (delta): MySQL/MariaDB emit InsertOrUpdate as INSERT ... ON DUPLICATE KEY UPDATE, which has no WHERE clause on the UPDATE branch; Upsert.Update.When is instead routed through the alternative UPDATE-then-INSERT emulation (MySqlDataProvider.cs:62--65).
 - IsUpsertWithMergeLoweringSupported = false (delta): MySQL/MariaDB have no MERGE statement, so Upsert configurations that would require MERGE lowering (bulk source, non-PK match, Insert.When, SkipInsert/SkipUpdate) surface a descriptive error via Error_Upsert_MergeLowering_NotSupported instead of attempting a MERGE-based rewrite (MySqlDataProvider.cs:67--70).
 - DefaultNullsOrdering = NullsDefaultOrdering.Smallest -- MySQL/MariaDB sort NULL as the smallest value (already covered under Member translator's GROUP_CONCAT NULLS emulation below).
+
+Optimizer selection (delta 05150894e, MySqlDataProvider.cs:74--76): the constructor now assigns `_sqlOptimizer` as MariaDBSqlOptimizer when version == MySqlVersion.MariaDB10, otherwise MySqlSqlOptimizer (previously always MySqlSqlOptimizer). See SQL optimizer subsystem.
 
 CreateSqlBuilder dispatches on Version:
 ```
@@ -148,8 +152,15 @@ MySqlSqlOptimizer (Source/LinqToDB/Internal/DataProvider/MySql/MySqlSqlOptimizer
   - CorrectMySqlUpdate -- MySQL forbids referencing the UPDATE target table in a subquery within the same statement. Any non-target SqlTable node that refers to the same table is wrapped in a sub-select (new SelectQuery { DoNotRemove = true }). Also calls SqlQueryColumnNestingCorrector if changes were made. SKIP in UPDATE throws LinqToDBException with ErrorHelper.MySql.Error_SkipInUpdate.
   - PrepareDelete -- when the DELETE has a single unjoined table and no SKIP/TAKE, sets Alias = '$' to produce a table alias; MySQL DELETE syntax requires the alias form in multi-table cases.
 
+MariaDBSqlOptimizer (Source/LinqToDB/Internal/DataProvider/MySql/MariaDBSqlOptimizer.cs, delta 05150894e -- new file) extends MySqlSqlOptimizer. Its sole override, CreateConvertVisitor, returns MariaDBSqlExpressionConvertVisitor. Chosen by MySqlDataProvider only for MySqlVersion.MariaDB10 (see Product/version matrix). It is a subclass rather than a version argument to MySqlSqlOptimizer because a remote data context builds its optimizer reflectively and accepts only a (SqlProviderFlags) or (SqlProviderFlags, DataOptions) constructor, so a version parameter would make the type unconstructible over a LinqService connection (code remark on the class).
+
+MariaDBSqlExpressionConvertVisitor (Source/LinqToDB/Internal/DataProvider/MySql/MariaDBSqlExpressionConvertVisitor.cs, delta 05150894e -- new file) extends MySqlSqlExpressionConvertVisitor. Overrides IsWindowOrderByRequired(SqlExtendedFunction) = base result OR IsOrderDependentWindowFunction(func.FunctionName): MariaDB rejects the ranking functions and LAG/LEAD without ORDER BY in the OVER clause ("No order list in window specification for rank"), whereas MySQL accepts a bare OVER () for every window function. ROW_NUMBER, NTILE, the *_VALUE pair and framed aggregates are left alone.
+
 MySqlSqlExpressionConvertVisitor (Source/LinqToDB/Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs):
 - ConcatRequiresExplicitStringCast: returns false -- suppresses extra CAST nodes that the base SqlConcatExpression rewrite would otherwise insert around string operands (PR #5504).
+- TruncateDivide(value, divisor) (delta 05150894e): emits the expression "{0} DIV {1}" typed long at multiplicative precedence, because the MySQL slash operator is decimal division even between two integers.
+- CanLowerIntervalDifference => true and ElapsedTicks(SqlIntervalDifferenceExpression) (delta 05150894e): TimestampDiff(Microsecond, start, end) as BIGINT, multiplied by TimeSpan.TicksPerMillisecond / 1000 (10 ticks per microsecond). Microsecond is the finest MySQL unit so the count is exact (part of the date-difference fix, #5987).
+- CanLowerIntervalShift => true and LowerTemporalArithmetic(SqlTemporalArithmeticExpression) (delta 05150894e): emits Date_Add / Date_Sub(temporal, Interval {microseconds} Microsecond), where microseconds = TruncateDivide(interval ticks, 10). Goes through the truncating divide so a tick count that is not a whole number of microseconds truncates toward zero rather than reaching INTERVAL as a fraction. Lowered without FinestDateUnit decomposition.
 - ConvertConversion: suppresses CAST when converting decimal->float/double (avoids precision loss via intermediate cast).
 - ConvertSqlBinaryExpression: adjusts | bitwise OR precedence (MySQL gives | lower priority than &); flattens string-concatenation + chains into multi-argument Concat(...) calls.
 - ConvertSearchStringPredicate: case-insensitive Contains translates to LOCATE(search, data) > 0; case-sensitive adds COLLATE utf8_bin to the data expression.
@@ -274,13 +285,15 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 
 | Type | File | Role |
 |---|---|---|
-| MySqlDataProvider | Internal/DataProvider/MySql/MySqlDataProvider.cs | Abstract base provider; 6 sealed subclasses |
+| MySqlDataProvider | Internal/DataProvider/MySql/MySqlDataProvider.cs | Abstract base provider; 6 sealed subclasses; picks MariaDBSqlOptimizer for MariaDB10 (delta) |
 | MySqlSqlBuilder | Internal/DataProvider/MySql/MySqlSqlBuilder.cs | Abstract SQL emitter; all shared MySQL SQL |
 | MySql57SqlBuilder | Internal/DataProvider/MySql/MySql57SqlBuilder.cs | MySQL 5.7 overrides |
 | MySql80SqlBuilder | Internal/DataProvider/MySql/MySql80SqlBuilder.cs | MySQL 8.0 overrides (LATERAL, VECTOR) |
 | MariaDBSqlBuilder | Internal/DataProvider/MySql/MariaDBSqlBuilder.cs | MariaDB 10 overrides (VECTOR) |
 | MySqlSqlOptimizer | Internal/DataProvider/MySql/MySqlSqlOptimizer.cs | Statement rewriting (UPDATE/DELETE fixups) |
-| MySqlSqlExpressionConvertVisitor | Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs | Expression-level rewrites |
+| MariaDBSqlOptimizer | Internal/DataProvider/MySql/MariaDBSqlOptimizer.cs | MariaDB optimizer subclass; supplies MariaDBSqlExpressionConvertVisitor (delta, new file) |
+| MySqlSqlExpressionConvertVisitor | Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs | Expression-level rewrites; DIV truncating divide, interval difference/shift lowering (delta) |
+| MariaDBSqlExpressionConvertVisitor | Internal/DataProvider/MySql/MariaDBSqlExpressionConvertVisitor.cs | MariaDB window ORDER BY requirement for ranking/LAG/LEAD (delta, new file) |
 | MySqlProviderAdapter | Internal/DataProvider/MySql/MySqlProviderAdapter.cs | Runtime ADO.NET bridge (both clients) |
 | MySqlProviderDetector | Internal/DataProvider/MySql/MySqlProviderDetector.cs | Auto-detect logic |
 | MySqlMappingSchema | Internal/DataProvider/MySql/MySqlMappingSchema.cs | Type mapping (9 subclasses) |
@@ -315,15 +328,17 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 | Internal/DataProvider/MySql/MySqlMappingSchema.cs | Type mapping (9 subclasses) |
 | Internal/DataProvider/MySql/MySqlBulkCopy.cs | Bulk copy strategy |
 
-### Tier 2 (19 files, all visited)
+### Tier 2 (21 files, all visited)
 
 | File | Purpose |
 |---|---|
 | Internal/DataProvider/MySql/MySql57SqlBuilder.cs | MySQL 5.7 builder (FROM DUAL, FLOAT cast) |
 | Internal/DataProvider/MySql/MySql80SqlBuilder.cs | MySQL 8.0 builder (LATERAL, VECTOR) |
 | Internal/DataProvider/MySql/MariaDBSqlBuilder.cs | MariaDB builder (VECTOR) |
+| Internal/DataProvider/MySql/MariaDBSqlOptimizer.cs | MariaDB optimizer subclass (new file, delta) |
+| Internal/DataProvider/MySql/MariaDBSqlExpressionConvertVisitor.cs | MariaDB window ORDER BY requirement (new file, delta) |
 | Internal/DataProvider/MySql/MySqlSchemaProvider.cs | Schema discovery via INFORMATION_SCHEMA |
-| Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs | Expression rewrites |
+| Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs | Expression rewrites (DIV, interval lowering) |
 | Internal/DataProvider/MySql/Translation/MySqlMemberTranslator.cs | Member -> SQL function (shared base for all MySQL/MariaDB translators) |
 | Internal/DataProvider/MySql/Translation/MySql57MemberTranslator.cs | Member -> SQL function (MySQL 5.7); disables window functions (new file, delta) |
 | Internal/DataProvider/MySql/Translation/MySql80MemberTranslator.cs | Member -> SQL function (MySQL 8.0) -- added PR #5515 |
@@ -345,7 +360,7 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 
 ## Known issues / debt
 
-1. **FOR SHARE on MariaDB silently commented-out**: SubQueryTableHintExtensionBuilder detects MariaDB by checking the mapping schema configuration list and emits '-- ' before the hint text (MySqlHints.cs:635). This is a runtime behavior difference that is invisible to callers.
+1. **FOR SHARE on MariaDB silently commented-out**: SubQueryTableHintExtensionBuilder detects MariaDB by checking the mapping schema configuration list and emits a SQL comment marker before the hint text (MySqlHints.cs:635). This is a runtime behavior difference that is invisible to callers.
 
 2. **MySql.Data decimal crash workaround**: SetParameter converts MySqlDecimal values to string and changes DataType to VarChar to avoid a crash in MySql.Data 8.x when large decimal values are passed as DataType.Decimal (MySqlDataProvider.cs:175--181). The comment links to the connector source: MySQL.Data/src/Types/MySqlDecimal.cs#L103.
 
@@ -365,13 +380,15 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 
 10. **MariaDB UUID_v7() emitted without a version gate (delta)**: MariaDBMemberTranslator.TranslateNewGuid7Method unconditionally emits UUID_v7() for the single MariaDB10 dialect bucket, but the function requires MariaDB 11.7+ server-side (MariaDBMemberTranslator.cs:9--11, 29--33). linq2db does not version-split MariaDB beyond the one MariaDB10 enum value, so there is no capability flag to gate this -- calling the new-Guid-v7 translation against an older MariaDB 10.x server produces a runtime SQL error from the server, not a translation-time rejection. Same category of gap as item 9 (MariaDB's single version bucket hides sub-version capability differences).
 
+11. **Per-dialect optimizer/visitor subclasses are the only MariaDB-vs-MySQL SQL-level split (delta 05150894e)**: MariaDB window-ORDER-BY handling lives in MariaDBSqlOptimizer / MariaDBSqlExpressionConvertVisitor, selected by MySqlVersion.MariaDB10 in the MySqlDataProvider constructor. Like items 9 and 10, it keys on the single MariaDB10 bucket, so any future MariaDB sub-version difference in window-function requirements has no seam short of adding another subclass.
+
 ## Inbound / outbound dependencies
 
 ### Inbound (consumers of this area)
 - [TESTS-LINQ](../TESTS-LINQ/INDEX.md) -- per-provider MySQL and MariaDB test fixtures.
 
 ### Outbound (dependencies of this area)
-- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- BasicSqlBuilder, BasicSqlOptimizer, SqlExpressionConvertVisitor, ISqlBuilder, ISqlOptimizer.
+- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) -- BasicSqlBuilder, BasicSqlOptimizer, SqlExpressionConvertVisitor (incl. TruncateDivide, ElapsedTicks, LowerTemporalArithmetic, IsWindowOrderByRequired hooks), ISqlBuilder, ISqlOptimizer.
 - [INTERNAL-API](../INTERNAL-API/INDEX.md) -- DynamicDataProviderBase, ProviderDetectorBase, BasicBulkCopy, BulkCopyReader, TypeMapper, SchemaProviderBase, MemberTranslatorBase (via ProviderMemberTranslatorDefault), WindowFunctionsMemberTranslator.
 - [MAPPING](../MAPPING/INDEX.md) -- LockedMappingSchema, MappingSchema.
 - [SQL-AST](../SQL-AST/INDEX.md) -- all SqlStatement, SelectQuery, SqlTable, SqlField, etc. node types consumed by builders and optimizer.
@@ -387,7 +404,7 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 11 / 11
-- Tier 2 (visited / total): 19 / 19 (100%)
+- Tier 2 (visited / total): 21 / 21 (100%)
 - Tier 3 (skipped, logged): 0
 
 Delta run 2026-05-11 (SHA 4a478ff1): re-read MySqlDataProvider.cs, MySqlMappingSchema.cs, MySqlMemberTranslator.cs. No structural changes in MySqlDataProvider.cs or MySqlMappingSchema.cs relative to prior coverage. MySqlMemberTranslator.cs: added TranslateDateTimeTruncationToDate (Date() function, PR #5517), TranslateServerNow (CURRENT_TIMESTAMP raw expression), TranslateNow (returns null), TranslateUtcNow (UTC_TIMESTAMP()), TranslateZonedUtcNow (UTC_TIMESTAMP() with caller dbDataType) -- all in DateFunctionsTranslator.
@@ -398,7 +415,7 @@ Read (this run -- delta):
 - MySqlProviderDetector.cs (SHA b3340aa9): clarified DetectServerVersion version-switch: major < 8 => MySql57, major >= 10 AND isMariaDB => MariaDB10, _ => MySql80. This means a hypothetical MariaDB 8.x/9.x would be misidentified as MySql80 (recorded as Known issue #9). ClickHouse guard confirmed at line 26. DetectProvider(options, provider) uses Common.Tools.IsProviderAssemblyPresent for disk probe (not direct DLL path search).
 - Translation/MySqlMemberTranslator.cs (SHA b3340aa9): TranslateStringJoin ORDER BY block now emits NULLS ordering emulation via boolean sentinel sort keys: (expr IS NULL) for NULLS LAST, (expr IS NOT NULL) for NULLS FIRST. Uses QueryHelper.MatchesNaturalNullsPosition(NullsDefaultOrdering.Smallest, nulls, desc) to skip sentinel when natural order satisfies the request (lines 322--328). Added to MySqlStringMemberTranslator section under Member translator subsystem.
 
-Delta run 2026-07-05 (SHA 36ee4f82f0): CreateMemberTranslator's dispatch went from a 2-way switch (MySql80MemberTranslator shared by MySql80 and MariaDB10 / MySqlMemberTranslator for MySql57) to a 4-way switch, one subclass per MySqlVersion. Two new Tier-2 files added to coverage: MySql57MemberTranslator.cs and MariaDBMemberTranslator.cs (both new since the last delta -- Tier-2 total 17/17 -> 19/19). MySqlMemberTranslator.cs gained a nested MySqlWindowFunctionsMemberTranslator (window-function capability gating + STDDEV_SAMP/VAR_SAMP naming) not present in the last-recorded coverage. MySqlDataProvider.cs also gained MaxColumnCount = 4096 and two new Upsert-routing SqlProviderFlags (IsInsertOrUpdateWithPredicateSupported, IsUpsertWithMergeLoweringSupported) alongside the translator-dispatch change -- confirmed via a git diff against the prior last_verified_sha (b3340aa9d) rather than inferred from body text alone, since these flags were not previously documented. Body updated in place (per delta procedure step 5) where the prior claim that MySQL 8.0 and MariaDB 10+ share MySql80MemberTranslator is now false -- MariaDBMemberTranslator is a distinct subclass (still deriving from MySql80MemberTranslator, so the REGEXP_REPLACE behavior is still inherited). See AUDIT-NOTE for this contradiction.
+Delta run 2026-07-05 (SHA 36ee4f82f0): CreateMemberTranslator dispatch went from a 2-way switch (MySql80MemberTranslator shared by MySql80 and MariaDB10 / MySqlMemberTranslator for MySql57) to a 4-way switch, one subclass per MySqlVersion. Two new Tier-2 files added to coverage: MySql57MemberTranslator.cs and MariaDBMemberTranslator.cs (both new since the last delta -- Tier-2 total 17/17 -> 19/19). MySqlMemberTranslator.cs gained a nested MySqlWindowFunctionsMemberTranslator (window-function capability gating + STDDEV_SAMP/VAR_SAMP naming) not present in the last-recorded coverage. MySqlDataProvider.cs also gained MaxColumnCount = 4096 and two new Upsert-routing SqlProviderFlags (IsInsertOrUpdateWithPredicateSupported, IsUpsertWithMergeLoweringSupported) alongside the translator-dispatch change -- confirmed via a git diff against the prior last_verified_sha (b3340aa9d) rather than inferred from body text alone, since these flags were not previously documented. Body updated in place (per delta procedure step 5) where the prior claim that MySQL 8.0 and MariaDB 10+ share MySql80MemberTranslator is now false -- MariaDBMemberTranslator is a distinct subclass (still deriving from MySql80MemberTranslator, so the REGEXP_REPLACE behavior is still inherited). See AUDIT-NOTE for this contradiction.
 
 Read (this run -- delta):
 - Internal/DataProvider/MySql/MySqlDataProvider.cs (SHA 36ee4f82f0): CreateMemberTranslator dispatch changed to 4-way (MariaDB10 -> MariaDBMemberTranslator, MySql80 -> MySql80MemberTranslator, MySql57 -> MySql57MemberTranslator, default -> MySqlMemberTranslator) at lines 110--119. Added SqlProviderFlags.MaxColumnCount = 4096 (line 60), SqlProviderFlags.IsInsertOrUpdateWithPredicateSupported = false (line 65) and SqlProviderFlags.IsUpsertWithMergeLoweringSupported = false (line 70), both with explanatory comments about Upsert routing given MySQL/MariaDB's lack of MERGE and of a WHERE clause on ON DUPLICATE KEY UPDATE. No other structural changes -- SqlProviderFlags block otherwise unchanged, CreateSqlBuilder, GetMappingSchema, SetParameter/SetParameterType, BulkCopy overloads all unchanged vs prior coverage (line numbers shifted by the insertion but logic identical).
@@ -406,5 +423,14 @@ Read (this run -- delta):
 - Internal/DataProvider/MySql/Translation/MySql57MemberTranslator.cs (SHA 36ee4f82f0, new file -- first coverage): extends MySqlMemberTranslator directly. Nested MySql57WindowFunctionsMemberTranslator overrides IsWindowFunctionsSupported => false (lines 7--11), gating window-function translation at the member-translator level for MySQL 5.7, in addition to the pre-existing SqlProviderFlags-level gate.
 - Internal/DataProvider/MySql/Translation/MariaDBMemberTranslator.cs (SHA 36ee4f82f0, new file -- first coverage): extends MySql80MemberTranslator (not MySqlMemberTranslator directly), so it inherits REGEXP_REPLACE TrimStart/TrimEnd. Nested MariaDBWindowFunctionsMemberTranslator adds IsOrderedSetWindowedSupported and IsMedianSupported (MariaDB 10.3.3+ windowed PERCENTILE_CONT/PERCENTILE_DISC/MEDIAN) and disables IsLeadLagDefaultSupported (LEAD/LAG reject the 3rd default-value arg on MariaDB). Overrides TranslateNewGuid7Method to emit UUID_v7() (lines 29--33) -- unconditional per-dialect, no version gate despite the function requiring MariaDB 11.7+ (comment at lines 9--11 acknowledges linq2db does not version-split MariaDB) -- recorded as Known issue #10.
 - Internal/DataProvider/MySql/Translation/MySql80MemberTranslator.cs: not in changedFiles; confirmed unchanged via git diff --stat against prior SHA (no entry) -- description in Key types / Member translator sections updated only to drop the now-incorrect used-for-MariaDB-10-too framing, not because the file itself changed.
+
+Delta run 2026-10-09 (SHA 05150894e): two new Tier-2 files (MariaDBSqlOptimizer.cs, MariaDBSqlExpressionConvertVisitor.cs; Tier-2 19/19 -> 21/21) and three modified files. MySqlDataProvider now selects MariaDBSqlOptimizer for MariaDB10; MySqlSqlExpressionConvertVisitor gained DIV truncating divide plus interval-difference and interval-shift lowering. Diff of the three modified files was taken against the prior last_verified_sha (36ee4f82f).
+
+Read (this run -- delta):
+- Internal/DataProvider/MySql/MariaDBSqlExpressionConvertVisitor.cs (A, new file): extends MySqlSqlExpressionConvertVisitor; IsWindowOrderByRequired override = base OR IsOrderDependentWindowFunction(func.FunctionName) -- MariaDB needs ORDER BY for ranking functions and LAG/LEAD.
+- Internal/DataProvider/MySql/MariaDBSqlOptimizer.cs (A, new file): extends MySqlSqlOptimizer; CreateConvertVisitor returns MariaDBSqlExpressionConvertVisitor; subclass chosen over a version ctor argument for remote-context reflective construction.
+- Internal/DataProvider/MySql/MySqlDataProvider.cs (M): sealed subclass declarations changed to body-less form; constructor picks MariaDBSqlOptimizer for MySqlVersion.MariaDB10, MySqlSqlOptimizer otherwise.
+- Internal/DataProvider/MySql/MySqlProviderAdapter.cs (M): syntactic only (MySqlTransaction wrapper class made body-less); no behavior change.
+- Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs (M): added TruncateDivide (DIV), CanLowerIntervalDifference/ElapsedTicks (TimestampDiff at Microsecond, scaled to ticks), CanLowerIntervalShift/LowerTemporalArithmetic (Date_Add/Date_Sub with INTERVAL n Microsecond via truncating divide).
 
 </details>

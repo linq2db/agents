@@ -3,10 +3,10 @@ area: PROV-SQLSERVER
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-07-05
-last_verified_sha: 36ee4f82f06eaf242b052ade8c87121d251a6165
+last_verified: 2026-10-09
+last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 coverage_tier_1: 11/11
-coverage_tier_2: 47/47
+coverage_tier_2: 49/49
 ---
 
 # PROV-SQLSERVER
@@ -65,6 +65,7 @@ SQL Server provider for linq2db. Covers two ADO.NET client packages (`System.Dat
 
 - Sets `SqlProviderFlags`: `IsApplyJoinSupported`, `IsCommonTableExpressionsSupported`, `OutputDeleteUseSpecialTable`, `OutputInsertUseSpecialTable`, `OutputUpdateUseSpecialTables`, `OutputMergeUseSpecialTables`, `TakeHintsSupported = Percent|WithTies`, `IsDistinctFromSupported = Version >= v2022`, `SupportsBooleanType = false`, `IsUpdateTakeSupported = true`, `IsRowNumberWithoutOrderBySupported = false`.
 - New in this delta -- additional constructor-set flags not previously catalogued (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:66--89`): `AcceptsOuterExpressionInAggregate = false`; `IsCTESupportsOrdering = false`; `MaxColumnCount = 4096` (SQL Server's per-SELECT column limit -- the `CteUnion` carrier is a SELECT body, so the per-table/view limit of 1024 would wrongly abandon `CteUnion` for 1025--4096-column carriers, per inline comment at `:79--81`); `DefaultNullsOrdering = NullsDefaultOrdering.Smallest` (SQL Server sorts `NULL` as the smallest value); `IsInsertOrUpdateWithPredicateSupported = Version > v2005` and `IsUpsertWithMergeLoweringSupported = Version > v2005` -- SQL Server 2005 emits `InsertOrUpdate` as `UPDATE` + `IF @@ROWCOUNT=0 INSERT` (single statement, no room for an extra predicate on the UPDATE branch) and predates `MERGE` (introduced 2008), so synthesized MERGE lowering for bulk/SkipInsert/InsertWhen/non-PK-match Upsert isn't available pre-2008 (`:84--89`).
+- New in this delta: `SqlProviderFlags.IsUpdateOutputRowsSupported = true` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:71`), set next to the other `Output*UseSpecialTable(s)` flags -- SQL Server returns rows from `UPDATE ... OUTPUT`.
 - Registers `char`/`nchar` trimming; `SqlChars`, `SqlBinary`, `SqlBoolean`, etc. via `SetProviderField` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:100--114`).
 - When `SqlJsonType != null` (MicrosoftDataSqlClient + new enough version), registers JSON reader (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:116--127`).
 - When `SqlVectorType != null`, registers `SqlVector<float>` and `float[]` readers. New in this delta: reader expressions are registered for both `FieldType = byte[]` and `FieldType = SqlVectorType` to handle the SqlClient 6.x-vs-7.0.1+ field-type change -- SqlClient 6.x reports vector columns as `FieldType=byte[]`; 7.0.1+ reports `SqlVector<T>` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:139--143`).
@@ -95,6 +96,7 @@ New in this delta (`SqlServer2025MappingSchema`): adds `ConvertStringToSql2025` 
 - `BuildDropTableStatement` -- generates `IF OBJECT_ID(...) IS NOT NULL DROP TABLE ...` for <=2014; 2016+ uses `DROP TABLE IF EXISTS`.
 - `BuildCreateTablePrimaryKey` -- emits `PRIMARY KEY CLUSTERED`.
 - `BuildDataTypeFromDataType` -- maps `Guid`->`UniqueIdentifier`, `Variant`->`Sql_Variant`, `NVarChar`/`VarChar`/`VarBinary` with `(MAX)` fallback, `VECTOR(n, float32|float16)` for 2025+ vector types.
+- New in this delta: in the parameter-typed branch of `BuildDataTypeFromDataType`, a `DbDataType` equal to `Adapter.JsonDbType` (with `Adapter.SqlJsonType` loaded) renders as `Json`, alongside the existing `VECTOR(n)` branch (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlBuilder.cs:431--435`).
 - `BuildTableExtensions` / `BuildTableNameExtensions` / `BuildJoinType` / `BuildQueryExtensions` -- routes hint extensions into `WITH (...)`, join hint syntax, and `OPTION (...)` clauses.
 - `IsSqlValuesTableValueTypeRequired` -- forces explicit type for `uint`, `long`, `float`, `double`, `decimal`, `null` in row-0.
 
@@ -122,7 +124,7 @@ Partial class files `SqlServer2008SqlBuilder.Merge.cs` and `SqlServer2012SqlBuil
 | v2005 | `SqlServer2005SqlOptimizer` | `ROW_NUMBER`; separates DISTINCT from pagination; wraps UPDATE/DELETE `TOP` |
 | v2008 | `SqlServer2008SqlOptimizer` | Same as v2005 (no OFFSET/FETCH) |
 | v2012 | `SqlServer2012SqlOptimizer` | `OFFSET n ROWS FETCH NEXT m ROWS ONLY`; `AddOrderByForSkip` injects `ORDER BY (1)` when missing |
-| v2014 | `SqlServer2014SqlOptimizer` | Delegates to v2012 (bug: constructor passes `SqlServerVersion.v2016` -- see Known issues) |
+| v2014 | `SqlServer2014SqlOptimizer` | Delegates to v2012 (constructor now passes `SqlServerVersion.v2014`; earlier mis-pass of `v2016` fixed in this delta) |
 | v2016 | `SqlServer2016SqlOptimizer` | Delegates to v2012 |
 | v2017 | `SqlServer2017SqlOptimizer` | Delegates to v2012 |
 | v2019 | `SqlServer2019SqlOptimizer` | Delegates to v2012 |
@@ -145,6 +147,9 @@ All optimizer versions route through `SqlServerSqlOptimizer.CorrectSqlServerUpda
 - `ConvertConversion` -- default `DECIMAL` precision 38,17; calls `FloorBeforeConvert`.
 - `WrapColumnExpression` -- adds mandatory `CAST` for `uint`/`long`/`ulong`/`float`/`double`/`decimal` values and inline parameters.
 - `ConvertSqlFunction(LENGTH)` -- `LEN(value + '.') - 1` pattern.
+- New in this delta -- date/interval arithmetic lowering (date-difference regression fix, PR #5987). The visitor now supplies the provider hooks of the base interval/temporal lowering: `FinestDateUnit` (`Nanosecond` on >=v2008, `Millisecond` on v2005 where `DATEADD` has no nanosecond part), `IntervalResolution` (`Tick` on >=v2008, `Millisecond` on v2005), `CanLowerIntervalDifference = true`, `ShiftDate` (`DateAdd(part, CAST(amount AS INT), date)` -- amount cast down because DATEADD takes 32-bit), `CountDateBoundaries` (`DateDiff_Big` on >=v2016, otherwise 32-bit `DateDiff` cast to `BIGINT`), and `DatePartName` (unit -> T-SQL part name). Pre-2016 with a nanosecond finest unit, `ElapsedTicks` is overridden to split the elapsed time into days, then seconds, then nanoseconds so every 32-bit `DATEDIFF` count stays in range (the anchor is widened to `datetime2` first). `LowerTemporalArithmetic` widens the temporal operand via `AsDateTime2`/`Widened` (to `datetime2` on >=v2008, `datetime` on v2005) with a mandatory cast, because `DATEADD` rejects nanoseconds on `date`/`smalldatetime`/`datetime`. `datetimeoffset` values are never widened (offset would be lost). (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs:14--197`)
+- New in this delta: the float `%` rewrite in `ConvertSqlBinaryExpression` now passes `Precedence.Multiplicative` explicitly to the new `SqlBinaryExpression`, so the renderer no longer parenthesises it.
+- New in this delta: `IsWindowOrderByRequired(SqlExtendedFunction)` override returns true for any frame clause, order-dependent ranking/neighbour functions, and `NTILE`/`FIRST_VALUE`/`LAST_VALUE` -- SQL Server rejects these without `ORDER BY` in `OVER` (unframed aggregates such as `SUM(x) OVER ()` stay exempt).
 
 `SqlServer2025SqlExpressionConvertVisitor` -- new class (added in this delta). Extends `SqlServer2012SqlExpressionConvertVisitor`. Overrides `ConcatRequiresExplicitStringCast` to return `false` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2025SqlExpressionConvertVisitor.cs:15`): SQL Server 2025's `||` operator auto-coerces non-string operands, so explicit `CAST` on concat arguments is not needed.
 
@@ -204,6 +209,7 @@ Each member translator's `CreateWindowFunctionsMemberTranslator()` override sele
 `SqlServerSchemaProvider` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSchemaProvider.cs`) extends [`SchemaProviderBase`](../INTERNAL-API/INDEX.md):
 - `InitProvider` detects Azure (via `@@version` containing `Azure`) and reads `CompatibilityLevel`.
 - `GetTables` uses two different SQL branches: Azure (no `sys.extended_properties`) vs on-prem (with description from `INFORMATION_SCHEMA.TABLES` + `sys.extended_properties`). Filters temporal history tables when `CompatibilityLevel >= 130` and `IgnoreSystemHistoryTables`.
+- New in this delta: the temporal-history filter is now `AND (t.temporal_type IS NULL OR t.temporal_type <> 1)` (was `AND t.temporal_type <> 1`), so tables with a `NULL` `temporal_type` are no longer dropped by the three-valued comparison (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSchemaProvider.cs:40`).
 - Additional overrides for columns, foreign keys, procedures, etc. (body not fully read; pattern follows `SchemaProviderBase` contract).
 
 ### Hints
@@ -237,6 +243,10 @@ Each member translator's `CreateWindowFunctionsMemberTranslator()` override sele
 `SqlServerTransientExceptionDetector` (`Source/LinqToDB/DataProvider/SqlServer/SqlServerTransientExceptionDetector.cs:17`) -- static, registration-based. `RegisterExceptionType` is called by `SqlServerProviderAdapter.CreateAdapter` to bind `SqlException`->error-number extractor. `ShouldRetryOn` matches ~22 known transient SQL error codes. `IsHandled` returns the error numbers for additional classification.
 
 `SqlServerRetryPolicy` (`Source/LinqToDB/DataProvider/SqlServer/SqlServerRetryPolicy.cs:13`) -- extends `RetryPolicyBase` (exponential backoff). `ShouldRetryOn` calls `SqlServerTransientExceptionDetector.ShouldRetryOn`; memory-optimized errors (41301--41839) use a shorter delay (`GetNextDelay` returns `TotalSeconds` not `TotalMilliseconds`).
+
+### Decimal materialization
+
+New in this delta. `GetSqlDecimalAttribute` (`Source/LinqToDB/DataProvider/SqlServer/GetSqlDecimalAttribute.cs`) is a public sealed `ValueConverterAttribute` (targets fields/properties, `Configuration = ProviderName.SqlServer`) that reads SQL Server `decimal` through the provider-specific `SqlDecimal` reader instead of the CLR `decimal` reader. Its private `SqlDecimalConverter` maps `SqlDecimal -> decimal` through `SqlServerDecimalUtils.ConvertSqlDecimal` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDecimalUtils.cs`). For values of precision >= 29 that helper retries `SqlDecimal.ConvertToPrecScale(value, 29, scale)` from `min(scale, 28)` down to 0, swallowing `OverflowException`/`SqlTruncateException`, so a value that is too precise for CLR `decimal` is rounded in its least-significant digits instead of failing. A magnitude above `decimal.MaxValue` still throws `OverflowException`.
 ## Key types
 
 | Type | File | Role |
@@ -267,6 +277,8 @@ Each member translator's `CreateWindowFunctionsMemberTranslator()` override sele
 | `SqlServer2016MemberTranslator` | `Internal/DataProvider/SqlServer/Translation/SqlServer2016MemberTranslator.cs` | ZonedUtcNow via `SYSDATETIMEOFFSET() AT TIME ZONE 'UTC'` |
 | `SqlServer2022MemberTranslator` | `Internal/DataProvider/SqlServer/Translation/SqlServer2022MemberTranslator.cs` | GREATEST/LEAST; LTRIM/RTRIM with explicit trim chars (PR #5515); adds `SqlServer2022WindowFunctionsMemberTranslator` (IGNORE/RESPECT NULLS) |
 | `SqlServerWindowFunctionsMemberTranslator` / `SqlServerPre2012WindowFunctionsMemberTranslator` (nested) | `Internal/DataProvider/SqlServer/Translation/SqlServerMemberTranslator.cs` | Window-function capability-flag hierarchy: pre-2012 disables aggregate/frame windows; 2012+ enables STDEV/VAR naming + windowed percentile |
+| `SqlServerDecimalUtils` | `Internal/DataProvider/SqlServer/SqlServerDecimalUtils.cs` | Internal static `SqlDecimal` -> `decimal` conversion with scale reduction for precision >= 29 |
+| `GetSqlDecimalAttribute` | `DataProvider/SqlServer/GetSqlDecimalAttribute.cs` | Opt-in attribute: read SQL Server decimals via `SqlDecimal` reader |
 ## Files (Tier 1 / Tier 2)
 
 **Tier 1** (11 files, all visited):
@@ -285,7 +297,7 @@ Each member translator's `CreateWindowFunctionsMemberTranslator()` override sele
 | `Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerMappingSchema.cs` | Mapping schema |
 | `Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerBulkCopy.cs` | Bulk copy |
 
-**Tier 2** (47 files, 47 visited): per-version builders, optimizers, translators (including `SqlServer2008MemberTranslator.cs`, `SqlServer2016MemberTranslator.cs` from PR #5467; new `SqlServer2025SqlBuilder.cs`, `SqlServer2025SqlExpressionConvertVisitor.cs`, `SqlServer2025SqlOptimizer.cs` from this delta), expression-convert visitors, hints, extensions, schema provider, attribute reader, retry policy, factory, marker interfaces. Previously 2 files were deferred (T4 template + generated hints); those are Tier-3 and excluded.
+**Tier 2** (47 files, 47 visited): per-version builders, optimizers, translators (including `SqlServer2008MemberTranslator.cs`, `SqlServer2016MemberTranslator.cs` from PR #5467; new `SqlServer2025SqlBuilder.cs`, `SqlServer2025SqlExpressionConvertVisitor.cs`, `SqlServer2025SqlOptimizer.cs` from this delta), expression-convert visitors, hints, extensions, schema provider, attribute reader, retry policy, factory, marker interfaces. Previously 2 files were deferred (T4 template + generated hints); those are Tier-3 and excluded. Delta added GetSqlDecimalAttribute.cs and SqlServerDecimalUtils.cs as Tier 2 (47 to 49).
 
 ## Inbound / outbound dependencies
 
@@ -307,7 +319,7 @@ Each member translator's `CreateWindowFunctionsMemberTranslator()` override sele
 
 ## Known issues / debt
 
-- `SqlServer2014SqlOptimizer` constructor erroneously passes `SqlServerVersion.v2016` instead of `v2014` to its `base` call (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2014SqlOptimizer.cs:8`). Functionally harmless (the version field is used only for visitor creation and v2014/v2016 visitors are the same), but misleading.
+- `SqlServer2014SqlOptimizer` previously passed `SqlServerVersion.v2016` instead of `v2014` to its `base` call; fixed in this delta (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2014SqlOptimizer.cs:8`). Kept here as a historical note only.
 - `GetConnectionInfo(IsMarsEnabled)` is marked `[Obsolete]` for removal in v7 (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:302`). The `_marsFlags` cache still exists.
 - `SqlConnectionStringBuilder` wrapper is `[Obsolete]` for removal in v7 (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:193`).
 - TODO comment at `SqlServer2025SqlBuilder` VECTOR reader (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:150`): review implementation after SqlClient adds support for this type.
@@ -374,5 +386,14 @@ Read (this run -- delta):
 - Source/LinqToDB/Internal/DataProvider/SqlServer/Translation/SqlServer2012MemberTranslator.cs -- CreateWindowFunctionsMemberTranslator returns SqlServerWindowFunctionsMemberTranslator (previously undocumented window-function subsystem)
 - Source/LinqToDB/Internal/DataProvider/SqlServer/Translation/SqlServer2022MemberTranslator.cs -- SqlServer2022WindowFunctionsMemberTranslator adds IsLeadLagNullTreatmentSupported/IsValueNullTreatmentSupported for IGNORE/RESPECT NULLS (SQL Server 2022 NULL-treatment clause)
 - Source/LinqToDB/Internal/DataProvider/SqlServer/Translation/SqlServerMemberTranslator.cs -- full window-function translator hierarchy documented (SqlServerPre2012WindowFunctionsMemberTranslator, SqlServerWindowFunctionsMemberTranslator with STDEV/VAR naming); CreateGuidMemberTranslator/GuidMemberTranslator.TranslateGuildToString; CreateSqlTypesTranslator/SqlTypesTranslation; TranslateIsNullOrWhiteSpace
+
+Read (this run -- delta):
+- Source/LinqToDB/DataProvider/SqlServer/GetSqlDecimalAttribute.cs -- new public ValueConverterAttribute reading decimals via SqlDecimal
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDecimalUtils.cs -- new SqlDecimal to decimal conversion with scale reduction at precision >= 29
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2014SqlOptimizer.cs -- base ctor now passes v2014 (was v2016)
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs -- IsUpdateOutputRowsSupported = true
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSchemaProvider.cs -- temporal_type filter made NULL-safe
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlBuilder.cs -- Json rendering for JsonDbType parameter type
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs -- date/interval lowering hooks (ShiftDate, CountDateBoundaries, ElapsedTicks, LowerTemporalArithmetic), float % precedence, IsWindowOrderByRequired
 
 </details>
