@@ -495,7 +495,7 @@ Forty previously deferred Tier-2 files read in full. Provider subtrees stay owne
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 23 / 23
-- Tier 2 (visited / total): 284 / 284 (100%)
+- Tier 2 (visited / total): 361 / 361 (100%)
 - Tier 3 (skipped, logged): 0
 
 Read (this run -- delta, sha 05150894):
