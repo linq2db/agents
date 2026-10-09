@@ -136,6 +136,15 @@ originating PR keeps only the main fix, and each discovered fix becomes a PR bas
 8. **Syncing with master** goes bottom-up: merge `origin/master` into the base layer, then merge each layer
    into the one above. Expect `PublicAPI.Unshipped.txt` conflicts at every layer that touches it — resolve as
    the sorted union.
+9. **Dissolving a stack** — when the children no longer depend on the parent (e.g. the parent was reworked):
+   - Ask the user to unlink the stack in the GitHub UI first. Until then `gh pr edit <n> --base master`
+     fails with `Cannot change the base branch because the pull request is part of a stack`.
+   - In a worktree, reset each child branch to `origin/master` and cherry-pick only its own non-merge commit.
+   - Rewrite tests that used parent-only helpers or relied on the parent's fix, and prove each one red on
+     master by itself.
+   - `git push --force-with-lease=<branch>:<old-sha>`, then retarget with `gh pr edit <n> --base master`.
+   - Drop the "Stacked on …" text from each body with `pr-body-edit.ps1` replacements.
+   - Close the old baselines PRs (`close-stale-baselines.ps1 -Pr <n>`), then trigger `azp-run.ps1 -Pr <n>`.
 
 ## Don'ts
 

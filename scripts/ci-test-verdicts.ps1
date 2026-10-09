@@ -38,6 +38,11 @@ non-holding cases, one `host-failure` row is emitted carrying the first `##[erro
 `details` is prefixed `x86-oom:` when that line is NUnit's `OutOfMemoryException` in result
 serialization, the known intermittent 32-bit address-space failure — not PR-introduced.
 
+A leg the hang-dump killed prints no summary block at all, only `Hang dump timeout of '…' expired`,
+the tests still running, and `Test application process didn't exit gracefully, exit code is '137'`.
+That also yields one `host-failure` row, `actual` naming the hung test and `details` prefixed `hang:`.
+(Firebird leg on #6003: 418 holding gates and nothing else until this was parsed.)
+
 Getting the logs
 ----------------
 Azure : .claude/scripts/azp-build-failures.ps1 -BuildId <n>   (persists to .build/.agents/azp-<n>/)
@@ -144,9 +149,16 @@ foreach ($d in $Dir) {
         $summaryFailed  = 0
         $failedAssembly = @()
         $hostError      = ''
+        $hangDump       = ''
+        $hungTests      = @()
+        $hostExitCode   = ''
 
         for ($i = 0; $i -lt $lines.Length; $i++) {
             $line = Clear-Decoration $lines[$i]
+
+            if ($line -match '^Hang dump timeout of ''([^'']+)'' expired') { $hangDump = $Matches[1]; continue }
+            if ($hangDump -and $line -match '^\[\d{2}:\d{2}:\d{2}\]\s+(.+)$') { $hungTests += $Matches[1].Trim(); continue }
+            if ($line -match '^Test application process didn''t exit gracefully, exit code is ''(\d+)''') { $hostExitCode = $Matches[1]; continue }
 
             if ($line -match '^Test run summary: (?:Failed|Aborted)!\s*-\s*(.+)$') {
                 $failedAssembly += $Matches[1].Trim()
@@ -226,7 +238,20 @@ foreach ($d in $Dir) {
             })
         }
 
-        if ($summaryFailed -gt 0 -and -not $Test) {
+        if (($hangDump -or $hostExitCode) -and -not $Test) {
+            $rows.Add([pscustomobject]@{
+                verdict      = 'host-failure'
+                test         = '(test host)'
+                args         = ''
+                provider     = ''
+                leg          = $leg
+                expectedType = ''
+                expected     = ''
+                actual       = if ($hungTests) { $hungTests -join '; ' } else { $hostError }
+                details      = $(if ($hangDump) { "hang: dump after $hangDump" } else { 'crash' }) + "; exit code $hostExitCode"
+            })
+        }
+        elseif ($summaryFailed -gt 0 -and -not $Test) {
             $parsed = @($rows | Select-Object -Skip $legStart | Where-Object verdict -ne 'gate-holds' |
                 Sort-Object test, args, provider -Unique).Count
 

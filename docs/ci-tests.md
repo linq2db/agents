@@ -393,6 +393,12 @@ separate copies of the same `docker run`; editing one leaves local runs on a dif
 CI. Pin the *major* rather than a patch version so security rebuilds still land, and comment the pin
 with the issue that lets it be lifted — otherwise the stopgap silently becomes the policy.
 
+**`toomanyrequests: You have reached your unauthenticated pull rate limit` is Docker Hub throttling the
+runner, not the image.** The container never starts, so the leg runs no tests: its log is a few dozen KB
+and reads `No such container: <name>` after the pull. Re-run once the run has completed:
+`gh run rerun <run-id> --failed --repo linq2db/linq2db`. (#6008: two GitHub legs, SQL Server and
+PostgreSQL, in one round.)
+
 ## A build failure with no code cause — check restore before the diff
 
 A red `build` leg is not always about the code. The repo sets `TreatWarningsAsErrors`, and NuGet restore warnings are warnings, so an infrastructure hiccup during restore becomes a hard build break that names your project files and looks like a compile failure.
