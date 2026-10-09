@@ -308,6 +308,10 @@ Exception and diagnostic text that names a method, type or attribute spells it `
 
 When an option falls back to a provider default, write the null-coalesce: `helper.Options.BulkCopyOptions.MaxParametersForBatch ?? maxParameters`. The `GetValueOrDefault(fallback)` overload expresses the same thing with more ceremony, and reads as though something more than a null check is happening. Maintainer, 2026-08-31, on #5828: *"GetValueOrDefault use - replace with ??, no need to introduce overcomplicated syntax."* Applies to the fallback overload specifically — parameterless `GetValueOrDefault()` on a nullable is a different operation and is fine where the `default(T)` result is what you want.
 
+### Don't wrap runtime arithmetic in `unchecked`
+
+No project sets `CheckForOverflowUnderflow`, so integer arithmetic already wraps; `unchecked(hash * 397 + …)` is a no-op — write the bare expression. `unchecked` is still needed for *constant* expressions, which the compiler checks regardless (e.g. `unchecked((int)0xFFFFFFFF)`). Maintainer, 2026-10-09, on #6003: *"we don't use checked builds, so … unchecked operator is noop"*.
+
 ### An option's XML doc lives in three places
 
 A `BulkCopyOptions` / `LinqOptions` property is documented on the record's `<param>` **and** on both fluent extensions — for `MaxSqlLengthForBatch` that is `DataOptionsExtensions.WithMaxSqlLengthForBatch` and `UseBulkCopyMaxSqlLengthForBatch` — and the three copies are kept byte-identical. So any wording change to an option's documentation is a three-site edit, and a divergence between the copies is itself a defect worth flagging. `Grep` the block's first sentence before editing to find all three; `Edit` with `replace_all` covers the two that share `DataOptionsExtensions.cs`. Note the indentation differs between the files — one tab in the record's file-scoped namespace, two in `DataOptionsExtensions.cs`. (Three separate doc findings on #5828 were each a three-site edit.)
