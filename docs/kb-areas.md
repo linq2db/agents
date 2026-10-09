@@ -89,8 +89,14 @@ These do not feed any area's scope:
 
 1. Edit this file: insert a new row in the table.
 2. Update `kb-coverage-tiers.md` only if the new area introduces a new Tier classification rule (uncommon).
-3. Run `/kb-refresh` — it will pick up the new area and run any indexer that produces area-scoped artifacts (`kb-architect`, `kb-issue-detector`, `kb-github-curator` themes).
-4. The next time `/kb-status` runs, the new area appears with empty / pending counts.
+3. Build the area's five files explicitly — `/kb-refresh` does **not** do this: its `code` source runs `kb-architect` in `delta` mode, which aborts without a prior `INDEX.md`, and its GitHub sources only regenerate `issues.md` for areas the index already tags. Spawn, then apply each envelope:
+   - `kb-architect`, `mode: "architecture-per-area"` (pinned = the row's Tier-1 list) → `INDEX.md`;
+   - `kb-issue-detector`, `mode: "area-scan"` → detected-issues entries;
+   - `kb-github-curator`, `mode: "github-themes"`, asking for **both** `issues.md` and `decisions.md` (the index predates the area, so tell it to classify by content, not by the index's area tag);
+   - `kb-architect`, `mode: "area-rollup"` → `tech-debt.md` + `patterns.md` (after the detector, so it can aggregate its entries).
+   An area added after the initial build without these steps stays partial indefinitely (PROV-DUCKDB ran for months with only `INDEX.md` + `issues.md`).
+4. If the new row takes over paths another area or nobody owned, run a `delta` pass on each **affected existing** area for the moved files, so their INDEX.md stops claiming / starts covering them.
+5. `/kb-status` lists the area; an area folder whose code is **not** in this table is a stray (the 2026-05 build left 18 empty stubs named after keywords such as `SERIAL8` / `MAX`) — remove it with `git rm -r`.
 
 ## Renaming an area
 

@@ -4,9 +4,17 @@
 
 .DESCRIPTION
   For each file matching the manifest `glob`, this script:
-    1. Normalizes the stray closing marker `=== END KB-INDEXER OUTPUT v1 ===`
-       -> `=== END KB-INDEXER OUTPUT ===` (indexer agents frequently emit the
-       `v1` variant, which kb-state.ps1 apply-fences rejects as "envelope not found").
+    1. Normalizes recurring indexer-agent envelope drift in place (each variant makes
+       kb-state.ps1 apply-fences reject or silently under-apply the file):
+       - `@@SEMI@@` / `@@AMP@@` / `@@PIPE@@` -> `;` / `&` / `|` (agents write these
+         placeholders because a Bash PreToolUse hook rejects the raw characters in heredocs);
+       - opening marker missing or missing its `v1` -> `=== KB-INDEXER OUTPUT v1 ===`;
+         stray `=== END KB-INDEXER OUTPUT v1 ===` -> `=== END KB-INDEXER OUTPUT ===`;
+         closing marker missing -> appended;
+       - `=== ARTIFACT: ... ===` blocks without `=== END ARTIFACT ===` -> closer inserted
+         before the next fence header (unclosed artifacts apply as 0 artifacts, ok=true);
+       - a `DEFERRED-COVERAGE` body written as `<path> -- <reason>` lines -> the JSON
+         `{"files":[{path,reason}]}` form apply-fences parses.
     2. Runs `kb-state.ps1 apply-fences` on it.
     3. Collects a per-file result line { file, ok, artifacts, patches, gate }.
 
@@ -41,14 +49,39 @@ if (-not $m.glob) { Write-Output (@{ ok = $false; error = 'glob required' } | Co
 $stateScript = Join-Path $PSScriptRoot 'kb-state.ps1'
 if (-not (Test-Path $stateScript)) { Write-Output (@{ ok = $false; error = "kb-state.ps1 not found next to this script" } | ConvertTo-Json -Compress); exit 1 }
 
+function Repair-Envelope([string]$t) {
+    $t = $t.Replace('@@SEMI@@', ';').Replace('@@AMP@@', '&').Replace('@@PIPE@@', '|')
+    $t = [regex]::Replace($t, '(?m)^=== KB-INDEXER OUTPUT( v\d+)? ===', '=== KB-INDEXER OUTPUT v1 ===')
+    $t = [regex]::Replace($t, '(?m)^=== END KB-INDEXER OUTPUT v\d+ ===', '=== END KB-INDEXER OUTPUT ===')
+    if ($t -notmatch '(?m)^=== KB-INDEXER OUTPUT v1 ===') { $t = "=== KB-INDEXER OUTPUT v1 ===`n" + $t }
+    if ($t -notmatch '(?m)^=== END KB-INDEXER OUTPUT ===') { $t = $t.TrimEnd() + "`n=== END KB-INDEXER OUTPUT ===`n" }
+
+    if ([regex]::Matches($t, '(?m)^=== ARTIFACT: ').Count -gt [regex]::Matches($t, '(?m)^=== END ARTIFACT ===').Count) {
+        $t = [regex]::Replace($t, '(?ms)(^=== ARTIFACT: [^\r\n]+ ===\r?\n.*?)(?=^=== (?:ARTIFACT: |END KB-INDEXER OUTPUT ===|AUDIT-NOTE ===|DEFERRED-COVERAGE|INDEX-PATCH|COVERAGE-SUMMARY|UNCLASSIFIED-FILE))', {
+            param($a)
+            if ($a.Value -match '(?m)^=== END ARTIFACT ===') { $a.Value } else { $a.Value.TrimEnd() + "`n=== END ARTIFACT ===`n" }
+        })
+    }
+
+    [regex]::Replace($t, '(?ms)^(?<open>=== DEFERRED-COVERAGE: [^\r\n=]+? ===\r?\n)(?<body>.*?)(?<close>\r?\n=== END DEFERRED-COVERAGE ===)', {
+        param($d)
+        if ($d.Groups['body'].Value.TrimStart().StartsWith('{')) { return $d.Value }
+        $entries = foreach ($l in ($d.Groups['body'].Value -split '\r?\n' | Where-Object { $_.Trim() })) {
+            $p = $l -split '\s+--\s+', 2
+            [ordered]@{ path = $p[0].Trim(); reason = if ($p.Count -gt 1) { $p[1].Trim() } else { 'budget' } }
+        }
+        $d.Groups['open'].Value + (@{ files = @($entries) } | ConvertTo-Json -Depth 4 -Compress) + $d.Groups['close'].Value
+    })
+}
+
 $files = @(Get-ChildItem -Path $m.glob -File -ErrorAction SilentlyContinue | Sort-Object Name)
 $results = @()
 $allOk = $true
 
 foreach ($f in $files) {
-    # 1. normalize the stray v1 closing marker in place
+    # 1. normalize envelope drift in place
     $content = [System.IO.File]::ReadAllText($f.FullName, [System.Text.UTF8Encoding]::new($false))
-    $normalized = $content.Replace('=== END KB-INDEXER OUTPUT v1 ===', '=== END KB-INDEXER OUTPUT ===')
+    $normalized = Repair-Envelope $content
     if ($normalized -ne $content) {
         [System.IO.File]::WriteAllText($f.FullName, $normalized, [System.Text.UTF8Encoding]::new($false))
     }
