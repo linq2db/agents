@@ -3,10 +3,10 @@ area: CORE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
+last_verified: 2026-10-10
 last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
-coverage_tier_1: 6/6
-coverage_tier_2: 60/61
+coverage_tier_1: 7/7
+coverage_tier_2: 62/63
 ---
 
 # CORE
@@ -35,6 +35,9 @@ PR #5604 added `PreferClientCalculation` (client-side materialization of compute
 - `EagerLoadingStrategy` -- enum controlling the LoadWith/ThenLoad preamble-query strategy: `Default` (SELECT DISTINCT + SelectMany join, the pre-existing behavior), `KeyedQuery` (buffer main-query results, extract distinct parent keys client-side, batch-load children via `WHERE key IN (...)` or a VALUES-table join), `CteUnion` (combine same-level `WithUnionLoadStrategy` children into one UNION ALL query with a wide carrier tuple; falls back through `KeyedQuery` then `Default` when CTEs are unsupported or the carrier exceeds `MaxColumnCount`) (`Source/LinqToDB/EagerLoadingStrategy.cs:6`, new file, PR #5450). Set via `LinqOptions.DefaultEagerLoadingStrategy` / `WithDefaultEagerLoadingStrategy` / `UseDefaultEagerLoadingStrategy`, or per-query via `WithUnionLoadStrategy`/`WithKeyedLoadStrategy`/`WithSeparateLoadStrategy` (builder logic owned by [EXPR-TRANS](../EXPR-TRANS/INDEX.md) / [EXPR](../EXPR/INDEX.md)).
 - `ImplicitCollectionLoading` -- enum: `Allow` (default; an unmarked eager-loaded collection projected in a `Select` loads as usual) / `Throw` (such a query throws `LinqToDBException` at build time unless the load is explicit via `LoadWith`/`ThenLoad` for that collection, or a whole-query `With*LoadStrategy` marker) (`Source/LinqToDB/ImplicitCollectionLoading.cs:8`, new file, PR #5450). Set via `LinqOptions.ImplicitCollectionLoading` / `WithImplicitCollectionLoading` / `UseImplicitCollectionLoading`.
 - `UpsertEmulationPolicy` -- enum: `Allow` (default; perform the emulated multi-statement `SELECT`->`UPDATE`->`INSERT` fallback when no native single-statement upsert/MERGE exists for the target provider) / `Throw` (raise `LinqToDBException` at build time instead) (`Source/LinqToDB/UpsertEmulationPolicy.cs:8`, new file, PR #5482). Set via `LinqOptions.UpsertEmulationPolicy`; consumed by the fluent Upsert API (`LinqExtensions.Upsert`, [EXPR](../EXPR/INDEX.md)) and `Internal/Linq/Builder/UpsertBuilder.cs` ([EXPR-TRANS](../EXPR-TRANS/INDEX.md)).
+- `IDataProvider` -- the provider contract every `PROV-*` area implements, in the `LinqToDB.DataProvider` root and owned here as the seam between `IDataContext`/`DataConnection` and providers (`Source/LinqToDB/DataProvider/IDataProvider.cs:18`). Members: identity (`Name`, `ID`, `ConnectionNamespace`, `DataReaderType`), `MappingSchema`, `SqlProviderFlags`, `SupportedTableOptions`, `TransactionsSupported`. Factories: `CreateConnection`, `CreateSqlBuilder(MappingSchema, DataOptions)`, `GetSqlOptimizer(DataOptions)`, `GetSchemaProvider`, `GetQueryParameterNormalizer` (`IQueryParametersNormalizer`). Command lifecycle: `InitCommand`, `DisposeCommand`/`DisposeCommandAsync`, `ExecuteScope` (`IExecutionScope?`), `GetCommandBehavior`. Reader side: `GetReaderExpression`, `IsDBNullAllowed`. Parameters: `CreateParameter(DataConnection, DbCommand, DataProviderParameterContext)`, `SetParameter`, `ConvertParameterType`. Plus `BulkCopy`/`BulkCopyAsync` (sync `IEnumerable<T>`, async `IEnumerable<T>` and `IAsyncEnumerable<T>`). `GetConnectionInfo` is `[Obsolete]` + `EditorBrowsable(Never)` with `// TODO: Remove in v7` (`:46--48`).
+- `DataProviderParameterContext` -- `readonly struct` carrying `Name`, `DbDataType`, `Value`, `Direction` (`ParameterDirection?`, null = provider default) and `IsDbDataTypeExplicit`. Passed to `IDataProvider.CreateParameter` (`Source/LinqToDB/DataProvider/DataProviderParameterContext.cs:10`).
+- `IDataProviderFactory` -- single-method interface `GetDataProvider(IEnumerable<NamedValue>)` used by the legacy `app.config` provider elements in `LinqToDB.Configuration` (`Source/LinqToDB/DataProvider/IDataProviderFactory.cs:7`).
 - `DataOptions<T>` -- typed wrapper for DI registration, keyed by context type `T` (`Source/LinqToDB/DataOptions{T}.cs:7`). Marked `// TODO: move to linq2db.Extensions?`.
 - `LinqToDBException`, `ServerSideOnlyException` -- the two public exception types. `LinqToDBException` zero-arg/single-`Exception` ctors are `[Obsolete]`/`EditorBrowsable(Never)` (`Source/LinqToDB/LinqToDBException.cs:20`). `ServerSideOnlyException` is thrown by server-side-only `Sql.*` members called outside a query context (`Source/LinqToDB/ServerSideOnlyException.cs:14`).
 - `RawSqlString` -- readonly struct with implicit conversion from `string` and (no-op) from `FormattableString`, used to distinguish overloads of `DataExtensions.FromSql<T>` (`Source/LinqToDB/RawSqlString.cs:11`).
@@ -92,8 +95,9 @@ PR #5564 added a `UseYdb`/`UseYdb(connectionString)` two-overload region to `Dat
 - `Source/LinqToDB/LinqToDB.csproj`
 - `Source/LinqToDB/Configuration/LinqToDBSection.cs`
 - `Source/LinqToDB/Configuration/ILinqToDBSettings.cs`
+- `Source/LinqToDB/DataProvider/IDataProvider.cs`
 
-**Tier 2 target -- `Source/LinqToDB/*.cs` (root) + `Source/LinqToDB/Configuration/*.cs`:** see Coverage block for the full read list across prior runs + this delta.
+**Tier 2 target -- `Source/LinqToDB/*.cs` (root) + `Source/LinqToDB/Configuration/*.cs` + `Source/LinqToDB/DataProvider/*.cs` (root, adds DataProviderParameterContext.cs, IDataProviderFactory.cs):** see Coverage block for the full read list across prior runs + this delta.
 
 ## Inbound dependencies
 
@@ -111,7 +115,7 @@ PR #5564 added a `UseYdb`/`UseYdb(connectionString)` two-overload region to `Dat
 - [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md) via `Func<ISqlBuilder>` / `Func<DataOptions, ISqlOptimizer>` factory delegates (`IDataContext.cs:31`,`:35`); `DataContext` resolves both through `DataProvider.CreateSqlBuilder` / `DataProvider.GetSqlOptimizer`.
 - [SQL-AST](../SQL-AST/INDEX.md) -- `ExtensionBuilderExtensions` directly constructs `SqlBinaryExpression`, `SqlUnaryExpression`, `SqlValue`, `SqlFragment`, and now `SqlConcatExpression` nodes.
 - [INFRA](../INFRA/INDEX.md) -- `LinqToDB.Common`, `LinqToDB.Internal.Common`, `LinqToDB.Metrics`.
-- `DataProvider` namespace -- `IDataProvider` interface contract.
+- `DataProvider` namespace root -- `IDataProvider`, `DataProviderParameterContext`, `IDataProviderFactory` are owned by this area (see Key types). Implementations live in the `PROV-*` areas.
 
 ## Recurring patterns
 
@@ -147,14 +151,15 @@ PR #5564 added a `UseYdb`/`UseYdb(connectionString)` two-overload region to `Dat
 
 <details><summary>Coverage</summary>
 
-- Tier 1 (visited / total): 6 / 6 done
+- Tier 1 (visited / total): 7 / 7 done
+  - Source/LinqToDB/DataProvider/IDataProvider.cs (new anchor, delta 2026-10-10)
   - Source/LinqToDB/IDataContext.cs
   - Source/LinqToDB/DataContext.cs
   - Source/LinqToDB/Data/DataConnection.cs (head + ConfigurationApplier; full body cross-listed under DATA)
   - Source/LinqToDB/LinqToDB.csproj
   - Source/LinqToDB/Configuration/LinqToDBSection.cs
   - Source/LinqToDB/Configuration/ILinqToDBSettings.cs
-- Tier 2 (visited / total): 60 / 61 (~98%) done
+- Tier 2 (visited / total): 62 / 63 (~98%) done
   - Read in full (prior runs 2026-04-26 / 2026-05-06): DataOptions.cs, DataExtensions.cs, ITable{T}.cs, CompiledQuery.cs, ProviderName.cs, LinqOptions.cs, TableOptions.cs, DataType.cs, Configuration/LinqToDBSettings.cs, AnalyticFunctions.cs, CompareNulls.cs, Configuration/*.cs, CreateTableOptions.cs, CreateTempTableOptions.cs, DataContext.Interceptors.cs, DataContextOptions.cs, DataContextTransaction.cs, DataExtensions.TempTable.cs, DataOptions{T}.cs, DataOptionsExtensions.cs, DataOptionsExtensions.Provider.cs, DbDataType.cs, ExpressionMethodAttribute.cs, ExprParameterAttribute.cs, ExprParameterKind.cs, ExtensionBuilderExtensions.cs, IExtensionsAdapter.cs, ILoadWithQueryable.cs, InsertColumnFilter.cs, InsertOrUpdateColumnFilter.cs, KeepConnectionAliveScope.cs, LinqToDBException.cs, MergeDefinition{TTarget,TSource}.cs, MergeOperationType.cs, MultiInsertExtensions.cs, QuerySql.cs, RawSqlString.cs, ServerSideOnlyException.cs, SqlExtensions.cs, SqlGenerationOptions.cs, SqlJoinType.cs, SqlOptions.cs, StringAggregateExtensions.cs, TableExtensions.cs, TakeHints.cs, TempTable.cs, TempTableDescriptor.cs, UpdateColumnFilter.cs, UpdateOutput.cs
   - Read (2026-05-11 delta): AnalyticFunctions.cs, DataOptionsExtensions.Provider.cs (DuckDB overloads), DataType.cs, ProviderName.cs (DuckDB constant), Sql/Sql.cs, Sql/Sql.DateTime.cs (DateTime.Date DbType preservation), Sql/Sql.DateOnly.cs, Sql/Sql.DateTimeOffset.cs, Linq/IAsQueryableBuilder.cs (new), Linq/IAsQueryableExceptBuilder.cs (new), Linq/Expressions.cs, CompatibilitySuppressions.xml, PublicAPI/PublicAPI.Unshipped.txt
   - Read (this run -- delta, sha 2e67bafc9):
@@ -184,6 +189,10 @@ PR #5564 added a `UseYdb`/`UseYdb(connectionString)` two-overload region to `Dat
     - Source/LinqToDB/LinqToDB.csproj -- added `ProjectReference` to `LinqToDB.Analyzers.CodeFixes` (`PrivateAssets="contentfiles;build"`, no `OutputItemType="Analyzer"`) so analyzers flow to consumers; removed `Nullability.Source` package reference for net462/netstandard2.0; BOM dropped.
     - Source/LinqToDB/ProviderName.cs -- added `PostgreSQL11`, `PostgreSQL12` constants.
     - Source/LinqToDB/TempTable.cs -- `TempTable<T>` now implements `IQueryableWrapper<T>` (explicit `WrappedQuery` => inner `_table`).
+  - Read (this run -- delta, sha 05150894e, DataProvider root):
+    - Source/LinqToDB/DataProvider/IDataProvider.cs -- modified. `CreateParameter` takes `DataProviderParameterContext`. Documented in Key types.
+    - Source/LinqToDB/DataProvider/DataProviderParameterContext.cs -- added. Readonly struct of parameter metadata.
+    - Source/LinqToDB/DataProvider/IDataProviderFactory.cs -- unchanged, newly enters the area.
   - Skipped: 1 -- declaration-only file fully captured by the head probe
 - Tier 3 (skipped, logged): 0
 </details>

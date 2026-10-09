@@ -2771,3 +2771,52 @@ reason: delta contradicted prior claims, updated in place: (1) Pomelo-based MySQ
 - audit: 5 sampled, 0 stale
 - unclassified changed paths (no kb-areas row): Source/LinqToDB.Analyzers*, Tests/Tests.Analyzers*, Tests/LinqToDB.CLI/*, Source/LinqToDB/DataProvider/*.cs (top-level), root config files
 
+## 2026-10-09T22:38:38Z — deferred-coverage queue updated
+- ANALYZERS: +5 deferred
+
+## 2026-10-09T22:44:23Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T22:45:05Z — deferred-coverage queue updated
+- CLI: -16 cleared
+
+## 2026-10-09T22:45:23Z — deferred-coverage queue updated
+- ANALYZERS: -5 cleared
+
+## 2026-10-09T22:45:46Z — deferred-coverage queue updated
+- INTERNAL-API: -40 cleared
+
+## 2026-10-09T22:49:53Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T22:53:27Z — deferred-coverage queue updated
+- INTERNAL-API: -40 cleared
+
+## 2026-10-09T22:57:59Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T23:03:03Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T23:07:29Z — deferred-coverage queue updated
+- INTERNAL-API: -40 cleared
+
+## 2026-10-09T23:09:25Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T23:14:49Z — deferred-coverage queue updated
+- TESTS-LINQ: -40 cleared
+
+## 2026-10-09T23:16:16Z — deferred-coverage queue updated
+- INTERNAL-API: -37 cleared
+
+## 2026-10-09T23:17:35Z — deferred-coverage queue updated
+- TESTS-LINQ: -23 cleared
+
+## 2026-10-09T23:17:38Z — kb-refresh follow-up
+- kb-areas.md: CORE += DataProvider/*.cs root; CLI += Tests/LinqToDB.CLI/**; CODEGEN += Tests/Tests.Analyzers.Internal/** + 3 analyzer Tier-1; new area ANALYZERS
+- ANALYZERS: INDEX/issues/decisions/tech-debt/patterns created; PROV-DUCKDB: decisions/tech-debt/patterns created
+- re-index of newly mapped paths: CORE, CLI, CODEGEN deltas; DI-3900 new
+- coverage: queue drained (INTERNAL-API 157, TESTS-LINQ 263, CLI 16, ANALYZERS 5); TESTS-LINQ batches 4-7 were re-visits at saturated 700/700
+- removed 18 stub area dirs not in registry (BOOLEAN, CAST, EF3/31/8/9/10, FETCH, IDENTITY, INTERVAL, LIMIT, MAX, NETFRAMEWORK, OFFSET, RETURNING, ROWNUM, SERIAL, SERIAL8)
+

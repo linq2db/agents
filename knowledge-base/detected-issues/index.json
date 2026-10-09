@@ -1086,16 +1086,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataProvider/IDataProvider.cs:45"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
+    "last_seen_at": "2026-10-10",
+    "files": [
+      "Source/LinqToDB/DataProvider/IDataProvider.cs:46"
+    ]
   },
   {
     "id": "DI-0062",
@@ -11642,5 +11642,23 @@
     "first_detected_at": "2026-10-09",
     "last_seen_at": "2026-10-09",
     "confidence": "medium"
+  },
+  {
+    "id": "DI-3900",
+    "severity": "low",
+    "category": "doc-gap",
+    "source": "code",
+    "area": "CORE",
+    "title": "Public interface IDataProviderFactory has no XML docs",
+    "files": [
+      "Source/LinqToDB/DataProvider/IDataProviderFactory.cs:7"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
+    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
+    "first_detected_at": "2026-10-10",
+    "last_seen_at": "2026-10-10",
+    "confidence": "high"
   }
 ]
