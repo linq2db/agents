@@ -44,6 +44,7 @@ Posting the comment requires write access to the repo; for contributors without 
 Consequences worth remembering:
 
 - **A `master`-targeting PR runs `build.yml` and nothing else** until an `/azp run …` comment adds a run. `gh pr checks` on such a PR reports `default` as *skipping* — that's the configured behaviour, not a misconfiguration to investigate.
+- **`gh pr checks` prints `fail` for a check in `ACTION_REQUIRED`** — a workflow awaiting *Approve and run*, which an agent cannot click. A 0-duration `fail` on every check means CI never started, not that everything went red: confirm with `gh pr checks <n> --repo linq2db/linq2db --json name,state` before reading it as a failure. (#6010: all 21 checks, including every `test-*` leg.)
 - **`nuget-job.yml` never runs on a `master`-targeting PR.** Any gate placed there (nupkg size limits, package-content verification) is pre-publish only. To cover PRs too, the step has to also live in `build-job.yml` — which is exactly where a pre-merge regression gate belongs. The review-side rule for this is `code-reviewer.md` rubric rule 16 (*CI-check reachability*).
 - **Pack output is `.build/package/release`.** `build-job.yml` packs there and publishes it as the `$(artifact_nugets)` pipeline artifact; `nuget-job.yml` downloads that artifact into `.build/nugets` and works from the copy. A script that scans for produced packages needs whichever of the two paths matches the job it runs in.
 
