@@ -1,6 +1,6 @@
 ---
 name: split-pr
-description: Split ready-to-ship work out of a large in-flight PR into its own PR off master, so it can be reviewed, CI'd and merged independently. Use when the user says "split this out", "copy X to a separate PR", "reduce the PR surface", or when a long-lived feature branch has accumulated fixes that don't depend on the feature.
+description: Split ready-to-ship work out of a large in-flight PR into its own PR off master, so it can be reviewed, CI'd and merged independently — or, in stacked mode, split a PR's dependent fixes into a GitHub stack of PRs on top of it. Use when the user says "split into dependent/stacked/chained PRs", or when the user says "split this out", "copy X to a separate PR", "reduce the PR surface", or when a long-lived feature branch has accumulated fixes that don't depend on the feature.
 ---
 
 # /split-pr
@@ -105,12 +105,45 @@ branch that are now redundant, so they can be dropped when that PR is next tidie
 Choose CI for the new PR by its content, not habit — a provider-scoped fix wants that provider's pipeline,
 not `test-all` ([`ci-tests.md`](../../docs/ci-tests.md)).
 
+## Stacked mode — fixes that depend on the PR's own change
+
+Steps 1–6 assume the split change stands alone on master. When a PR carries several fixes that **depend**
+on its main change (typically defects its new tests surfaced), split it into a GitHub stack instead: the
+originating PR keeps only the main fix, and each discovered fix becomes a PR based on the one below it.
+(#6003 → #6006 → #6007 → #6008.)
+
+1. **Propose the split first** — one table row per layer (fix, code files, tests) and the stack order; wait
+   for approval.
+2. **No force-push.** On the originating branch, add one commit that moves the discovered fixes out:
+   restore their source files to the merge base (`git checkout <merge-base> -- <paths>`), drop their tests
+   and their `PublicAPI.Unshipped.txt` lines. Build, and check `git diff --stat origin/master...HEAD`
+   shows only the main fix.
+3. **Build each layer from the original head** — `git switch -c <child>` on top of the layer below, then
+   `git checkout <original-head-sha> -- <that fix's files>` and re-add its tests. A GitHub stack is linear,
+   so independent fixes still go one above the other. The top layer's tree must equal the original head's
+   (`git diff --stat <original-head-sha>` empty, bar intentional additions).
+4. **Close the old baselines PR** with its branch (`gh pr close <n> --repo linq2db/linq2db.baselines
+   --delete-branch`) — CI regenerates per layer.
+5. **Push all branches, then open each PR** with `--base <the layer below's branch>`; reference the parent
+   PR number in each body and rewrite the originating PR's body to the main fix plus a *Stack* list. Check
+   each PR's diff shape (`gh pr view <n> --json files,commits`). The user links the stack in the GitHub UI —
+   don't install `gh-stack`.
+6. **Gate from evidence, not prediction.** Run `test-all` on the originating PR; the tests that fail without
+   a child's fix get `[ActiveIssue]` citing the **child PR number** (no tracking issue needed), scoped to the
+   failing providers. Merge the gate commit up the stack; each child removes its own gates.
+7. **Children's `test-all` runs only after the parent's `baselines/pr_<n>` branch exists**, so their
+   baselines build on it rather than on master (`Build/CI/baselines-base.ps1`).
+8. **Syncing with master** goes bottom-up: merge `origin/master` into the base layer, then merge each layer
+   into the one above. Expect `PublicAPI.Unshipped.txt` conflicts at every layer that touches it — resolve as
+   the sorted union.
+
 ## Don'ts
 
-- Don't branch from the feature branch.
+- Don't branch from the feature branch (stacked mode excepted — there each layer sits on the one below).
 - Don't carry temporary diagnostics or scaffolding into the split PR unless asked — they belong to the
   investigation, not the fix.
 - Don't remove the change from the originating branch as part of this skill. That branch may need it to stay
-  green, and dropping commits from a pushed branch is the user's call.
+  green, and dropping commits from a pushed branch is the user's call. Stacked mode is the exception: there
+  the user asked for the split, and the move-out is a new commit, not dropped history.
 - Don't split a tightly-coupled enabling change, and don't offer to, without an explicit request.
 - Don't assume the milestone.
