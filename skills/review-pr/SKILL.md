@@ -126,6 +126,8 @@ Surface any mismatch as a finding (a wrong/missing doc page for a user-facing ru
 
 Derive the key from the PR's `headRefName` (`/` → `-`) and `Read` `.claude/plans/<key>/plan.md`. The plan lives in the corpus, not on the PR branch, so it is readable without checking the PR out — but the corpus must be current: `git -C .claude pull` when the plan is missing and the branch is one of ours.
 
+**A Tier-L plan can exceed the `Read` cap — `Grep` its `^## ` headings first, then `Read` the blocks you need by `offset` / `limit`.** A whole-file `Read` fails on the 25k-token cap, and so does a slice that spans the verification-gate block, whose rows run to thousands of tokens each. (Surfaced on #5983, whose plan was ~90k tokens: two `Read`s failed before the heading `Grep`.)
+
 **Read it before the intent summary, not after.** Re-deriving intent from the issue and the diff produces a *different yardstick every round*, which is why successive reviews of one branch used to surface different findings instead of converging. See [`work-plan.md`](../../docs/work-plan.md).
 
 Carry forward into step 6's briefing: `P1`–`P3` (intent and anti-goals), `P7` (claimed impact coverage), `P10` (adjudicated — the do-not-flag set), `P11` (amendments), `P12` (critic verdict).

@@ -61,6 +61,10 @@ Find the id with `gh api 'repos/<o>/<r>/milestones?state=closed&per_page=100' --
 
 This comes up when retroactively attributing closed issues to the release that shipped the fix (e.g. backfilling a milestone on an issue whose PR landed in an already-shipped version). The metadata change is exempt from the *Never edit content authored by others* rule above.
 
+### `gh pr close` / `gh issue close` take no comment file
+
+Their only comment option is `-c, --comment <string>` — an inline body, which the `--body-file` rule exists to avoid; `--comment-file` fails with `unknown flag`. To close with a comment, post it first with `gh pr comment <n> --body-file <path>` (or `gh issue comment`), then close (#5926).
+
 ### Transient API outages — don't retry-loop
 
 When a `gh api` call returns HTTP 422 with body `{"errors":["An internal error occurred, please try again."]}`, treat it as a transient GitHub-side outage on the specific endpoint. Report once with the in-flight context (manifest path, payload, what was about to be posted), preserve any scratch artefacts under `.build/.agents/`, and wait for explicit user direction.
