@@ -4,6 +4,10 @@ Git Bash (MSYS / MINGW) on Windows rewrites and fails on a handful of `git` / `g
 
 > Some entries cite Claude Code helpers (`.claude/scripts/*.ps1`, the PowerShell / Bash tools, `.build/.agents/` scratch). Those describe the Claude path; other agents substitute their own shell / tooling — the underlying git / gh / OS behavior is what each entry is really about.
 
+## A `!` command handed to the user needs forward-slash paths
+
+When an agent hands the user a command to run themselves with the `!` prefix, it runs through Git Bash, which treats an unquoted backslash as an escape: `! git -C C:\Worktrees\linq2db\x push …` reaches git as `C:Worktreeslinq2dbx` and dies with `fatal: cannot change to …`. Spell every Windows path in a `!` suggestion with forward slashes (`C:/Worktrees/linq2db/x`). It works from Bash and PowerShell alike, so there is no reason to emit the backslash form. (Surfaced on #5991, where the handed-over push failed once before the forward-slash form went through.)
+
 ## `gh api` endpoints must not start with `/`
 
 MSYS path-mangles a leading slash into `C:/Program Files/Git/...` and `gh` rejects it. Always write `gh api user`, `gh api repos/linq2db/linq2db/pulls/<n>/reviews` — never `gh api /user` or `gh api /repos/...`. GraphQL calls (`gh api graphql`) are unaffected.
