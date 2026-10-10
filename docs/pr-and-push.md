@@ -197,7 +197,7 @@ Don't `stash` → `switch` → `--amend` → `switch -` → `stash pop` — the 
 
 ### Splitting two logical changes that share a file into separate commits
 
-`git add -p` / `git add -i` are unavailable (interactive flags aren't supported in this environment), so "one change = one commit, explicit pathspec" needs a non-interactive route when both changes land in the same file. Snapshot-and-replay:
+`git add -p` / `git add -i` are unavailable (interactive flags aren't supported in this environment), so "one change = one commit, explicit pathspec" needs a non-interactive route when both changes land in the same file. **Reach for [`stage-hunks.ps1`](../scripts/stage-hunks.ps1) first** — `-ListOnly` maps the hunks of `git diff HEAD`, `-Hunks <n,…>` stages them into the index, and the working tree stays in the state you verified; re-run `-ListOnly` after each commit, and read `git diff --cached` before committing, since an insertion right next to an edited line lands in the same hunk (`-Split` handles the contiguous addition-only case). Snapshot-and-replay is the fallback when hunks won't separate:
 
 1. Copy the finished file to `.build/.agents/<task>-<file>.bak` (PowerShell tool — `Copy-Item`).
 2. `git checkout -- <file>` to return it to `HEAD`.
