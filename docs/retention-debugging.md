@@ -2,7 +2,7 @@
 
 How to prove — and then localise — "a process-wide cache is keeping something alive that should have died". Written after PR #5780, where a linq2db EF cache pinned an ASP.NET request scope for the lifetime of the process.
 
-Reach for this when the symptom is *lifetime*, not correctness: a DI scope, a `DbConnection`, an `IModel`, or a whole service graph surviving the object that created it. For **ADO connection-pool** leaks (undisposed contexts held alive) the repro shape is different — see auto-memory `project_connection_leak_repro_design`.
+Reach for this when the symptom is *lifetime*, not correctness: a DI scope, a `DbConnection`, an `IModel`, or a whole service graph surviving the object that created it. For **ADO connection-pool** leaks (undisposed contexts held alive) the repro shape is different — see [`dead-ends.md`](dead-ends.md) → *DATA: reproducing an ADO connection-pool leak*.
 
 ## The test shape
 

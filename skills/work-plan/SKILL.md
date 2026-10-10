@@ -68,7 +68,7 @@ Path-scoped rules under `.claude/rules/` fire when someone **edits** a matching 
 
 - `.claude/rules/cross-cutting-core.md` when `P6` will touch `SqlQuery/` or `Translation/`.
 - `areas/<AREA>/{issues,decisions,patterns,tech-debt}.md` — map the path to its area by **`Grep`-ing** [`kb-areas.md`](../../docs/kb-areas.md), never `Read`-ing it (the table is ~37 k tokens). Skip silently when the KB isn't built.
-- Auto-memory `project_*` entries for recorded dead-ends on this subsystem.
+- [`dead-ends.md`](../../docs/dead-ends.md) entries for this subsystem's area (plus any auto-memory `project_*` dead-ends that predate it).
 
 This is the step that stops a design that violates an already-enforced rule.
 
