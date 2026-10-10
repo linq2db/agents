@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: one descriptor decision in `SuggestColumnDescriptor` for both literals and parameters
+
+**Tried:** fixing a SQL Server regression — `MAX(datetimeCol) = @v` binding `@v` as `datetime2`, so a value read back from the column (`.003`) stopped matching — by removing the guard that withholds a coarse date/time descriptor reached through a computed value (MIN/MAX, COALESCE, value window functions).
+
+**Failed because:** `VisitBinary` installs `SuggestColumnDescriptor(left, right)` as the ambient descriptor for visiting *both* sides, and `BuildConstant` and `BuildParameter` both read it. Without the guard, static literals beside a coarse aggregate were narrowed again (`Date(MAX(Day)) < Date('2026-06-01')`, 23 cases red across SQLite, SQL Server and ClickHouse); with it, parameters lost the column type. A literal wants its own precision, a parameter carrying a read-back value wants the column's type.
+
+**Don't re-attempt:** a single lend/withhold decision for the comparison. Split it per consumer — the descriptor is lent to parameters and withheld from constants (`SuggestedDescriptor.ForConstants`, read through `ConstantDescriptor` in `HandleValue`). (#5959, `ed87cd5e9`)
+
 ## PROV-FIREBIRD: binary Guid *parameter* writes on a UTF8 Firebird 6 database
 
 **Tried:** binding a binary Guid to a `CHAR(16) CHARACTER SET OCTETS` / `BINARY(16)` column (INSERT VALUES, UPDATE SET, WHERE compare) as raw `byte[]`; as native `FbDbType.Guid`; with `FbParameter.Charset` set to `Octets` (and, by reflection, every other charset value) or `FbDbType.Binary`; with explicit `CHAR(16) CHARACTER SET OCTETS` DDL instead of `BINARY(16)`; with an explicit OCTETS CAST target.
