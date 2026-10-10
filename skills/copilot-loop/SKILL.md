@@ -98,6 +98,16 @@ From `reviewThreads[]` and `reviewComments[]`:
 - Keep threads whose first comment is from a Copilot/bot user **OR** whose
   body still applies to current code (line-anchored at HEAD).
 
+Also read the **latest Copilot review body**. Its `Previously missed`
+`<details>` blocks carry findings in unchanged code that get **no thread** —
+`reviewThreads[]` never shows them, and `0 open findings` in the summary does
+not count them. Add each as a thread-less work item (title + `file:line` from
+the block) and verify it like any other. It has nothing to resolve: dispose of
+it in step 10 with a PR comment (`gh pr comment --body-file`) citing the
+finding title and the review's commit. A summary line naming more cases than
+the body itemizes is a cue to re-read that code, not a finding. (#5943: three
+consecutive reviews carried one each; one failed a new test and was fixed.)
+
 This is the **work list** — call its size `N`. If `N == 0`, Copilot is
 satisfied: report and stop (don't proceed to wait — the loop has converged).
 
