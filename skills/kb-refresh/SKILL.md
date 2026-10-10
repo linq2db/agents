@@ -221,6 +221,14 @@ pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
 EOF
 ```
 
+Then, **only when this run iterated every source** (no `--source` filter, no stop at a boundary), stamp the run time — it is what `/chores` reads as "last refreshed", since the per-source cursors are data high-water marks and a quiet source (e.g. `discussions`) never advances them:
+
+```bash
+pwsh -NoProfile -File .claude/scripts/kb-state.ps1 <<'EOF'
+{"op": "mark-refreshed"}
+EOF
+```
+
 ### 6. Print summary to user
 
 A compact table:

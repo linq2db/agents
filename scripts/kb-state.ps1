@@ -32,6 +32,10 @@ Operations
     fields: { source, value: { ... } }
     -> { ok: true, source, value }
 
+  mark-refreshed
+    Stamps top-level `refreshed_at` (now, UTC) in cursors.json.
+    -> { ok: true, refreshed_at }
+
   init
     Initializes state files (build-progress.json, cursors.json, audit-log.md)
     if they don't exist. Idempotent.
@@ -132,13 +136,14 @@ function Get-StepDefaults {
 
 function Get-DefaultCursors {
     [pscustomobject]@{
-        schema      = 1
-        code        = [pscustomobject]@{ sha = $null; verified_at = $null }
-        commits     = [pscustomobject]@{ sha = $null; year_done_through = $null }
-        issues      = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
-        prs         = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
-        discussions = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
-        wiki        = [pscustomobject]@{ sha = $null }
+        schema       = 1
+        refreshed_at = $null
+        code         = [pscustomobject]@{ sha = $null; verified_at = $null }
+        commits      = [pscustomobject]@{ sha = $null; year_done_through = $null }
+        issues       = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
+        prs          = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
+        discussions  = [pscustomobject]@{ updated_at = '1970-01-01T00:00:00Z' }
+        wiki         = [pscustomobject]@{ sha = $null }
     }
 }
 
@@ -368,6 +373,15 @@ function Op-SetCursor {
     $cursors.($M.source) = $M.value
     Write-JsonFile -Path $CursorsFile -Data $cursors
     return [pscustomobject]@{ ok = $true; source = $M.source; value = $M.value }
+}
+
+function Op-MarkRefreshed {
+    $cursors = Read-JsonFile $CursorsFile
+    if (-not $cursors) { Exit-WithError 'cursors.json missing — run init first' }
+    $ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $cursors | Add-Member -NotePropertyName refreshed_at -NotePropertyValue $ts -Force
+    Write-JsonFile -Path $CursorsFile -Data $cursors
+    return [pscustomobject]@{ ok = $true; refreshed_at = $ts }
 }
 
 function Op-Summary {
@@ -750,6 +764,7 @@ $result = switch ([string]$m.op) {
     'set-step'            { Op-SetStep   -M $m }
     'get-cursor'          { Op-GetCursor -M $m }
     'set-cursor'          { Op-SetCursor -M $m }
+    'mark-refreshed'      { Op-MarkRefreshed }
     'apply-fences'        { Op-ApplyFences -M $m }
     'summary'             { Op-Summary }
     'append-audit'        { Op-AppendAudit -M $m }

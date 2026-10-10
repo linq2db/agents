@@ -128,6 +128,7 @@ Indexers update entries via the `INDEX-PATCH` fence (see [`kb-protocol.md`](../a
 ```json
 {
   "schema": 1,
+  "refreshed_at":  "2026-04-25T12:00:00Z",
   "code":          {"sha": "abc1234", "verified_at": "2026-04-25T12:00:00Z"},
   "commits":       {"sha": "abc1234", "year_done_through": 2025},
   "issues":        {"updated_at": "2026-04-20T08:30:00Z"},

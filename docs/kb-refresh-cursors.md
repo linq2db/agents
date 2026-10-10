@@ -9,6 +9,7 @@ All cursors live in one file: `.claude/knowledge-base/state/cursors.json`. Singl
 ```json
 {
   "schema": 1,
+  "refreshed_at": "<ISO>",
   "code":        {"sha": "<HEAD-sha-at-last-refresh>", "verified_at": "<ISO>"},
   "commits":     {"sha": "<last-indexed-commit>",       "year_done_through": 2025},
   "issues":      {"updated_at": "<ISO>"},
@@ -19,6 +20,8 @@ All cursors live in one file: `.claude/knowledge-base/state/cursors.json`. Singl
 ```
 
 `code.sha` is the linq2db `master` HEAD that was used for the last code-scan pass. `commits.sha` is the most recently *indexed* commit (may equal `code.sha` after a refresh, may lag if commits are processed in batches). `wiki.sha` is the linq2db.wiki repo HEAD.
+
+`issues` / `prs` / `discussions` `updated_at` is the newest *item* fetched, not the time of the run — a quiet source keeps an old value right after a refresh. `refreshed_at` is the time of the last full `/kb-refresh` (every source, via `kb-state.ps1 mark-refreshed`); freshness checks such as `/chores` read it, not the per-source cursors.
 
 Cursors advance only after the artifact write completes successfully. An interrupted refresh is safe to re-run from any cursor.
 
