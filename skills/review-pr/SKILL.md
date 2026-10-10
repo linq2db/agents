@@ -247,6 +247,16 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 
 Two near-miss paths return `exists: false` silently: `Internal/Linq/CompiledTable.cs` (the real file is `CompiledTable{T}.cs`) and `Internal/Linq/Builder/ExpressionCacheManager.cs` (the real file sits directly under `Internal/Linq/`). (Surfaced on #6003: all three passes went 11–15 calls over budget fetching these files, and the prep manifest had guessed both near-miss paths.)
 
+**For a PR that touches eager-load strategy selection or `SqlQueryValidatorVisitor`, the companions are the limit builders and the validator's callers.** Every pass asks the same questions. Does `Take` / `First` make the root query limited? Can a user request `Default` explicitly? What does a stricter validator make each caller decline? Cache these with `include.content: true`:
+- `Internal/Linq/Builder/TakeSkipBuilder.cs` (it sets the limit on the sequence's own query and returns a pass-through context)
+- `Internal/Linq/Builder/WithLoadStrategyBuilder.cs`
+- `Internal/Linq/Builder/ExpressionBuilder.QueryBuilder.cs`
+- `Internal/Linq/Builder/ExpressionBuilder.cs`
+- `Internal/SqlQuery/Visitors/SelectQueryOptimizerVisitor.cs`
+- `Internal/SqlProvider/BasicSqlOptimizer.cs`
+
+When the tests use `[ThrowsForProvider]`, cache `Tests/Base/Attributes/ThrowsWhenAttribute.cs` as well: the matching logic is in that base class, not in `ThrowsForProviderAttribute.cs`. (Surfaced on #5900: all three passes went over budget fetching these files, and `TakeSkipBuilder.cs` was fetched by every pass.)
+
 **For a PR touching `HandleSubquery` / `GetSubQuery` / aggregate building, cache the fallback machinery.** Every pass asks "what happens if the build fails here — does a fallback produce a working result?", and only files the PR does not touch answer it: `Internal/Linq/Builder/OrderByBuilder.cs` (constant-key skip), `Internal/Linq/Builder/AggregateExecuteBuilder.cs`, `Internal/Linq/Builder/ExpressionBuilder.cs` (`BuildSequence`'s error construction), `Linq/Translation/AggregateFunctionBuilder.cs`, and `Source/LinqToDB/LinqExtensions/LinqExtensions.cs` (`AggregateExecute`'s runtime body). `IsSameGenericMethod` is declared in a C# 14 extension block — see [`code-design.md`](../../docs/code-design.md). (Surfaced on #5901: a single pass spent 17 calls against its 0–3 budget on exactly these.)
 
 **Confirm `origin/pr/<n>` actually exists before spawning — a `git fetch` of it can report success and create no ref.** `verify-lines.ps1` diffs `origin/master...origin/pr/<n>`, so a missing ref makes *every* pass's line-verification call die with `fatal: bad revision 'origin/master...origin/pr/<n>'`. The passes degrade correctly — they fall back to verifying against the cached HEAD bodies and diff hunks — but they degrade **silently and in parallel**, so the only trace is one line buried in each `callLog[]`, and you pay for it three times. Check with `git for-each-ref refs/remotes/origin/pr/<n>` (empty output means absent, whatever the fetch said) and re-run `git fetch origin refs/pull/<n>/head:refs/remotes/origin/pr/<n> --force` until it prints a ref. (Surfaced on #5704: the first fetch produced no output *and* no ref; all three passes then reported the same failure independently.)
