@@ -658,7 +658,7 @@ The cost is that the skipped arm now hides in the run's `skipped` count rather t
 
 **A tracked provider failure on one arm: `[ThrowsForProvider]` with `AlsoWhenParameter` / `AlsoWhenValue`.** Unlike `[ActiveIssue]` it does select by a `[Values]` value, and unlike `Assert.Ignore` it keeps checking the failure. It also matches the `RpcException`-wrapped error on `.LinqService`. Precedent: `EagerLoadingStrategyKeyedQueryTests.Select_KeyedQuery_DetailTakeIsPerParent`, `Issue5935Tests` (#5940 on SAP HANA).
 
-A gate whose `ErrorMessage` is the direct/remote baseline check (`Baselines for remote context doesn't match direct access baselines`) fires only when `BaselinesPath` is set. On a run without baselines the test passes and the gate reports "passed but marked".
+A gate whose `ErrorMessage` is the direct/remote baseline check (`Baselines for remote context doesn't match direct access baselines`) fires only when `BaselinesPath` is set. On a run without baselines the test passes and the gate reports "passed but marked". So a local "passed but marked" for such a gate is no evidence to delete it — only a run with baselines enabled (CI `test-all`) exercises the check. (#6015: the PostgreSQL remote gate on `Issue5972_UInt64` came off as "now passes" and failed all 13 `PostgreSQL.*.LinqService` configs on CI.)
 
 ### Test-proofing a gated provider capability
 
