@@ -55,6 +55,7 @@ Grep-and-compare. For each of the following "canonical rule" patterns, find ever
 - Bash chaining / permission-friendly patterns.
 - GitHub content-editing guardrails.
 - Memory system rules.
+- Build-server / process-kill prohibitions (no `dotnet build-server shutdown`, no bulk `Stop-Process` on `dotnet` / MSBuild / VBCSCompiler / `csc`) — and, generally, any rule a `PreToolUse` hook enforces: a doc that still *recommends* the blocked command is a contradiction even though the hook makes it harmless. Grep for the command itself, not the rule's wording — the 2026-10-10 audit missed six such recipes because none of them shared phrasing with the prohibition.
 
 This is not a full-text dedup — it's a fixed list of "rules that must live in one place". Update the list in this doc when a new cross-cutting rule appears. Proposed fix: creative — propose canonical location + pointer in the other file; user confirms.
 
@@ -85,7 +86,7 @@ Line-count-driven, with stricter thresholds for the **always-loaded payload** �
 
 For each always-loaded oversize finding, propose a concrete split (which sections move where, what pointer stays). The `proposedFix` is the per-section breakdown rather than a single unified diff — the user picks how aggressive to be.
 
-**Aggregate always-loaded footprint (info, fixKind: manual-only):** independent of any single-file threshold, also compute and **report** the total size of the always-loaded payload — `CLAUDE.md` plus every doc reachable via the `@import` chain from it (currently `CLAUDE.md` + `.claude/docs/agent-rules.md`) — in both lines and KB. Every conversation pays this on startup, so the cumulative number is the signal even when each file is individually under budget. Emit an info finding when the total exceeds **60 KB** (🟡) and a warning when it exceeds **90 KB** (🔴) — these match the `chores` *Context budget* thresholds. (Baseline at the time of writing: ~42 KB / ~200 lines across the two files, comfortably green.) The fix is the same per-section relocation as the single-file findings, applied across whichever always-loaded file is the largest contributor; surface the number so growth is trackable run-over-run, don't propose a specific diff.
+**Aggregate always-loaded footprint (info, fixKind: manual-only):** independent of any single-file threshold, also compute and **report** the total size of the always-loaded payload — `CLAUDE.md` plus every doc reachable via the `@import` chain from it (currently the root `CLAUDE.md` trampoline + `.claude/AGENTS.md` + `.claude/CLAUDE.md` + `.claude/docs/agent-rules.md`) — in both lines and KB. Every conversation pays this on startup, so the cumulative number is the signal even when each file is individually under budget. Emit an info finding when the total exceeds **60 KB** (🟡) and a warning when it exceeds **90 KB** (🔴) — these match the `chores` *Context budget* thresholds. (2026-10-10: ~86 KB across the four files after a shrink from 97 KB — watch, not green.) The fix is the same per-section relocation as the single-file findings, applied across whichever always-loaded file is the largest contributor; surface the number so growth is trackable run-over-run, don't propose a specific diff.
 
 **Per-skill / per-script (info, fixKind: manual-only):**
 
