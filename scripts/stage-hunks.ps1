@@ -31,15 +31,25 @@ findings' changes usually splits by itself once the first commit lands.
 hunk n (for an addition-only hunk whose two halves are contiguous in the file). The trailing
 context line is preserved and the ranges are recomputed.
 
+`-CutFile <path> -Cut '<start>|||<end>', ...` is the exact fallback when hunks will not separate -
+typically an insertion directly beside an edited line, which git always reports as one hunk.
+It stages the file's **working-tree** content with each span (start marker through end marker,
+plus the blank line after it) removed, so everything except the later commit's parts goes in.
+Markers are literal text; `<path>` is relative to the worktree.
+
+    .claude/scripts/stage-hunks.ps1 -Worktree <path> -CutFile docs/x.md -Cut '## New section|||last words.'
+
 **Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
 the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
 naming a hunk that does not exist. See `script-authoring.md`.
 #>
 param(
     [Parameter(Mandatory)][string]$Worktree,
-    [Parameter(Mandatory)][int[]]$Hunks,
+    [int[]]$Hunks,
     [string]$Split,
-    [switch]$ListOnly
+    [switch]$ListOnly,
+    [string]$CutFile,
+    [string[]]$Cut
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +57,45 @@ $ErrorActionPreference = 'Stop'
 # Scratch goes under .build/.agents, never beside the script (agent-rules.md -> Temp files).
 $scratchDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.build/.agents'
 if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir -Force | Out-Null }
+
+if ($CutFile -or $Cut) {
+    if (-not $CutFile -or -not $Cut) { throw '-CutFile and -Cut go together' }
+
+    $text = [System.IO.File]::ReadAllText((Join-Path $Worktree $CutFile), [System.Text.UTF8Encoding]::new($false))
+    foreach ($span in $Cut) {
+        $markers = $span -split '\|\|\|'
+        if ($markers.Count -ne 2) { throw "malformed -Cut '$span' - expected '<start>|||<end>'" }
+
+        $s = $text.IndexOf($markers[0])
+        if ($s -lt 0) { throw "start marker not found in ${CutFile}: $($markers[0])" }
+        $e = $text.IndexOf($markers[1], $s)
+        if ($e -lt 0) { throw "end marker not found in ${CutFile}: $($markers[1])" }
+        $e += $markers[1].Length
+
+        # Take the end-of-line and the blank line after the span too, so no stray blank line is left.
+        for ($k = 0; $k -lt 2; $k++) {
+            if ($text.Length -ge $e + 2 -and $text.Substring($e, 2) -eq "`r`n") { $e += 2 }
+            elseif ($text.Length -ge $e + 1 -and $text[$e] -eq "`n") { $e += 1 }
+        }
+        $text = $text.Remove($s, $e - $s)
+    }
+
+    $blobPath = Join-Path $scratchDir 'stage-hunks-cut.tmp'
+    [System.IO.File]::WriteAllText($blobPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+    # --path applies the file's attributes / eol conversion, as `git add` would.
+    $sha = & git -C $Worktree hash-object -w "--path=$CutFile" $blobPath
+    if ($LASTEXITCODE -ne 0) { throw "git hash-object failed ($LASTEXITCODE)" }
+    $entry = & git -C $Worktree ls-files -s -- $CutFile
+    $mode  = if ($entry) { $entry.Split(' ')[0] } else { '100644' }
+    & git -C $Worktree update-index --add --cacheinfo "$mode,$sha,$CutFile"
+    if ($LASTEXITCODE -ne 0) { throw "git update-index failed ($LASTEXITCODE)" }
+
+    "staged $CutFile with $($Cut.Count) span(s) cut"
+    return
+}
+
+if (-not $Hunks -and -not $ListOnly) { throw 'pass -Hunks, -ListOnly, or -CutFile with -Cut' }
 
 $patchPath = Join-Path $scratchDir 'stage-hunks-cur.patch'
 & git -C $Worktree diff HEAD -U1 --output=$patchPath
