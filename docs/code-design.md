@@ -145,6 +145,10 @@ Then rebuild the parent node. Reviewer consequence: flag any assignment to a `Sq
 
 A `Convert*` / `Visit*` override in a provider's `SqlExpressionConvertVisitor` runs for every node of its type in every query, and almost every call is a no-op. Decide whether the rewrite applies with an allocation-free pass over the node's existing children. Allocate arrays or lists, or rebuild the node, only once the rewrite is known to apply. Collecting the children into a fresh array before deciding is a per-node cost on every query. (#5978: `ConvertSqlCaseExpression` copied every CASE's results into an array before checking for the one shape it rewrites.)
 
+### A rewrite the projection finalizer can re-enter must recognise its own output
+
+Projection finalization (`ExpressionBuilder.QueryBuilder.cs`) loops `Visit` + `TranslateExpression` until the result is reference-equal to the input, so any rewrite installed where that visitor can re-enter is applied **once per pass**, not once. A non-idempotent one grows the tree each pass and dies as a `Stack overflow` inside `ExpressionEqualityComparer.GetHashCode` — which reads as an unrelated hashing bug. Make the rewrite return early on its own output; an existing marker is the cheap carrier (`MarkerExpression.PreferClientSide` around the result, plus an early return when it is already set — stripped before materialization). Verify convergence with a full run, not a single query: the growth only shows once the loop iterates. (#5929)
+
 ### Internal AST APIs trust NRT — validation lives in factory extensions
 
 Constructors and `Modify` methods on types under `LinqToDB.Internal.SqlQuery.*` (and peer internal AST namespaces) do **not** carry null / empty argument guards. Validation is the job of the factory extensions (`SqlExpressionFactoryExtensions.Concat`, peers) that provide the validated entry point for broader use; bare AST ctors trust callers to respect `<Nullable>enable</Nullable>` and pass sane parameters. Adding the same guard on the ctor duplicates the check at no benefit and adds noise NRT analysis would have already surfaced.
@@ -273,6 +277,12 @@ A mixed-version LinqService deployment — client and server on different builds
 ### A wrong user mapping is the user's error, not an engine gap
 
 A property mapped without the `DataType` its server column needs (a `DateTime` column with no `DataType = DataType.DateTime`, so linq2db types it from the schema default) is a configuration mistake. Don't propose engine support to compensate for it, and decline review findings that ask for it. The reverse matters as much: before arguing that a regression needs fixing, state whether the repro's mapping is correct — when it is and linq2db loses the declared type on the way (an untyped `COALESCE`, a window function typed from its CLR type), that is an engine bug. (#5959)
+
+### Per-provider column facets: a `DataTypeAttribute` added with `HasAttribute`
+
+When a type has no DDL rendering on some providers, fix it at the mapping layer, not in the provider SQL builders (a builder change alters DDL for every user of that provider): `.Property(x => x.M).HasAttribute(new DataTypeAttribute(dt) { Configuration = ProviderName.X })`, with `dt` read from that provider's own `BuildDataTypeFromDataType`, pinned per **dialect** when siblings differ (`DB2.LUW` vs `DB2.zOS`). Two look-alikes fail silently:
+- `Entity<T>(config).Property(...).HasDataType(...)` (and every `SetColumn`-based verb) **mutates the unscoped attribute** instead of adding a scoped one — the last value applies to **every** provider, so a per-provider table reads green on most legs (#3136, `Issue3136Test` is `[ActiveIssue]`).
+- A configuration-scoped `ColumnAttribute` **replaces** the unscoped one on that provider (`EntityDescriptor` takes the first per member, scoped first), so a later unscoped rename, length or nullability silently stops applying there. `DataTypeAttribute` is consulted only when the column left `DataType` undefined (`ColumnDescriptor`), so it composes instead.
 
 ### Column-aligned formatting is intentional
 

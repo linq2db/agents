@@ -160,6 +160,8 @@ Test provider IDs referenced from code are in `Source/LinqToDB/ProviderName.cs`.
 
 Oracle 18+ images are large and add very little test value until per-version dialects land — propose them only when the user explicitly asks.
 
+**Managed-Oracle connection strings need `Self Tuning=false;Statement Cache Size=0` — both.** ODP.NET caches statements by text and re-executes the cached cursor; after DDL changes the metadata under it (the `DropTable` → `CreateTable` → `DropTable` shape), that fails as `ORA-24449`, as `ORA-00932` on a PL/SQL block with **no binds** (a reused handle carrying another statement's bind metadata), or as a bare `NullReferenceException` inside the driver. Self-tuning re-enables the cache even with the size pinned to zero, so the size alone does nothing (Oracle 11, 45 tests: default 8 failures, size-only 9, both 0). The tracked `DataProviders.json` carries both (#5950); a local `UserDataProviders.json` entry without them reproduces the family. Separately, a constant ~114 `ORA-00942` per green leg is `Oracle.sql`'s idempotent `DROP TABLE` cleanup — noise, not failure.
+
 ## Firebird
 
 | Version | Provider IDs | Setup script | Container | Image | Pref |
@@ -187,6 +189,8 @@ Oracle 18+ images are large and add very little test value until per-version dia
 
 **Synchronous mutations in the test env.** ClickHouse `UPDATE`/`DELETE` compile to asynchronous `ALTER TABLE … UPDATE`/`DELETE` **mutations** (default `mutations_sync=0`), and ClickHouse does **not** report affected-row counts (hence `SqlProviderFlags.IsAffectedRowsCountSupported=false`). Both the CI (`Build/Azure/scripts/clickhouse.sh`) and local (`Data/Setup Scripts/clickhouse.cmd`) setup patch `<mutations_sync>1</mutations_sync>` into the server config, so in the test env a mutation completes before the statement returns — **write-then-read tests are deterministic**. A real-world caller on the default config can still read pre-mutation state, so any read-after-write feature (e.g. `UpdateOptimisticWithRefresh`'s no-rowcount verify path, #5643) is best-effort on ClickHouse outside the tuned test config.
 
+**When only the `ClickHouse.Octonica` leg reddens on a new server image, restore the old default in that same `<default>` profile.** `Octonica.ClickHouseClient` implements a narrow slice of the wire protocol and breaks whenever the server changes a default it never negotiated — 26.8's protocol revisions (#5860, removed again once the client caught up in 4.1.6, #5882) and 26.9's `network_compression_method` flip to ZSTD (the client reads LZ4 and None only; `<network_compression_method>LZ4</network_compression_method>`, #5962). Add the setting to both `clickhouse.sh` and `clickhouse.cmd`, comment it with the upstream issue as the drop condition, and remove it when the client catches up — disabling the provider was tried once (#5845) and reverted a day later. The image is unpinned (`:latest`), so read the `(version …)` string from the leg log before theorising and again after a fix. The client's real exception is usually masked by a teardown `The connection is closed.` — see [`bug-investigation.md`](bug-investigation.md) → *An error message is often the second failure* for the startup-hook technique that unmasks it.
+
 ## YDB
 
 | Provider | Provider IDs | Setup script | Container | Image | Pref |
@@ -208,6 +212,8 @@ These containers either take a long time to initialize, use a lot of RAM, or pul
 
 Confirmation prompt should spell out the expected cost (startup time / memory) so the user can decide whether to skip that provider for the session.
 
+`DB2` and `Informix.DB2` go through `IBM.Data.Db2`, which fails on a Windows box with the UTF-8 code page unless `DB2CODEPAGE=1208` is set: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *IBM.Data.Db2 on Windows with the UTF-8 code page*.
+
 ## Docker lifecycle (for `/test-providers`)
 
 Canonical sequence for `/test-providers` to bring a non-SQLite provider's container up before `/test` runs against it. No other skill or agent is expected to drive this directly. Container scope is `docker start` / `docker stop` / `docker create` / `docker ps` only — never `docker container inspect` or `docker image inspect` (per `agent-rules.md` → *Docker containers: start/stop/create only*).
@@ -221,12 +227,12 @@ Canonical sequence for `/test-providers` to bring a non-SQLite provider's contai
 
 Ports are fixed per container and don't need verification — if the container is running, the port is bound. The host:guest mapping isn't listed in this doc; read the `-p <host>:<guest>` flag in the container's `Data/Setup Scripts/<script>.cmd` if you need the number (the connection strings in `UserDataProviders.json` / `DataProviders.json` already carry it).
 
-## Keeping this doc current
-
-When a new setup script is added to `Data/Setup Scripts/` or a container name changes, update this table and the preferred-provider rank. The source of truth for provider ID strings is `Source/LinqToDB/ProviderName.cs`; the source of truth for scripts is `Data/Setup Scripts/readme.md`. This doc is the cached join of the two — regenerate by grepping the `.cmd` files for `docker run … --name` and cross-referencing.
 ## Session-started containers — tracked only if the hooks are wired
 
 A `docker start` is *intended* to be captured by the `track-docker-start` PostToolUse hook into `.build/.agents/docker-session-started.txt`, with `cleanup-docker-session` stopping them at session end. Both scripts live in `.claude/hooks/`, but nothing under `.claude/` registers them, so unless the *user-level* settings wire them up they never fire. If you have run `docker start` and that state file does **not** exist, the tracking did not happen: keep your own list and stop those containers yourself at session end, restoring their prior state. Never tell the user containers are "tracked and will be stopped automatically" without having seen the file. (2026-07-30)
 
 Before any command that changes working-tree scope — `git checkout` / `switch` / `worktree add`, `gh pr checkout`, or a skill that switches branches for you — read that file and, if it lists containers this session started, stop and ask whether to stop them, naming them. Never stop them silently: a scope change doesn't mean the user is done with the providers. Containers already running at session start are out of scope.
 
+## Keeping this doc current
+
+When a new setup script is added to `Data/Setup Scripts/` or a container name changes, update this table and the preferred-provider rank. The source of truth for provider ID strings is `Source/LinqToDB/ProviderName.cs`; the source of truth for scripts is `Data/Setup Scripts/readme.md`. This doc is the cached join of the two — regenerate by grepping the `.cmd` files for `docker run … --name` and cross-referencing.

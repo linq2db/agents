@@ -505,6 +505,8 @@ not in the report is a candidate cause. And when a swallowing `catch` is in the 
 one expected condition and rethrow the rest as part of the investigation; that alone turned the next
 run's failures into self-naming ones.
 
+When the swallowing happens inside a **third-party driver** — the client throws its real error internally and only a downstream symptom escapes (`The connection is closed.`, `ObjectDisposedException`) — there is no adjacent log line to read. Instrument the real process rather than guessing repro shapes: a small library with a global-namespace `StartupHook` type whose `public static void Initialize()` subscribes to `AppDomain.CurrentDomain.FirstChanceException`, attached via `DOTNET_STARTUP_HOOKS=<abs path to dll>`; no product or test change needed. Reach for it once a *second* guessed repro comes back green while the real run still fails. Keep the handler cheap (filter by type before `new StackTrace`, cap the report count, `lock` writes — fixtures run in parallel); multi-target the hook (`net8.0;net10.0`) so it matches the host runtime; and never make the `env:` conditional when the step isn't — a `DOTNET_STARTUP_HOOKS` path that doesn't exist **aborts the process**. (Octonica/ClickHouse: four guessed repros refuted across three CI rounds; the hook named the error in one.)
+
 ## Separating CI-environment failures from change-caused ones: the empty-diff PR
 
 When a PR's CI fails and it's unclear whether the change or the environment is at fault, open a PR

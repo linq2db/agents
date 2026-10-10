@@ -426,6 +426,12 @@ cmd.exe expands `%USERPROFILE%` to the actual profile path; PowerShell does NOT 
 
 Quote any path that may contain spaces. Bit PR #5539 rounds 2 + 4 (Copilot caught it twice — the side-by-side `--tool-path` install recipe initially used `%USERPROFILE%` without naming the shell).
 
+## IBM.Data.Db2 on Windows with the UTF-8 code page needs `DB2CODEPAGE=1208`
+
+With "Use Unicode UTF-8 for worldwide language support" enabled (`ACP`/`OEMCP` = 65001 under `HKLM\SYSTEM\CurrentControlSet\Control\Nls\CodePage`), IBM's native client cannot derive its codepage and fails before any network activity. Set `DB2CODEPAGE=1208` in the environment of every process using `IBM.Data.Db2` — the test host (`DB2`, `Informix.DB2`), `linq2db.cli`, the LINQPad driver. `IBM.Data.Informix` (CN `Informix`, port 9088) is unaffected; CN `Informix.DB2` (port 9189) is not — don't conflate them.
+
+Symptom: `DB2Exception: ERROR - no error information available` at `DB2ConnPool.Open`, no `SqlState`, nothing in either `db2diag.log`. Isolate IBM from linq2db with `clidriver\bin\db2cli.exe validate -connstring "…" -connect` — `Failed to alloc env handle` without the variable, `[SUCCESS]` with it. Driver version, `clidriver` placement and the server image are **not** the cause. With connections working, `A codepage conversion problem occurred creating this message` hides the real server error — treat it as unknown and get the real message from CI (Linux).
+
 ## Iterative-build gotchas
 
 Failure modes that surface when running `dotnet build` (or `/test`, or `/release-verify`) in a session:
@@ -437,6 +443,14 @@ Failure modes that surface when running `dotnet build` (or `/test`, or `/release
 **Never stop, kill or recycle the build server.** The MSBuild node pool and VBCSCompiler are machine-global — `dotnet build-server shutdown`, or `Stop-Process` / `taskkill` on MSBuild, VBCSCompiler, `csc` or `dotnet` in bulk, kills the servers that *other* sessions', worktrees' and the user's own builds are using, and you cannot see those builds, so you can never establish that it is safe. Recover with the ladder instead: (1) retry — the pool usually recovers on its own; (2) `-p:UseSharedCompilation=false` for that invocation (but see *A build killed for memory* below — there it is `=true`); (3) `-m:2`, then `-m:1`; (4) never start a second `dotnet build` while one is still running, the usual cause. If the ladder is exhausted, stop and report what is blocked. **A `Get-Process` listing showing many `dotnet` PIDs is not evidence of a problem**: lingering MSBuild nodes and VBCSCompiler persist ~15 min after any build and are often other sessions' live work. **State this constraint explicitly in subagent prompts when a build is involved** — `test-runner` and friends have Bash access and have run builds.
 
 **Never infer build success from an exit code that passed through a pipe.** `dotnet build … | grep …` / `| tail` reports the **pipe's** exit status (0 from `grep`/`tail`), not dotnet's, so a real failure — including `MSB1009: project file does not exist` from a wrong path — is swallowed and reads as success. Persist the full output (`dotnet build … > <path>`, then `Read` / `Grep` the file), or grep for **both** `Build succeeded` *and* the absence of `: error` / `MSB[0-9]`. Verify the project path resolves before trusting anything: a `dotnet build ".../Tests.Linq.csproj" | tail` returned exit 0 and was reported as "compiles clean" when the real path is `Tests/Linq/Tests.csproj` and the build had failed `MSB1009`.
+
+**A `Build succeeded` can still leave a stale assembly — four routes, four different tells.** The run then measures the *previous* code, which reads as "the fix doesn't work" or "my new test resolves nothing" (`Zero tests ran`, exit 8).
+- *Source edited while a build is in flight:* the build writes the DLL after the edit lands, so the source is now older than its output and every later build skips the project. Tell: source `LastWriteTime` earlier than the DLL's. Fix: touch the source (`(Get-Item $f).LastWriteTime = Get-Date`) and rebuild.
+- *Build killed (host memory):* the project is skipped even though its source is newer — the timestamp tell reads clean. Tell: the next build log never mentions the project. Fix: `dotnet build <project> --no-incremental`, then rebuild its dependents.
+- *Build failed, run chained with `;`:* `;` doesn't gate, so the run executes the last good binary. Tell: a wide filter reports `total: 1` (just `CreateData.CreateDatabase`). Fix: echo the build verdict into the same output before the run.
+- *Success in implausibly little time:* a one-file change to `Tests/Linq` costs tens of seconds; a 5-second "success" compiled nothing. Re-run on a build you watched take a plausible time, with the original filter.
+
+**Settle it directly when the edit adds a named member:** `[bool](Select-String -Path <dll> -Pattern <NewMemberName> -SimpleMatch -Quiet)` — metadata keeps member names as plain strings. A killed build during an A/B probe invalidates every arm measured after it: re-run the arms. (#5750, #5704, #5942, #5959)
 
 **The lock holder is a testhost, not the build server.** When the `Access denied` / `MSB3021` copy failure names `The file is locked by: "linq2db.Tests (<pid>)"`, the holder is an orphaned MTP testhost left over from a cancelled `dotnet test` run, not the build server. Confirm with `Get-Process -Id <pid>`, then `Stop-Process -Id <pid> -Force`, then re-run. The error message names the holding process and PID — that's the discriminator from the build-server case above.
 
