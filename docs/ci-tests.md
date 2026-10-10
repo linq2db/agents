@@ -19,7 +19,7 @@ The canonical `test-<name>` pipeline names are also enumerated in [`Build/Azure/
 
 **Every one of these needs a PR to hang the trigger on — a bare branch push runs nothing.** `testing.yml` and `build.yml` are `trigger: none` with `pr: branches: include: ['*']`, and `default.yml` triggers only on `master` / `release`. So pushing a branch — a throwaway instrumentation probe, a bisect candidate, an experiment — produces no build at all, and `/azp run` is a *PR comment*, so there is nowhere to post it. Open a draft PR for the branch (confirm title/body per `AGENTS.md` → *Pull requests*), trigger the narrowest pipeline that covers the question, and close the PR plus its CI-created `linq2db.baselines` tracking PR when done. Reach for a single-provider pipeline here rather than `test-all`: it is the difference between one leg and the whole matrix. (Surfaced on #5737, where a `VisitConditional` probe had to run on the Linux SQLite leg — `test-sqlite` took ~35 minutes against `test-all`'s hour-plus.)
 
-**Reading a job log through `gh api` needs `--allow-escape-sequences`.** The Azure log endpoints return terminal colour codes, and without the flag `gh` refuses the whole response with *"the response contains terminal escape sequences"* — an empty output file and an exit 1 that reads like an auth or URL error. `gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/builds/<id>/logs/<logId>?api-version=7.0" --allow-escape-sequences`, then `Grep` the file.
+**Reading a job log through `gh api` needs `--allow-escape-sequences`.** The Azure log endpoints return terminal colour codes, and without the flag `gh` refuses the whole response with *"the response contains terminal escape sequences"* — an empty output file and an exit 1 that reads like an auth or URL error. `gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/builds/<id>/logs/<logId>?api-version=7.0" --allow-escape-sequences`, then `Grep` the file. The same flag applies on GitHub, where it also gets you a finished job's log while the rest of the run is still going — `gh api repos/linq2db/linq2db/actions/jobs/<id>/logs --allow-escape-sequences` — whereas `gh run view --job <id> --log` refuses until the whole run completes.
 
 **`testing.yml` lists *intended* pipeline names; it does not prove a pipeline is *registered*.** A `Build.DefinitionName` arm in that file only says "if a definition with this name runs me, do X" — the Azure DevOps definition itself is created out-of-repo. To check which definitions actually exist, read the **public** REST API (no write access, no `/azp list` PR comment, no round-trip through a maintainer):
 
@@ -398,7 +398,13 @@ with the issue that lets it be lifted — otherwise the stopgap silently becomes
 runner, not the image.** The container never starts, so the leg runs no tests: its log is a few dozen KB
 and reads `No such container: <name>` after the pull. Re-run once the run has completed:
 `gh run rerun <run-id> --failed --repo linq2db/linq2db`. (#6008: two GitHub legs, SQL Server and
-PostgreSQL, in one round.)
+PostgreSQL, in one round.) On Azure the test legs log in first: a `Docker@2` `login` step against the
+**`dockerhub` service connection**, before the global setup script in both `test-workflow-*.yml` (once
+used for the then-private SAP HANA images, dropped in #4709, restored in #6011). It is
+`continueOnError`, so a broken or expired connection degrades to anonymous pulls silently — when the
+throttle hits Azure, read that step's log before re-running. Before adding CI credentials of any kind,
+`git log --all -S "<task or secret name>" -- Build/ .github/`: the connection or secret often already
+exists from a removed use.
 
 ## A build failure with no code cause — check restore before the diff
 

@@ -136,6 +136,14 @@ Checked against GitHub's REST metadata rather than assumed — the three used he
 A reaction on a PR comment therefore needs `issues: write` even though the comment it reacts to was
 posted with `pull-requests: write`.
 
+## Only GitHub-owned actions are allowed
+
+The repo's Actions policy is `allowed_actions: selected` with GitHub-owned actions only — no
+patterns, verified creators off. A third-party `uses:` (e.g. `docker/login-action`) fails the whole
+workflow as `startup_failure` with zero jobs, not as a step error, so it reads like a YAML problem.
+Use the plain CLI instead (`docker login --password-stdin` in #6011), or ask the maintainer to allow
+the action. Check with `gh api repos/linq2db/linq2db/actions/permissions/selected-actions`.
+
 ## `pwsh -Command` loses a script's exit code
 
 `pwsh -NoProfile -Command "& 'x.ps1'"` collapses a non-zero exit code from the called script to **1**;
