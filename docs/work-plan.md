@@ -209,6 +209,15 @@ Append-only. One `A-n` per change to the plan after approval.
 
 **Amendment voids approval.** A user approval is a final word on the *then-current* edit set. Adding an `E-n`, or materially changing one's scope, resets that part to unapproved and needs a `P11` entry — whoever makes the change. Never silently carry an approval across a widened edit set: that converts per-change consent into a blanket one.
 
+**An amendment that replaces a `D-n` is a new plan pass, not an amendment.** When the shipped mechanism is no longer the one a `D-n` chose (a co-author's rework, a reverted approach), recording the swap in one `A-n` leaves `P4`, `P7` and `P8` describing code that is gone and the new design unattacked. In that case the plan must:
+- re-derive `P4`, `P7` and `P8` for the new mechanism;
+- re-map every `SC-n` to a test that meets its `TO-n` proof, not just its name;
+- turn every "not re-pinned" note into either a `TO-n` or a `P10` entry;
+- add an `SC-n` for every anti-goal the swap retires;
+- re-run the critic.
+
+While the header reads *approval void*, `-Action validate` should not pass. (#6003: A-3 recorded sdanyliv's expose-time rework after the fact. Six of the review's seven findings traced to blocks it never re-derived, including a compiled-query rebuild per argument value reached through an attribute reader no `P7` row listed.)
+
 **A refuted design is recorded as abandoned, not deferred.** "Deferred" asserts the design was sound and the timing was off, so the next reader picks it back up and re-derives the refutation from scratch.
 
 ### P12 Critic verdict (M/L)
