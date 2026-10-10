@@ -224,3 +224,9 @@ Ports are fixed per container and don't need verification — if the container i
 ## Keeping this doc current
 
 When a new setup script is added to `Data/Setup Scripts/` or a container name changes, update this table and the preferred-provider rank. The source of truth for provider ID strings is `Source/LinqToDB/ProviderName.cs`; the source of truth for scripts is `Data/Setup Scripts/readme.md`. This doc is the cached join of the two — regenerate by grepping the `.cmd` files for `docker run … --name` and cross-referencing.
+## Session-started containers — tracked only if the hooks are wired
+
+A `docker start` is *intended* to be captured by the `track-docker-start` PostToolUse hook into `.build/.agents/docker-session-started.txt`, with `cleanup-docker-session` stopping them at session end. Both scripts live in `.claude/hooks/`, but nothing under `.claude/` registers them, so unless the *user-level* settings wire them up they never fire. If you have run `docker start` and that state file does **not** exist, the tracking did not happen: keep your own list and stop those containers yourself at session end, restoring their prior state. Never tell the user containers are "tracked and will be stopped automatically" without having seen the file. (2026-07-30)
+
+Before any command that changes working-tree scope — `git checkout` / `switch` / `worktree add`, `gh pr checkout`, or a skill that switches branches for you — read that file and, if it lists containers this session started, stop and ask whether to stop them, naming them. Never stop them silently: a scope change doesn't mean the user is done with the providers. Containers already running at session start are out of scope.
+

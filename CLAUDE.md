@@ -6,8 +6,7 @@ All three are always-loaded, imported **by the linq2db root `CLAUDE.md` trampoli
 
 ## Claude Code specifics
 
-- The corpus is a **git submodule mounted at `.claude/`** — repo [linq2db/agents](https://github.com/linq2db/agents), branch `master`. It is a real directory, not a symlink: skills, subagents, hooks, scripts, path-scoped rules, docs, and the knowledge base all sit where Claude Code natively looks for them. Layout, settings precedence, and skill discovery: [.claude/docs/claude-setup.md](.claude/docs/claude-setup.md).
-- **Corpus edits are committed inside `.claude/` and pushed to the agents repo's `master`** — never onto a linq2db branch. The superproject's `.claude` gitlink is a bootstrap pointer, not a version pin, and `.githooks/pre-commit` refuses to commit a bump of it. Full mechanics: [.claude/docs/claude-setup.md](.claude/docs/claude-setup.md) → *The corpus is a git submodule*.
+- The corpus is a **git submodule mounted at `.claude/`** ([linq2db/agents](https://github.com/linq2db/agents), `master`); corpus edits are committed and pushed there, never onto a linq2db branch. Mechanics: the overlay → *The corpus is a submodule*; layout and settings precedence: [.claude/docs/claude-setup.md](.claude/docs/claude-setup.md).
 - The operational overlay imported alongside this file is Claude-Code-specific (shell/tool rules, permission-friendly Bash patterns, dedicated-tools-over-CLI, worktree mechanics, corpus/submodule mechanics, subagent verification, skill-based workflows). It complements — never overrides — the rules in `AGENTS.md`.
 
 # Reply structure

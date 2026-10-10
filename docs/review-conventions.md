@@ -110,6 +110,10 @@ in-tree or consumer-facing and stay reviewable. (Surfaced on #5850: the same fal
 sites swallow a failed `TryBuildSequence` appeared in a source comment and in the commit message that
 introduced it. The comment fix was accepted and pushed; the commit-message finding was rejected.)
 
+### Formatting on PR-touched lines — and untouched lines the PR made inconsistent
+
+"Don't reformat unrelated code" forbids touching lines the task doesn't modify; it does **not** suppress review findings on lines the PR itself adds or modifies. On PR-introduced lines, flag trailing whitespace, 3+ consecutive blank lines, mixed tabs/spaces that visibly misalign, or indentation not matching the enclosing scope; the fix is a one-line ```suggestion. **An inconsistency the PR *creates* on an untouched line is also in scope** — when the PR changes line A and that makes untouched line B inconsistent with it, B is reviewable, routed to a **file-level** comment since GitHub rejects a line comment outside a diff hunk. Read the rule as "don't go looking for pre-existing problems", not "never mention an unmodified line". (#5750)
+
 ### Output body structure
 
 Review body sections, in order. Omit any section that has no items.
