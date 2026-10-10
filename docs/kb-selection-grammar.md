@@ -17,6 +17,7 @@ The user types a selection string after the skill prints a numbered result list.
 - `all` — every item in the current result list (not the full KB; the filter from a prior step is implicit).
 - `all <facet>:<value>` — filter the current result list by one facet.
 - `all <facet>:<value> <facet>:<value>` — multi-facet filter (AND).
+- `all <facet>:<value>,<value>` — comma-separated values within one facet are OR'd (`severity:high,med`).
 
 Recognized facets:
 
