@@ -68,10 +68,10 @@ Action:
    The message says nothing about submodules being *dirty* — it fires on a pristine tree too, so don't go hunting for uncommitted changes. Still check `git -C <prep-worktree-path> status --short` first (and `git -C <prep-worktree-path>/.claude status`) so `--force` isn't masking real work; confirm the removal with `git worktree list`.
 2. (Optional) Clean the main checkout's build artifacts to reclaim space — Release pack of all family scaffold packages typically leaves 1 GB+ in `.build/bin` + `.build/obj`:
    ```
-   dotnet build-server shutdown    # release file locks first
    Remove-Item -Recurse -Force <main-checkout>/.build/bin
    Remove-Item -Recurse -Force <main-checkout>/.build/obj
    ```
+   If a file is locked, retry once the build that held it has finished — never stop the build server to free it (machine-global, shared with other sessions).
 3. Leave `<main-checkout>/.build/.agents/` intact — it holds the release state file, the cli-scaffold-run logs, and any scratch the orchestrator needs to resume.
 
 Update phase status to mark this complete before step 1 starts. Worktree-still-present is the common signal that cleanup was skipped; surface a "prep worktree at <path> wasn't removed — remove now? [y/N]" prompt before opening the release PR.
