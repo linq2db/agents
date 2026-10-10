@@ -96,6 +96,8 @@ Second, structural: `FormattableString` handling is spread across 5 files (shape
 - E-9 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — helper's public members.
 - E-10 `Tests/Linq/Linq/FromSqlTests.cs` — the four tests from `2bcb6bc29` (adjusted per P8) + Sql.Expr case.
 - E-11 `Tests/Linq/Common/FormattableStringHelperTests.cs` — new DB-free unit tests.
+- E-12 `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:HandleStringFormat` — decline `string.Format` translation when a format item has an alignment (A-2).
+- E-13 `Tests/Linq/Linq/SelectScalarTests.cs` — `FunctionWithAlignment` (A-2).
 
 ## P7 Impact map (M/L)
 
@@ -124,28 +126,43 @@ Second, structural: `FormattableString` handling is spread across 5 files (shape
 - TO-9 `ConvertFormatToConcatenation`: `"a{0}b{{c}}"` → concat(`'a'`, p0, `'b{c}'`); `"{0,5}"` → p0 (old: literal `'{0,5}'`); `"a{{b}}"` (no items) → `SqlValue('a{b}')` (old: `'a{{b}}'`). — proof: red→green for `{0,5}` and the zero-item case, characterization for the rest.
 - TO-10 helper expression/value unit tests: `TrySplit` accepts `CreateExpression("x", NewArrayInit)` and rejects a non-NewArrayInit second arg / other method; `Equals`/`GetHashCode` equal for same format+args, differ on format or args; `CreateExpression(FormattableString)` round-trips through `Expression.Lambda(...).Compile()` to an equal FormattableString. `PrepareRawSqlArguments` DB-free: `Create("{0}", 1, 99)` → argument 1 is `Constant(null, object)`; same with `99` replaced by a `DataParameter`, a `DataParameter` **subclass** typed as itself, and an `object`-typed element → kept; `keepUnreferenced: true` → kept; invalid format `"{a}"` → all kept. — proof: characterization (new code); the subclass case is red under a one-direction type test (critic round 1 mutation).
 - TO-11 regression: existing `FromSqlTests`, `SqlExtensionsTests`, string.Format / `StringConcatTests` on SQLite + SqlServer locally; full matrix + baselines on CI (zero modified baselines). — proof: characterization.
+- TO-12 (A-2) `SelectScalarTests.FunctionWithAlignment`: `string.Format("{0,5}|{1}", …)` in a projection returns `"    1|John"` (client-side); in a predicate throws `LinqToDBException`. Discriminating input: the alignment. — proof: red→green.
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-03: — (pending)
-- G-04: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: pass (local; full matrix on CI) — worktree `linq2db.Tests.exe` net10.0 Debug, final run after rebase onto #6003 `44bd08896` and A-2/A-3: SQLite.MS + SQLite.Classic + PostgreSQL.18 + MySql.8.0 + MySqlConnector.8.0 + Access.Ace.OleDb, `FormattableStringHelperTests|FromSqlTests|SqlExtensionsTests|SelectScalarTests`: 800 total, 792 passed, 8 failed — all 8 are #6003's own committed-red tests (`*_Compiled_*_BuildsOnce` ×3 from `c0c3fd295`, `Expr_Captured_AfterRowReference` from `add7163fb`, "Red on this branch") on the two SQLite providers. Sybase, Oracle, DB2, Firebird, ClickHouse, YDB, SQL Server, Informix, SAP HANA unverified locally.
+  - TO-1 `UnreferencedArgumentIsNotSent` — red on #6003 base (SQLite.MS direct + remote), green on all 6.
+  - TO-2 `UnreferencedExprArgumentIsNotSent` — red under mutation (`Sql.ExprBuilder` forced `keepUnreferenced: true`: 2 failed / 13 passed), green on all 6.
+  - TO-3 `ArgumentReferencedByNameIsSent` — red under mutation (filter's DataParameter clauses removed), green on SQLite ×2, PostgreSQL.18, MySQL ×2.
+  - TO-4 `ArgumentReferencedByAlternateNameIsSent` — green on PostgreSQL.18 (`@p`), MySql.8.0 / MySqlConnector.8.0 (`?p`); U-6 settled.
+  - TO-5 `ArgumentReferencedByPositionIsSent` — red under mutation (order-dependent flag ignored: Access ×4) and with A-3's rule disabled (plain `?` on SQLite.Classic / MySQL ×2, direct + remote); green on Access.Ace.OleDb / Odbc, SQLite.Classic, MySQL ×2.
+  - TO-6 grep gate — `FormattableStringFactory_Create` only in `Methods.cs` and `FormattableStringHelper.cs`; `ParamsRegex` gone (code-reviewer pass).
+  - TO-7 `FormattableStringHelperTests.ParseFormatItems*`, `GetReferencedArguments` — green.
+  - TO-8 `FormattableStringHelperTests.TransformExpressionIndexes` — red ×3 against the regex implementation, green.
+  - TO-9 `FormattableStringHelperTests.ConvertFormatToConcatenation_*` — red ×2 (`_Alignment`, `_NoItems`) against the regex implementation, green.
+  - TO-10 `FormattableStringHelperTests.TrySplit|CreateExpression_RoundTrip|AreEqual_ComputeHashCode|PrepareRawSqlArguments_*` — green; `_UnreferencedIsKept` red under the DataParameter mutation, `_NoFormatItems` red with A-3's rule disabled.
+  - TO-11 regression — SQLite.MS `StringFunctionTests|SelectScalarTests|StringConcatTests|ExpressionTests` 616 passed / 2 skipped (`IndexOf3`, pre-existing) before A-2/A-3; final 6-provider run above.
+  - TO-12 `SelectScalarTests.FunctionWithAlignment` — red without the refusal (`"1|John"`), green on SQLite ×2.
+- G-02: blocked — baselines come from CI's test-all on the pushed branch; expected delta = new tests only.
+- G-03: pass — `PublicAPI.Unshipped.txt` lists the helper's 20 public members; XML docs on all.
+- G-04: n/a — no shipped member changed (`TableBuilder` is internal; `DataExtensions` helpers were internal).
+- G-05: pass — after A-2/A-3: `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0|net462|net10.0` exit 0 (MA0008 fixed with `[StructLayout(LayoutKind.Auto)]`); `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` exit 0.
+- G-06: pass — `work-plan.ps1 -Action reconcile -Base origin/issue/6000-fix-nested-fromsql-cache`: no unplanned files.
+- G-07: pass — `Tests/Tests.Playground/TestTemplate.cs` probe restored (`git restore`); no Playground changes.
+- G-08: pass — cross-cutting `QueryHelper` change surfaced in D-4 and pinned by DB-free TO-8/TO-9.
+- G-09: pass — `code-reviewer` single pass over the uncommitted diff: MIN001 (TO-2 `{0}` shortcut) fixed + A-1 corrected; MIN002 (alignment) fixed as A-2; OOS base-moved → rebased; OOS release note → probed, A-3.
 
 ## P10 Adjudicated (M/L)
 
-- A plain value referenced only by a provider's positional marker on a **non**-order-dependent provider (e.g. MySQL `?` with no `{n}`) is dropped. Reason: indistinguishable from an unreferenced value without parsing provider SQL; workaround `{0}` or `DataParameter`. Same as the old #6008 design.
+- A plain value referenced only by a provider's positional marker on a **non**-order-dependent provider is dropped **when the format also has `{n}` items** (e.g. `"… {0} … ?"` on MySQL). Reason: indistinguishable from an unreferenced value without parsing provider SQL; a format with no items keeps all arguments (A-3). Workaround `{n}` or `DataParameter`; noted as a behaviour change in the PR body.
 - An `object`-typed argument expression is kept even when it holds a plain value (D-1). Reason: it may hold a `DataParameter`; keeping is today's behaviour.
 - Order-dependent providers (Access, SAP HANA, Informix IFX) keep unreferenced arguments (D-3, SC-1 carve-out). Reason: raw SQL there may bind any value with `?`; ASE, the provider that rejects extra parameters, is not order-dependent. Same as the old #6008 design.
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-10, measured; **corrected** after the G-09 read): TO-2 (`UnreferencedExprArgumentIsNotSent`) passed on the #6003 base because its format was exactly `"{0}"`, which `BasicSqlBuilder.cs:3461` renders as `Parameters[0]` without `BuildFormatValues` — the unreferenced argument is never built. (The first version of this entry blamed `BasicSqlOptimizer.NormalizeExpressions`; wrong — `BasicSqlOptimizer.cs:815-818` keeps the original expression, all parameters included, when indexes do not move.) TO-2's format changed to `"({0})"`; proof stays **red→green**, shown by mutation (`Sql.ExprBuilder` forced `keepUnreferenced: true`): SQLite.MS 2 failed (TO-2 direct + remote) / 13 passed. No `E-n` change. Red run on SQLite.MS: 7 failed / 8 passed, exactly TO-1 (direct + remote), TO-8 ×3, TO-9 ×2.
+- A-2 (2026-10-10, G-09 read MIN002, user chose "decline on alignment"): with the lexer, `ConvertFormatToConcatenation` recognises `{0,5}` and would silently drop the padding (old regex emitted literal `{0,5}` text). `FormatItem` gains `HasAlignment`; `ExpressionBuildVisitor.HandleStringFormat` — the only live caller (`StringMemberTranslatorBase.TranslateStringFormat` has no caller: Grep `TranslateStringFormat` over `Source/LinqToDB`) — declines translation when any item has an alignment: a projection evaluates client-side (correct padding), a predicate fails to translate. Format specifiers (`{0:D2}`) stay ignored as before this branch — pre-existing, not widened here. New E-12, E-13; TO-12 `FunctionWithAlignment` (SQLite + remote: projection `"    1|John"`, predicate throws `LinqToDBException`), proof red→green; plus `ParseFormatItems_HasAlignment` unit cases. Voids approval of E-12/E-13 only — approved by the user's "A" on MIN002.
+- A-3 (2026-10-10, measured; user chose "keep all when the format has no items"): the first P10 entry's premise ("indistinguishable from an unreferenced value") was probed instead of accepted. Playground probe, `FromSql("… = <marker>", new DataParameter("p", 2))` — the named command parameter a 6.5 plain value became: `?` **binds** on SQLite.Classic (also `?1`), MySql.8.0 and MySqlConnector.8.0; fails on SQLite.MS and PostgreSQL.18 (`$1` fails on all). So `FromSql("… = ?", 2)` worked on 6.5 on MySQL / System.Data.SQLite and the filter as approved broke it. Rule narrowed: `ReplaceUnreferencedArguments` keeps every argument when the format has **no** format items (it binds by name or position); the ASE case (`{0}` plus an extra argument) is still filtered. P10 entry 1 now covers only a format mixing `{n}` with a positional marker for a plain value. TO-5 widened to SQLite.Classic + MySQL (plain value and DataParameter); unit `PrepareRawSqlArguments_NoFormatItems`. Edits stay inside E-1 / E-10 / E-11.
 
 ## P12 Critic verdict (M/L)
 
