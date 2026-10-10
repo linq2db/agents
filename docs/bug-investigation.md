@@ -481,6 +481,20 @@ When a provider read or write fails only under a particular database/connection 
 
 When a write/round-trip fails at the driver ("Malformed string", "string truncation", a bind error), pin *which* stage fails before theorising a fix. Read the emitted `CREATE TABLE` to confirm the **column type** is what you assumed (a `DataType.Binary(16)` may render as `BINARY(16)` or `CHAR(16) OCTETS` depending on the version builder), then capture the **exact failing SQL statement** (INSERT VALUES vs UPDATE SET vs WHERE compare vs the read) from the trace — don't accept a subagent's summary of "which test/SQL failed" (test-runner can mis-attribute — see [`../agents/test-runner.md`](../agents/test-runner.md) → *Output format* rules). Getting this wrong sends you optimising the read path when the write is at fault, or the parameter binding when the column DDL is. A useful discriminator: an all-zero value that succeeds while a non-zero one fails points at charset validation of the *bytes*, not the SQL shape.
 
+## Raw SQL parameter markers — which drivers bind which marker to a named parameter
+
+linq2db names every command parameter (`@p` on most providers), so raw SQL that refers to a parameter by any other marker relies on the driver mapping it. Measured on #6008 (`FromSql("… = <marker>", new DataParameter("p", 2))`, net10.0):
+
+| Provider | `?` | `?1` | `$1` | `@p` | `:p` | `$p` |
+|---|---|---|---|---|---|---|
+| SQLite.Classic | bound | bound | fail | bound | bound | bound |
+| SQLite.MS | fail | fail | fail | bound | bound | bound |
+| PostgreSQL.18 | fail | fail | fail | bound | bound | fail |
+| MySql.8.0 | bound | fail | fail | bound | fail | fail |
+| MySqlConnector.8.0 | bound | fail | fail | bound | fail | fail |
+
+So a plain value passed to `FromSql("… = ?", 2)` reaches the query on MySQL and System.Data.SQLite — a change that stops sending "unreferenced" arguments breaks it there. Access, SAP HANA and Informix IFX bind by position (`IsParameterOrderDependent`) and are not in the table.
+
 ## Raw parameter types (byte[]/string) can dodge provider type-mapping bugs — try, but verify
 
 When a typed/native parameter binding trips a provider bug, binding the raw underlying type (`byte[]`, `string`, the canonical text form) sometimes sidesteps the driver's type mapping and is worth trying. But it is **not** guaranteed and can trade one failure for another: on Firebird 6 neither raw `byte[]`, native `FbDbType.Guid`, an OCTETS parameter charset, nor explicit-OCTETS DDL/CAST got a binary-Guid parameter past the client — all failed identically, proving the issue was below linq2db (FbClient/server), not a binding-shape choice. Try the raw type early, but once several distinct binding shapes fail identically at the same driver frame, stop and conclude it's below the ORM rather than continuing to permute bindings (record it as a dead-end in [`dead-ends.md`](dead-ends.md), as this one is).
