@@ -66,6 +66,7 @@ Common fields across both modes, supplied by either skill:
   - Baselines clone path: `../linq2db.baselines`.
   - Baselines branch: `baselines/pr_<n>`.
   - Change summary.
+  - The absolute diff-cache path (`<writeDir>`, holding PR-HEAD bodies of every changed file) and the instruction to read test sources there — or with `git grep <pattern> origin/pr/<n> -- <path>` for an unchanged test — never from the working tree. The agent's anomaly rules depend on a test's `[IncludeDataSources]` / `[ThrowsForProvider]` list and its assertions; without the path it looks in the primary clone, misses, and reports the anomaly unverified. (#5983: two of four anomalies were false — a Sybase default the test asserts as intended, and a provider spread explained by a SQLite+ClickHouse-only data source — and the agent said it could not find the test file.)
 
 Mode-specific additions — `scope` for `initial`, `prior_findings` for `verify` — are the only per-skill differences. Each skill adds its own `mode: initial` or `mode: verify` field.
 

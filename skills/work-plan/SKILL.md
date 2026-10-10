@@ -234,6 +234,8 @@ After a review has produced a gap ledger (`/review-pr` step 7c writes `.claude/p
 
 Run all three (`-Validate`, `-Gates`, `-Reconcile`) and report — with `-Validate -Done` once implementation is complete, since that is the exit check the definition of done runs before the diff review. `-Reconcile` exits non-zero when a changed file has no `E-n`; that is a prompt to amend `P6`, not to widen the match until it passes.
 
+**Run it again after addressing a review, and before every push once the plan is approved.** Review-response commits are where the branch drifts from its plan unnoticed: they are small, they feel like follow-through rather than design, and nobody re-opens the plan for them. A doc-only edit to a public member's documented contract — an option's XML summary — is an edit-point like any other, and its `P11` entry is checked against `P10`, which usually already lists the exceptions the new prose must not promise away. (#5983: four commits after the plan's last update, among them a `LinqOptions` doc rewrite, went in unreconciled; two review findings were that doc contradicting the branch's own adjudicated limits.)
+
 ## Don'ts
 
 - **Do not write product code.** The skill's scope ends at an approved plan.

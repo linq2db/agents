@@ -218,6 +218,8 @@ Append-only. One `A-n` per change to the plan after approval.
 
 While the header reads *approval void*, `-Action validate` should not pass. (#6003: A-3 recorded sdanyliv's expose-time rework after the fact. Six of the review's seven findings traced to blocks it never re-derived, including a compiled-query rebuild per argument value reached through an attribute reader no `P7` row listed.)
 
+**An amendment that only narrows or widens a rule still re-derives what rests on it.** The rule above covers a replaced decision; the commoner case is an `A-n` that changes a predicate inside one — a clamp table gains rows, a node replaces a pseudo-function, a nullability rule gains a case. Each `A-n` carries a `re-derives:` line naming every `SC-n`, `U-n`, `TO-n` and gate scope whose premise it changes, and those rows are rewritten in the same amendment; a waived critic does not waive the list. Two shapes to check every time: a `TO-n` whose cells were drawn from the *old* table (it can no longer go red for the new rows), and a baseline gate scoped to providers that cannot render the SQL the amendment changes — widen it to one that can. (#5983: five of seven review findings traced to A-11/A-15/A-17/A-19 — test cells following the clamp table rather than the lowering predicate, a converter coordinate never re-read for new arms, an assertion left vacuous by the node swap, and a SQLite-only baseline gate after a rule that only moves SQL Server's OUTER APPLY.)
+
 **A refuted design is recorded as abandoned, not deferred.** "Deferred" asserts the design was sound and the timing was off, so the next reader picks it back up and re-derives the refutation from scratch.
 
 ### P12 Critic verdict (M/L)

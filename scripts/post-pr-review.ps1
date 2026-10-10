@@ -185,8 +185,11 @@ if ($comments.Count -gt 0) {
     }
 
     $rangesByPath = @{}
+    $noPatch      = @{}
     foreach ($f in $prFiles) {
         $ranges = @()
+        # GitHub omits `patch` for a file whose diff is too large; such a file takes no line comment.
+        if (-not $f.patch -and $f.changes -gt 0) { $noPatch[[string]$f.filename] = $true }
         if ($f.patch) {
             foreach ($mm in [regex]::Matches([string]$f.patch, '@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@')) {
                 $from = [int]$mm.Groups[1].Value
@@ -204,6 +207,10 @@ if ($comments.Count -gt 0) {
         $c = $comments[$i]
         if (-not $rangesByPath.ContainsKey($c.path)) {
             $anchorErrors += "lineComments[$i] ($($c.path):$($c.line)): path is not in the PR diff — route this finding to fileComments[] or the review body"
+            continue
+        }
+        if ($noPatch.ContainsKey($c.path)) {
+            $anchorErrors += "lineComments[$i] ($($c.path):$($c.line)): GitHub omitted this file's patch (diff too large), so it takes no line comment — route this finding to fileComments[] and cite the line in its body"
             continue
         }
         $ranges = $rangesByPath[$c.path]
