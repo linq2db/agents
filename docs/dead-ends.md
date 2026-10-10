@@ -12,6 +12,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** any linq2db-level parameter / DDL / charset permutation. What works is sending no binary parameter at all: rebind the Guid as its canonical `VARCHAR(36)` text and wrap it in `CHAR_TO_UUID(@p)` server-side (#5485). Keep that wrap octets-only — a Guid mapped to a text column must stay untouched. (#5483)
 
+## REMOTE: "Signal/R's default JSON protocol escapes non-ASCII as `\uXXXX`"
+
+**Tried:** a review finding that the Signal/R client's request-size check over-rejects because it measures with a default `JsonHubProtocol`, assumed to write every non-ASCII character as a 6-byte escape, while a client with a relaxed encoder writes UTF-8. Probed with a `LinqToDBSignalRConnection` configured via `AddJsonProtocol(o => o.PayloadSerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping)` sending 10 000 Cyrillic characters under a 32 KB limit.
+
+**Failed because:** the request was sent with or without the relaxed encoder — the default `JsonHubProtocol` frame is UTF-8-sized for such text. The PR's own `NonAsciiRequestUnderTheLimitIsSent` (6000 × `é` under 32 KB) shows the same.
+
+**Don't re-attempt:** an over-rejection finding built on default-encoder escaping. The JSON-vs-MessagePack gap that remains is only `"`, `\` and control characters (2–6 bytes in JSON, 1 in MessagePack) — a narrow window, unprobed because the test projects reference no MessagePack protocol. (#6014)
+
 ## BUILD: regenerating `CompatibilitySuppressions.xml` for a field→property change
 
 **Tried:** turning a **shipped** public static field into a property of the same name and type (`Configuration.OptimizeForSequentialAccess`), then regenerating suppressions with `dotnet pack -p:ApiCompatGenerateSuppressionFile=true`, expecting a new suppression for the removed field.

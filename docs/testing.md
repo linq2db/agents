@@ -855,6 +855,8 @@ Open `UserDataProviders.json`, find the `MyConnectionStrings` section, and add:
 
 Path is arbitrary but the sibling-clone convention — `../linq2db.baselines` — matches the upstream baselines repo's layout and keeps the diff against CI clean.
 
+**The directory must already exist.** `TestConfiguration` keeps `BaselinesPath` only when `Directory.Exists` — a missing directory disables baselines silently, with nothing in the run output saying so. Create it before the run when pointing at a scratch path (e.g. a worktree's `.build/.agents/bls`). (#6014: a probe run wrote no baselines until the directory was created.)
+
 ### Getting a "before" snapshot for diffing
 
 Baselines regenerate in place during the test run. To see "before vs after" you need a snapshot of the prior state. Two options:
