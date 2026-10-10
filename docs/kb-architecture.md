@@ -80,8 +80,8 @@ Every file with `coverage_tier_*` in frontmatter ends with a collapsible coverag
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 12 / 12 ✓
-  - Source/LinqToDB/SqlQuery/SqlAst.cs
-  - Source/LinqToDB/SqlProvider/ISqlBuilder.cs
+  - Source/LinqToDB/Internal/SqlQuery/SelectQuery.cs
+  - Source/LinqToDB/Internal/SqlProvider/ISqlBuilder.cs
   - ...
 - Tier 2 (visited / total): 87 / 92 (94.6%) ✓
   - skipped: BasicSqlBuilder.OldOverload (deprecated near-duplicate)

@@ -42,7 +42,7 @@ coverage_tier_2: 23/25
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 8 / 8 ✓
-  - Source/LinqToDB/SqlProvider/BasicSqlBuilder.cs
+  - Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.cs
   - ...
 - Tier 2 (visited / total): 23 / 25 (92%) ✓
   - skipped: BasicSqlBuilder.OldOverload (deprecated)

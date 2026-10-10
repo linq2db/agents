@@ -27,6 +27,12 @@ PR synced before an earlier merge lands has to be synced twice. Sequential is al
 conflicts one at a time instead of as a pile. Budget roughly 15–25 min per PR: the gate is ~7–15 min, and
 any PR that conflicts adds a worktree round.
 
+## When to run
+
+User-triggered only: "merge milestone", "/merge-milestone", "merge all PRs in <ver>", or clearing a
+milestone before release prep (typically right after `/release-milestone-check` lists open PRs). Never as
+a side effect of another task — a milestone merge needs the user's up-front authorization of the PR set.
+
 ## Required reading
 
 - [`.claude/docs/github-actions.md`](../../docs/github-actions.md) → *`build.yml` is a superset of

@@ -52,6 +52,7 @@ A multi-agent fan-out (a `Workflow`, parallel reviewers, an `Explore` swarm) ear
 
 - **A single well-briefed agent is the default, not a team.** On routine work one agent with good context usually beats a fan-out on both accuracy and cost; the multi-agent advantage only grows with genuine task difficulty *and* the presence of an objective check. Don't reach for `Workflow` / parallel agents because a task *feels* big — reach for it when the work decomposes into independently-verifiable pieces.
 - **Route by verifiability, not by predicted complexity.** Which decomposition wins is an empirical fact about the work, not something readable off the task's phrasing — picking a fan-out shape from the description alone underperforms. Let the presence of a concrete check decide, not a guess at how hard the task is.
+- **An adversarial critic that must cite checkable objections is the case this rule permits, not one it forbids.** `plan-critic` is briefed to break a plan with grep-able impact-map gaps and red-able test obligations, on a different model so it can disagree — its objections are objective checks. A critic asked only "is this right?" is the noise case.
 
 Pairs with *Distinct lenses for parallel reviewers* and *Cross-model verification …* below (both presuppose a fan-out already justified) and with the `Workflow` verify-gate / *Frame subagent prompts to allow failure* discipline in [`agent-rules.md`](agent-rules.md).
 

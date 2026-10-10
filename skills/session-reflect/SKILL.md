@@ -194,7 +194,7 @@ Default mode: per-finding confirmation. For each strong finding, prompt:
 - `batch-strong` — apply all remaining **strong** findings without further prompt. Medium and ambiguous-routing findings still pause.
 - `abort` — stop the loop; already-applied edits remain.
 
-For findings where `routingConfirmationNeeded: true`, ask the routing question first ("this looks personal — memory, or `.claude/agent-rules.md`?") before showing the patch.
+For findings where `routingConfirmationNeeded: true`, ask the routing question first ("this looks personal — memory, or `.claude/docs/agent-rules.md`?") before showing the patch.
 
 For `permission` bucket findings, triage each prompt per **Diagnosing permission prompts** above. Categories 1–3 (wrong-tool / pipe / ad-hoc sequence) produce individual patches — treat them like any other finding in the per-finding flow. Category 4 (genuinely novel one-off) aggregates into a single recommendation at the end:
 

@@ -66,4 +66,4 @@ Neither the primary clone nor the sibling clone's `UserDataProviders.json` will 
 ## After the merge / GA
 
 - Update [`test-databases.md`](test-databases.md)'s provider table with the new version row.
-- For a beta image (PG19 shipped as `postgres:19beta1`), bump the tag to GA across `pgsql<nn>.cmd`, `Build/Azure/scripts/pgsql<nn>.sh`, and `mac.pgsql<nn>.sh` once the stable image ships.
+- For a beta image (PG19 shipped as `postgres:19beta1`), move to the GA tag once the stable image ships: in `Data/Setup Scripts/pgsql<nn>.cmd`, and by dropping the per-version `image=` override in `Build/Azure/scripts/pgsql2.sh` (CI starts every version from `pgsql1.sh` / `pgsql2.sh`).

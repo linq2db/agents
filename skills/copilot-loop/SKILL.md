@@ -1,6 +1,6 @@
 ---
 name: copilot-loop
-description: Iterative absorb loop for inbound Copilot (and other LLM-bot) review threads on a linq2db PR the user authored. Per round: verify each open thread against current HEAD, propose fixes for still-actual ones, batch commit + push, re-request Copilot, post batched reply+resolve via post-pr-thread-replies.ps1, then auto-wait for the next bot review and loop. Each fix round is explicitly user-confirmed; no GitHub writes without per-round approval.
+description: Iterative absorb loop for inbound Copilot (and other LLM-bot) review threads on a linq2db PR the user authored. Per round — verify each open thread against current HEAD, propose fixes for still-actual ones, batch commit + push, re-request Copilot, post batched reply+resolve via post-pr-thread-replies.ps1, then auto-wait for the next bot review and loop. Each fix round is explicitly user-confirmed; no GitHub writes without per-round approval.
 ---
 
 # copilot-loop

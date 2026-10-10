@@ -34,7 +34,7 @@ Solution files: `linq2db.slnx` (full), `linq2db.playground.slnf` (individual tes
 Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude/docs/testing.md). Read it before writing, modifying, or running tests. Use **Shouldly** for assertions, not NUnit `Assert`.
 
 > **Claude Code:** invoke the `/test` skill — it injects the `CreateDatabase` filter, selects the right project, and runs the baselines diff. Don't hand-run `dotnet test` or pre-build first.
-> **Codex / Copilot:** `dotnet test linq2db.slnx -c Testing --filter <name>`. Provider-backed tests resolve data sources from `UserDataProviders.json`.
+> **Codex / Copilot:** `dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<name>" --provider <provider> --test-progress` — `-c Testing` on the solution fails with `NU1201`, and without `--provider` provider-backed tests resolve zero data sources. Connection strings come from `UserDataProviders.json`; full recipe in [testing.md](.claude/docs/testing.md).
 
 ## Architecture & codebase design
 
@@ -99,11 +99,11 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 
 ### Definition of done
 
-Before calling a change done — and before proposing to commit/push — walk [.claude/docs/definition-of-done.md](.claude/docs/definition-of-done.md): tests green, baselines reviewed, `PublicAPI.Unshipped.txt` updated for new public surface, `CompatibilitySuppressions.xml` refreshed, no playground scratch staged, XML docs on new public members.
+Before calling a change done — and before proposing to commit/push — walk [.claude/docs/definition-of-done.md](.claude/docs/definition-of-done.md): tests green, baselines reviewed, `PublicAPI.Unshipped.txt` updated for new public surface, `CompatibilitySuppressions.xml` untouched unless the PR breaks a shipped member, no playground scratch staged, XML docs on new public members.
 
 ## Git, GitHub & publishing
 
-- **Never publish without an explicit user request in the current turn.** This covers `git commit`, `git push`, `git tag`, `gh pr create`, posting comments, and requesting reviews — each action needs its own go-ahead. Finishing edits / passing tests / a clean tree are **not** requests. The line these gates draw is **reversible vs. irreversible/outward-facing**: local, in-tree, easily-undone work (edits, staging, local test runs) proceeds freely; anything that publishes, spends, or is hard to walk back (the actions above, plus external API calls and posting to third-party services) needs its own go-ahead. When unsure which side an action falls on, treat it as irreversible and ask.
+- **Never publish without an explicit user request in the current turn.** This covers `git commit`, `git push`, `git tag`, `gh pr create`, posting comments, and requesting reviews — each action needs its own go-ahead (re-requesting the Copilot bot after a push you were authorized to make is part of that push, not a separate review request). Finishing edits / passing tests / a clean tree are **not** requests. The line these gates draw is **reversible vs. irreversible/outward-facing**: local, in-tree, easily-undone work (edits, staging, local test runs) proceeds freely; anything that publishes, spends, or is hard to walk back (the actions above, plus external API calls and posting to third-party services) needs its own go-ahead. When unsure which side an action falls on, treat it as irreversible and ask.
 - **"Done" means "ready for your review", not "published."** Park finished work in an awaiting-acceptance state and say so.
 - **Never commit playground scratch.** Under `Tests/Tests.Playground/`, only structural `.csproj` updates and `TestTemplate.cs` are PR-acceptable; no new source files, no new `<Compile Include>` test-fixture references. Audit and exclude before staging.
 - **Large-scale deletions are a red flag.** Before committing/pushing a diff with heavy net deletions (>100 files removed, or removed:added > 5:1), verify it's intentional — the usual cause is incomplete build output, not a real shrink.
@@ -115,13 +115,13 @@ Before calling a change done — and before proposing to commit/push — walk [.
 
 - **Never edit content authored by other users** (issue/PR bodies, comments, commit messages). Reply / new-comment only; appending to someone else's body is still editing it. Metadata (labels, milestones, assignees, close/reopen) is exempt.
 - **Never delete a user-owned artifact** (release draft, branch you didn't push, others' PRs/issues, wiki pages) on the assumption it's redundant. When in doubt, ask.
-- **Never overwrite your own submitted reviews/comments** — retract via reply with a `Retraction:` / `Correction:` prefix.
+- **Never overwrite your own submitted reviews/comments** — retract via reply with a `Retraction:` / `Correction:` prefix. (Mechanical checkbox/status edits excepted — [github-authoring.md](.claude/docs/github-authoring.md).)
 - After any manual `gh api` PATCH/PUT, re-fetch and verify the stored body matches intent.
 - **Wording style:** terse, fact-dense, lead with what changed + why. No apologies, no diff-restating prose, no puffed adjectives. Endpoint/encoding traps: [.claude/docs/github-authoring.md](.claude/docs/github-authoring.md).
 
 ## Docker containers (provider databases)
 
-Containers (`oracle11`, `postgres*`, `mysql*`, `db2`, etc.) are user-managed; agent scope is `docker start` / `docker stop` / `docker create` / `docker ps` only. **Do not** read compose files, `docker inspect`, or change container config — `UserDataProviders.json` connection strings are authoritative. Start the container a test needs if it exists but is stopped; if it doesn't exist (no `docker ps -a` row) or won't connect after starting, report and wait.
+Containers (`oracle11`, `postgres*`, `mysql*`, `db2`, etc.) are user-managed; agent scope is `docker start` / `docker stop` / `docker create` / `docker ps` only. **Do not** read compose files, `docker inspect`, or change container config — `UserDataProviders.json` connection strings are authoritative. Start the container a test needs if it exists but is stopped; if it doesn't exist (no `docker ps -a` row) or won't connect after starting, report and wait. **Claude Code:** do it through `/test-providers`, which records what it started so the end-of-session stop prompt covers it.
 
 ## Security
 

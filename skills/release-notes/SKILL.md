@@ -1,6 +1,6 @@
 ---
 name: release-notes
-description: Draft and publish linq2db release notes. Per-PR, composes a user-facing change summary (from the diff + PR body + linked issues/discussions) and posts it as an idempotent draft comment on the PR with checkboxes controlling whether it ships and proposed full (wiki) + brief (GitHub release) text. On merge, applies the note to the wiki release-notes page (`Releases-and-Roadmap.md`). Orphan-sweep mode finds milestone PRs the agent never witnessed (user-merged) and backfills their drafts + wiki application; harvest mode assembles the GitHub-release brief. Also keeps a merged PR and the issues it closes on the same milestone. Modes: draft, refresh, apply, sweep, harvest. Every GitHub/wiki write is user-confirmed.
+description: Draft and publish linq2db release notes. Per-PR, composes a user-facing change summary (from the diff + PR body + linked issues/discussions) and posts it as an idempotent draft comment on the PR with checkboxes controlling whether it ships and proposed full (wiki) + brief (GitHub release) text. On merge, applies the note to the wiki release-notes page (`Releases-and-Roadmap.md`). Orphan-sweep mode finds milestone PRs the agent never witnessed (user-merged) and backfills their drafts + wiki application; harvest mode assembles the GitHub-release brief. Also keeps a merged PR and the issues it closes on the same milestone. Modes — draft, refresh, apply, sweep, harvest. Every GitHub/wiki write is user-confirmed.
 ---
 
 # /release-notes

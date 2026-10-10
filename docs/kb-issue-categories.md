@@ -12,7 +12,7 @@ Schema, pattern catalog, and lifecycle for items in `detected-issues/index.json`
   "source": "code",
   "area": "SQL-PROVIDER",
   "title": "BasicSqlBuilder uses hardcoded provider check instead of capability flag",
-  "files": ["Source/LinqToDB/SqlProvider/BasicSqlBuilder.cs:1842"],
+  "files": ["Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.cs:1842"],
   "status": "open",
   "gh_issue": null,
   "first_detected_sha": "abc1234",
