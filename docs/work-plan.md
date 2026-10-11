@@ -96,6 +96,8 @@ One `D-n` block per consequential decision:
 
 The `failure mode` line is what makes a decision defensible rather than merely explained, and is usually where the critic finds its objection.
 
+**A rejected alternative justified by an observable difference owes a `TO-n` that tells the two apart — or a line in the decision saying none can.** When the `rejected:` reason says the alternative *misses* or *mis-handles* a case, name the input on which the two designs disagree, and write the obligation with the mutation that turns the chosen design into the rejected one. If no reachable input separates them, say so in the decision: the choice can still stand on code-level reasons, but no test will guard it. (#6027 gap ledger: `D-1` rejected an outermost-only scope reset as missing nested references; four Oracle 11 probe shapes under exactly that mutation all still threw the same error.)
+
 **A decision whose only effect is a spelling convention must be visible in the code, or it is not a decision.** When two spellings mean the same thing to the compiler and the tests, choosing the longer one to *signal* something ("this exclusion was evaluated for LibRed") puts meaning in a place only the plan explains; a reader of the diff sees an unexplained redundancy. Use the canonical spelling, and if the distinction really matters, give it a name the code can carry — a constant, an attribute property. (#5969 D-2: `AllNativeAccess, AllAccessLibRed` at 59 sites, identical to `AllAccess`; the user asked why, and all 59 were reverted.)
 
 ### P6 Edit-points

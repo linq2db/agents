@@ -12,6 +12,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a single lend/withhold decision for the comparison. Split it per consumer — the descriptor is lent to parameters and withheld from constants (`SuggestedDescriptor.ForConstants`, read through `ConstantDescriptor` in `HandleValue`). (#5959, `ed87cd5e9`)
 
+## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
+
+**Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
+
+**Failed because:** every shape still threw `Error_ColumnSubqueryShouldNotContainParentIsNotNull` under the mutation (rebuild confirmed by DLL timestamp). On Oracle 11 the `Take` shapes are rewritten into `LEFT JOIN … ROW_NUMBER()` derived tables, so no nested column-subquery boundary survives to the validator; the aggregate shape behaved the same.
+
+**Don't re-attempt:** hunting for a LINQ shape. If the per-boundary reset needs a guard, test the visitor directly on a hand-built AST. (#6027)
+
 ## PROV-FIREBIRD: binary Guid *parameter* writes on a UTF8 Firebird 6 database
 
 **Tried:** binding a binary Guid to a `CHAR(16) CHARACTER SET OCTETS` / `BINARY(16)` column (INSERT VALUES, UPDATE SET, WHERE compare) as raw `byte[]`; as native `FbDbType.Guid`; with `FbParameter.Charset` set to `Octets` (and, by reflection, every other charset value) or `FbDbType.Binary`; with explicit `CHAR(16) CHARACTER SET OCTETS` DDL instead of `BINARY(16)`; with an explicit OCTETS CAST target.
