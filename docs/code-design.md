@@ -109,6 +109,10 @@ For a **new** public API parameter, prefer the weakest useful type — `IEnumera
 
 An **already-shipped** parameter type can't change (an existing `params Type[]` overload stays), but a new sibling is free to use the weaker type. On #5525 this collapsed `IgnoreFilters(string[])` + `IgnoreFilters(string[], Type[])` into a single `IgnoreFilters(IEnumerable<string> filterKeys, params Type[] entityTypes)`.
 
+### Annotate new public API with JetBrains contracts: `[InstantHandle]` and `[Pure]`
+
+A delegate or `IEnumerable<T>` parameter that the method enumerates or invokes before it returns, and never stores, carries `[InstantHandle]` — without it ReSharper/Rider warn about captured and modified closures at every call site. A parameter that *is* stored for later (a name factory kept in a template and invoked at build time) must not carry it. A method that returns a new instance and leaves its receiver unchanged carries `[Pure]`, so discarding the result is an IDE warning rather than a silently dropped step — the shape that bites is an immutable builder chain inside a `Func`, where `c.Cell(a); return c.Cell(b);` loses the first call. LINQ operators already carry `[Pure, LinqTunnel]`. (#5708: `SelectDynamic`'s `nameSelector` and `PivotCells.Cell`.)
+
 ### Throw when a provider can't honour the contract — don't degrade to best-effort
 
 When a provider cannot honour an API's documented contract, make the API **throw / report unsupported** for that provider rather than silently falling back to a best-effort heuristic. A path that can't guarantee the contract returns misleading results, which is worse than an explicit failure.
@@ -277,6 +281,10 @@ A mixed-version LinqService deployment — client and server on different builds
 ### A wrong user mapping is the user's error, not an engine gap
 
 A property mapped without the `DataType` its server column needs (a `DateTime` column with no `DataType = DataType.DateTime`, so linq2db types it from the schema default) is a configuration mistake. Don't propose engine support to compensate for it, and decline review findings that ask for it. The reverse matters as much: before arguing that a regression needs fixing, state whether the repro's mapping is correct — when it is and linq2db loses the declared type on the way (an untyped `COALESCE`, a window function typed from its CLR type), that is an engine bug. (#5959)
+
+### Quoting and escaping identifiers is the engine's job
+
+A name linq2db emits as an identifier is quoted and escaped by the provider's SQL builder. Don't put a call-site validation layer in front of it, and don't write a doc caveat telling callers to pre-sanitize: a name that cannot be emitted safely is a quoting defect to fix ([#6022](https://github.com/linq2db/linq2db/issues/6022)), not input to reject. A value that only ever becomes an alias needs no check at all — `IIdentifierService.CorrectAlias` reduces every alias to `[A-Za-z0-9_]`. Runtime-string APIs (`Sql.Property`, `TableName`/`SchemaName`, `Unpivot(params string[])`) are where a quoting gap turns into injection, so they set the bar. (#5708)
 
 ### Per-provider column facets: a `DataTypeAttribute` added with `HasAttribute`
 

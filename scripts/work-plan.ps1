@@ -389,6 +389,39 @@ function Invoke-Validate {
         }
     }
 
+    # P11 — an amendment that supersedes a D-n or adds a public type is a new plan pass: it must carry a
+    # `re-derives:` line, and P12 must record a critic round that names it. The prose rule alone did not stop
+    # #5708's A-13/A-14 (9 of 22 review findings), so entries dated from 2026-10-11 fail; older ones warn.
+    $p11 = Get-Block -Blocks $blocks -Id 'P11'
+    $p12Text = (Get-Block -Blocks $blocks -Id 'P12')
+    $p12Text = if ($null -ne $p12Text) { $p12Text.lines -join "`n" } else { '' }
+    if ($null -ne $p11) {
+        $entries = @()
+        $current = $null
+        foreach ($l in $p11.lines) {
+            if ($l -match '^-\s+\*\*(A-\d+)') {
+                if ($null -ne $current) { $entries += $current }
+                $current = [ordered]@{ id = $Matches[1]; text = $l }
+            }
+            elseif ($null -ne $current) { $current.text += "`n" + $l }
+        }
+        if ($null -ne $current) { $entries += $current }
+
+        foreach ($e in $entries) {
+            $isNewPass = $e.text -match '(?i)\bsupersedes\b[^.\n]*\bD-\d+' -or $e.text -match '(?i)\b(new|adds? a) public type\b'
+            if (-not $isNewPass) { continue }
+
+            $missing = @()
+            if ($e.text -notmatch '(?i)re-derives:') { $missing += 're-derives: line' }
+            if ($p12Text -notmatch "\b$([regex]::Escape($e.id))\b") { $missing += 'P12 critic round naming it' }
+            if ($missing.Count -eq 0) { continue }
+
+            $msg = "P11 : $($e.id) supersedes a decision or adds a public type but has no $($missing -join ' and ') -- it is a new plan pass"
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})\)')
+            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-11') { $errors += $msg } else { $warnings += $msg }
+        }
+    }
+
     # P12 verdict — an error at Tier L, a warning at Tier M.
     #
     # Rounds are recorded chronologically, so the FIRST verdict word in the block is the OLDEST one. A plan

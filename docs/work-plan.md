@@ -121,6 +121,8 @@ Every row carries exactly one verdict: `covered by E-n` | `deferred: <reason>` |
 
 **A registration-surface row lists paths, one per hit — never a role name.** "The package `readme.md`", "the release-notes file", "the analyzer registration" each collapse a set the sweep already enumerated, and the collapsed member is the one that gets missed. Write every path the search returned, even when they look interchangeable. The row must also name the surfaces a repo-wide grep **structurally cannot reach** — wiki pages, nuget.org-rendered metadata, external dashboards — since those are invisible to both the sweep and `-Action reconcile`. (Surfaced on #5870: "needs a row only in the two `AnalyzerReleases.Unshipped.md` files and the package `readme.md`" counted and pathed the first pair and collapsed the second, and linq2db has **two** packed readmes with an analyzer rule table. The unlisted one is the `linq2db` package's own — what nuget.org shows for the library — and it shipped stale.)
 
+**A plan written over a branch that already carries code maps every file that survives, not only the ones it edits.** Give each surviving file a `P7` row: `covered by E-n` with characterization obligations whose discriminating input has a recorded mutation, or `out-of-scope` with a reason. A `P3` line saying "X stays" freezes X's *design*; it does not exempt X's untested surface from `P8`. (#5708 gap ledger: the plan designed only the removal of native emission, froze the surviving dynamic API in one `P3` line, and five findings — untested guards, a wrong premise in an identifier check, an unpinned name-to-value pairing, an outer-join NULL leak — sat in that unmapped code.)
+
 ### P8 Test obligations (M/L)
 
 One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
@@ -220,6 +222,8 @@ Append-only. One `A-n` per change to the plan after approval.
 - turn every "not re-pinned" note into either a `TO-n` or a `P10` entry;
 - add an `SC-n` for every anti-goal the swap retires;
 - re-run the critic.
+
+The same holds for an amendment that **adds a public type** — a new type is new surface every block has to cover. `-Action validate` enforces both shapes mechanically: an `A-n` whose text says it *supersedes* a `D-n`, or that it adds a public type, needs a `re-derives:` line and a `P12` round that names it — an error for entries dated from 2026-10-11, a warning before. The prose rule alone did not stop #5708's A-13/A-14: they superseded D-3/D-4 and added `PivotCells` with no re-derivation and no critic round, and 9 of the review's 22 findings sat in exactly that code.
 
 While the header reads *approval void*, `-Action validate` should not pass. (#6003: A-3 recorded sdanyliv's expose-time rework after the fact. Six of the review's seven findings traced to blocks it never re-derived, including a compiled-query rebuild per argument value reached through an attribute reader no `P7` row listed.)
 
