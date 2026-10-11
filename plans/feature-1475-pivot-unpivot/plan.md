@@ -52,7 +52,7 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 
 - **No query result may change.** Every difference is in emitted SQL, never in rows.
 - `Unpivot`'s public surface stays whole: both selector overloads, both multi-value overloads, both name-array overloads, and `UnpivotNulls`.
-- The dynamic API stays: `SelectDynamic`, both `Pivot` overload pairs, `PivotRow<TKey>`, `PivotCellFactory`, `SelectDynamicBuilder`.
+- The dynamic API stays: `SelectDynamic`, both `Pivot` overload pairs, `PivotRow<TKey>`, `PivotCellFactory`, `SelectDynamicBuilder`. **Superseded by A-13/A-14:** `PivotRow<TKey>`, `PivotCell` and `PivotCellFactory` are deleted; `PivotCells<TSource,TFor>` and two `Pivot` overloads are the surface.
 - No edit to `PublicAPI.Shipped.txt` and no `CompatibilitySuppressions.xml` entry — every affected API line is in `Unshipped`.
 - **Anti-goal: do not re-plumb the dynamic API onto native PIVOT.** That was step 8 of the prior plan; the measurements above retire it.
 - **Anti-goal: do not touch the window-function filtered-aggregate machinery.** `WindowFunctionsMemberTranslator.IsWindowFilterSupported` is a distinct concept from the grouped-aggregate `IsFilterSupported` this plan relies on.
@@ -146,6 +146,16 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 - E-21 `Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQLMemberTranslator.cs` + a versioned subclass + `PostgreSQLDataProvider.cs:105-110` — `IsFilterSupported` false below 9.4, true from 9.4 (D-5). **Ported to its own PR before merge.**
 - E-22 `Source/LinqToDB/LinqExtensions/LinqExtensions.Unpivot.cs:21-25,92-93,167,191,216-217` — XML docs promise native `UNPIVOT` on SQL Server/Oracle/DuckDB and, for the multi-value overloads, both "every provider" and "NULL rows are kept". Rewrite to match post-removal behaviour. Same class: `UnpivotBuilder.cs:301-302` (the physical-name rationale outlives the native path that motivated it), and the native-keyword prose in `PivotTests.cs` / `PivotDynamicTests.cs`.
 - E-23 `Tests/Linq/Linq/{PivotPerfScratch.cs, PivotShapeScratch.cs, UnpivotPerfScratch.cs}` — delete. Untracked, but compiled by the SDK glob and written against the static API, so they break the build the moment E-12 lands.
+- E-24 `Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQL95MemberTranslator.cs` — D-5's 9.5-tier aggregate translator (`CreateAggregateFunctionsMemberTranslator` override). Base-PR (#5949) content, recorded by A-15.
+- E-25 `Tests/Linq/Linq/BooleanTests.cs` — TO-8 FILTER-exclusion sweep. Base-PR content.
+- E-26 `Tests/Linq/Linq/CountTests.cs` — TO-8 FILTER-exclusion sweep. Base-PR content.
+- E-27 `Tests/Linq/Linq/GroupByTests.cs` — TO-8 FILTER-exclusion sweep. Base-PR content.
+- E-28 `Tests/Linq/UserTests/Issue1564Tests.cs` — A-1's comment naming `StringAggregate`. Base-PR content.
+- E-29 `Source/LinqToDB/Internal/Linq/Builder/SelectDynamicBuilder.cs` — A-14 placeholder splice; A-15: placeholder found at any depth, store built through the non-public constructor, operator-neutral errors.
+- E-30 `Source/LinqToDB/LinqExtensions/LinqExtensions.SelectDynamic.cs` — A-15: identifier-character check removed, shadowing guard narrowed to fields/properties, `[InstantHandle]` on `nameSelector`, materialization comment corrected.
+- E-31 `Source/LinqToDB/LinqExtensions/PivotCells.cs` — A-14 carrier type; A-15: explicit `IReadOnlyDictionary<string, object?>` (CA1710 suppressed), never-null `Values`, internal constructor, `[Pure]` `Cell`, count-cell doc.
+- E-32 `Source/LinqToDB/LinqExtensions/UnpivotNulls.cs` — A-15 doc: both consumers and the multi-value default.
+- E-33 `Tests/Linq/Linq/SelectDynamicTests.cs` — `SelectDynamic` coverage; A-15 round-trip and guard-message tests.
 
 > **Line numbers above are indicative only.** Remove by `git diff -U0 origin/master...HEAD` hunk, never by the ranges written here — the critic found every range off by 1–3, one of which would have orphaned an XML doc comment into `CS1587` under `TreatWarningsAsErrors`. The branch is **add-only against master** (33 files, zero deletions), so E-1…E-9 are exactly "revert these hunks".
 
@@ -202,7 +212,7 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   **Local env note:** `Oracle.23.Managed` is an `AzureConnectionStrings` name; `LocalConnectionStrings` carries only
   Oracle 11 and 19, and a worktree under `C:\Worktrees\` resolves no `UserDataProviders.json` by walk-up, so a local
   Oracle run there must use `Oracle.19.Managed`.
-- G-02: **not run** — no local baselines diff; the `.sql` churn lands on the baselines PR at CI push. Expected wide
+- G-02: **blocked** on CI regenerating the baselines for f550159e9 (the 2026-10-10 delta, linq2db.baselines#2141, predates A-15; its real content was new-test files plus the 68 PostgreSQL 9.2/9.3 files of the base PR). Originally not run — no local baselines diff; the `.sql` churn lands on the baselines PR at CI push. Expected wide
   per P10; read for shape.
 - G-03: **pass** — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=true`
   exits 0 with no RS0016/RS0017. The first run reported 58 RS0016 and 0 RS0017, which also established that the
@@ -239,6 +249,7 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
 - **`UnpivotMulti` returning all-NULL rows on Oracle/DuckDB is a fix, not a regression.** The native path dropped them via `includeNulls: false` while the XML doc promised they were kept; removing native makes the documented contract true. TO-10 pins it.
 - **No performance claim is made for the filtered form.** U-10 is explicitly unmeasured. D-3/D-5 rest on one mechanism plus a defect fix; a speedup assertion must not appear in the PR body or release notes without a measurement.
 - **`Custom` with a string-aggregate body remains broken on PostgreSQL 9.2/9.3 after D-5.** `TranslateStringJoin` emits `filter:` from a nested class the gate does not reach. Accepted for this PR; extending the 9.5 tier split to `StringMemberTranslator` belongs to the same follow-up PR that carries D-5 out of this branch. Users hitting it get a server syntax error, not a named exception — that is the cost of the acceptance.
+- **`ExcludeNulls` dropping a NULL read through an outer join into a non-nullable member is a fix, not a P3 violation.** A-15 lifts the filter to `TValue?`; the rows that disappear were returned as `default(TValue)` against the documented "NULL value cells are excluded" contract, on API that exists only in `PublicAPI.Unshipped.txt` — the same adjudication as the `UnpivotMulti` entry above.
 - **The gate living in this branch is temporary and deliberate.** D-5 is implemented here to prove the change end to end, then ported to its own PR before merge. A reviewer seeing a PostgreSQL translator change inside a pivot PR is seeing the intended interim state, not scope creep — but the port is release-blocking.
 
 ## P11 Amendments (M/L)
@@ -392,6 +403,8 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
     `Expression.Constant(null, typeof(PivotCells<,>))` where the chain was, and the builder finds it in the
     constructor's `Assignments` (or `Parameters`). Same result, unchanged marker signature, and it reaches
     projection shapes a member name cannot — a positional record's `NewExpression.Members` is null.
+    *(Superseded by A-15: the top-level scan missed nested and `Convert`-wrapped placements; the builder now
+    finds the placeholder anywhere in the projection.)*
   - **U1 resolved positive.** `Sql.Property<decimal?>(r.Cells, "Y2010")` after the pivot is a *server-side*
     column: `ComposesOverANestedCell`'s baseline is a bare `GROUP BY` + `HAVING SUM(CASE WHEN … )`, with the
     unused second cell pruned. The fallback in the plan (document that composition goes through family 1) is
@@ -421,6 +434,42 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
     Release netstandard2.0, Tests Release net10.0 and Tests Release net462 all clean.
   - **Baselines-PR consequence:** the two renames make [#2139](https://github.com/linq2db/linq2db.baselines/pull/2139)'s
     keys stale, so it wants `close-stale-baselines.ps1` and a fresh CI regeneration rather than a merge.
+
+- **A-15 (2026-10-11) — round-1 review walk; P6 widened to E-24…E-33.** The review of head fe655cf93 produced
+  22 findings, all resolved as commits df7a56733…e0935d57f; the attribution is in `gaps.md` (9 of 22 sit in what
+  A-13/A-14 introduced without a re-derived P4/P7/P8 or a critic round). **The approval this plan never recorded
+  is in any case void for the widened surface.** What changed, each red first where it is a behaviour change:
+  - **Placement:** `SelectDynamicBuilder` finds the `PivotCells<,>` placeholder anywhere in the projection, not
+    only among the top-level constructor's members — a nested object or a `Convert`-wrapped member was either a
+    misleading "SelectDynamic result" error or, with a root store on `TResult`, cells silently written there.
+    `Pivot` rejects a chain that is not a member value (method argument, whole projection) at the call site.
+    `PivotCells` implements `IReadOnlyDictionary<string, object?>` explicitly, so a named result type can declare
+    the member without spelling an anonymous `TSource`; CA1710 is suppressed (name chosen for its role).
+  - **`ReadTemplates`** evaluates a non-lambda aggregate argument (captured `Expression` local, helper result)
+    instead of casting it — previously `InvalidCastException`.
+  - **`UnpivotBuilder`** reuses its mapping-schema probe as the first branch (`ContextRefExpression`) **at the
+    root only**; the throwaway build had re-registered builder-scoped query tags and hints, so they appeared N+1
+    times for N columns and now appear N times — once per branch, as a hand-written `Concat` gives (pinned for
+    N=1 and N=2). In sub-query position (`Any`, the collection side of `SelectMany`) the first branch rebuilds
+    the source as before (f550159e9): a context reference is re-resolved there through `GetContext`, which a
+    `SelectContext` cannot answer for a projected source — the reuse as first committed (51511d587) failed with
+    "could not be converted to SQL", red-proven by `UnpivotOverAProjectionInASubQuery`.
+  - **`ExcludeNulls`** lifts its filter to `TValue?` for a non-nullable value type instead of skipping it: a
+    member from the outer side of a join returned NULL cells as `default(TValue)` rows. Contract unchanged; the
+    code now meets it.
+  - **Names:** `SelectDynamic`'s identifier-character check is removed — a generated name reaches SQL only as an
+    alias, which `IIdentifierService.CorrectAlias` reduces to `[A-Za-z0-9_]`, so the check guarded nothing. The
+    shadowing guard matches public fields and non-indexer properties only (methods and the indexer never shadow a
+    dynamic column; measured). The real quoting gaps are in the column-reference path: #6022 (7.0.0), #6023.
+  - **`PivotCells`:** `Values` never null (lazy), constructor internal (builder uses the non-public one; one
+    `PublicAPI.Unshipped.txt` line removed), `Cell` is `[Pure]`, the doc says an empty count cell reads 0.
+  - **Messages:** the shared builder's two errors no longer name `SelectDynamic` when reached from `Pivot`.
+  - **Measured, no defect:** value-blind names over different value sets do not share a cache entry — the inlined
+    pivot literals discriminate the key — so each value order reads its own cells (pinned by test).
+  - Verification: 333/333 pivot/`SelectDynamic` tests on SQLite.Classic, SQLite.MS, DuckDB, SqlCe (direct +
+    LinqService); Release net10.0, Release netstandard2.0, Tests Release net10.0 and Tests net462 build clean.
+    Container providers left to CI: `test-all` build 24106 covers e0935d57f only; f550159e9 still needs its own
+    run before this amendment's verification is complete.
 
 ## P12 Critic verdict (M/L)
 
@@ -452,3 +501,13 @@ Critic's strongest confirmation, retained as a verification handle: the branch i
 Confirmed by round 2 and retained: D-4 is correct to leave `Count` unlifted (`COUNT(CASE …)` and `COUNT(*) FILTER` both return 0, never NULL); the round-1 fixes to TO-6, TO-4, E-18 and E-23 all landed; the branch is add-only (33 files, +4357, 0 deletions).
 
 **Residual risk, unverified:** PostgreSQL 9.2/9.3 were never executed — the critic did not run them either, and U-11 records the containers as likely dead. TO-7/TO-8 carry that as `blocked` if they will not start.
+
+**Round 3 (A-15 delta) — `refuted`** (Fable). Searched: the full 916ce0eeb..e0935d57f diff; every `CreateSubQuery = ` setter and every `GetContext` override; `[BuildsExpression]`/`[BuildsAny]` builders; all `.Unpivot(` call shapes in the corpus; `CorrectAlias` and its call sites; `VisitIsNullPredicate`; `IsCollectionType` consumers and `TypeAccessor` member enumeration for the new `IReadOnlyDictionary`; remaining `SelectDynamic` wording.
+
+1. *The probe reuse breaks `Unpivot` in sub-query position over a projected source* — `ContextRefBuilder` re-resolves through `GetContext` when `CreateSubQuery` is set, and `SelectContext` cannot build its projection body as a sequence. → probed red (SQLite, direct + LinqService), fixed root-only (f550159e9), test added; A-15 re-recorded.
+2. *The tag fix is overstated* — branches 2..N still rebuild the source. → A-15 now says N per N columns; N=2 pinned.
+3. *The `ExcludeNulls` row change has no P10 line* — → added.
+
+Checked clean by the critic: the placement fix (`Find`+`Replace` before the generic-constructor wrap, mirrored by `IsConstructedWith`), alias sanitization covering every generated name, the lifted `IS NOT NULL` folding away for non-nullable columns, `PivotCells` as a collection type reaching no eager-load/association path, explicit interface members not colliding with cell names.
+
+**Round 3 re-check — `holds`** (Fable, same session). Re-traced every `CreateSubQuery = true` entry point against f550159e9: the branch choice is made before the lowering, so `ContextRefBuilder` is only reached with the flag clear and returns the probe directly; no intermediate builder sets it. Pending, not a defect: the container-provider matrix has not run on f550159e9.
