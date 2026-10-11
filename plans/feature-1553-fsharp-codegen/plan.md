@@ -178,14 +178,14 @@ first constructor becomes the primary one, `FSharpCodeGenerator.cs:873-887`). `T
 
 ## P9 Verification gates
 
-- G-01: — (pending) TO-1a/1b/2/3/7 via worktree-test (SQLite.Classic/MS, SqlServer.2022/.MS), TO-6 CLI tests
-- G-02: — (pending) TO-4 golden diff + TO-5 C# CLI baseline diff, both must be empty
-- G-03: — (pending) PublicAPI.Unshipped.txt entries (E-13), XML docs on `LanguageFeatures` + `Features`
-- G-04: — (pending) `/api-baselines` run on the PR (E-16); then the Azure "Pack Solution for Nuget" / GitHub "Build and pack" leg observed green on the branch head after E-2 lands
-- G-05: — (pending) `dotnet build Source/LinqToDB.Scaffold/LinqToDB.Scaffold.csproj -c Release -f netstandard2.0` + CLI Release net10.0
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
+- G-01: pass — tests: TO-1a/TO-1b `FSharpCodeGenerationTests.DelegatingProviderMatchesFSharp` (SqlServer.2022.MS / SQLite.MS), TO-2 `DefaultOptionsAdjustedToLanguage`, TO-3 `TabIndentReplaced`, TO-7 `LanguageProviderFeatures`, TO-4 generate.ps1 + gates + `FSharpTests.GeneratedCode*`, TO-5 release-test-cli-scaffold, TO-6 grep + Tests.LinqToDB.CLI. TO-1a/1b red on pre-change code (wrapper without `Features`: output mismatch, imports differ — SQLite.MS length 33500 vs 37649, SqlServer.2022.MS 100281 vs 103278), green after; TO-2/TO-3 red under mutation (`ApplyLanguageFeatures` call commented out: 2 files, TAB indentation), green restored; worktree-test FSharpCodeGenerationTests + FSharpTests.GeneratedCode on SQLite.Classic/MS + SqlServer.2022/.MS: 20/20; TO-6 grep → only the two PublicAPI lines; Tests.LinqToDB.CLI 252/252
+- G-02: pass — TO-4 generate.ps1 rewrote all 7 goldens (mtimes 16:56-16:57, after the run's first build at 16:56:22) with empty `git diff`; both F# gates build; TO-5 release-test-cli-scaffold SQLite+SqlServer2025, 11/11 OK, empty `git diff`/status under Tests/Tests.T4
+- G-03: pass — PublicAPI.Unshipped.txt: `LanguageFeatures` type + 15 members, `ILanguageProvider.Features.get`, missing `Modifiers.Module`; XML docs on enum, members and property
+- G-04: blocked — on the push (CI pack leg is the remaining measurement). Done so far: `/api-baselines` feature-PR path: regenerated `Source/LinqToDB.Scaffold/CompatibilitySuppressions.xml`, residual adds = 5× `CP0006 P:LinqToDB.CodeModel.ILanguageProvider.Features` (net10.0/net462/net8.0/net9.0/netstandard2.0), nothing else; CI pack leg not yet observed (needs push)
+- G-05: pass — `dotnet build Source/LinqToDB.Scaffold/LinqToDB.Scaffold.csproj -c Release -f netstandard2.0` exit 0 (first attempt failed MA0154 on `<c>this</c>` in `LanguageFeatures.cs`, fixed to `<see langword="this"/>`); CLI Release net10.0 built by generate.ps1, exit 0
+- G-06: pass — working-tree diff touches only E-1..E-14/E-16 files; `-Reconcile` "unplanned" list is the pre-plan branch diff vs origin/master (scope note), none modified by this change
+- G-07: pass — no Tests/Tests.Playground changes
+- G-09: skipped — no adversarial read of this diff yet; unverified until a review pass runs
 
 ## P10 Adjudicated
 
