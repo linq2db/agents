@@ -855,6 +855,14 @@ A `ToSqlQuery().Sql.ShouldContain` / `ShouldNotContain("COALESCE")`-style assert
 
 When a fix changes provider-specific SQL *shape* (especially provider-specific folds), the regression artifact is the per-provider **baseline** `.sql` file, not a substring assertion. (Surfaced on #5531: the bug was only observable as Informix `Nvl(x, NULL)`; a SQLite `ShouldNotContain("COALESCE")` test could not go red.)
 
+### Assertions that pass on nothing
+
+- **`(await store.FindAsync(…))?.Id.ShouldBe(y)` skips the assertion when the lookup returns `null`** — the null-conditional short-circuits the whole chain, `ShouldBe` included. Write `.ShouldNotBeNull().Id.ShouldBe(y)`; `ShouldNotBeNull()` returns the non-null value.
+- **A literal NUnit → Shouldly conversion creates that trap.** `Assert.That(x?.Id, Is.EqualTo(y))` is sound — `null` fails `EqualTo` — but its mechanical Shouldly form `x?.Id.ShouldBe(y)` is not. Every `?.` inside an `Assert.That` argument needs the `ShouldNotBeNull()` rewrite, not a transliteration.
+- **A round-trip whose DDL and DML share one mapping schema cannot prove a mapping change.** Create the table and query it from the same overridden schema, and a lost rename round-trips just as well under the default names. Pin the physical names through an **independent** mapping — a local `[Table("MyUsers")]` class with `[Column("EmailAddress")]` — that goes red if the override never reached the SQL.
+
+(Surfaced on #5640: three findings of one review — a rename round-trip, a `?.` login lookup, and five `?.` sites that a Shouldly conversion would have silently weakened.)
+
 ### Enabling baselines locally
 
 Open `UserDataProviders.json`, find the `MyConnectionStrings` section, and add:
