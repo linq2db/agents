@@ -210,6 +210,12 @@ Cheaper than reordering the work, and it keeps each commit's diff reviewable on 
 
 ### Merging master into a feature PR — recurring conflict recipes
 
+**Before resolving "conflicts" GitHub reports, check whether the local branch already has master.** GitHub
+compares the *pushed* head, so a branch merged with master locally but not yet pushed still shows conflicts.
+`git fetch origin master`, then `git merge-base --is-ancestor FETCH_HEAD HEAD` (exit 0 = already contained):
+pushing is then the whole fix. (#5707: the PR showed conflicts while the local branch was 158 commits ahead of
+the pushed one and 0 behind master.)
+
 When syncing `origin/master` into a long-lived feature PR — or when merging a batch of sibling PRs one
 after another so each inherits the previous ones — these collisions recur:
 

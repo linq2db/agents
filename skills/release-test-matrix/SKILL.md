@@ -285,6 +285,8 @@ The CLI also emits F# (`--target-language f#`). Its baselines live in separate c
    ```
 3. Confirm zero `git diff` under `Tests/FSharp.Scaffold/` (both the `<Provider>/` and `NoNrt/<Provider>/` trees).
 
+`.claude/scripts/fsharp-scaffold-gates.ps1 -RepoRoot <checkout>` runs steps 1–3 in one call (Release gates; it also proves every golden was rewritten, since `generate.ps1`'s progress output does not reach a redirected log), optionally followed by a C# CLI baseline subset (`-CSharpProviders 'SQLite,SqlServer2025'`) and the CLI tests (`-CliTests`).
+
 Tick `4.7` on a clean diff or user-confirmed-expected diff.
 
 ## Track 4.8 — Targeted-change retest

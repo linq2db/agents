@@ -12,7 +12,7 @@ Everything between the markers below is the template body.
 **Tier:** {{TIER}}  ·  **Status:** draft  ·  **Approved-at:** —  ·  **Branch:** {{BRANCH}}
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
-<!-- fill: every `fill:` marker must be gone before approval — `work-plan.ps1 -Validate` fails on any that remain. Blocks marked (M/L) may be omitted entirely on a Tier S plan; delete the heading rather than leaving it empty. -->
+<!-- fill: every `fill:` marker must be gone before approval — `work-plan.ps1 -Validate` fails on any that remain. Blocks marked (M/L) may be omitted entirely on a Tier S plan; delete the heading rather than leaving it empty. Every row (SC-n, U-n, E-n, a P7 row, TO-n) sits on ONE line, however long — `-Validate` parses rows line by line, so a wrapped continuation reads as a separate malformed row; and P8 rows spell the mode as a literal `proof: <mode>`. -->
 
 ## P1 Problem
 
