@@ -246,6 +246,12 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   maintainer: `[ActiveIssue]`, no issues filed. Gated per test, not per provider — both engines host the
   schema and pass the read-only and claim tests. Verified against all three ClickHouse drivers and YDB: 85
   cases held, none over-firing.
+- **A-8** — **`SC-2` narrowed: MySQL leaves its set and joins `D-2`'s pins.** `SC-2` checked that MySQL
+  *renders* `DateTimeOffset`, not that the rendering holds the values Identity writes: the CREATE TABLE arm is
+  `TIMESTAMP` (`MySqlSqlBuilder.cs:173`), which ends 2038-01-19, so a permanent lockout fails with
+  `datetime field overflow`. Pinned `(ProviderName.MySql, DataType.DateTime2)` → `DATETIME`, with the UTC
+  converter. Surfaced by review round 1 (`gaps.md`, MIN005); `UserLockout` now writes `MaxValue.AddDays(-1)`
+  — `MaxValue` itself trips a separate SQLite reader defect on non-UTC machines (`GetDateTime` → local time).
 
 ## P12 Critic verdict
 
