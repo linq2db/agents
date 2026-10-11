@@ -149,6 +149,8 @@ first constructor becomes the primary one, `FSharpCodeGenerator.cs:873-887`). `T
 - E-13 `Source/LinqToDB.Scaffold/PublicAPI/PublicAPI.Unshipped.txt` — `LanguageFeatures` type + members, `ILanguageProvider.Features.get`, and the missing `Modifiers.Module = 32768` line (scout: absent from every PublicAPI file).
 - E-14 `Tests/Linq/Scaffold/FSharpCodeGenerationTests.cs` — TO-1a/1b/2/3/7 tests, delegating provider, trimmed `FSharpOptions()`.
 - E-15 `Source/LinqToDB.CLI/readme.md` / `Tests/FSharp.Scaffold/generate.ps1` comments — only if they describe the CLI-side forcing (verify at implementation; edit only stale prose).
+- E-17 `Source/LinqToDB.Scaffold/CodeModel/Languages/CSharp/CSharpCodeGenerator.cs:Visit(CodeClass)` — throw `NotSupportedException` for a class marked `Modifiers.Record` / `Modifiers.Module` (A-1).
+- E-18 `Source/LinqToDB.Scaffold/CodeModel/AST/Basics/Modifiers.cs:Record,Module` — XML docs: "ignored by" → "rejected by the C# generator"; plus the stale "(the C# generator ignores this modifier)" comment at `DataModelGenerator.Entities.cs:48-49` (already E-7's file) (A-1).
 - E-16 `Source/LinqToDB.Scaffold/CompatibilitySuppressions.xml` — regenerated via `/api-baselines` (never by hand) for the `CP0006` on `P:LinqToDB.CodeModel.ILanguageProvider.Features` the interface addition raises on every TFM.
 
 ## P7 Impact map
@@ -196,7 +198,7 @@ first constructor becomes the primary one, `FSharpCodeGenerator.cs:873-887`). `T
 
 ## P11 Amendments
 
-_None._
+- A-1 (2026-10-11, review walk out-of-scope item 2, user choice B): the F#-only `Modifiers.Record`/`Module` values stay on the public enum, but the C# generator now rejects them instead of silently rendering a plain class (E-17, E-18). With E-7/E-6 they are set only when `Features` has `RecordEntities` / lacks `NestedTypes`, so the guard fires only for a provider whose features don't match its renderer, a library caller setting `DataModelOptions.ContextClassModifier` (`DataModelLoader.DataContext.cs:35`; the CLI `--context-modifier` maps only public/internal/private, `ScaffoldCommand.Configuration.cs:117-123`), an interceptor writing `ClassModel.Modifiers`, or a hand-built AST — all unreleased values, so no shipped caller is affected. Tests: `FSharpCodeGenerationTests.CSharpGeneratorRejectsRecord` (C# provider wrapped to report `RecordEntities`) — red with the guard commented out ("no exception thrown"); `CSharpGeneratorRejectsModule` (C# provider without `NestedTypes`, table in non-default schema → `Modifiers.Module` via `DataModelGenerator.Schemas.cs:42`) — red against a Record-only mutant ("no exception thrown"); both green restored, generator suite 20/20; Release netstandard2.0 Scaffold build exit 0. Re-approved by the user 2026-10-11 after critic round 3.
 
 ## P12 Critic verdict
 
@@ -224,3 +226,5 @@ accepted wrongly; E-16 executable via `/api-baselines` feature-PR path (Scaffold
 (`ScaffoldInterceptors` has no options member); TO-6 control real. Imprecision fixed: `default.yml` does not pack on
 every PR. Not checked by the critic (no capability): the actual `dotnet pack` output — G-04 is that measurement; the
 "every TFM" count rests on the five TFMs the existing suppression file enumerates.
+
+**Round 3 — delta for A-1 (same critic, model fable): weak.** Objections: (1) E-17 falsified the comment at `DataModelGenerator.Entities.cs:48-49` ("the C# generator ignores this modifier"), not covered by E-18 → fixed, E-18 extended; sweep `ignored by|generator ignores|ignores this modifier` found no other site. (2) the `Module` arm of the guard was unproven though reachable from the harness → `CSharpGeneratorRejectsModule` added, red against a Record-only mutant. Census (not an objection) of routes that can still reach the C# guard folded into A-1. Critic searched: `Modifiers\.(Record|Module)` worktree-wide (two flag-gated setters, F# readers, new guard), `NotSupportedException|InvalidOperationException` in `CSharpCodeGenerator.cs` (the guard is the only `NotSupportedException`, so the test pins its source), other visitors keyed on modifiers (none).
