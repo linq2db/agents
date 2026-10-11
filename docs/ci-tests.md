@@ -204,6 +204,8 @@ Azure legs publish their TRX to the Azure test tab and print no such block, so t
 .claude/scripts/ci-test-verdicts.ps1 -Dir .build/.agents/gh-35018401682 -Format table
 ```
 
+To answer only "what made it red", add `-Verdict failure,host-failure,signature-mismatch,gate-too-wide,gate-collision`. Unfiltered JSON is dominated by `gate-holds` rows: on #5959 it was 1865 rows / 980 KB for six red legs whose only real failure was one test.
+
 It is the GitHub counterpart to `azp-build-failures.ps1` but deliberately **fetch-only** — parsing belongs to `ci-test-verdicts.ps1`, which reads both systems' logs with one grammar. Pass `-Conclusion all` when harvesting what a *holding* gate hides, since that message is quoted only in a green leg's log. A run whose red job is being **re-run** lists that job without a conclusion, so the latest attempt matches nothing; the script falls back to earlier attempts and reports which one it read in `attempt` (`-Attempt <n>` pins one).
 
 **Run `ci-test-verdicts.ps1` over a full `test-all` log set with `run_in_background: true` and a redirect to a file.** Ten GitHub legs are ~180 MB of logs, and the parse outlasts the PowerShell tool's default 120 s timeout (#5983).
