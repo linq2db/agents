@@ -36,7 +36,7 @@ Input (named parameters):
   -Provider      <list>    optional; passed through to --provider (comma list)
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
-                           Default: <cwd>/.build/.agents/worktree-test-<project>[-<tfm>].log
+                           Default: <RepoRoot>/.build/.agents/worktree-test-<project>[-<tfm>]-<pid>.log
   -SerialBuild             optional; build first as its own step, with -m:1
                            -p:UseSharedCompilation=false, to <LogPath>-build.log.
                            Reach for it when a run is killed mid-flight leaving an
@@ -104,7 +104,7 @@ Output (stdout, single JSON object):
     "buildFailed": false,            // true when the run never reached the tests
     "repoRoot":  "C:/Worktrees/...",
     "project":   "Tests/.../X.csproj",
-    "logPath":   "C:/.../worktree-test-X-net10.0.log",
+    "logPath":   "C:/.../worktree-test-X-net10.0-1234.log",
     "testProgress": true,            // whether --test-progress was actually passed
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
@@ -152,11 +152,11 @@ if (-not (Test-Path -LiteralPath $projectFull -PathType Leaf)) {
 }
 
 if (-not $LogPath) {
-    $logDir = Join-Path (Get-Location).Path '.build/.agents'
+    $logDir = Join-Path $repoFull '.build/.agents'
     if (-not (Test-Path -LiteralPath $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
     $stem    = [System.IO.Path]::GetFileNameWithoutExtension($Project)
     $suffix  = if ($Tfm) { "-$Tfm" } else { '' }
-    $LogPath = Join-Path $logDir "worktree-test-$stem$suffix.log"
+    $LogPath = Join-Path $logDir "worktree-test-$stem$suffix-$PID.log"
 }
 
 if (-not [System.IO.Path]::IsPathRooted($LogPath)) {
