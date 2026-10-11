@@ -30,6 +30,16 @@ A probe build given its own `new SelectQuery()` keeps query-scoped state out of 
 
 `ContextRefBuilder` returns the referenced context as-is only when `buildInfo.CreateSubQuery` is clear. When it is set — `Any`/`All`, the collection side of `SelectMany`, a query nested in a predicate or projection — it re-resolves through `context.GetContext(…)`, and a `SelectContext` answers that by trying to build its projection body as a sequence, which no builder accepts: a `.Select(...)`-projected source fails with *"could not be converted to SQL"*. `CreateSubQuery` is copied into every derived `BuildInfo`, so a builder that splices an already-built context into a lowered expression must either splice only when the flag is clear (`UnpivotBuilder`) or pass `CreateSubQuery = false` itself (`GroupByBuilder`, `AggregateExecuteBuilder`). (#5708, f550159e9 — caught by the plan critic, not by any test the branch had.)
 
+### Values a builder reads after the cache key
+
+The query cache key is taken from the exposed tree before any builder runs. A non-scalar constant in it (a closure object) is kept only as a placeholder, so two trees that differ only in a captured value compare equal. A builder that evaluates such a value, or an extension method that runs over a stand-in queryable, bakes the first execution's value into a query the next execution will hit. Three mechanisms keep the value in the key, with different limits:
+
+- **`ParametersContext.MarkAsValue`**, as `ExpressionBuilder.RegisterExtensionAccessors` uses it. It registers an expression for by-value comparison, re-evaluated on every lookup. Mark the **whole evaluable argument**, not its closure leaves: a call result (`GetYears()`) has no closure leaf, and a captured `this` passes on `ReferenceEquals`. Skip what becomes a SQL parameter (`IsTranslatedToSql`), or every new parameter value is a rebuild. `CompareValues` short-circuits on `ReferenceEquals`, so a list mutated in place compares equal to itself.
+- **`[SqlQueryDependent]`** on a parameter. Expose folds the argument to a constant and the comparer evaluates both sides. `PrepareForCache` also folds a `NewArrayInit` of quoted lambdas into constants of `LambdaExpression`, which compare by reference, so every execution misses. #6003 uses it for `FromSql`'s `FormattableString`.
+- **Accept literals only**, as `ExposeExpressionVisitor.ExpandOverSource` does: a quote or a `ConstantExpression`, anything else declined.
+
+(#5708, A-16.)
+
 ## Other Key Directories
 
 - `Source/LinqToDB/Mapping/` — Attribute-based and fluent mapping configuration (`[Table]`, `[Column]`, `FluentMappingBuilder`)

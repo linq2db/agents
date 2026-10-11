@@ -59,3 +59,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** both are false passes. Disposal returns the connection every iteration, and a single shared context holds a single physical connection — neither can exhaust the pool.
 
 **Don't re-attempt:** those shapes. Create the leaking contexts **without disposing** them and keep them alive (e.g. in a `List`) so finalization can't return the connections, then loop past Max Pool Size (default 100). Expect the stress run to OOM-kill a DB container (`sql2022` exited 137); restart it between the red run and the fix-verify run. (#5364)
+
+## EXPR-TRANS: `[EagerEvaluation]` to desugar an overload whose arguments carry `Sql.*` calls
+
+**Tried:** marking the `Pivot` / `Unpivot` / `SelectDynamic` convenience overloads `[EagerEvaluation]` so the exposer runs them when they are written inline in a sub-query over a query-chain source.
+
+**Failed because:** the attribute evaluates the call only when `IsCompilable` holds, and `CanBeEvaluatedOnClientCheckVisitorBase.VisitMethodCall` rejects any server-side-only method, including one inside a quoted lambda argument. A `SelectDynamic` template `(x, n) => Sql.Property<decimal>(x, n)` made every inline call throw *"requires client-side evaluation but its arguments are not compilable"*. A correlated source is not compilable either, so it gets the same error.
+
+**Don't re-attempt:** `[EagerEvaluation]` for an overload whose lambdas may contain `Sql.*` calls. Desugar in a builder instead, running the public method over `ExpressionQueryImpl.CreateQuery(…, sourceExpression)`, and keep the folded arguments in the cache key: [`architecture.md`](architecture.md) → *Values a builder reads after the cache key*. (#5708)
