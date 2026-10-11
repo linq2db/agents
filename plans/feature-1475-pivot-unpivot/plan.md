@@ -156,6 +156,9 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 - E-31 `Source/LinqToDB/LinqExtensions/PivotCells.cs` — A-14 carrier type; A-15: explicit `IReadOnlyDictionary<string, object?>` (CA1710 suppressed), never-null `Values`, internal constructor, `[Pure]` `Cell`, count-cell doc.
 - E-32 `Source/LinqToDB/LinqExtensions/UnpivotNulls.cs` — A-15 doc: both consumers and the multi-value default.
 - E-33 `Tests/Linq/Linq/SelectDynamicTests.cs` — `SelectDynamic` coverage; A-15 round-trip and guard-message tests.
+- E-34 `Source/LinqToDB/Internal/Linq/Builder/PivotSugarBuilder.cs` — A-16: builds a public `Unpivot` (non-5-arg) / `Pivot` / `SelectDynamic` call reached unevaluated inside a lambda by running it over a stand-in queryable carrying its source expression.
+- E-35 `Source/LinqToDB/Internal/Common/ErrorHelper.cs` — A-16: `ErrorHelper.Pivot` message constants for the three operators.
+- E-36 `Tests/EntityFrameworkCore/Tests/ToolsTests.cs` — A-16: `Pivot` / `Unpivot` directly on an EF Core `DbSet`.
 
 > **Line numbers above are indicative only.** Remove by `git diff -U0 origin/master...HEAD` hunk, never by the ranges written here — the critic found every range off by 1–3, one of which would have orphaned an XML doc comment into `CS1587` under `TreatWarningsAsErrors`. The branch is **add-only against master** (33 files, zero deletions), so E-1…E-9 are exactly "revert these hunks".
 
@@ -470,6 +473,123 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
     LinqService); Release net10.0, Release netstandard2.0, Tests Release net10.0 and Tests net462 build clean.
     Container providers left to CI: `test-all` build 24106 covers e0935d57f only; f550159e9 still needs its own
     run before this amendment's verification is complete.
+
+- **A-16 (2026-10-11) — round-2 review walk; P6 widened to E-34…E-36.** The review of head 413eaa7be produced 12
+  findings plus 4 out-of-scope observations; all findings were fixed as commits 24bb696de…abe28281e, attribution in
+  `gaps.md` Round 2. **The approval this plan never recorded stays void for the widened surface.** What changed, each
+  red first where it is a behaviour change:
+  - **Inline in a sub-query (E-34).** The public overloads rewrite themselves into markers only when they run; inside
+    a lambda over a query-chain source the exposer leaves them unevaluated (`ExposeExpressionVisitor:495`), so
+    `t.Where(…).Unpivot(…)` inside `Any` / `SelectMany` failed "could not be converted" — red-proven for all three
+    operators. `[EagerEvaluation]` was tried and rejected: its compilability check rejects server-side-only calls
+    inside quoted lambdas, so every `Sql.Property` template failed. A builder now runs the call over
+    `ExpressionQueryImpl.CreateQuery(…, source expression)`, passing quoted lambdas through uncompiled, so a
+    correlated source is never evaluated and works where the provider supports lateral joins (`Unpivot` correlated
+    is `[ThrowsRequiredOuterJoins]` on the no-apply providers; correlated `Pivot` decorrelates and runs everywhere
+    tested). `SelectDynamic` with a `Sql.Property` template still fails inline: the exposer evaluates the template's
+    name before any builder runs — #5953, tests gated.
+  - **Pivot cells** may read the selector's grouping parameter (`BuildCell` declares the cell lambda over it);
+    `Pivot` routes through `ProcessIQueryable`, so it works directly on an EF Core `DbSet` (E-36, red on EF10).
+  - **Unpivot** names a nested/complex column by its full member path (red: `Ship.Amount` read `ROOT_AMT`);
+    multi-value overloads validate empty groups / names / selectors.
+  - **API:** `PivotCells.Values` → `Store` (the IReadOnlyDictionary view's `Values` meant something else), nullable
+    values, private setter; messages to `ErrorHelper.Pivot` (E-35).
+  - **Tests:** two-column multi-value pin; production-shape cache assertions split SQLite-only, SQLite.MS repeat
+    execution gated on pre-existing #6028; `UnpivotOverAProjectionInASubQuery` gated on Oracle 11 behind #6024
+    (pinned type + message; fix PR #6027 may turn it into `Error_OUTER_Joins` rather than a pass).
+  - Measured, no change: an inline or method-group name factory costs one `CompileExpression` per execution
+    (captured `Func` costs none); no retained-memory growth attributable to it.
+  - Verification: pivot classes green on SQLite.Classic + DuckDB (direct + LinqService) and Oracle 11; EF10 SQLite.MS;
+    Release net10.0 (Source, Tests, EF10), netstandard2.0, Tests net462 build clean. `test-all` build 24141 queued
+    on abe28281e.
+  - **Revision after critic round 4 (refuted), commit 26c0f993f.** E-34 folded closure-held arguments after the cache
+    key was taken: measured stale rows (captured `Unpivot` columns `{Q2}`→`{Q3}` still answered `EU`), the inline
+    name-array overloads threw the selector error, and the inline marker `Unpivot` dropped a params array passed as a
+    variable. Chosen fix (user's option b over rejecting non-literal arguments): every closure-held value in the
+    operator's arguments, quoted selectors included, is registered with `ParametersContext.MarkAsValue` — the
+    by-value comparison `RegisterExtensionAccessors` uses for extension builders — in both `PivotSugarBuilder` and
+    `UnpivotBuilder`; the desugared tree goes through `ConvertExpressionTree` before building; `UnpivotInfo.Parse`
+    evaluates a non-`NewArrayInit` params argument. Rejected: `[SqlQueryDependent]` on the public parameters (#6003's
+    route for `FromSql`) — `PrepareForCache` would fold quoted column lambdas into reference-compared constants and
+    miss on every execution. Cost: on the inline path a captured `Func` (name factory, `cells`) compiles to a new
+    delegate per evaluation and therefore never hits the cache; the direct path is unchanged. Pinned SQLite-only
+    (cache identity is provider-agnostic): `InlineUnpivotRereadsCapturedColumns` / `…ColumnNames` /
+    `InlineUnpivotWithAColumnArrayVariable` (red before, measured) and `InlinePivotRereadsCapturedValues` (not run red).
+    A-15's "value-blind names over different value sets do not share a cache entry" holds for the direct path; the
+    inline path now holds it through the by-value marks.
+  - **Revision after critic round 5 (refuted 26c0f993f; uncommitted on top of it).** Round 4's leaf marking was wrong
+    in both directions, and its "the direct path is unchanged" was false: `UnpivotBuilder` marked closures inside the
+    quoted selectors of *every* `Unpivot`, so `Amount = a * rate` missed per distinct `rate` on the direct path. Leaf
+    marking also missed values not rooted at a closure member (`GetYears()`, `source.GetYears()`: the call compared
+    structurally, the object by reference → stale rows), and a captured `List<int>` mutated in place compared
+    `ReferenceEquals` → stale. Now, in `PivotSugarBuilder.ReadArgument` (shared by `UnpivotInfo.Parse`):
+    - **Argument granularity**, as `RegisterExtensionAccessors`: an argument that is not a quote / array-init / lambda is
+      evaluated **once**, that value is both marked (unless a constant the key keeps) and handed to the call — so a
+      `DateTime.Now`-derived set cannot differ between the mark and the build. Array-init is read element-wise.
+    - **Quoted lambdas become SQL**, so their captures stay ordinary parameters and are never marked; the only
+      build-time reads inside one are the non-quoted arguments of a `PivotCells.Cell` call (aggregate held in a
+      variable, name factory). A lambda argument run at build time (`cells`, `nameSelector`, an in-place name factory)
+      is compared structurally by the key, and every value its body reads outside a nested quote is marked — so
+      `y => y == current ? "V" : "W"` re-reads `current` (a scalar: the critic's delegate/Expression-only rule would
+      have missed it).
+    - **Snapshot**: a marked non-string, non-`IQueryable` sequence is copied at mark time and compared element-wise.
+    - `UnpivotInfo.Parse` reads `Arguments[1..4]` through the same reader. The direct path's marker carries only a
+      constant `nulls`, quotes and an array-init of quotes, so it marks nothing.
+    - Critic item 3 (`x => x.Q1` held in a local → `InvalidCastException`) **did not reproduce** on 26c0f993f: the
+      extended `InlineUnpivotWithAColumnArrayVariable` passed before the change. Kept as a pin.
+    - Tests, SQLite-only, each run red on 26c0f993f's source for the stated reason: `InlinePivotRereadsAValueSetMethod`
+      (static call, provider-keyed dictionary — `[ThreadStatic]` is banned), `…InstanceMethod`, `…AValueListMutatedInPlace`,
+      `InlineUnpivotRereadsColumnNamesFromAMethod` (stale rows); `UnpivotSelectorCaptureReusesTheCachedQuery` (direct)
+      and `InlineUnpivotSelectorCaptureReusesTheCachedQuery` (2 misses, expected 1). `InlinePivotRereadsANameFactoryCapture`
+      is green on 26c0f993f, red only against abe28281e's design (not run).
+    - Verification: pivot / `SelectDynamic` classes on SQLite.Classic, SQLite.MS, DuckDB (+ `.LinqService` for the
+      `[DataSources]` tests): 334 pass, 1 fail — `PivotsProductionShapeIntoUserType` on SQLite.MS, which fails
+      identically without this change: pre-existing #6028 reached through test order (`PivotsProductionShapeQueryCache`
+      caches the same direct-path shape first). Release net10.0 + netstandard2.0 (Source) and Release net10.0 (Tests)
+      build clean.
+    - Cost unchanged from round 4 for build-time delegates: a captured `Func` compares by delegate equality (hit when
+      the same instance); a value the call reads through a method compares by result, so it re-runs the method on
+      every cache lookup.
+  - **Revision after critic round 6 (refuted round 5; user chose "evaluate as value-or-threw").**
+    - **Guarded reads.** A read inside a build-time lambda can sit behind a test on the lambda's own parameter
+      (`y => y > 3000 ? cfg!.Prefix : "V"`); marking evaluated it eagerly → `TargetException` with `cfg == null`, where
+      the direct path never reaches it. Measured red on both 26c0f993f and round 5 (`InlinePivotNameFactoryWithAGuardedCapture`).
+      A guard *not* using the parameter (`cfg != null ? … : …`) is folded by the exposer with the current value before
+      the builder runs, so it never failed — the critic's own example did not reproduce until rewritten. Now
+      `MarkGuardedValue` evaluates the read under try/catch and registers `TryCatch(read, catch → sentinel)` as the
+      accessor: compared as "the value, or that it threw", at mark time and at every lookup, so a later null is a miss,
+      not an exception out of `QueryCache.TryFind`. Top-level arguments are not wrapped: the call reads them
+      unconditionally, so a throw there is the call's own.
+    - **Critic round 7: `weak`** — design held (fold explanation verified, `TryCatch` accessor sound through
+      `ApplyAccessors` / `CorrectAccessorExpression`, direct path marks nothing). Asks applied: the guarded test is now
+      a `[QueryCacheTest]` pinning the sentinel's hit/miss arms (null → 1 miss, null → hit, `{W}` → miss, null → hit);
+      eager-evaluation and `cells` delegate-identity limitations recorded (below).
+    - **Inline lambda arguments** now have obligations, each red on 26c0f993f (stale rows):
+      `InlinePivotCellSetRereadsWhatItReads` (`cells:` lambda) and `InlineSelectDynamicRereadsWhatTheNameSelectorReads`
+      (template without `Sql.Property`, clear of #5953).
+    - **Sequences.** A non-array sequence argument is enumerated once into an array that both the mark and the call
+      use. Limitation: the comparison enumerates the *live* argument at every lookup, so a sequence that can be
+      enumerated only once is unsupported inline (the lookup consumes it before a rebuild) — unfixable while the value
+      is compared by content.
+    - **Limitations recorded** (XML docs of `PivotCells.Cell` `name`, `SelectDynamic` `nameSelector`, `Pivot` `cells`):
+      written in a sub-query, a captured delegate or object counts as unchanged while it is the same instance; and
+      (critic round 7) every client-evaluable read in a build-time lambda runs at build and at each cache lookup,
+      whether or not the lambda's guard reaches it — so a side-effecting or expensive read runs anyway, and a sequence it
+      reads is enumerated then (same one-shot caveat as a top-level argument). 26c0f993f touched only closure-rooted
+      leaves, so this eager evaluation is new with the argument-granularity design. **Compiled queries:**
+      the public overloads written inline under `CompiledQuery.Compile` receive `ArrayIndex(ps, i)` arguments the raw
+      evaluator cannot resolve — not a regression against 26c0f993f, out of scope for this PR (P10).
+    - Verification: pivot / `SelectDynamic` classes, SQLite.Classic + SQLite.MS + DuckDB (+ `.LinqService` for
+      `[DataSources]`): 340 pass, 1 fail = `PivotsProductionShapeIntoUserType` on SQLite.MS (#6028, see below).
+    - **#6028 mechanism, measured (probe, SQLite.MS):** Microsoft.Data.Sqlite reports `GetFieldType` /
+      `GetDataTypeName` per row, and inconsistently for NULL — row 0's NULL is `Byte[]`/`BLOB`, row 1's NULL is
+      `String`/`BLOB`. Execution 1: the fast mapper is compiled on row 0, throws on row 1 → `ReMapOnException` stores a
+      slow-mode mapper (`IsFaulted`) in the cached query's `Mapper<T>`. Its `ColumnReader` caches converters keyed by
+      `GetFieldType` alone, while `GetReaderExpression` also chooses by type name / provider type; the first cell it sees
+      for the failing column is row 1's NULL (`String`/`BLOB`), so a BLOB reader is cached under `String` (harmless on a
+      NULL; the BLOB → `byte[]` reader choice is inferred from the exception, not traced). Execution 2 is a correct cache hit; the faulted mapper reads row 0's TEXT under `String` → `String → Byte[]`
+      and, being faulted, rethrows. A cache miss (new value set) builds a fresh mapper and succeeds. So: correct hit,
+      poisoned materializer state inside the cached query — independent of the pivot.
 
 ## P12 Critic verdict (M/L)
 
