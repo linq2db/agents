@@ -27,6 +27,16 @@ dotnet build <proj> -c Release -f net10.0 -p:NoWarn=1573%3B1591%3B…%3BMA0206
 
 Collect the union from `Directory.Build.props`'s `<NoWarn>` plus every `<NoWarn>$(NoWarn);…</NoWarn>` on the project's props chain (`Tests/linq2db.TestProjects.props`, `Tests/linq2db.Providers.props`). Before reaching for any of this, check whether the failing site is pre-existing (`git diff origin/master...HEAD -- <file>`) — if it is, and it sits in a *dependency* project, it aborts the build of everything downstream, which is a different problem from one extra error in the project you care about.
 
+## Extra global properties on a `ProjectReference` build the project twice
+
+MSBuild identifies a project instance by its path **and its global properties**. A `ProjectReference` carrying `AdditionalProperties` / `Properties` (or an `<MSBuild Projects=… Properties=…>` call that builds) to a project the solution also builds directly creates a **second instance** of it. The property also flows down that instance's own references, so the whole chain below it is built a second time too. Both instances run in parallel into the same `obj` directory, and the race fails intermittently with whichever file collides: `CS2012` (output locked), `MC2000` (WPF markup compile, file in use), `CS2001` (WPF `*.g.cs` deleted by the other instance's markup pass). A rerun usually goes green, which is why it reads as flakiness.
+
+- **Spot it in the build log**: the same `<Project> -> <path>` line printed twice for one TFM. On the GitHub `Build and pack` job `LinqToDB`, `LinqToDB.Tools` and `LinqToDB.Scaffold` (net8.0) each appeared twice.
+- **Fix**: don't put the extra property on the reference. If it really must reach the referenced project, set it in that project instead, or make every path that builds it pass the same set. `SetTargetFramework` alone is fine — the solution's own build of that TFM gets the same global property set, so MSBuild treats both as one instance.
+- **Measure, don't reason**: a Release build of a solution filter containing just the referencing and referenced projects shows the duplicate `->` lines before the fix and single ones after; the duplication is deterministic even though the race is not.
+
+(#6030: `LinqToDB.LINQPad.Pack` passed `GenerateLpxArtifacts=false` to the driver reference — inert, since `Pack.cmd` only runs on `net472` — and it also re-built `LinqToDB` net8.0, the project+TFM whose intermittent CS2012 was chased on #5858.)
+
 ## Scoping a shared property or override — sweep the consumers first
 
 A property defined in `Directory.Packages.props` (or any shared props file) reaches a project only where that project *opts in*, and the opt-in shape decides the blast radius. Before adding, narrowing or widening one, enumerate every consumer and state which are affected — don't reason from the project you happen to be editing.
