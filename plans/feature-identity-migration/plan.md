@@ -277,6 +277,9 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 - **CI no longer exercises ODP.NET's default statement-cache configuration** (`D-3` failure mode). Accepted
   on the maintainer's instruction; the trade is against a long-standing source of Oracle CI flakiness.
 - **The underlying Oracle drop→create→drop behaviour is unfixed for users.** `E-3` is a test-side setting.
+- **`DeleteAsync` removes dependents in separate statements, outside any transaction.** A cancellation or error
+  mid-sequence can strand dependents. Maintainer (review round 2, MIN016): callers use an explicit transaction - the
+  readme's "not atomic" section documents the pattern. Do not re-raise.
 
 ## P11 Amendments
 
@@ -326,6 +329,26 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   raised "no `TUserPasskey`, breaking to add after release". `U-8` refuted the premise (EF added it
   additively), and the user then chose to add it before release anyway. Widens `P6` by seven edit-points and the
   public type structure on net10; any prior approval of the edit set is void and re-earned on this amendment.
+- **A-10** — **review round 2 (`gaps.md`, round 2), commits `10eaf908e`..`c799473d4`.** Widens scope well past the CI
+  failures, each item user-approved in the walk:
+  - **`SC-3` broken on purpose:** `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs` binds ODBC
+    `Text`/`NText` as long text (an over-255-character `LongText` value failed with HY104). Core-layer test
+    `AccessTests.LongTextParameter`, red→green on `Access.Ace.Odbc`.
+  - **`P3` anti-goal "ClickHouse and YDB" discharged:** the stores now run on YDB (find-then-insert role add,
+    delete decided by row presence when `SqlProviderFlags.IsAffectedRowsCountSupported` is false, two-step
+    `RemoveFromRoleAsync`); ClickHouse keeps only the update-refresh and identity-key gates, each pinning its expected
+    failure. `A-7`'s gates superseded.
+  - **`D-2` / `SC-2` extended:** YDB `LockoutEnd` → `Timestamp64`; the UTC converter stores whole seconds so
+    `DateTimeOffset.MaxValue` fits every pinned type. Reverses `A-8`'s narrowing of `UserLockout`'s input.
+  - **`A-6` premise corrected:** Informix `BYTE` cannot be compared, so the passkey id is hex text in `LVarChar(2048)`;
+    Informix name/email `LVarChar(1024)`; SQL CE passkey `Data` `NText`; Firebird `DbType` strings carry `UNICODE_FSS`.
+  - **Public surface:** four duplicate `ConfigureMappings` overrides removed; `IdentityNavigations.Roles()` / `Users()`
+    return `IdentityRole<TKey>` / `IdentityUser<TKey>` through internal link-hop associations, with stock role/user
+    mirror mappings in the role-aware contexts.
+  - Verified locally: 1007-test batch over 11 providers (YDB, ClickHouse ×3, Informix, Access ACE ×2, MySQL 8 ×2,
+    SqlCe, SQLite.MS) green apart from two load-induced Octonica timeouts that pass alone; Release build of
+    `LinqToDB.Identity` clean on all five TFMs. SQL Server, PostgreSQL, Oracle, DB2, Sybase, SAP HANA and Firebird
+    are CI-only.
 
 ## P12 Critic verdict
 
