@@ -34,7 +34,10 @@ Default behaviour:
      File-based providers (Access, DuckDB, SQLite, SqlCe) compose their CN
      in-script from `<RepoRoot>/.build/bin/NuGet/Debug/net462/Database/`.
   4. Azure + Azure.MI providers are skipped by default (they need an
-     externally-hosted Azure SQL DB).
+     externally-hosted Azure SQL DB). Their committed baselines under
+     `Tests/Tests.T4/Cli/All/{Azure,AzureMI}` still exist: when a change moves
+     the `All/SqlServer` output, apply the identical textual change to them
+     (keep the BOM) and check `git diff --stat` shows the same line counts.
 
 Parameters:
 
