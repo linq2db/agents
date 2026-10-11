@@ -2,6 +2,7 @@
 
 - **Tier:** M
 - **Status:** implementing
+- **Approved:** `A-9` edit set (`E-4`…`E-12`), 2026-10-11, after the critic's `weak` verdict was folded in.
 - **Scope note:** the branch (the LinqToDB.Identity monorepo migration) predates this plan. This plan covers
   only the three CI failures diagnosed and fixed in this session.
 
@@ -34,15 +35,11 @@ Actions — never filed as an issue.
 
 ## P2 Success criteria
 
-- **SC-1** (F-1) — `CreateTable<IdentityUser<TKey>>` emits a valid datetime column type for `LockoutEnd` on
-  Access, SqlCe, Sybase, SAP HANA, Informix, DB2 LUW, Firebird 2.5 and Firebird 3.
-- **SC-2** (F-1) — providers that already render `DataType.DateTimeOffset` emit **exactly** what they emit
-  today: SQL Server, PostgreSQL, Oracle, MySQL, DuckDB, YDB, DB2 zOS, Firebird 4, Firebird 5. Failable by
-  the DDL-text instrument in `TO-2`, **not** by a baseline diff — see `P11 A-2`.
-- **SC-3** (F-1) — no file under `Source/LinqToDB/` changes.
-- **SC-4** (F-2) — `verify-analyzer-delivery.ps1` reports 0 violations for `linq2db.Identity`.
-- **SC-5** (F-3) — the Identity suite passes on Oracle with the driver's statement cache disabled; the
-  ORA-24449 / ORA-00932 / NRE family does not occur.
+- **SC-1** (F-1) — `CreateTable<IdentityUser<TKey>>` emits a valid datetime column type for `LockoutEnd` on Access, SqlCe, Sybase, SAP HANA, Informix, DB2 LUW, Firebird 2.5 and Firebird 3. → TO-1, TO-3
+- **SC-2** (F-1) — providers that already render `DataType.DateTimeOffset` emit **exactly** what they emit today: SQL Server, PostgreSQL, Oracle, MySQL, DuckDB, YDB, DB2 zOS, Firebird 4, Firebird 5. Failable by the DDL-text instrument in `TO-2`, **not** by a baseline diff — see `P11 A-2`. → TO-2
+- **SC-3** (F-1) — no file under `Source/LinqToDB/` changes. → TO-6
+- **SC-4** (F-2) — `verify-analyzer-delivery.ps1` reports 0 violations for `linq2db.Identity`. → TO-4
+- **SC-5** (F-3) — the Identity suite passes on Oracle with the driver's statement cache disabled; the ORA-24449 / ORA-00932 / NRE family does not occur. → TO-5
 
 ## P3 Constraints & anti-goals
 
@@ -66,6 +63,9 @@ Actions — never filed as an issue.
 | U-5 | `LockoutEnd` is the only `DateTimeOffset` column | resolved-by probe — passkey `CreatedAt` is inside a JSON column (`DefaultMappings.cs:270`) |
 | U-6 | The insert/read round-trip works on the 8 pinned providers | **reasoned, not probed** for the *parameter* path. `E-1` moves parameter binding from `DataType.DateTimeOffset` to `DateTime2` with a `DateTimeOffset` CLR value. Access and SqlCe convert unconditionally (`AccessDataProvider.cs:139-140`, `SqlCeDataProvider.cs:91-92`); Sybase, SAP HANA, Informix have no such handling in `SetParameter`. Untestable locally (no containers). `TO-3` is the instrument |
 | U-7 | Both ODP.NET keywords are needed | resolved-by probe — `Statement Cache Size=0` alone still produced 9/45 failures; self-tuning re-enables the cache |
+| U-8 | EF Core's .NET 10 Identity added `TUserPasskey` additively | resolved-by probe (`gh api` on `dotnet/aspnetcore@release/10.0`, 2026-10-11) — `UserOnlyStore.cs:69-70` the 6-arity derives from a new 7-arity closed with `IdentityUserPasskey<TKey>`; `UserStore.cs:93-94,126` 9→10 likewise; `IdentityUserContext.cs:60,88` 5-arity derives from a new abstract 6-arity; `CreateUserPasskey` is `protected virtual TUserPasskey` (`UserOnlyStore.cs:563`); `IdentityDbContext.cs:77,111` the 8-arity derives from a new abstract 9-arity, which derives from the user-only 6-arity — so EF's 8-arity also left the 5-arity chain. EF's DI (`IdentityEntityFrameworkBuilderExtensions.cs:49-89`): roles path always builds `UserStore`10` from the 9-arity incl. `[8]`; user-only path finds the 6-arity but builds `UserOnlyStore`6`, dropping a custom `TUserPasskey` |
+| U-9 | A generic type's base class may differ by TFM without breaking the non-net10 surface | reasoned, unprobed — only net10 gains the new types; on other TFMs the existing declarations compile unchanged under `#else` |
+| U-10 | Existing overrides of the passkey members keep compiling once they move to the 7-arity base | reasoned, unprobed — on the closed 6-arity `TUserPasskey = IdentityUserPasskey<TKey>`, so the inherited signatures are identical; `TO-10` compiles an override against the 6-arity |
 
 ## P5 Decisions
 
@@ -123,6 +123,36 @@ from the branch after the critic caught stale-clone drift — `P11 A-3`):
 - **failure mode of the choice:** CI stops exercising the driver's default configuration, so a future
   statement-cache interaction becomes invisible to the suite. Recorded in `P10`.
 
+**D-4 — a `TUserPasskey` type parameter, EF Core's shape** *(A-9)*
+
+- **chosen:** on `net10.0` only, add higher-arity types carrying `TUserPasskey : IdentityUserPasskey<TKey>, new()`
+  — `UserOnlyStore`7`, `UserStore`10`, `IdentityDataContext`/`IdentityDataConnection` user-only `6` and full `9`
+  — and re-base each existing arity onto its new sibling closed with `IdentityUserPasskey<TKey>`, exactly as
+  `U-8` measured. The class body moves to the new type under `#if NET10_0_OR_GREATER`; the existing
+  declaration keeps it under `#else`. The full 8-arity context re-bases onto the 9-arity (which derives from the
+  user-only 6-arity), so on net10 it no longer derives from the user-only 5-arity — EF made the same change.
+- **DI (`AddLinqToDBStores`):** on net10 — roles path: find the **9-arity** base, read `TUserPasskey` at `[8]`;
+  user-only path: find the **6-arity** base, read `TUserPasskey` at `[5]`. Stock `IdentityUserPasskey<TKey>` →
+  today's `UserStore`9` / `UserOnlyStore`6` (resolved store type unchanged for every existing context, incl. a
+  full context registered without roles, which today reaches the 5-arity through 8→5); custom →
+  `UserStore`10` / `UserOnlyStore`7`. Deliberately not EF's dispatch (`U-8`): EF always builds the 10-arity on
+  the roles path, and its user-only path drops a custom passkey type.
+- **no stock-passkey mirror:** unlike claims/logins (`IdentityDataContext.cs:186-188`), the 6-arity does not
+  also map `IdentityUserPasskey<TKey>` when `TUserPasskey` is custom — no navigation returns passkeys
+  (`IdentityNavigations.cs`). Consequence: a hand-built `UserOnlyStore`6` / `UserStore`9` over a custom-passkey
+  context queries an unmapped table; the readme (`E-9`) says a custom passkey type needs the 7/10-arity store or DI.
+- **invariant for the `#if` arms:** members move strictly *up* the hierarchy on net10, never sideways or down,
+  so a consumer compiled against a portable TFM and run on net10 still binds (CLR resolves memberrefs up the
+  base chain).
+- **rejected:** shipping without it and adding later — `U-8` shows it is additive, but the user chose to ship
+  it now (review walk G7).
+- **rejected:** a parallel 9-arity that does not share the 8-arity's body — duplicates the role mappings.
+- **`PublicAPI`:** new types and the moved passkey members go to `PublicAPI/net10.0/PublicAPI.Unshipped.txt`.
+  The root file's entries for members now declared on the net10 base (6-arity store, 5/8-arity contexts) become
+  per-TFM drift; left to `/release-publicapi -Action fix-drift` (accepted intra-release lag).
+- **failure mode:** a missed `#if` arm compiles on net10 and breaks a portable TFM, or vice versa — `G-05`
+  builds `netstandard2.0` + `net10.0` Release.
+
 ## P6 Edit-points
 
 - **E-1** `Source/LinqToDB.Identity/Mapping/DefaultMappings.cs` — add `_lockoutEndDataTypes` and, in
@@ -132,6 +162,18 @@ from the branch after the critic caught stale-clone drift — `P11 A-3`):
   the `LinqToDB.csproj` reference. Mapped by `TO-4`.
 - **E-3** `DataProviders.json` — append the ODP.NET statement-cache disable to the 8 managed-Oracle
   connection strings. Mapped by `TO-5`.
+
+- **E-4** `Source/LinqToDB.Identity/Stores/UserOnlyStore.cs` — `UserOnlyStore`7`; 6-arity re-based (D-4).
+- **E-5** `Source/LinqToDB.Identity/Stores/UserStore.cs` — `UserStore`10`; 9-arity re-based (D-4).
+- **E-6** `Source/LinqToDB.Identity/Context/IdentityDataContext.cs` — 6- and 9-arity contexts; 5/8-arity
+  re-based; `UserPasskeys` table accessor on the 6-arity (D-4).
+- **E-11** `Source/LinqToDB.Identity/Context/IdentityDataConnection.cs` — the same as `E-6` (mirrored family).
+- **E-7** `Source/LinqToDB.Identity/Mapping/DefaultMappings.cs` — `SetupIdentityUserPasskey<TKey, TUserPasskey>`.
+- **E-8** `Source/LinqToDB.Identity/IdentityLinqToDBBuilderExtensions.cs` — net10 dispatch on `TUserPasskey`.
+- **E-9** `Source/LinqToDB.Identity/PublicAPI/net10.0/PublicAPI.Unshipped.txt` — new surface.
+- **E-12** `Source/LinqToDB.Identity/readme.md` — customization section: custom passkey type, and that it
+  needs the 7/10-arity store or DI.
+- **E-10** `Tests/Linq/Identity/*` — `TO-7`…`TO-10`.
 
 All five `ConfigureMappings` overrides across `IdentityDataConnection.cs` and `IdentityDataContext.cs` route
 through `SetupIdentityUser`, so `E-1` needs no second site.
@@ -149,26 +191,49 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 | Other packable projects' `PrivateAssets` | searched — the other 7 referencing `LinqToDB.csproj` already carry `contentfiles;build`; `linq2db.Identity` was the only gap |
 | Non-managed Oracle configs (Devart, Native) | `deferred:` — Devart has its own settings and no connection strings in `DataProviders.json`; `E-3` covers only ODP.NET managed |
 | `linq2db.baselines` | `deferred:` — Identity fixtures set `BASELINE_DISABLED` (`IdentityTestData.cs:21-25`), so no baseline covers this |
+| (D-4) users of `IdentityUserPasskey<TKey>` in `Source/LinqToDB.Identity` — searched `Passkey` | `UserOnlyStore.cs:459-609` (E-4), `DefaultMappings.cs:403-445` (E-7), `IdentityDataContext.cs:39,82,183` / `IdentityDataConnection.cs:40,83,184` (E-6); none in `UserStore.cs`, `IdentityNavigations.cs` |
+| (D-4) reflection over store/context arities — searched `MakeGenericType`, `typeof(UserOnlyStore<` | `IdentityLinqToDBBuilderExtensions.cs:43-83` only (E-8) |
+| (D-4) `PublicAPI` — searched the root `PublicAPI.Unshipped.txt` for the 6/9-arity store and 5/8-arity context members | 69 entries become net10 drift — `deferred:` to `/release-publicapi` (D-4) |
+| (D-4) tests naming the stock passkey type — searched `IdentityUserPasskey` under `Tests/` | `IdentityTestData.cs:54`, `IdentityStoreTests.cs:509` — unchanged, they use the stock type |
 
 ## P8 Test obligations
 
-- **TO-1** (`SC-1`, red→green) — one row per pinned provider, not one for "the legs": Access ×3, SqlCe,
+- **TO-1** (`SC-1`) — proof: red→green — one row per pinned provider, not one for "the legs": Access ×3, SqlCe,
   Sybase, SAP HANA, Informix, DB2 LUW, Firebird 2.5, Firebird 3. **What proves it fired:** the failure
   message changes. A leg still reporting a `DateTimeOffset`-named DDL error means the scoped attribute never
   applied (`D-1` failure mode) — distinct from a leg that now fails later.
-- **TO-2** (`SC-2`, control) — DDL-text assertion, since leg pass/fail cannot see this: `CreateTable` then
+- **TO-2** (`SC-2`) — proof: control — DDL-text assertion, since leg pass/fail cannot see this: `CreateTable` then
   read the emitted type for `LockoutEnd` on one **pinned** provider (SqlCe — runnable locally, no container)
   and one **non-pinned** provider with a lane (SQL Server / Firebird 5 — must stay `datetimeoffset` /
   `TIMESTAMP WITH TIME ZONE`). **Mutation that proves it can go red:** register `D-2` against
   `ProviderName.Firebird` instead of the two dialects and confirm the FB5 type changes.
-- **TO-3** (`U-6`, round-trip) — `IdentityStoreTests.UserLockout` writes a non-null `LockoutEnd` on
+- **TO-3** (`U-6`, round-trip) — proof: characterization — `IdentityStoreTests.UserLockout` writes a non-null `LockoutEnd` on
   `[DataSources]`; it is the instrument for the parameter path on Sybase / SAP HANA / Informix / DB2 /
   Firebird, which `U-6` leaves reasoned-but-unprobed. A failure there is caused by `E-1`, not "a new
   observation".
-- **TO-4** (`SC-4`) — `verify-analyzer-delivery.ps1` over the packed output reports 0 violations.
-- **TO-5** (`SC-5`, red→green, **done**) — Identity suite on Oracle 11: 8/45 failed before `E-3`, 0/45 after.
+- **TO-4** (`SC-4`) — proof: red→green — `verify-analyzer-delivery.ps1` over the packed output reports 0 violations.
+- **TO-5** (`SC-5`, **done**) — proof: red→green — Identity suite on Oracle 11: 8/45 failed before `E-3`, 0/45 after.
   Three arms measured; see `G-01`.
-- **TO-6** (`SC-3`, characterization) — `git diff --stat` lists no file under `Source/LinqToDB/`.
+- **TO-6** (`SC-3`) — proof: characterization — `git diff --stat` lists no file under `Source/LinqToDB/`.
+- **TO-7** (D-4; the 9-arity context does not exist today) — proof: red→green — custom `AppUserPasskey :
+  IdentityUserPasskey<string>` (extra member) with a 9-arity connection and `UserStore`10`: add / find / update /
+  remove a passkey, and `DeleteAsync` at `Version3` removes it. The extra member is set by a test-side
+  `UserStore`10` subclass overriding `CreateUserPasskey` (the store itself writes only `UserId` /
+  `CredentialId` / `Data`, `UserOnlyStore.cs:559-580`) and read back through `GetTable<AppUserPasskey>()`.
+- **TO-8** (D-4) — proof: red→green — metadata: the custom passkey type maps to `AspNetUserPasskeys` with the stock column shape
+  (`CredentialId` length 1024, per-provider scoped attributes) on the 6- and 9-arity contexts.
+- **TO-9** (D-4, DI; control for the stock rows) — proof: red→green — custom-passkey context resolves `UserStore`10` (roles) / `UserOnlyStore`7` (user-only);
+  every existing DI test keeps asserting today's resolved types (`UserOnlyStore`6` for `AppUserOnlyConnection`);
+  **new case** — the full 8-arity `AppIdentityConnection` registered without `AddRoles` resolves
+  `UserOnlyStore<AppUser, AppIdentityConnection, string, AppUserClaim, AppUserLogin, AppUserToken>` — the one
+  shape whose base chain D-4 changes (8→9→6 instead of 8→5). Runs on net10.0; the `#else` arm is covered by
+  CI's net9.0/net8.0 legs.
+- **TO-10** (`U-10`) — proof: characterization — a test-side subclass of the 6-arity store overriding `CreateUserPasskey` returning
+  `IdentityUserPasskey<string>` compiles and is called.
+- Full Identity suite on SQLite.MS + SqlCe stays green (net10.0). Build gate for `E-4`…`E-8`: a local Release
+  build of `LinqToDB.Identity.csproj` across all five TFMs, read for **new** diagnostics only (it cannot go
+  green locally — the known `MA0215` at `UserOnlyStore.cs:410`, `P9 G-05`); the authoritative gate is CI's
+  Release `Build and pack` on the branch head.
 
 ## P9 Verification gates
 
@@ -183,7 +248,7 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   Oracle 11 (non-pinned control) `"LockoutEnd" timestamp with time zone NULL` at `:10628` and
   `DECLARE @LockoutEnd TimeStampTZ -- DateTimeOffset` at `:10851`, both byte-identical to the pre-change
   log. `TO-3`'s `UserLockout` ran green on both.
-- `G-01`: **pending** for `TO-1`'s other 7 provider families (no local containers), `TO-4`, `TO-6`.
+- `G-01`: **blocked** for `TO-1`'s other 7 provider families (no local containers — CI legs), `TO-4`, `TO-6`.
 - `G-05`: **pass for the changed file, blocked for the project** (2026-09-19) —
   `dotnet build Source/LinqToDB.Identity/LinqToDB.Identity.csproj -c Release -f netstandard2.0` returns
   `1 Error(s)`: `MA0215` at `Stores/UserOnlyStore.cs:410`, a file this session did not touch and which CI's
@@ -196,7 +261,9 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 - `G-06`: **pass** — `git diff --stat` is 3 files (`DataProviders.json`,
   `LinqToDB.Identity.csproj`, `DefaultMappings.cs`), all in `P6`; no reformatting.
 - `G-08`: n/a — no cross-cutting core change (`SC-3`).
-- `G-09`: pending.
+- `G-09`: **blocked** — on implementation of `A-9` and the final diff.
+- `G-05` for `A-9` (`E-4`…`E-8`): **blocked** — on implementation, then on CI's Release `Build and pack` on
+  the branch head after push; a local all-TFM Release build for new diagnostics comes first.
 
 ## P10 Adjudicated
 
@@ -252,6 +319,10 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   `datetime field overflow`. Pinned `(ProviderName.MySql, DataType.DateTime2)` → `DATETIME`, with the UTC
   converter. Surfaced by review round 1 (`gaps.md`, MIN005); `UserLockout` now writes `MaxValue.AddDays(-1)`
   — `MaxValue` itself trips a separate SQLite reader defect on non-UTC machines (`GetDateTime` → local time).
+- **A-9** — **`TUserPasskey` type parameter added (`D-4`, `E-4`…`E-10`, `TO-7`…`TO-10`).** Review walk G7
+  raised "no `TUserPasskey`, breaking to add after release". `U-8` refuted the premise (EF added it
+  additively), and the user then chose to add it before release anyway. Widens `P6` by seven edit-points and the
+  public type structure on net10; any prior approval of the edit set is void and re-earned on this amendment.
 
 ## P12 Critic verdict
 
@@ -267,3 +338,17 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 
 The critic also confirmed, by independent search, every provider-side fact in `D-2`, `U-2`, `U-3` and `U-4`,
 and that `P7`'s call-site enumeration is complete.
+
+**A-9 delta — weak** (`plan-critic`, fable, 2026-10-11). Searched: `Passkey` worktree-wide; every
+`IdentityData*<` / `*Store<` / `AddLinqToDBStores` site; the DI index readers; `is/as` casts on store/context
+types in `Tests/`; the PublicAPI analyzer wiring (`RunApiAnalyzersDuringBuild` off on master-targeting PRs, so
+the drift deferral is safe); `Identity.Stores` package versions per TFM. Confirmed `U-10`, the mapping-schema
+cache move, and that the source-level enumeration is complete.
+
+| Objection | Disposition |
+|---|---|
+| `TO-9` cannot see the one changed DI shape (full context, no roles: 8→5 becomes 8→9→6); "highest-arity base" is ambiguous and `[5]` on the 9-arity is `TUserLogin` | **accepted** — `D-4` DI line made exact (9-arity `[8]`, 6-arity `[5]`); `TO-9` new case |
+| `TO-7`'s extra-member round-trip cannot fail — the store never writes it | **accepted** — test-side `CreateUserPasskey` override, read via `GetTable` |
+| "EF made the same change" for 8→9→6 unmeasured | **accepted, measured** — `IdentityDbContext.cs:77,111` (`U-8`); EF's DI also measured and found to differ, recorded in `D-4` |
+| No build gate that can go green for a five-TFM `#if` split | **accepted** — all-TFM local Release for new diagnostics, CI `Build and pack` as the gate (`P8`, `P9`) |
+| Stock-passkey mirror undecided | **accepted** — decided "no mirror" in `D-4`, readme line in `E-9` |
