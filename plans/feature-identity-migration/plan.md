@@ -262,8 +262,11 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   `LinqToDB.Identity.csproj`, `DefaultMappings.cs`), all in `P6`; no reformatting.
 - `G-08`: n/a — no cross-cutting core change (`SC-3`).
 - `G-09`: **blocked** — on implementation of `A-9` and the final diff.
-- `G-05` for `A-9` (`E-4`…`E-8`): **blocked** — on implementation, then on CI's Release `Build and pack` on
-  the branch head after push; a local all-TFM Release build for new diagnostics comes first.
+- `G-05` for `A-9` (`E-4`…`E-8`): **blocked** — on CI's Release `Build and pack` on the branch head after push.
+  Local all-TFM Release build of `LinqToDB.Identity.csproj` (2026-10-11, `0bcdf28fd`): exit 0, no diagnostics
+  (`.build/.agents/pr5640-a9-build-release.log`) — the `MA0215` recorded above no longer reproduces.
+- `G-01` for `A-9` (`TO-7`…`TO-10`): **pass** (2026-10-11, `0bcdf28fd`) — full Identity suite, net10.0,
+  SQLite.MS + SqlCe: 159/159, the five new tests included. Informix/ClickHouse/YDB gates are CI-only.
 
 ## P10 Adjudicated
 
