@@ -163,6 +163,9 @@ if (-not [System.IO.Path]::IsPathRooted($LogPath)) {
     Exit-WithError -Message "LogPath must be absolute (the run's cwd is the worktree): $LogPath" -NextAction 'pass -LogPath <absolute path>'
 }
 
+$logParent = Split-Path -Parent $LogPath
+if (-not (Test-Path -LiteralPath $logParent)) { New-Item -ItemType Directory -Force -Path $logParent | Out-Null }
+
 $buildLogPath = $null
 
 # On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
