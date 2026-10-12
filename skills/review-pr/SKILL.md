@@ -249,6 +249,16 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 
 Two near-miss paths return `exists: false` silently: `Internal/Linq/CompiledTable.cs` (the real file is `CompiledTable{T}.cs`) and `Internal/Linq/Builder/ExpressionCacheManager.cs` (the real file sits directly under `Internal/Linq/`). (Surfaced on #6003: all three passes went 11–15 calls over budget fetching these files, and the prep manifest had guessed both near-miss paths.)
 
+When the PR also touches raw SQL (`FromSql`, `FromSqlScalar`, `Sql.Expr`) or the `[SqlQueryDependent]` expose path, add the files the passes need to answer "which lookup bucket does this tree land in", "what does an extension builder read", and "how does each provider bind the arguments":
+- `Internal/Linq/QueryCache.cs` (chain-hash buckets)
+- `Internal/Linq/ExpressionQuery.cs` (`Info` memoisation)
+- `Source/LinqToDB/Sql/Sql.ExtensionAttribute.cs` (`ISqlExtensionBuilder.GetValue` and its cache-key contract)
+- `Internal/Linq/Builder/Visitors/CanBeEvaluatedOnClientCheckVisitorBase.cs`
+- `Internal/SqlProvider/BasicSqlOptimizer.cs` and `Internal/SqlProvider/BasicSqlBuilder.cs` (`NormalizeExpressions` and `BuildFormatValues` for `IsParameterOrderDependent` providers)
+- `Source/LinqToDB.EntityFrameworkCore/Internal/TransformExpressionVisitor.cs` (EF `FromSqlRaw` reaching `FromSql(RawSqlString, params)`)
+
+(Surfaced on the second #6003 review: with the first list cached, the passes still spent 26 and 17 calls against their budgets on exactly these.)
+
 **For a PR that touches eager-load strategy selection or `SqlQueryValidatorVisitor`, the companions are the limit builders and the validator's callers.** Every pass asks the same questions. Does `Take` / `First` make the root query limited? Can a user request `Default` explicitly? What does a stricter validator make each caller decline? Cache these with `include.content: true`:
 - `Internal/Linq/Builder/TakeSkipBuilder.cs` (it sets the limit on the sequence's own query and returns a pass-through context)
 - `Internal/Linq/Builder/WithLoadStrategyBuilder.cs`
