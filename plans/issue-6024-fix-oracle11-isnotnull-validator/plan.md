@@ -47,7 +47,7 @@ Surfaced as `PivotTests.UnpivotOverAProjectionInASubQuery` failing on Oracle.11.
 
 - U-1 Does the visit order make own-table predicates look outer? — resolved-by scout: `QueryElementVisitor.cs:2456-2463` (FROM, then SELECT, then WHERE) and `:2089-2094` (Table, then Condition), plus measured red on all 4 repro shapes.
 - U-2 Does a rejection by this check get rescued by a fallback shape, or does it throw? — resolved-by scout + probe. On a provider without APPLY, `Query<T>` rebuilds with `ValidateSubqueries = true` (`Query{T}.cs:222-233`); if final validation still fails, it throws. Measured: all 4 repro shapes throw, so no fallback rescues them.
-- U-3 Which existing Oracle 11 queries does the current check reject, and for which does the narrowed rule change the verdict? — resolved-by probe. The census completed over the full Tests.Linq run on Oracle.11.Managed + LinqService (10896 tests, `test-6024-census.log` / `census-6024.txt`). The check fired in exactly 6 tests: the 4 new tests plus `Concat_OverGrouping_DistinctNullableValues` and `JoinAggregateArrayNotNull`, all `newFires=False`. The critic checked by hand that D-1's scope is a superset of master's `_currentSources` at every position. So D-1 never fires where master does not, and the census, which logs master firings, is complete for verdict changes.
+- U-3 Which existing Oracle 11 queries does the current check reject, and for which does the narrowed rule change the verdict? — resolved-by probe. The census completed over the full Tests.Linq run on Oracle.11.Managed + LinqService (10896 tests, `test-6024-census.log` / `census-6024.txt`). The check fired in exactly 6 tests: the 4 new tests plus `Concat_OverGrouping_DistinctNullableValues` and `JoinAggregateArrayNotNull`, all `newFires=False`. The critic checked by hand that D-1's scope is a superset of master's `_currentSources` at every position except one (see A-3), so outside that position D-1 never fires where master does not, and the census, which logs master firings, is complete for verdict changes there.
 - U-8 Can the prototype report "parent" at all? (No `newFires=True` has been observed yet.) — resolved-by probe: TO-5's shape logged `newFires=True` 4× (`census-6024.txt` rows 25-28).
 - U-4 Does the minimal-repro SQL execute on a real Oracle 11 once the validator lets it through? — resolved-by probe: TO-1..TO-4 pass on Oracle.11.Managed + LinqService (`test-6024-final.log`).
 - U-5 `JoinAggregateArrayNotNull`: is its rejection a real Oracle 11 limitation? Its IS NOT NULL is on a VALUES/UNION derived table whose legs reference outer `t` two levels up, so it may fail at runtime (ORA-00904) or hit `SupportedCorrelatedSubqueriesLevel = 1` / `Error_OUTER_Joins` instead. — resolved-by probe. It is a real limit, but not an IS NOT NULL one. With D-1 alone it fails at runtime with ORA-00904 (correlation inside an inline view). With A-1/E-6 it raises `Error_OUTER_Joins`.
@@ -183,6 +183,13 @@ Surfaced as `PivotTests.UnpivotOverAProjectionInASubQuery` failing on Oracle.11.
 
 - Adds E-7 and TO-11 for `Issue5256Tests`: the A-1 shape without IS NOT NULL, plus the uncorrelated `SumOfSums` control.
 - **re-derives:** TO-10 (the fixture set gains `Issue5256Tests`), SC-6.
+
+### A-3 — D-1 scope is narrower than master's inside JOIN ON conditions (review, 2026-10-12)
+
+- **trigger:** PR review found an exception to U-3's superset claim.
+- **mechanism:** master pushed a table source `a` before visiting `a.Joins`, and `VisitSqlJoinedTable` visits `Table` before `Condition` (`QueryElementVisitor.cs:2089-2092`), so `a` was still a current source while a join's ON condition was visited. D-1 starts a fresh scope at each column-subquery boundary. A column subquery reached from an ON condition that references `a` with IS NOT NULL — e.g. `a JOIN b ON b.Id IN (SELECT (SELECT MAX(..) FROM d WHERE a.X IS NOT NULL) FROM c)` — is now rejected on Oracle 11, where master accepted it. The level check does not intercept it: `VisitSqlSearchCondition` nulls `_columnSubqueryLevel`.
+- **decision:** accepted (user, 2026-10-12). It is a genuine parent reference, so the rejection matches the flag's contract; master's acceptance was an artefact of the stack. No CI test reaches the shape (0 modified/deleted baselines). Not probed on Oracle 11.
+- **re-derives:** U-3 (census completeness holds everywhere except ON-condition column subqueries); SC-3 (that position is a deliberate verdict change, not a regression).
 
 ## P12 Critic verdict (M/L)
 
