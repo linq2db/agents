@@ -37,6 +37,8 @@ is not here: it lives in [`../CLAUDE.md`](../CLAUDE.md).
 
 - **Don't edit a source file while a background build / test run is in flight.** The compiler may read the file mid-edit and fail on a half-applied state, producing an error that describes your *intermediate* text rather than your change — so it reads as "the change is wrong" instead of "the build raced the editor". Queue the edit until the completion notification lands; if you've already started, expect to re-run rather than trusting the result. This is the write-side counterpart to the don't-poll rule above: same trigger (a `run_in_background` task you launched), opposite operation. (#5701)
 
+- **Waiting is not the default — keep doing the independent work.** Awaiting the notification means not *polling*; it doesn't mean ending the turn. If there is work that doesn't depend on the run's result and doesn't touch its tree (a corpus or plan edit, a CI check, a static sweep, preparing the next step's inputs), do it while the run is in flight. End the turn only when everything left depends on the result. (#5707: *"don't wait for run if we can continue"*.)
+
 ## Spending context
 
 - **Fetch an external binary document once, then mine it from disk.** When the authoritative answer lives in a `.docx` / `.pdf` / archive rather than a web page (LINQPad's `DataContextDrivers8.docx` is the recurring case — its macOS/XPF driver contract appears on no web page), download it **once** to `.build/.agents/`, extract the text, and `Grep` that file for each subsequent question. Re-downloading per question costs a multi-hundred-KB fetch plus a re-extract for every lookup. (#5786) Same logic as the `diff-reader.ps1` `writeDir` cache rule above: when the bytes are already on disk, read them.
