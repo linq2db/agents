@@ -123,11 +123,13 @@ Neither LINQPad 5 nor LINQPad 9 exposes a CLI for driver install/update — both
 
 ### LINQPad 5 (.lpx, .NET Framework)
 
-Extract the `.lpx` (a renamed zip) directly into LINQPad 5's per-user driver folder. Close LINQPad 5 first — it locks DLLs while running.
+A dev build of the `.lpx` is the net472 leg of the driver project: `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj -c Debug -f net472` — its post-build `Nuget/Pack.cmd` writes `.build/lpx/linq2db.LINQPad.lpx`.
+
+Extract the `.lpx` (a renamed zip) directly into LINQPad 5's per-user driver folder. Close LINQPad 5 first — it locks DLLs while running. Keep the previous driver as a `.bak-<yyyyMMdd-HHmm>` sibling rather than deleting it — it is the one-step rollback.
 
 ```powershell
 $target = Join-Path "$env:LOCALAPPDATA\LINQPad\Drivers\DataContext\4.6" 'linq2db.LINQPad (no-strong-name)'
-if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+if (Test-Path $target) { Rename-Item $target "$target.bak-$(Get-Date -Format 'yyyyMMdd-HHmm')" }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory('.build/lpx/linq2db.LINQPad.lpx', $target)
 ```
