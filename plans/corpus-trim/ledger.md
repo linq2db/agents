@@ -27,6 +27,30 @@ Dispositions:
 | L-08 | The corpus is a submodule | The superproject's `git status` is blind to the corpus. | kept | — | — | C1 `git -C .claude status` before asserting clean · C2 and after a subagent that could write there | C1 ✓ C2 ✓ |
 | L-09 | The corpus is a submodule | The corpus moves under you in both directions. | moved | `claude-setup.md` | `#5880` | C1 commit same turn or re-verify survival · C2 prefer proposing while user curates · C3 re-read script header / log before a workaround | C1 ✓ C2 ✓ C3 ✓ |
 | L-10 | The corpus is a submodule | A fresh worktree gets its corpus from `post-checkout`, not from git. | trigger-only | `worktree.md` | — | C1 confirm corpus present before working · C2 switch master before a corpus push | C1 ✓ C2 ✓ |
+| L-11 | Dedicated tools over raw CLI | It applies to a background task's output file too — the single most-violated case. | moved | `turn-conduct.md` | `600-line log` | C1 output file → Grep/Read, never grep/tail/sed | C1 ✓ |
+| L-12 | Dedicated tools over raw CLI | A working-tree search is evidence about *your checkout*, not about the repo. | moved | `worktree.md` | `#5936` | C1 empty result = not in this checkout · C2 re-ask against a ref · C3 cite line numbers from the branch's checkout | C1 ✓ C2 ✓ C3 ✓ |
+| L-13 | Dedicated tools over raw CLI | When an `Edit` fails "string not found" on a line you just read, re-anchor — don't re-guess the indentation. | moved | `windows-gotchas.md` | `number and a tab` | C1 re-anchor from first non-whitespace char | C1 ✓ |
+| L-14 | Dedicated tools over raw CLI | Finding the newest test heartbeat is `test-status.ps1`, not `ls -t`. | moved | `testing.md` | `newest by mtime` | C1 use test-status.ps1 / /test-progress, not ls -t | C1 ✓ |
+| L-15 | Permission-friendly patterns | `>` redirect | trigger-only | `windows-gotchas.md` | — | C1 no redirect; --jq or persist+Read | C1 ✓ |
+| L-16 | Permission-friendly patterns | Inline `pwsh -NoProfile -Command "…"` | trigger-only | `windows-gotchas.md` | — | C1 never inline pwsh; Grep/Read | C1 ✓ |
+| L-17 | Permission-friendly patterns | `gh … --body @-` / `-f body=@<file>` | trigger-only | `windows-dev-gotchas.md` | — | C1 literal string; --body-file / --input | C1 ✓ |
+| L-18 | Permission-friendly patterns | Scratch scripts | trigger-only | `windows-gotchas.md` | — | C1 under .build/.agents/*.ps1 | C1 ✓ |
+| L-19 | Permission-friendly patterns | When the data is already on disk | trigger-only | `windows-gotchas.md` | — | C1 Read/Grep cached data, don't re-fetch | C1 ✓ |
+| L-20 | Windows Git Bash gotchas | `git ls-tree … -- '<glob>'` does not glob, and an empty result is not absence. | moved | `windows-dev-gotchas.md` | `#5764` | C1 enumerate via diff --name-only / ls-files then Grep | C1 ✓ |
+| L-21 | Windows Git Bash gotchas | `gh … --body` is banned. | trigger-only | `windows-dev-gotchas.md` | — | C1 --body-file only · C2 azp-run.ps1 for /azp | C1 ✓ C2 ✓ |
+| L-22 | Windows Git Bash gotchas | (plain) `git fetch <headRefName>` | trigger-only | `windows-dev-gotchas.md` | — | C1 spell both refspec sides | C1 ✓ |
+| L-23 | Windows Git Bash gotchas | (plain) Transient `fatal error — add_item` | moved | `windows-dev-gotchas.md` | `#6003` | C1 retry once then Bash unavailable for git/gh this session · C2 hook-running commit/push: wait and retry · C3 never --no-verify | C1 ✓ C2 ✓ C3 ✓ |
+| L-24 | Windows Git Bash gotchas | (plain) file stays `M` after `git restore` | trigger-only | `windows-dev-gotchas.md` | — | C1 don't chase · C2 no --assume-unchanged (read merge-blocked case) | C1 ✓ C2 ✓ |
+
+Unchanged in group 2: *Bash command rules* prose and both bullets; the `gh api`, `git show`, `docker exec`, stdout-decoding and `Glob` one-liners (wording only shortened).
+
+## Dropped provenance fragments
+
+Incidental "how often / where seen" asides with no obligation and no incident number, dropped rather than moved:
+
+- `Read` row of the tools table: "recurred on the `docker-session-started.txt` check".
+- `git grep` row: the `fatal: unable to resolve revision: -A` error text and "hit twice in one session out of habit".
+- *Worktrees are the default*: "it reads `origin/pr/<n>` via `diff-reader.ps1`" (the `/review-pr` skill owns it).
 
 ## Observed, not fixed (P3: no policy changes in this plan)
 

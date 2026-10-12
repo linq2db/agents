@@ -244,6 +244,8 @@ pwsh -NoProfile -File .claude/scripts/test-status.ps1          # newest run, one
 pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw     # dump the raw JSON
 ```
 
+Use the script rather than `ls -t` on the directory: it accumulates heartbeats from prior sessions and concurrent runs, so "newest by mtime" is a guess about whose run you are looking at.
+
 **Caveat:** under a `--filter`, `total` reflects the *discovered* (pre-filter) test count, so it over-counts and `etaSec` is unreliable; `total`/`etaSec` are exact only for full, unfiltered runs (the case this is built for). `completed` and `currentTest` are always accurate.
 
 ## Test Database Configuration

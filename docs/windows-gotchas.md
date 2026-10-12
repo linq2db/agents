@@ -49,6 +49,10 @@ path: .claude   glob: **/{skills,agents}/**/*.md        -> 2 files
 
 Write the glob relative to the cwd, prefix it with `**/`, or drop the directory part and narrow with `path` alone. A glob with no `/` (`*.md`, `{a,b}.ps1`) matches file names at any depth and is unaffected. (Surfaced 2026-09-30: three false negatives in one session, one of which hid two skills that still restated a rule being changed.)
 
+## An `Edit` that fails "string not found" on a line you just read: re-anchor
+
+`Read` prefixes every line with a number and a tab, so the leading whitespace you see is not the file's, and counting tabs off that display is a coin flip in a tab-indented codebase. The tell is that the failure is *only* about whitespace — the code text is verbatim correct. Trim `old_string` to start at the first non-whitespace character and let the match float; uniqueness almost always survives it. (#5877)
+
 ## Permission-friendly Bash patterns
 
 Patterns that triggered prompts in real sessions and the equivalents that don't. The summary in [`agent-rules.md`](agent-rules.md) → *Bash command rules* names the most-hit ones; this is the full table.
