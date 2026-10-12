@@ -19,6 +19,14 @@ Do the same before opening the PR when the branch was pushed earlier in the sess
 
 The usual trigger for the conflict is the base branch being **rebased** by its own author. `git fetch` reports a forced update (`+ 4ad776d1c...e85eb6278 … (forced update)`), and the branch then holds the old copy of the base's commits while the base offers the same patches under new hashes; GitHub flips the PR to `CONFLICTING` / `DIRTY`. Merging the base resolves it, and the merge normally carries **no code change at all** — the two copies are the same patch, so the only conflicts are in files both lineages touch. Confirm that rather than assuming it: `git diff HEAD --stat` before committing the merge should be empty or near-empty, and anything else in it deserves an explanation.
 
+### Structural migrations an audit surfaces
+
+The split-fix rule ([`AGENTS.md`](../AGENTS.md) → *Creating a new branch*) moves a *fix* onto its own branch; here the right answer is not to do the work yet at all. An audit — inventorying what ships, sweeping for a pattern, cataloguing dependencies — turns up adjacent structural work that is obviously correct and obviously not what the branch is for: a hand-copied binary that should come from a package, a folder that should be retired. The tell is that the finding is about *how something is obtained or organised* rather than about the defect the branch exists to fix, and that acting on it would touch artifacts the branch's own anti-goals exclude. File it with the evidence the audit already produced — that evidence is the expensive part and it is in hand right now — pick a later milestone, and cross-link it from the code. (#5731, #5861, #5862)
+
+### Recovery branch during a rebase
+
+When an in-flight task surfaces an *unrelated* master breakage (usually a CI failure from a merge race), finish the in-flight branch first: resolve the conflict → force-push → `git switch -c <recovery-branch> origin/master` → open the recovery PR, which can run CI in parallel. Switching mid-rebase strands the in-flight branch rebased-but-unpushed and costs context.
+
 ### After every successful push: PR body check
 
 Check for a PR on the branch (`gh pr list --head <branch> --json number,title,body,url`):
