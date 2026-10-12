@@ -19,3 +19,28 @@ The findings are spread thinly: GAP-02, GAP-05 and GAP-03 once each, plus one si
 - GAP-03 × 1 → the scout brief in `work-plan/SKILL.md` step 5 — when a fix narrows a rejection or validator rule, add a P7 row for tests that opt out of the affected providers (`[DataSources(... exclusions)]`, `ActiveIssue`). Excluded tests are invisible to any firing census.
 - GAP-02 × 1 → an attack vector in `plan-critic.md` — "For each new test, name every provider-conditional attribute and the sibling tests that already use it; if P8 proof runs on fewer providers than the attribute asserts about, flag it." This would also have caught TO-9's SQLite-only scope.
 - GAP-05 × 1 → the P8 semantics in `work-plan.md` — when a rejected alternative in P5 is justified by an observable difference, require a TO that distinguishes the two. If none is possible, require D-1 to record that the rejection is untestable.
+
+## Round 2 — reviewed HEAD 6d1a15d16f8c58f89112466d10ef2c2ff9d28282 (PR #6027)
+
+### Attribution
+
+- **NIT001** — GAP-07 — `AllAnyTests.cs:370-371`. E-2 and TO-1 name the test and its proof, but give no rules for how to write it. The rule exists: one call per line, preferably query-into-variable then assert. Its "not this" example is exactly this `.Where(...).X(...).ShouldBe(...)` one-liner. But it lives only in the maintainer's auto-memory, and is absent from `testing.md`, `rules/` and AGENTS.md. `work-plan/SKILL.md` step 4 embeds none of those memories, so the rule never reached the author or the critic. The rule predates the plan, so this is not GAP-10. — — — preventable: partly
+- **NIT002** — GAP-07 — `AllAnyTests.cs:379-380`. Same cause as NIT001, for TO-2. — — — preventable: partly
+- **NIT003** — GAP-07 — `AllAnyTests.cs:389-391 / 400-402 / 412-414`. E-2 and TO-3..TO-5 carry no layout rule. The "multiline query syntax" rule also exists only in auto-memory. A second, partial cause: the rules contradict each other on choosing `AssertQuery` over `AreEqual`. One says match the surrounding fixture, and this fixture uses `AreEqual` throughout. So the rules must say which one wins. — — — preventable: partly
+- **OOS (the parent IS NOT NULL rule is broader than Oracle 11's real limit)** — not-a-gap: out-of-plan-scope. P3 excludes re-deciding the flag, and P9 G-01 TO-5 records it as a follow-up candidate.
+
+### Aggregate
+
+All three findings have one cause, GAP-07: the house test-layout rules are not in the repo corpus. This round found no correctness, API or gating miss, and P9 accounts for every gate. Moving those rules into `testing.md` would have prevented all three.
+
+### Recommended durable fixes
+
+- GAP-07 × 3 → `.claude/docs/testing.md`:
+  - Add a *Test layout* section with three rules: one call per line, multiline query syntax, and `AssertQuery` instead of a hand-duplicated `AreEqual`.
+  - Give each rule a do/don't example.
+  - State that new tests follow these rules even where the fixture's existing idiom differs.
+- GAP-07 × 3 → `work-plan/SKILL.md` step 4: embed that section when `P6` has an edit-point under `Tests/`.
+
+### Continuity
+
+No round-1 recommendation recurs. The round-2 layouts were already present, byte for byte, at the round-1 HEAD: `e70651b..6d1a15d` changes only line 383, which is the BLK001 fix. So round 1 missed them too. The reason is that `code-reviewer.md` has no test-layout rule, so it flags layout only when the briefing supplies the rule. A pointer from the reviewer rubric to the new `testing.md` section would close that path.
