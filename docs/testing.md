@@ -343,6 +343,7 @@ The `/test` skill targets the Playground / Linq projects only — the EF Core in
 Each provider config maps to a distinct database, so runs scoped to **distinct** providers don't collide and can run concurrently. Three cautions, the first two from the standing single-session rule:
 
 - **One distinct provider (= one database) per parallel run.** The same provider on two concurrent runs — including the *same* provider across two TFMs — hits the same database and corrupts state. The parallel unit is the database, not the process.
+- **A connection override that points two configs at one database breaks that inside a single run.** Pointing `SqlServer.2005` and `SqlServer.2005.MS` both at `tempdb` fails one config only, with a schema error (`Cannot drop the table … does not exist`) — a false red beside the real result. Give each config its own database, or run them one at a time.
 - **Build once, and don't let the runs build concurrently.** Two `dotnet test` invocations on the same project race to write and lock the shared `linq2db.Tests.dll` (fails with `MSB3027`). Build once, then launch each run as the **test executable directly** — it never builds, and each process writes its own per-PID heartbeat:
 
 ```bash
