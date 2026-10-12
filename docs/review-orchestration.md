@@ -63,7 +63,7 @@ Common fields across both modes, supplied by either skill:
   - **Work plan**, when the branch has one — `P1`–`P3`, `P7`, `P10`, `P11`, `P12` from `.claude/plans/<key>/plan.md`, where `<key>` is `headRefName` with `/` → `-`. See [`work-plan.md`](work-plan.md) → *Consumers*. **Pass it whole to every pass** — never slice it by focus, because a `P7` row's job is often to answer a cross-area question that another pass's slice owns. An absent plan is normal (external contributors, pre-mechanism branches) and is never a finding.
 - **`baselines-reviewer` briefing**
   - PR number and head branch.
-  - Baselines clone path: `../linq2db.baselines`.
+  - Baselines clone path: `../linq2db.baselines`. From a worktree, pass the absolute path next to the primary clone instead ([`pr-context-prep.md`](pr-context-prep.md) → *Baselines clone setup*).
   - Baselines branch: `baselines/pr_<n>`.
   - Change summary.
   - The absolute diff-cache path (`<writeDir>`, holding PR-HEAD bodies of every changed file) and the instruction to read test sources there — or with `git grep <pattern> origin/pr/<n> -- <path>` for an unchanged test — never from the working tree. The agent's anomaly rules depend on a test's `[IncludeDataSources]` / `[ThrowsForProvider]` list and its assertions; without the path it looks in the primary clone, misses, and reports the anomaly unverified. (#5983: two of four anomalies were false — a Sybase default the test asserts as intended, and a provider spread explained by a SQLite+ClickHouse-only data source — and the agent said it could not find the test file.)

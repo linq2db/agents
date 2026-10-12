@@ -62,13 +62,15 @@ The baselines clone is expected at **`../linq2db.baselines`** (sibling of this r
 
 **Sibling of the primary clone, not of the working directory.** From a worktree that is not itself a sibling of the primary clone — the desktop app's `.claude/worktrees/<name>/`, for one — `../linq2db.baselines` names a directory that does not exist, and the fetch below fails with `fatal: cannot change to '../linq2db.baselines'`, not the `not a git repository` of point 2. Don't read that as "clone missing" and offer to clone there. Take the primary root from `git rev-parse --path-format=absolute --git-common-dir` (its parent directory) and use `<primary-root>/../linq2db.baselines` in every `git -C` below. (Surfaced on #5987.)
 
-Run `git -C ../linq2db.baselines fetch origin` directly as a single Bash call — do **not** pre-probe with `ls ../linq2db.baselines`. The `ls` is documented as a violation in `.claude/docs/windows-gotchas.md` → **Permission-friendly Bash patterns** (it's not allowlisted and prompts every time), and the `git fetch` is self-diagnosing:
+Below, `<baselines>` means that resolved path. It is literally `../linq2db.baselines` only when the working directory is the primary clone. The scripts (`baselines-pr-scan.ps1`, `baselines-diff.ps1`) resolve it themselves via `Resolve-BaselinesClone`. Hand-written `git -C` calls, subagent briefings and the clone command below must spell it out.
 
-1. If the clone **exists**: the fetch succeeds (usually silent; possibly a few `origin/baselines/pr_*` updates printed).
-2. If the clone **does not exist**: the fetch errors out with `fatal: not a git repository ...`. On that error, stop and ask the user:
-   > Baselines clone not found at `../linq2db.baselines`. Clone `https://github.com/linq2db/linq2db.baselines.git` there now? [y/N]
+Run `git -C <baselines> fetch origin` directly as a single Bash call. Do **not** pre-probe with `ls <baselines>`: `ls` is not allowlisted and prompts every time (`.claude/docs/windows-gotchas.md` → **Permission-friendly Bash patterns**). The `git fetch` diagnoses itself:
 
-   - On `y`: `git clone https://github.com/linq2db/linq2db.baselines.git ../linq2db.baselines`.
+1. If the clone **exists**: the fetch succeeds. It is usually silent, sometimes printing a few `origin/baselines/pr_*` updates.
+2. If the clone **does not exist**: the fetch errors out with `fatal: not a git repository ...`. A `fatal: cannot change to …` error means the path was resolved wrong; that error is not this case. On `not a git repository`, stop and ask the user:
+   > Baselines clone not found at `<baselines>`. Clone `https://github.com/linq2db/linq2db.baselines.git` there now? [y/N]
+
+   - On `y`: `git clone https://github.com/linq2db/linq2db.baselines.git <baselines>`. Use the absolute primary-sibling path. A relative `../linq2db.baselines` run from a desktop-app worktree would clone into `.claude/worktrees/`.
    - On `N`: skip baseline review, proceed with code review only, note the skip in the final review body.
 
 Branch presence is checked by the baselines subagent via `baselines-diff.ps1`, so the skill doesn't need a separate `rev-parse` step — and equally must not pre-probe with `git -C ../linq2db.baselines branch -a --list 'origin/baselines/pr_<n>'` or any other `branch --list` / `rev-parse` / `ls-remote` shape. The script returns `status: "branch_missing"` when the PR produced no baseline changes, which the subagent converts into its `no_baselines` output; the same script is also the one that errors clearly when the *clone* is missing. Pre-probing adds nothing the script doesn't already do and costs a permission prompt per run.

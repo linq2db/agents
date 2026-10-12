@@ -38,6 +38,7 @@ Parameters
                        identifier across providers. Used by the normaliser.
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
+  -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
 
 Output (stdout, single JSON object)
 -----------------------------------
@@ -59,6 +60,10 @@ Output (stdout, single JSON object)
                 "postfix": { "added": 66,  "removed": 309 },
                 "perFileLosses": [ { "file": "...", "prefixNet": 0, "postfixNet": -3 } ] },
     "providers": [ { "provider": "SQLite.Classic", "files": 41 }, ... ],
+    "inherited": { "files": 175, "samples": [ "..." ] },
+    "addedTests": { "universe": 68,
+                    "tests": [ { "test": "Tests.Linq.X.Y", "providers": 63,
+                                 "missing": [ "ClickHouse.Driver", "..." ] } ] },
     "renames": {
       "mismatches": 0,
       "mismatchSamples": [ { "file": "...", "old": "...", "new": "..." } ],
@@ -78,6 +83,24 @@ the rest with the lines unique to each side. Note a pure reorder scores as
 thousands of `renames.mismatches`, so the two fields answer different questions
 and a high mismatch count is not evidence of a content change on its own.
 
+`inherited` counts delta paths that are byte-identical to current `$BaseRef`.
+These are paths in the three-dot name-status but absent from a two-dot
+name-only diff. Their content came from another PR's baselines merged into
+baselines master after this branch was cut, so they are not this PR's work.
+Subtract them before attributing the delta. A zero does NOT rule out lag on
+the PR-branch side (see review-pr step 8).
+
+`addedTests` covers every test that has at least one *added* file; the test
+name is the file name up to the first `(`. For each test it lists the
+providers that have no baseline for it anywhere in the branch tree, so a
+pre-existing baseline counts as coverage. The reference set is the
+`universe`: every provider that has at least one added file. Most of the time
+a missing provider means the test threw or was excluded there, so compare it
+with the test's `[ThrowsFor*]` / `[DataSources]` attributes. A provider whose
+whole leg failed adds no files at all, so it is absent from the universe as
+well. Cross-check the universe against the CI matrix. Only tests missing at
+least one provider are listed.
+
 Note: comparisons are Ordinal throughout. A case-only rename (`@Usage` ->
 `@usage`) is a real rename and PowerShell's default case-insensitive `-ne`
 would silently drop it — see `.claude/docs/script-authoring.md` → Gotchas.
@@ -92,7 +115,8 @@ param(
     [string]   $IdentifierPrefixes = '@:?$',
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
-    [int]      $MaxImpureFiles     = 25
+    [int]      $MaxImpureFiles     = 25,
+    [int]      $MaxAddedTests      = 60
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -129,20 +153,62 @@ $tip = (Git -GitArgs @('log', '-1', '--format=%H%x1f%cI%x1f%s', $remoteRef)).std
 $range = "$BaseRef...$remoteRef"
 
 # ---- name-status -----------------------------------------------------------
-$counts    = @{ added = 0; modified = 0; deleted = 0 }
-$providers = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
+$counts     = @{ added = 0; modified = 0; deleted = 0 }
+$providers  = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
+$deltaPaths = [System.Collections.Generic.List[string]]::new()
+# test name -> providers that have an added baseline for it
+$addedByTest   = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+$addedUniverse = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 
 foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -split "`n")) {
     if (-not $line.Trim()) { continue }
-    $parts = $line -split "`t"
+    $parts = $line.TrimEnd("`r") -split "`t"
+    $path  = $parts[-1]
+    $p     = ($path -split '/')[0]
     switch ($parts[0].Substring(0, 1)) {
-        'A' { $counts.added++ }
+        'A' {
+            $counts.added++
+            $test = (($path -split '/')[-1] -replace '\(.*$', '')
+            if (-not $addedByTest.ContainsKey($test)) {
+                $addedByTest[$test] = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            }
+            [void]$addedByTest[$test].Add($p)
+            [void]$addedUniverse.Add($p)
+        }
         'D' { $counts.deleted++ }
         'M' { $counts.modified++ }
     }
-    $p = ($parts[-1] -split '/')[0]
+    $deltaPaths.Add($path)
     if (-not $providers.ContainsKey($p)) { $providers[$p] = 0 }
     $providers[$p]++
+}
+
+# ---- inherited: delta paths byte-identical to current $BaseRef ---------------
+# A two-dot diff is used here only as a filter over paths, never as the diff to read.
+$twoDot = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($l in ((Git -GitArgs @('diff', '--name-only', $BaseRef, $remoteRef)).stdout -split "`n")) {
+    if ($l.Trim()) { [void]$twoDot.Add($l.TrimEnd("`r")) }
+}
+$inherited = @($deltaPaths | Where-Object { -not $twoDot.Contains($_) })
+
+# A test can gain a baseline on only some providers because it already had one elsewhere, e.g. a
+# provider exclusion was just dropped. Count every baseline the test has anywhere in the branch tree,
+# not only the added ones, so that case doesn't read as dozens of missing providers.
+if ($addedByTest.Count -gt 0) {
+    foreach ($l in ((Git -GitArgs @('ls-tree', '-r', '--name-only', $remoteRef)).stdout -split "`n")) {
+        if (-not $l.Trim()) { continue }
+        $l    = $l.TrimEnd("`r")
+        $test = (($l -split '/')[-1] -replace '\(.*$', '')
+        if ($addedByTest.ContainsKey($test)) { [void]$addedByTest[$test].Add(($l -split '/')[0]) }
+    }
+}
+
+$addedTests = @()
+foreach ($t in ($addedByTest.Keys | Sort-Object)) {
+    $have    = $addedByTest[$t]
+    $missing = @($addedUniverse | Where-Object { -not $have.Contains($_) } | Sort-Object)
+    if ($missing.Count -eq 0) { continue }
+    $addedTests += [pscustomobject]@{ test = $t; providers = $have.Count; missing = $missing }
 }
 
 # ---- per-file line / signal / rename analysis over the -U0 diff ------------
@@ -346,6 +412,14 @@ $result = [ordered]@{
         perFileLosses = $castLosses
     }
     providers = $providerList
+    inherited = [ordered]@{
+        files   = $inherited.Count
+        samples = @($inherited | Select-Object -First 25)
+    }
+    addedTests = [ordered]@{
+        universe = $addedUniverse.Count
+        tests    = @($addedTests | Select-Object -First $MaxAddedTests)
+    }
     renames   = [ordered]@{
         mismatches      = $mismatchCount
         mismatchSamples = @($mismatchSamples)
