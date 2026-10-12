@@ -117,6 +117,8 @@ For the most common case — posting an `/azp run …` CI trigger — use `.clau
 
 The Bash tool is Git Bash (POSIX sh), **not** PowerShell — a PowerShell here-string `git commit -m @'…'@` is not a heredoc there, so the `@'` / `'@` markers leak into the message (mangled subject line `@`, trailing `@` footer), forcing an amend. Bash double-quoted `-m "…"` also command-substitutes backticks (`` `word` `` vanishes). Robust on Windows regardless of shell or content: `Write` the message to `.build/.agents/commit-msg.txt`, then `git commit -F <path>` (and `git commit --amend -F <path>` to fix a botched one). Same trap/fix the `gh … --body-file` rules above address for issue/PR bodies.
 
+Repeated `-m "para"` flags are the simplest Bash-safe multi-paragraph form, but **any body containing `;`, `&&`, `||`, or the name of a hook-banned command must go through `-F <file>`**: a PreToolUse hook sees one opaque command string and cannot tell prose from shell syntax, so a paragraph quoting `CAST(@name AS Decimal(18, 10)); …` fails with `';' chaining`, and a commit message *explaining* a build-server change is blocked by `ban-build-server-shutdown.js`. The same blind spot applies to any tool call whose command string carries prose. (#5723)
+
 ## Fetch a PR head via `refs/pull/<n>/head` into `origin/pr/<n>`
 
 `git fetch origin <headRefName>:refs/remotes/origin/<headRefName>` is fragile — when the head ref isn't tracked by the local remote's fetch refspec (fork PRs, pruned branches, stale refs), the fetch exits 0 but creates no usable ref, and a later `git diff origin/master...origin/<headRefName>` dies with "ambiguous argument". Instead:
@@ -543,7 +545,7 @@ Documentation generation is on for Release alone, and it is **not** scoped to th
 
 The line's own comment says it is "also required for xml-doc validation". So every doc-comment diagnostic — `CS1574` (unresolvable `cref`), `CS1573` (missing `<param>`), `CS1591` — is invisible to `-c Testing` and to `/test`, and a hard error on CI's Release leg under `TreatWarningsAsErrors`. Two consequences:
 
-- **A cref resolves only against the file's own `using` scope.** A cref naming a type the file doesn't import fails exactly like a cref to a *deleted* type — same `CS1574`, opposite cause (the deletion direction is covered in [`agent-rules.md`](agent-rules.md) → *Build & push gotchas*). It is easiest to write in a **test** file, which imports `LinqToDB` \ `LinqToDB.Mapping` but rarely `LinqToDB.Linq.Translation` \ `LinqToDB.Internal.*`. **Fully qualify the cref** rather than adding a `using` whose only consumer is a doc comment.
+- **A cref resolves only against the file's own `using` scope.** A cref naming a type the file doesn't import fails exactly like a cref to a *deleted* type — same `CS1574`, opposite cause (the deletion direction is covered in [`pr-and-push.md`](pr-and-push.md) → *Before deleting a type, member or packaging concept…*). It is easiest to write in a **test** file, which imports `LinqToDB` \ `LinqToDB.Mapping` but rarely `LinqToDB.Linq.Translation` \ `LinqToDB.Internal.*`. **Fully qualify the cref** rather than adding a `using` whose only consumer is a doc comment.
 - **The pre-push Release build must target the project you edited.** The `Source/LinqToDB/LinqToDB.csproj` command in the section above structurally cannot see a doc comment under `Tests/`. For a doc-comment change in the test suite:
 
 ```

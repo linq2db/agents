@@ -27,6 +27,10 @@ The split-fix rule ([`AGENTS.md`](../AGENTS.md) → *Creating a new branch*) mov
 
 Sweep for references in XML doc-comments and inline comments, not just call sites. A dangling `<see cref="…"/>` pointing at a removed type is a **build error** under `TreatWarningsAsErrors` (CS1574), not silent doc rot. Grep the whole worktree for the symbol (code, XML docs, comments) plus `.csproj` (an explicit `<Compile Include>`). For a build/packaging concept, extend the sweep to sibling build files (`Directory.Build.props`, sibling `.csproj`, `Directory.Packages.props`) whose comments may still describe the old model. **For a removed/renamed NuGet package id, establish whether it was ever published** — `git log --oneline --diff-filter=A -- <the .csproj>`, then `git tag --contains <sha>`: no release tag means the id only existed inside the current dev cycle and can be dropped silently; a tagged id makes the removal consumer-facing, needing a deprecation decision and a release-notes line. (#5711, #5720)
 
+### Large deletions from a stale base
+
+`git diff origin/master..HEAD` on a branch that is behind renders everything master gained since the branch point as *deletions*, so a one-line fix can present as tens of thousands of removed lines; `git checkout origin/master -- <path>` makes it worse by writing master's *current* file onto an old base, so the branch claims changes that are not its own. Diff against the merge base (`git diff $(git merge-base origin/master HEAD)..HEAD`), or rebase and re-check, before believing the number. (#5860: 55 368 deletions across 75 files, zero of them real.)
+
 ### Recovery branch during a rebase
 
 When an in-flight task surfaces an *unrelated* master breakage (usually a CI failure from a merge race), finish the in-flight branch first: resolve the conflict → force-push → `git switch -c <recovery-branch> origin/master` → open the recovery PR, which can run CI in parallel. Switching mid-rebase strands the in-flight branch rebased-but-unpushed and costs context.
