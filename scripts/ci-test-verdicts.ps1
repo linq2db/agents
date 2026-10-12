@@ -109,8 +109,7 @@ param(
     [Parameter(Mandatory)][string[]] $Dir,
     # Only these test methods (exact name, no arguments).
     [string[]] $Test,
-    # Only these verdicts.
-    [ValidateSet('gate-too-wide', 'signature-mismatch', 'gate-collision', 'gate-holds', 'failure', 'host-failure')]
+    # Only these verdicts. Array parameters also take one comma-joined string, which is what `pwsh -File` passes.
     [string[]] $Verdict,
     [ValidateSet('json', 'table')][string] $Format = 'json',
     [string] $WriteDir
@@ -118,6 +117,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+$Dir     = @($Dir     | ForEach-Object { $_ -split ',' } | ForEach-Object Trim | Where-Object { $_ })
+$Test    = @($Test    | ForEach-Object { $_ -split ',' } | ForEach-Object Trim | Where-Object { $_ })
+$Verdict = @($Verdict | ForEach-Object { $_ -split ',' } | ForEach-Object Trim | Where-Object { $_ })
+
+$knownVerdicts = 'gate-too-wide', 'signature-mismatch', 'gate-collision', 'gate-holds', 'failure', 'host-failure'
+$unknown       = @($Verdict | Where-Object { $knownVerdicts -notcontains $_ })
+if ($unknown) { throw "Unknown -Verdict value(s): $($unknown -join ', '). Valid: $($knownVerdicts -join ', ')." }
 
 if (-not $WriteDir) { $WriteDir = Join-Path (Get-Location) '.build/.agents/ci-test-verdicts' }
 if (-not (Test-Path $WriteDir)) { New-Item -ItemType Directory -Path $WriteDir -Force | Out-Null }
