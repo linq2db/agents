@@ -450,7 +450,65 @@ public class MyTest : TestBase
 - **A fixture named `Issue<N>Tests` names what the fixture tests, not why a gate inside it exists.** When attributing an `[ActiveIssue]` (or any per-test waiver) that carries no number of its own, the fixture's number is the obvious guess and it is right about half the time — so check the issue's actual title against the gate's stated reason, in both directions. It rejects as often as it confirms, and a wrong number is worse than none: it asserts a tracked defect that does not exist and sends the next reader to an unrelated report. Where no issue covers the gate's reason, a `no-issue:` marker with a one-line note is the honest answer. (Both outcomes on #5882, one after the other: `Issue1363Tests.TestInsert` is gated for "Unsupported INSERT syntax" while #1363 is about null subquery parameters — unrelated, so it takes `no-issue:`; `Issue133Tests.PositiveWindowFunctionsWhereTest` is gated for "Wrong Having detection" and #133 is "Generation of subquery instead of HAVING returns wrong results" — an exact match, so 133 is correct.)
 - **A test's full name must be unique — it is an identity key, not a label.** `linq2db.baselines` files are keyed by the fully-qualified test name, so two cases resolving to the same full name (e.g. a `TestCaseSource` / `ValueSource` yielding duplicate argument tuples) is a **test-authoring bug to fix by renaming**, not a condition harness code has to defend against. Harness code keyed on `ITest.FullName` may therefore assume uniqueness — don't add collision handling for it, and don't raise review findings speculating about name collisions. (Established while reviewing #5726, where the heartbeat's deferral map keys on `ITest.FullName`.)
 - **Shared-fixture leftovers are a test bug — never design around them.** `AllTypes` and `Person` are pre-filled fixtures many tests insert into. A row left behind after a test is **not** a tolerated steady state: it means that test forgot to clean up, and the harness is built to expose it. `TestBase.Identity.cs`'s header says so outright — *"We intentionally don't remove extra records and allow it to fail in that cases to allow us detect tests that forget to cleanup and leave junk records in those tables"* — so `ResetAllTypesIdentity` reseeds the identity (`lastValue = 2` → next id 3) without deleting anything. Consequences when a fixture-dependent test goes red: **(a)** the correct fix is to find the test that leaked the row, not to make the failing query tolerate it; **(b)** do not read "leftovers exist by design" out of that comment — the design is the *detection*, not the leftovers; **(c)** a lookup rewritten to dodge a stray row (adding `ORDER BY ID` to a by-value lookup, `TOP 1`, a tighter predicate) converts a test that was correctly reporting a bug into one that passes while the bug remains. **(d)** The identity-collision detector only catches junk at ids adjacent to the reseed point — rows further up (a run that inserted tens of thousands of times) collide with nothing and are invisible to it. (Surfaced post-merge on #5754: disabling DB2's `AUTO_STMT_STATS` changed a query plan, which surfaced surviving `AllTypes` rows at ids 50773–216310; the PR added `ORDER BY ID` to `DataProviderTestBase.PassNullSql`/`PassValueSql` — citing that same comment as license — rather than finding the leak.)
+- **Test layout — house rules for new test code:** see [*Test layout*](#test-layout) below.
 - **EF Core tests only run the `.MS` (Microsoft.Data.SqlClient) SQL Server variants.** `EFIncludeDataSources` / `EFDataSources` intersect the requested providers with `TestConfiguration.EFProviders`, whose SQL Server entry is `AllSqlServer2016PlusMS` — Microsoft.Data.SqlClient only. Passing a `System.Data.SqlClient` name (`SqlServer.2022`) to an EF test — including `test-runner`'s `--provider` — resolves to **zero** variants and reports `none_matched` (not an error), so it silently looks like the test "passed" nothing. Use the `.MS` name (`SqlServer.2022.MS`). The full EF provider scope is `SQLiteMS` + `AllPostgreSQL13Plus` + `AllSqlServer2016PlusMS` (+ `AllMySqlConnector` off net10) — narrower than the plain-linq2db set. (`TestConfiguration.cs` → `EFProviders`.)
+
+## Test layout
+
+These are the maintainer's house rules for **new** test code, and they win over the enclosing fixture's idiom. Many older fixtures (`AllAnyTests.cs` uses `AreEqual` throughout) predate them, so "match the surrounding file" is not a reason to write a one-liner. Leave existing, untouched tests as they are; reformat a master test only when the PR already rewrites most of it.
+
+1. **One call per line in a method chain.** That covers both LINQ queries and assertion chains. Prefer putting the query in a variable and asserting it separately over a long chain that ends in `.ShouldBe(...)`.
+
+   ```csharp
+   // not this
+   db.Parent.Where(p => p.Value1 != null).Any(p => p.Value1 > 1)
+       .ShouldBe(Parent.Where(p => p.Value1 != null).Any(p => p.Value1 > 1));
+
+   // this
+   var expected = Parent
+       .Where(p => p.Value1 != null)
+       .Any(p => p.Value1 > 1);
+
+   db.Parent
+       .Where(p => p.Value1 != null)
+       .Any(p => p.Value1 > 1)
+       .ShouldBe(expected);
+   ```
+
+2. **Query syntax, multi-line, one clause per line.** Use query syntax whenever the query has a `join` or `SelectMany`. A plain `Where`/`Select` chain can stay method syntax, laid out per rule 1.
+   - Put `var query =` on its own line, then `from`, `where`, `orderby`, `group … into` and `select` each on their own line.
+   - Break a non-trivial `select new` into `{ … }` lines.
+   - A chain inside the projection follows rule 1.
+   - A query passed straight to `AssertQuery(` gets the same layout.
+   - Set operations have no query-syntax form, so they stay `.Concat(...)` etc.
+   - When a join sits on top of a set operation, wrap it: `from x in a.Concat(b) join …`.
+
+3. **`AssertQuery` instead of a hand-duplicated `AreEqual` expected.** `AreEqual(<LINQ-to-objects copy>, <db query>)` keeps two copies of the query that can drift apart. `AssertQuery(query)` derives the expected result from the same query, against the in-memory collections. Two cases where the rule does not apply:
+   - **Scalar results.** A root `Any` / `All` / `Count` cannot go through `AssertQuery`. Use rule 1's form with an in-memory `expected` and `ShouldBe`.
+   - **`object`-typed projections.** These need the explicit-comparer caveat in *Test Patterns* above.
+
+   ```csharp
+   // not this
+   AreEqual(
+       from p in    Parent orderby p.ParentID select new { p.ParentID, Has =    GrandChild.Where(g => g.ChildID != null).Any(g => g.ParentID == p.ParentID) },
+       from p in db.Parent orderby p.ParentID select new { p.ParentID, Has = db.GrandChild.Where(g => g.ChildID != null).Any(g => g.ParentID == p.ParentID) });
+
+   // this
+   var query =
+       from p in db.Parent
+       orderby p.ParentID
+       select new
+       {
+           p.ParentID,
+           Has = db.GrandChild
+               .Where(g => g.ChildID != null)
+               .Any(g => g.ParentID == p.ParentID),
+       };
+
+   AssertQuery(query);
+   ```
+
+Review severity for a violation in added test code is `NIT`, with a `suggestion` block (the [`code-reviewer`](../agents/code-reviewer.md) rule 7). (Codified after #6027: all five new `AllAnyTests.Issue6024_*` tests broke these rules. Two review rounds missed them because the rules lived only in personal auto-memory.)
 
 ## F# tests
 

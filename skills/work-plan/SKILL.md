@@ -67,6 +67,7 @@ A plan cannot be authored from an under-specified task. Confirm all four, batchi
 Path-scoped rules under `.claude/rules/` fire when someone **edits** a matching file — which is after the design is already fixed — and they never reach a subagent at all. So load them now and **embed** the relevant section in the author's and the critic's context:
 
 - `.claude/rules/cross-cutting-core.md` when `P6` will touch `SqlQuery/` or `Translation/`.
+- [`testing.md`](../../docs/testing.md) → *Test layout* when `P6` has an edit-point under `Tests/`. These house rules for new test code otherwise reach nobody before the tests are written (#6027).
 - `areas/<AREA>/{issues,decisions,patterns,tech-debt}.md` — map the path to its area by **`Grep`-ing** [`kb-areas.md`](../../docs/kb-areas.md), never `Read`-ing it (the table is ~37 k tokens). Skip silently when the KB isn't built.
 - [`dead-ends.md`](../../docs/dead-ends.md) entries for this subsystem's area (plus any auto-memory `project_*` dead-ends that predate it).
 
