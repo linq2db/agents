@@ -10,6 +10,14 @@ When and *whether* to reach for a script lives in [agent-rules.md](agent-rules.m
 - **Structured error handling.** The script can fail early with a non-zero exit and a diagnostic line on stderr, or emit a partial-success JSON with per-item `ok` flags. The caller reads one result object instead of reconstructing status from several partial Bash outputs.
 - **Cross-platform.** `pwsh` behaves identically on Windows (including Git Bash), macOS, and Linux, sidestepping the MSYS path-mangling gotchas that bite raw `gh` / `git` calls.
 
+**Invoke a script through the PowerShell tool, not `Bash(pwsh -NoProfile -File …)`.** It skips the Git-Bash / MSYS layer entirely: no path-mangling on slash-prefixed args, no `\??\C:\…` cygheap races, no quoting differences, no double allowlist hop. Use the Bash wrapper only for shell features the PowerShell tool can't express.
+
+## Scratch files under `.build/.agents/`
+
+Any skill, subagent, or ad-hoc command that writes a scratch file (JSON for `gh api --input`, generated diffs, intermediate output) places it under `.build/.agents/` (gitignored) — never `%TEMP%` / `/tmp` / an absolute OS temp path. Create the directory before the first write; name files by skill + id (`.build/.agents/review-pr-1234.json`). Cleanup is optional.
+
+**The directory is shared across concurrent sessions — never delete it or its contents wholesale.** The user runs parallel sessions against the same clone, so it can hold another session's *live* diff cache, context JSON and review manifests; a #5720 cleanup pass found `pr5678-*` files written minutes earlier by a concurrent session. **And the `pr<n>*` prefix alone is not enough** — it identifies the *PR*, not the session, and the same PR is normally worked more than once: on #5762 six `pr5762-*` entries from ten days earlier sat next to nine from the current session, so a prefix-only delete would have destroyed exactly the prior-session cache this rule protects. Enumerate **with timestamps** (`Get-ChildItem … | Select-Object Name,LastWriteTime`) and remove only what this session wrote.
+
 ## Contract
 
 - Single entrypoint, named after the operation in kebab-case (e.g. `pr-context.ps1`, `post-pr-review.ps1`).

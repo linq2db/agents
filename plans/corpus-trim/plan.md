@@ -88,6 +88,8 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 - E-10 `docs/code-design.md` — receive: new *Code comments* section (artifact-rationale rule, ≤3 lines, #5614/#5858/#5882 examples); beneficiary survey (#5675).
 - E-11 `docs/agent-guardrails.md` — receive: subagent `git status` absolute-path detail; subagent-result-is-a-claim narrative (3.066 s, stale heartbeat); effort-vs-capability diagnosis.
 - E-12 `plans/corpus-trim/ledger.md` — new: per-bullet disposition ledger (SC-3's checklist).
+- E-13 `docs/review-orchestration.md` — receive: new *Inline reviews* section (suppression-first + #5804, code-reviewer `Grep` detail + #5828, interactive-walk rationale + #5737). (A-1)
+- E-14 `docs/script-authoring.md` — receive: PowerShell-tool-over-Bash reasons; new *Scratch files under `.build/.agents/`* section (#5720 / #5762 narratives). (A-1)
 
 ## P7 Impact map (M/L)
 
@@ -129,7 +131,7 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-13, group 5) — adds E-13 `docs/review-orchestration.md` and E-14 `docs/script-authoring.md`. The *Reviewing a PR*, *PowerShell Core scripts* and *Temp files* bodies have no owning doc in the original P6; those two are the existing owners (review-orchestration.md is the shared `/review-pr` skeleton, script-authoring.md already owns script invocation). Approval for E-13/E-14 is void until the user accepts group 5. re-derives: none — SC-1…SC-5 and TO-1…TO-5 are unchanged; the moved rows join TO-3 through the ledger.
 
 ## P12 Critic verdict (M/L)
 

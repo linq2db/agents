@@ -2,6 +2,14 @@
 
 Common orchestration reused by `/review-pr` and `/verify-review`. Everything in this doc is skill-agnostic: the mode-specific logic (scope confirmation, prior-findings parsing, per-finding action table, etc.) lives in each skill's own `SKILL.md`. This doc is the single source of truth for the steps that are word-for-word identical between the two skills.
 
+### Inline reviews
+
+A review handled inline, rather than through `/review-pr`, still owes what the skill would have done:
+
+- **Read the suppression sections first.** The finding-classification rules live in [`api-surface-classification.md`](api-surface-classification.md) and [`code-reviewer.md`](../agents/code-reviewer.md), which the main agent does not load on its own. The one that leaks is the categorical `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt` drift ban, which an inline review of [#5804](https://github.com/linq2db/linq2db/pull/5804) violated by asking the author for `Unshipped` entries — authors add them, but a missing one is reconciled at release (`/release-publicapi`) and is never a review finding.
+- **`code-reviewer.md` is ~200 KB — `Grep` it, never `Read` it.** A `Read` blows the tool's output cap and returns a truncated first third, after which you still have to `Grep`. The main agent almost never needs the whole spec: the subagent loads it itself, and what an orchestrating skill wants — the output-schema field list, the focus-scoping table, one suppression rule — is a single `Grep` away. Same trap as [`kb-areas.md`](kb-areas.md), and the pointer to it is what walks you into it. (#5828)
+- **The interactive walk is how review findings get delivered on this repo**, not a property of the skill. Present **one finding per turn** — the finding, its evidence, your recommendation, the disposition options — and resolve it before the next. A consolidated severity table forces the user to adjudicate every item in parallel, the per-item dispositions that matter (`post` / `fix here` / `add comment` / `drop`) never get asked, and the findings strand in the transcript instead of landing on the PR — the tell is the user asking *"where is review results?"*. (#5737)
+
 ### Permission-prompt discipline
 
 Every Bash call is evaluated against the allowlist in `.claude/settings.local.json`. Pipes, redirects, inline `pwsh -Command`, `cat` / `head` / `tail`, or `ls` on directories whose layout is already documented each fire a prompt. Before writing a helper script to extract data from a JSON file, ask whether `Grep` on the dumped JSON or `Read` on the file would return the same information — the answer is almost always yes. See [`windows-gotchas.md`](windows-gotchas.md) → **Permission-friendly Bash patterns** for the full table.
