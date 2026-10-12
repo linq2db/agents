@@ -77,7 +77,7 @@ Two consequences, **for the non-nested layout**:
 
 ## Running tests from a worktree
 
-`test-runner`, `/test`, and `/test-providers` accept an explicit repo-root override so a worktree can be the test target instead of the primary clone — without it the skills resolve project paths against the inherited primary-clone cwd and build/test the *primary* clone, not the worktree.
+`test-runner`, `/test`, and `/test-providers` accept an explicit repo-root override so a worktree can be the test target instead of the primary clone — without it the skills resolve project paths against the inherited primary-clone cwd and build/test the *primary* clone, not the worktree. A hand-run `dotnet test` there also burns calls on .NET 10 MTP CLI quirks: it needs `--project`, and without `--provider` the `[IncludeDataSources]` tests resolve zero providers ("0 tests").
 
 **A wrong-clone run can read as a false *green*, not an error.** If the filter also matches a test that exists in the primary clone (typically the injected `CreateData.CreateDatabase` prefix), `test-runner` reports *that* test passed while the worktree's new tests match **zero** — a nonzero pass count with the new tests never executed. So don't trust a bare "N passed": confirm the run's `--project` path is the worktree **and** that the new tests actually contributed cases.
 

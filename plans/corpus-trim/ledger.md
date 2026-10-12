@@ -95,6 +95,20 @@ Unchanged in group 3: *Ask-ask-do-all*, *One label space per turn*, *Cap same-fa
 
 Unchanged in group 2: *Bash command rules* prose and both bullets; the `gh api`, `git show`, `docker exec`, stdout-decoding and `Glob` one-liners (wording only shortened).
 
+## Final pass (after group 6)
+
+Compressed non-trigger text, every trigger kept: the opening paragraph; the guardrails intro (section titles kept verbatim after review); the *Situational triggers* tail; the *CI investigation* index (all five question → script mappings and the never-hand-roll rule kept; parameter spellings, the `gate-holds` note and the issue list live in `ci-tests.md:143-160`, `:203-213`, `:292-311`, `:321`). Correction: the group-3 note's "rest of *Capability self-assessment* unchanged" is superseded by this pass.
+
+## TO-4 independent review (plan-critic-style, `fable`, 2026-10-13)
+
+67/67 rows plus 6 unlisted changed items checked against `37e1c4b`. **Meaning changed: none.** Responses:
+
+- Lost clauses restored to the trigger: L-53 C2 (`.csproj` + sibling build files), the `Glob` one-liner ("or reimplementing the helper"), L-57 ("create it before the first write"), L-09 C3 ("a third repetition … is the signal"), L-48 ("resolved before the next"). L-20 gained a per-bullet pointer.
+- Rationale given a home: L-28 "a workaround invented mid-failure masks a real signal" → `turn-conduct.md` *Stopping and retrying*; L-26 / L-27 rationale → `turn-conduct.md` *Asking* ("Why reviews go one change, or one finding, per turn"); L-31 stale-DLL remark → `turn-conduct.md` in-flight-edit bullet; L-50 "needs `--project`" → `worktree.md` *Running tests from a worktree*; L-62 `#5686` → `pr-and-push.md` PR-body section.
+- Accepted as equivalent by the reviewer: L-24, the CI-index "never hand-roll", L-46.
+- Still logged as dropped: L-36's *Distinct lenses … by construction* remark.
+- Ledger notes corrected: the guardrails intro was changed (now restores the exact titles); L-36's worktree mechanic lives in the trigger and `worktree.md`, not `work-plan.md`.
+
 ## Dropped provenance fragments
 
 Incidental "how often / where seen" asides with no obligation and no incident number, dropped rather than moved:
@@ -102,6 +116,7 @@ Incidental "how often / where seen" asides with no obligation and no incident nu
 - `Read` row of the tools table: "recurred on the `docker-session-started.txt` check".
 - `git grep` row: the `fatal: unable to resolve revision: -A` error text and "hit twice in one session out of habit".
 - *Worktrees are the default*: "it reads `origin/pr/<n>` via `diff-reader.ps1`" (the `/review-pr` skill owns it).
+- *CI investigation*: the issue list "(#5819, #5828, #5841, #5882)"; `ci-tests.md` cites #5819 and #5828 for the same scripts.
 - *Non-trivial work starts with `/work-plan`*: "the model difference *is* the mechanism, and the one place `agent-guardrails.md` → *Distinct lenses for parallel reviewers* is satisfied by construction".
 
 ## Observed, not fixed (P3: no policy changes in this plan)

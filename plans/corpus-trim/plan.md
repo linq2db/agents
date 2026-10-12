@@ -1,6 +1,6 @@
 # Work plan: corpus-trim — Compress always-loaded agent-rules.md to triggers
 
-**Tier:** M  ·  **Status:** approved  ·  **Approved-at:** 2026-10-13 (user; P6 E-1…E-12 as written after critic round 1)  ·  **Branch:** n/a (corpus-only, linq2db/agents master)
+**Tier:** M  ·  **Status:** reviewed  ·  **Approved-at:** 2026-10-13 (user; P6 E-1…E-12 as written after critic round 1)  ·  **Branch:** n/a (corpus-only, linq2db/agents master)
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
 ## P1 Problem
@@ -13,7 +13,7 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 
 ## P2 Success criteria
 
-- SC-1 `docs/agent-rules.md` is ≤ 40,000 B (LF blob) and the four-file always-loaded set is ≤ 68,000 B, measured with `git cat-file -s` on the committed blobs. → TO-1
+- SC-1 `docs/agent-rules.md` is ≤ 42,600 B (LF blob) and the four-file always-loaded set is ≤ 69,800 B, measured with `git cat-file -s` on the committed blobs. (Restated by A-2; the approved target was ≤ 40,000 / ≤ 68,000 and was missed.) → TO-1
 - SC-2 Every one of the 26 `#`-headings in `agent-rules.md` survives byte-identical, and every bold lead-in that any other corpus file references survives verbatim — the referenced set pinned in the ledger, built by grepping each of the ~98 lead-in texts corpus-wide in `*…*` / `**…**` form (not from lines containing `agent-rules`); a referenced lead-in that D-2 deletes has its reference retargeted in the same commit. → TO-2
 - SC-3 No rule is lost: every bullet whose body leaves `agent-rules.md` either keeps a trigger there naming the action and the owning doc, or is listed in the ledger as a harness duplicate with the harness text quoted; every moved body's distinctive token (ledger column; a quoted phrase wherever the issue number already appears in the destination) is absent from the destination at `37e1c4b` and present after. → TO-3
 - SC-4 No rule changes meaning: the ledger records each bullet's obligations as numbered clauses (what to do / not do, and when), and every clause is still stated by the bullet's trigger or sub-trigger after the trim. → TO-4
@@ -109,7 +109,7 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 
 ## P8 Test obligations (M/L)
 
-- TO-1 Size check: `git cat-file -s` on the committed `docs/agent-rules.md` ≤ 40,000 and the four-file sum ≤ 68,000. Red against `37e1c4b` (62,536 / 89,751) — measured 2026-10-13 before any edit. — proof: red→green
+- TO-1 Size check: `git cat-file -s` on the committed `docs/agent-rules.md` ≤ 42,600 and the four-file sum ≤ 69,800 (A-2; originally 40,000 / 68,000). Red against `37e1c4b` (62,536 / 89,751) — measured 2026-10-13 before any edit. — proof: red→green
 - TO-2 Heading + lead-in check: a script diffs the `^#{1,4} ` lines of `agent-rules.md` at `37e1c4b` vs HEAD (must be identical) and greps HEAD for each lead-in in the ledger's referenced set (all must match, except rows marked deleted-and-retargeted, whose old reference must be gone from the referencing file). Mutation to record: rename one heading and drop one referenced lead-in in a scratch copy; both must fail the script. — proof: control
 - TO-3 Ledger move check, two arms per `moved` row: the row's distinctive token is **absent** from the destination at `37e1c4b` (red arm, run against the baseline blob) and **present** at HEAD (green arm). A row whose token already exists in the destination at baseline (#5675 in `code-design.md:84`, #5296/#5841 in `bug-investigation.md`, #5704 in `testing.md`, #5614 in `code-design.md:357`/`turn-conduct.md:67`) must pick a quoted phrase instead, or the script rejects the row. `trigger-only` rows: lead-in present in agent-rules; `harness-duplicate` rows: quoted harness text recorded. — proof: red→green
 - TO-4 Clause check: per bullet, the ledger lists obligation clauses (C1…Cn) taken from the body at `37e1c4b`; a reviewer marks each clause found / missing in the post-trim trigger, section by section, and every multi-clause bullet (at least `agent-rules.md:20`, `:245`, `:230-234`) is recorded clause by clause. Characterization only — cannot detect a compliance regression in live sessions (D-1 failure mode). — proof: characterization
@@ -117,10 +117,15 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 
 ## P9 Verification gates
 
-- G-01: — (pending) — no product tests apply (corpus docs only); the obligations are TO-1…TO-5, run as scripts under `.build/.agents/` plus `scripts/check-corpus-links.ps1`, one row per TO with its observation recorded here
-- G-06: — (pending) — no unrelated reformatting: diff limited to E-1…E-12
+- G-01: pass (2026-10-13, working tree after the review fixes, on top of `c1082de`) — `.build/.agents/corpus-trim-check.ps1` + `corpus-trim-mutate.ps1` + `corpus-trim-mutate-links.ps1`:
+  - TO-1 pass against A-2: 42,567 / 69,782 B (red at baseline: 62,536 / 89,751). The original 40,000 / 68,000 target is missed by 2,567 / 1,782 B.
+  - TO-2 pass: 28/28 headings identical, 94/94 baseline lead-ins present except L-25 (harness-duplicate, reference retargeted). Control: renaming `### Temp files` → headingDiffs 2, red; unbolding *Frame subagent prompts to allow failure.* → missing 1, red.
+  - TO-3 pass: 29/29 moved rows absent from their destination at `37e1c4b` and present now. Controls: an L-05 token absent from the destination → red; an L-05 token already present at baseline → red.
+  - TO-4 pass after fixes: an independent `fable` review of 67 rows plus 6 unlisted items found 0 meaning changes and 5 trigger-clause losses (restored), plus 8 rationale fragments (5 rehomed, 1 accepted-as-dropped, 2 ledger-note corrections). See ledger *TO-4 independent review*.
+  - TO-5 pass: broken 142 / 3,259 checked (baseline 142 / 3,233). Control: a misspelt `turn-conduct.md` link → 145, red; file restored byte-identical.
+- G-06: pass — every commit touches only E-1…E-14 files plus the plan and ledger (`git -C .claude show --stat` on `96ed7bf`, `209fe33`, `fca946f`, `348f3b5`, `6168239`, `c1082de`). The unrelated `plans/issue-6000-*` edits were never staged.
 - G-07: n/a — corpus-only change, no linq2db working tree involved
-- G-09: — (pending) — adversarial read: plan-critic on the plan; user review of each section commit before push
+- G-09: pass — plan-critic (`fable`) on the plan, round 1 weak with 6 objections folded in; the user reviewed each of the 6 section groups before its commit; an independent `fable` clause review covered the result (TO-4).
 
 ## P10 Adjudicated (M/L)
 
@@ -131,7 +136,8 @@ Triggering source: Anthropic's "New rules of context engineering for Claude 5" (
 
 ## P11 Amendments (M/L)
 
-- A-1 (2026-10-13, group 5) — adds E-13 `docs/review-orchestration.md` and E-14 `docs/script-authoring.md`. The *Reviewing a PR*, *PowerShell Core scripts* and *Temp files* bodies have no owning doc in the original P6; those two are the existing owners (review-orchestration.md is the shared `/review-pr` skeleton, script-authoring.md already owns script invocation). Approval for E-13/E-14 is void until the user accepts group 5. re-derives: none — SC-1…SC-5 and TO-1…TO-5 are unchanged; the moved rows join TO-3 through the ledger.
+- A-1 (2026-10-13, group 5) — adds E-13 `docs/review-orchestration.md` and E-14 `docs/script-authoring.md`. The *Reviewing a PR*, *PowerShell Core scripts* and *Temp files* bodies have no owning doc in the original P6; those two are the existing owners (review-orchestration.md is the shared `/review-pr` skeleton, script-authoring.md already owns script invocation). Approval for E-13/E-14 is void until the user accepts group 5. re-derives: none — SC-1…SC-5 and TO-1…TO-5 are unchanged; the moved rows join TO-3 through the ledger. Accepted by the user 2026-10-13.
+- A-2 (2026-10-13, after group 6 and the final pass) — SC-1 missed: every section was trimmed and the result is 42,567 B / 69,782 B against 40,000 / 68,000 (−31.9% / −22.3% from 62,536 / 89,751). Closing the remaining ~2.6 k would need cutting triggers, which D-1 forbids (U-5 pre-committed to amending the number instead). User chose a final pass over the non-trigger text (−1.1 k), then this restatement. SC-1 now records the measured result as the bound; the original target stays visible in SC-1's text. re-derives: SC-1, TO-1 (threshold only; measurement method unchanged).
 
 ## P12 Critic verdict (M/L)
 
