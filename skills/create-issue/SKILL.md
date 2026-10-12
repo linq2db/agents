@@ -56,6 +56,7 @@ Reference examples:
 - "`OrderBy` generates wrong SQL on SQLite" → **Bug**.
 - "Add DuckDB provider" → **Feature**.
 - "Split `DmlServiceBase` into per-provider files" → **Task**.
+- "SAP HANA rejects `UNION ALL` inside `LATERAL`" → **not a Bug**: the database's limitation, not ours. File only when linq2db can work around it, and then as **Feature** / **Task** titled after the workaround ("Decorrelate apply joins over set operations"), with rejected approaches in an *Alternatives considered (FYI)* section. (#6034)
 
 ### 4. Draft title + body
 

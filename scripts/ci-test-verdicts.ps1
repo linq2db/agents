@@ -223,6 +223,15 @@ foreach ($d in $Dir) {
                 $actual = $message.Trim()
             }
 
+            # A LinqToDBException's first line is generic; the rule that fired is on its "Additional details:" line.
+            if ($actual -match 'LinqToDBException') {
+                for ($j = $i + 2; $j -lt [Math]::Min($i + 80, $lines.Length); $j++) {
+                    $candidate = (Clear-Decoration $lines[$j]).Trim()
+                    if ($candidate -match '^(?:failed|skipped|passed)\s+\w+\(') { break }
+                    if ($candidate -match '^Additional details: (.+)$') { $actual += " | $($Matches[1])"; break }
+                }
+            }
+
             if ($outcome -eq 'skipped' -and $kind -eq 'failure') { continue }   # an ordinary NUnit skip
 
             $rows.Add([pscustomobject]@{

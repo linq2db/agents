@@ -543,6 +543,10 @@ So a new `[DataSources]` test using `Except` / `ExceptAll` / `Intersect` / `Inte
 
 **Sybase is the control that shows the emulation itself isn't the problem** — same false flag, so it emulates identically, but it *does* support correlated subqueries and passes. A set-operation test failing on YDB alone is this gate missing, not a defect in the operation. (Surfaced on #5833: `ExceptBranchProjectingDerivedType` reached CI ungated and failed the YDB leg on both the direct and `LinqService` contexts, while Sybase passed in the same leg.)
 
+### An apply-join test gates ClickHouse and YDB as correlated subqueries, not outer joins
+
+A correlated `SelectMany` source becomes an apply join, and `[ThrowsRequiredOuterJoins]` lists the providers without one. ClickHouse and YDB never reach that check: the correlation itself is rejected first, with `ErrorHelper.Error_Correlated_Subqueries`. Leave them out of the outer-join list and add `[ThrowsRequiresCorrelatedSubquery]` instead. Use `simple: true` (YDB only) only for a shape ClickHouse has been seen to run — an `Any(…)` correlated sub-query passed there, the `SelectMany` apply did not. (#5708: `UnpivotOverACorrelatedSource` listed both under the outer-join gate and cost a CI round.)
+
 ### A date range that straddles a daylight-saving transition makes an exact span assertion environment-dependent
 
 A date/time column that stores a wall-clock reading the **server** resolves in its own zone — ClickHouse
