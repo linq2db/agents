@@ -7,7 +7,7 @@ Detail-heavy mechanics for creating PRs and pushing follow-ups. The summary in [
 Two checks, both cheap, both before `git push`:
 
 1. **`git log --oneline origin/master..HEAD`** — is anything on this branch that you didn't put there? The user may have committed to it between sessions, or in a parallel session, or from their editor. Pushing without looking risks force-shaped surprises later and, worse, a PR whose description you wrote describing only *your* half of the work. If commits you didn't author appear, stop and say so before pushing.
-2. **`git fetch origin master`, then sync** — a branch cut hours or days ago is behind. Fast-forward when the branch has no commits; otherwise follow the merge-vs-rebase rule in [`agent-rules.md`](agent-rules.md) → *Creating a new branch*. Syncing before the first push means CI's first run is against current master, so a red leg is about your change rather than about drift you hadn't merged.
+2. **`git fetch origin master`, then sync** — a branch cut hours or days ago is behind. Fast-forward when the branch has no commits; otherwise follow the merge-vs-rebase rule in [`AGENTS.md`](../AGENTS.md) → *Creating a new branch*. Syncing before the first push means CI's first run is against current master, so a red leg is about your change rather than about drift you hadn't merged.
 
 Do the same before opening the PR when the branch was pushed earlier in the session — master moves. (Surfaced 2026-09-01 on #5840, at the user's prompting: *"first check if there were no other user commits to branch and sync with master"* — the branch turned out clean and three commits behind, and the sync was a fast-forward.)
 

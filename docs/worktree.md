@@ -4,7 +4,7 @@ Worktree-workflow notes. The high-level "blocked `git checkout`" rule lives in [
 
 ## When to use a worktree
 
-Only when the user explicitly asks. Do not silently `git worktree add` to work around a blocked `git checkout` / `gh pr checkout` — that hides the state conflict and fragments work across two directories. Ask the user how to proceed (stash, commit, discard) and name the blocking files in the question.
+For branch-based task work, by default: the primary clone stays on its branch, untouched ([`agent-rules.md`](agent-rules.md) → *Worktrees are the default for branch-based task work*). What a worktree is **not** is a workaround: do not silently `git worktree add` to get past a blocked `git checkout` / `gh pr checkout` in a clone you were asked to switch — that hides the state conflict and fragments work across two directories. Ask the user how to proceed (stash, commit, discard) and name the blocking files in the question.
 
 ## `<worktrees-root>` — where worktrees go
 

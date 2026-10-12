@@ -6,7 +6,7 @@ Block until a PR's GitHub Actions gate legs reach a terminal state, then report 
 .DESCRIPTION
 The counterpart to azp-wait.ps1 (Azure) for the GitHub Actions side. `gh run watch` is unusable for this:
 it dies at the Bash tool's 600 s ceiling and re-prints the whole job tree every interval (see
-agent-rules.md -> "Two limits on that blocking form"). This polls the PR's statusCheckRollup on a wide
+ci-tests.md -> "Two limits on that blocking form"). This polls the PR's statusCheckRollup on a wide
 cadence instead and returns one summary.
 
 Only the legs named by -Gate are waited on. Azure contexts (`build`, `build (Build)`, `default`,

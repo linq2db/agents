@@ -415,7 +415,7 @@ still pass, the list still looks deliberate, and the coverage is quietly narrowe
 So when a change **removes** a provider-conditional path, revisit the provider sets of every test that touched it
 rather than carrying them forward. Widen to bare `[DataSources]` with **no** exclusions first, and let a real failure
 justify each exclusion you then add — a pre-emptive gate on a provider you never ran is a guess that outlives the
-person who made it (`agent-rules.md` → *Keep digging to the root*). Tests that legitimately stay narrow are the ones
+person who made it (`AGENTS.md` → *Keep digging to the root*). Tests that legitimately stay narrow are the ones
 narrow for a non-provider reason: SQL-text assertions, call-site guards that throw before any SQL is built,
 query-cache tests, and anything embedding literal `FromSql` text.
 

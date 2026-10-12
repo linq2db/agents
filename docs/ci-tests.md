@@ -56,7 +56,7 @@ Consequences worth remembering:
 
 One `/azp run` per meaningful change. Do not spam — each run consumes CI capacity.
 
-**Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`agent-rules.md`](agent-rules.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run.
+**Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`AGENTS.md`](../AGENTS.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run.
 
 ### Provider *breadth* is CI's job — never fan a local run out across the matrix
 

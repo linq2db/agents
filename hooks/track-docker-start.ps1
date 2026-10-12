@@ -7,9 +7,8 @@ without BOM).
 Consumers:
  - `.claude/hooks/cleanup-docker-session.ps1` (SessionEnd) — stops each
    tracked container at session exit.
- - Claude's scope-change rule — see `.claude/docs/agent-rules.md` →
-   "Docker containers: start/stop/create only" → "Scope-change prompt for
-   session-started containers".
+ - Claude's scope-change rule — see `.claude/docs/test-databases.md` →
+   "Session-started containers — tracked only if the hooks are wired".
 
 Wired in the user's `.claude/settings.local.json` under `hooks.PostToolUse`
 with matcher "Bash". Hook receives a JSON payload on stdin whose

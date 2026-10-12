@@ -547,7 +547,7 @@ When the user explicitly requests a release-notes-style summary alongside the re
 
 **Do not produce a release-notes draft by default.** The trigger is the user explicitly asking for one ("create a release-notes draft", "post a user-facing summary", or similar). Decline to fold the draft into the review body itself — release-notes drafts have a different audience (release-notes consumers, not PR reviewers) and a different lifetime, so they belong in their own comment.
 
-When drafting, follow the per-provider claim verification discipline in `agent-rules.md` → **Agent Guardrails** → *Provider behavior claims must be verified against translator code*: provider-specific behavior claims must be checked against the actual translator code at PR HEAD before posting. Wording style for review bodies and comments: `agent-rules.md` → **GitHub content authoring** (full reference in [`github-authoring.md`](../../docs/github-authoring.md) → *Wording discipline*).
+When drafting, follow the per-provider claim verification discipline in `agent-guardrails.md` → *Provider behavior claims must be verified against translator code*: provider-specific behavior claims must be checked against the actual translator code at PR HEAD before posting. Wording style for review bodies and comments: `agent-rules.md` → **GitHub content authoring** (full reference in [`github-authoring.md`](../../docs/github-authoring.md) → *Wording discipline*).
 
 ## Walk-fix
 

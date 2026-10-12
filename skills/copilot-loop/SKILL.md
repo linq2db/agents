@@ -68,7 +68,7 @@ git pull --ff-only origin <current-branch>
 ```
 
 If the working tree has uncommitted changes that block fast-forward, stop
-and ask (per `agent-rules.md` → *Creating a new branch* → dirty working tree
+and ask (per `AGENTS.md` → *Creating a new branch* → dirty working tree
 rule). Don't silently discard.
 
 ### 3. Load PR context, identify the latest Copilot review
