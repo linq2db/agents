@@ -43,6 +43,10 @@ the tests still running, and `Test application process didn't exit gracefully, e
 That also yields one `host-failure` row, `actual` naming the hung test and `details` prefixed `hang:`.
 (Firebird leg on #6003: 418 holding gates and nothing else until this was parsed.)
 
+A crash with exit code `139` in a leg whose every summary is `Passed!` gets `details` prefixed
+`teardown-segv:` — a native crash at process shutdown after all tests reported, not PR-introduced
+(ci-tests.md → exit 139; DB2 + Informix + DuckDB leg on #5877, #5884, #6025).
+
 Getting the logs
 ----------------
 Azure : .claude/scripts/azp-build-failures.ps1 -BuildId <n>   (persists to .build/.agents/azp-<n>/)
@@ -154,6 +158,7 @@ foreach ($d in $Dir) {
 
         $legStart       = $rows.Count
         $summaryFailed  = 0
+        $summaryPassed  = 0
         $failedAssembly = @()
         $hostError      = ''
         $hangDump       = ''
@@ -166,6 +171,8 @@ foreach ($d in $Dir) {
             if ($line -match '^Hang dump timeout of ''([^'']+)'' expired') { $hangDump = $Matches[1]; continue }
             if ($hangDump -and $line -match '^\[\d{2}:\d{2}:\d{2}\]\s+(.+)$') { $hungTests += $Matches[1].Trim(); continue }
             if ($line -match '^Test application process didn''t exit gracefully, exit code is ''(\d+)''') { $hostExitCode = $Matches[1]; continue }
+
+            if ($line -match '^Test run summary: Passed!') { $summaryPassed++; continue }
 
             if ($line -match '^Test run summary: (?:Failed|Aborted)!\s*-\s*(.+)$') {
                 $failedAssembly += $Matches[1].Trim()
@@ -255,6 +262,8 @@ foreach ($d in $Dir) {
         }
 
         if (($hangDump -or $hostExitCode) -and -not $Test) {
+            $tag = if (-not $hangDump -and $hostExitCode -eq '139' -and $summaryPassed -gt 0 -and $summaryFailed -eq 0) { 'teardown-segv: all summaries passed; ' } else { '' }
+
             $rows.Add([pscustomobject]@{
                 verdict      = 'host-failure'
                 test         = '(test host)'
@@ -264,7 +273,7 @@ foreach ($d in $Dir) {
                 expectedType = ''
                 expected     = ''
                 actual       = if ($hungTests) { $hungTests -join '; ' } else { $hostError }
-                details      = $(if ($hangDump) { "hang: dump after $hangDump" } else { 'crash' }) + "; exit code $hostExitCode"
+                details      = $tag + $(if ($hangDump) { "hang: dump after $hangDump" } else { 'crash' }) + "; exit code $hostExitCode"
             })
         }
         elseif ($summaryFailed -gt 0 -and -not $Test) {
