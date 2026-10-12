@@ -185,6 +185,10 @@ Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that driv
 - Run them with `-c Testing` (net10.0-only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
 
+## Repro blocked by a separate, known engine bug — gate on the blocker, defer the fix
+
+A third case beyond *reproducible* and *can't-reproduce*: the finding's mechanism is verified against core code, but you can't drive an end-to-end red repro because an *unrelated, independently-tracked* engine bug blocks the only path to it. Then commit the regression test `[ActiveIssue]`-gated on the **blocker's** issue and defer the actual fix until the blocker merges — so the fix is verified over the real path once un-gated (per [`evidence-discipline.md`](evidence-discipline.md) → *Verify a fix by the same path that surfaced the bug*), rather than applying a speculative fix that can't yet be exercised. (#5704, #1813, #5701)
+
 ## The runner's `[slow]` line reports assembly arch, not process arch
 
 Microsoft.Testing.Platform's progress output tags still-running tests as `(<exe>|<tfm>|<arch>)` — e.g.

@@ -75,6 +75,10 @@ Entity construction must emit each such member **once**: `BuildGenericFromMember
 
 The SQL AST (`Source/LinqToDB/SqlQuery/` and `Source/LinqToDB/Internal/SqlQuery/`), the `IDataProvider` interface, and the translator interfaces under `Source/LinqToDB/Linq/Translation/` are consumed by every database provider in the repo. A fix scoped to one provider or one test shouldn't reshape them — the blast radius is the whole product. When a local task seems to need a cross-cutting change, surface the question explicitly rather than making the change silently.
 
+### A proposed cross-cutting core capability needs a beneficiary survey
+
+When a task leads to proposing a new core seam (interface, hook, extension point), don't justify it by the driving case alone — sweep for existing code exhibiting the same gap (grep for the workaround pattern, e.g. `MappingSchema.Default` fallbacks) and existing/potential issues it addresses (KB github indexes + `gh search issues`), and fold that adoption analysis into the design artifact. A core change justified only by one consumer is a workaround wearing a design's coat. (#5675)
+
 ### Don't grow core builder API for a helper-only fix
 
 A fix scoped to a helper / peripheral API (e.g. `ToSqlQuery`'s by-name `Query<T>` round-trip) must not expand core builder surface (`ISqlBuilder` / `BasicSqlBuilder`) to serve it — threading a new flag/parameter through the shared builder for one convenience path fails the cost/benefit test. If the fix genuinely needs new core surface, drop or narrow it instead. (User call on #5657: an export-scoping `ForGetSqlText` seam on `ISqlBuilder` was rejected — "if we need to add api changes to sqlbuilder then we will not use this fix for helper API"; the peripheral behavior was left as-is.) This is the API-surface counterpart of the general "propose minimal, let the user expand" preference.
