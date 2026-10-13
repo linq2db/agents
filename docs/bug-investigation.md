@@ -388,6 +388,8 @@ hook, its delegate and its ctor parameter.
 
 Finding a guard that cannot fire, the instinct is to frame the choice as *delete it* or *restore it as written*, then argue against restoring because the code as written would do something undesirable. That is a false dichotomy, and it hides the option that is usually correct: fix the **payload** too. The tell is catching yourself arguing that a repair is unsafe — if restoring the block as written is wrong, that is an argument about the block's body, not an argument for deletion. The same applies to the condition: a broken predicate is often also a redundant one, and carrying its clauses forward verbatim while fixing the bug ships the redundancy with your name on it. Read what the block was *for*, then write the version that does that. (#5841)
 
+Removing a dead clause also kills whatever only that clause made live — sweep the block's body for statements that become no-ops and remove them in the same change, rather than keeping them as "defensive". (#6007: dropping the unreachable `IsOr` clause left `EnsureConjunction()` a no-op; recommended keeping it, answer `remove`.)
+
 ## Measure a finding to resolution rather than posting it hedged
 
 When a finding's severity *or existence* turns on an unmeasured question, the probe is the recommended
