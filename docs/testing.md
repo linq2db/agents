@@ -594,10 +594,11 @@ A test that feeds a **runtime** set into the query it asserts — a pivot's valu
 
 A `[ThrowsForProvider]` pin asserts an exception **type** and **message**, so a driver fault that varies produces a test that goes red on a run nobody changed anything for. Observing the failure once is not enough to pin it — and the **second** wrong pin is the signal to stop pinning, not to write a third: exclude the provider from that test, file the defect, and cite the issue in the test comment. Splitting the test first keeps the cases that *do* work covered on that provider rather than losing them to a whole-test gate.
 
-Two independent reasons the same fault changes shape:
+Three independent reasons the same fault changes shape:
 
 - **The driver itself.** On [#5954](https://github.com/linq2db/linq2db/issues/5954), `System.Data.OleDb`'s `DbBuffer.ReadNumeric` raised `InvalidCastException` *"The numerical value is too large to fit into a 96 bit decimal"* on one CI run and `ArgumentException` out of `Decimal.SetBits` on the next, for **byte-identical generated SQL** — confirmed by diffing the two legs' logs, which is also how you rule out a change of your own as the cause.
 - **linq2db's mapper fallback.** `QueryRunner.cs:98` catches `FormatException`, `InvalidCastException`, `LinqToDBConvertException` and `*NullValueException` and retries in slow mode; anything else propagates raw. So a caught type reaches the test wrapped in `LinqToDBConvertException` (*"Mapping of column '…' value failed"*) via `ColumnReader.GetValue`, while an uncaught one arrives bare from the compiled row mapper — the same defect matching or missing the pin depending on which it was. The trace line *"Mapper has switched to slow mode"* in the run log tells you which path a given failure took.
+- **The build configuration.** Shouldly renders the asserted expression into its message from debug information, and CI builds with `-c Azure`, which sets `DebugSymbols=false` (`Tests/Directory.Build.props`). So the same assertion reads `descriptor.Columns…SequenceName should not be null` locally and `null should not be null` on CI. Pin on a custom assertion message (`ShouldNotBeNull("SequenceName")`) or on exception / compiler text, never on Shouldly's rendering of the expression. (#6037: the #3749 pin was green locally and red on both `Scaffold tests` legs.)
 
 ### `Except` / `Intersect` in a `[DataSources]` test need the YDB correlated-subquery gate
 

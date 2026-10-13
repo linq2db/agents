@@ -71,7 +71,13 @@ Hence four behaviours below, the last three defeatable:
 
 Output: prints one new comment URL per line on stdout, then a verification
 line per pipeline - `azp-run: '<name>' started (buildId <n>).` when the check
-URL carries the Azure build id, ready for `azp-wait.ps1 -BuildId`. Non-zero exit on the
+URL carries the Azure build id, ready for `azp-wait.ps1 -BuildId` - and
+`azp-run: '<name>' GitHub run <id>` for the `tests (comment)` dispatch. On a PR
+the main-suite provider legs run in that GitHub run, not in the Azure build (whose
+main-suite steps are skipped), so a green Azure build alone does not prove the tests
+ran. The GitHub run is attributed to master's commit, so it is matched by creation
+time after the comment; under concurrent triggers on other PRs, confirm the PR in
+its `authorize` job log (gh-leg-history.ps1 reads it). Non-zero exit on the
 first `gh` failure, leaving the already-posted triggers in place (a partially
 triggered run is visible in the URLs printed before the error), or when
 verification times out. Exit 2, with nothing posted, when the PR conflicts with its base;
@@ -136,9 +142,21 @@ if (-not $AllowStale) {
 }
 
 $notStarted = @()
+$claimedRuns = @{}
+
+# GitHub `tests (comment)` runs created at or after $since and not yet reported for an earlier pipeline.
+function Get-DispatchRun([datetime]$since) {
+    $json = gh run list --repo $Repo --workflow tests-comment.yml --limit 10 --json databaseId,createdAt 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
+    $runs = @($json | ConvertFrom-Json) |
+        Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) } |
+        Sort-Object { [datetime]$_.createdAt }
+    return @($runs)[0]
+}
 
 foreach ($name in $Pipeline) {
     $body = if ($name -eq 'list') { '/azp list' } else { "/azp run $name" }
+    $postedAt = (Get-Date).ToUniversalTime().AddSeconds(-5)
 
     # Checks already present before the trigger are not evidence this trigger worked.
     $before = if ($name -eq 'list') { @() } else { Get-Checks }
@@ -170,6 +188,15 @@ foreach ($name in $Pipeline) {
         $buildId = Get-BuildId $started
         if ($buildId) { Write-Output "azp-run: '$name' started (buildId $buildId)." }
         else          { Write-Output "azp-run: '$name' started." }
+
+        $dispatch = Get-DispatchRun $postedAt
+        if ($dispatch) {
+            $claimedRuns[[string]$dispatch.databaseId] = $true
+            Write-Output "azp-run: '$name' GitHub run $($dispatch.databaseId) (matched by time)."
+        }
+        else {
+            Write-Output "azp-run: '$name' no GitHub 'tests (comment)' run found yet - check gh run list --workflow tests-comment.yml."
+        }
     }
     else {
         $notStarted += $name
