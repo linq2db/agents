@@ -1,0 +1,9 @@
+# Review rubric module: shipped tooling
+
+Rules of the [`code-reviewer`](../../agents/code-reviewer.md) rubric that fire only on a path-identifiable change kind. Read when the briefing's `rubricModules` lists this module, or omits the field. Rule numbers are the core rubric's; "rule N" resolves through the core's **Focus scoping** index. In a multi-pass review, apply only the rules of your pass's focus:
+
+| Rule | Focus |
+|---|---|
+| 23 | `api-and-test` |
+
+23. **A change to tooling surface that already shipped needs a migration pass, not only a correctness pass.** Rule 19 covers a provider's generated SQL; the same question applies to the CLI, its stores, its configuration keys and its output. First establish whether the touched command / store / format shipped: `git tag --contains $(git log --diff-filter=A --format=%H -n 1 origin/master -- <file>)` naming a release tag means real users have it. Then enumerate, per shipped item: **persisted data** the new code reads or validates (records, files, config keys an earlier version wrote — does every shape it accepted still load, update and delete?), **reused flags** whose meaning changed (does the old spelling fail loudly, and does the error name the new spelling?), and **output shapes** scripts parse (columns, headers, value formats). Each break needs either compatibility or a migration line in the user-facing docs and the command's own error/help text. Flag `MIN` per undocumented break, `MAJ` when persisted user data becomes unmanageable. (Surfaced on PR #5991: the review's passes covered correctness and security, and the maintainer had to ask how migration from 6.5 looks. The pass then found records 6.5 had accepted that could no longer be removed individually, an old `--profile` spelling whose error pointed at the wrong fix, and an undocumented `list` column change.)

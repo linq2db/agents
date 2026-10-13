@@ -26,7 +26,7 @@ For each in-scope thread **and** each body-summary claim, classify as **Fixed at
 
 Each bot claim must clear the same suppression list the subagent enforces — e.g. *"Do not flag `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt` drift"* at `code-reviewer.md:47`. Hand-classifying against raw source without consulting the rubric drifts from the subagent's verdict on the same claim. (Surfaced 2026-05-10 on PR #5503: a Copilot PublicAPI claim was initially hand-classified as Still-actual; the documented release-cycle workflow puts it firmly in Inaccurate.)
 
-When classifying Copilot / Codex / other LLM-reviewer threads, apply `code-reviewer.md` rules 1, 4, 5, and 6 explicitly — these are the rules external bots most often outpace the subagent on:
+When classifying Copilot / Codex / other LLM-reviewer threads, apply `code-reviewer.md` rules 1, 4, 5, and 6 (rule 6 in `docs/review-rubric/rubric-tests.md`) explicitly — these are the rules external bots most often outpace the subagent on:
 
 - **Rule 1 / Predicate broadening.** When the bot flags an `is X or Y` / `NeedsConversion`-style condition that catches more inputs than the bug requires, the verdict is **Still actual** unless the code at HEAD genuinely narrows back. Don't dismiss as "preserves intent" or "matches description". Motivating case: PR #5506 (cid 3215654319), a Copilot finding the subagent missed.
 - **Rule 4 / Per-provider fan-out.** When the bot flags a translator override missing on one provider (DuckDB / SqlServer2008 / Sybase / Access etc.), check the actual translator file at HEAD against the rubric's fan-out walk before classifying. A missing `Translate<Member>` override on a provider that inherits from a base with a non-trivial registration is **Still actual**.

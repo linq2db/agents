@@ -165,7 +165,7 @@ Skip weak findings by default. Show them in a footnote only.
 
 Before presenting, for each finding:
 
-- **`.claude/` destinations** — `Grep` the target file (or the relevant dir) for overlap with `proposedContent`. If the rule is already in place with similar wording, drop the finding; if it's in place with diverging wording, switch the bucket to `feedback` and route to `/audit-agents`'s duplicated-rule category instead.
+- **`.claude/` destinations** — `Grep` the target file (or the relevant dir) for overlap with `proposedContent`; for a `review-rule` proposal that means `code-reviewer.md` **and** `.claude/docs/review-rubric/`, where its path-triggered rules live. If the rule is already in place with similar wording, drop the finding; if it's in place with diverging wording, switch the bucket to `feedback` and route to `/audit-agents`'s duplicated-rule category instead.
 - **auto-memory destinations** — `Read` the memory directory's `MEMORY.md` index + any same-title file. If an existing memory covers it, propose an **update** to the existing file rather than a new one. If it contradicts an existing memory, surface the conflict to the user and ask how to reconcile.
 
 This step kills the most common false-positive of the skill: proposing a memory that already exists with slightly different wording.

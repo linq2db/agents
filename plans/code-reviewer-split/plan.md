@@ -117,9 +117,9 @@ This is the **narrow** variant chosen by the user (2026-10-13) after a broader s
 
 ## P9 Verification gates
 
-- G-01: — (pending) — TO-1…TO-7
-- G-06: — (pending) — diff limited to E-1…E-16
-- G-09: — (pending) — critic; user diff review; TO-4's independent read
+- G-01: pass (2026-10-13) — TO-1 core 182,989 B · TO-2 rules 1-25 conserved, sentence-drop mutant caught · TO-3 82 fixtures, csproj-removal mutant fails 6 project fixtures, `-Base HEAD~1` → 13 paths · TO-5 index / headers / byFocus, rubric-tests-dropped mutant caught on rule 10 · TO-6 broken-link set equal (120 distinct), anchors 0, commands 0, pointers name `review-rubric/` · TO-7 replay of `0234bda4a` ([#5882](https://github.com/linq2db/linq2db/pull/5882)'s Issue2362Test split): with module, MAJ001 `why` "That is rule 22's case of un-gating providers the PR never ran" (and predicts Oracle failing the true arm, which #5882's CI later showed); module removed, findings name neither literal and `out_of_scope_observations[]` reports `rubric-tests.md` unreadable. Harness: `.build/.agents/crsplit-*.ps1` (scratch).
+- G-06: pass — diff limited to E-1…E-16 (`docs/work-plan.md`'s unrelated edit is not part of it)
+- G-09: critic `weak` (round 2, folded in); TO-4 (`fable`) — core, review-pr, review-orchestration hold; verify-review file format and definition-of-done placement ambiguous → fixed in E-8 / E-10, "all four" → "every module" in E-1; user diff review pending
 
 ## P10 Adjudicated (M/L)
 

@@ -1,6 +1,6 @@
 ## Test review checklist
 
-Specific test-quality traps that the abstract "is there a test? does it cover the edge cases?" framing in [`code-reviewer.md`](../agents/code-reviewer.md) rule 6 misses in practice. Apply every item below to every test added or modified by a PR — most apply only when the test was added specifically as a regression test for the PR's fix.
+Specific test-quality traps that the abstract "is there a test? does it cover the edge cases?" framing in [`code-reviewer`](../agents/code-reviewer.md) rule 6 ([`review-rubric/rubric-tests.md`](review-rubric/rubric-tests.md)) misses in practice. Apply every item below to every test added or modified by a PR — most apply only when the test was added specifically as a regression test for the PR's fix.
 
 ### Substring SQL assertion must reject the bug, not just accept the fix
 
@@ -128,4 +128,4 @@ Both rules above assume the shared thing is a field of the *test*. The third sha
 
 ---
 
-Apply this checklist whenever rule 6 of `code-reviewer.md` fires — i.e. on any test file added or modified by the PR. Findings from this checklist go in the regular `findings[]` stream with severity per the per-item guidance (most are MAJ when the test fails to exercise its named purpose, MIN otherwise).
+Apply this checklist whenever `code-reviewer` rule 6 (`review-rubric/rubric-tests.md`) fires — i.e. on any test file added or modified by the PR. Findings from this checklist go in the regular `findings[]` stream with severity per the per-item guidance (most are MAJ when the test fails to exercise its named purpose, MIN otherwise).

@@ -57,7 +57,7 @@ Run the same audit pass as [`/review-pr` step 2b](../review-pr/SKILL.md). Scope 
 - Still actual + resolved-by-other → reply + unresolve (`{ unresolve: true }`).
 - Still actual + open → leave open, feed into the regular finding stream.
 
-Apply the per-rule classification calibration (rules 1, 4, 5, 6 of `code-reviewer.md`) only to **LLM-reviewer** threads — those are the rules external bots most often outpace the subagent on. For human-reviewer threads, re-verify the concern factually against HEAD without applying bot-specific patterns.
+Apply the per-rule classification calibration (rules 1, 4, 5 of `code-reviewer.md`, rule 6 in `docs/review-rubric/rubric-tests.md`) only to **LLM-reviewer** threads — those are the rules external bots most often outpace the subagent on. For human-reviewer threads, re-verify the concern factually against HEAD without applying bot-specific patterns.
 
 **Same review-quality-signal capture applies.** When step 2b here classifies a thread as Still actual AND the corresponding concern is not present in `code-reviewer`'s `findings[]` for the verify run, append one JSON-line entry to `.build/.agents/review-quality-signal.jsonl` per the schema in `/review-pr` SKILL step 2b. The verify pass and the initial pass write to the same log.
 
@@ -101,7 +101,7 @@ Per `review-orchestration.md` → **Spawning the subagents in parallel**. This s
 
 **Refresh the diff cache before spawning (verify-mode only).** A prior `/review-pr` run leaves a `writeDir` cache populated at *that* run's HEAD. Re-run `diff-reader.ps1` for all changed files at current HEAD first, so a subagent whose own `diff-reader` call is denied (background runs can't surface a permission prompt) falls back to a *fresh* cache rather than the stale prior-run one — a stale cache produces false line-level findings (a dropped-then-readded comment surfaced as a NIT on PR #5639). Pairs with the live-blob cross-check in `pr-context-prep.md` → *Cache freshness*. Set `outFile` in that manifest: the refresh needs only the files on disk, and without it the per-file JSON lands in your context.
 
-- **`code-reviewer`:** `mode: verify`; **prior findings list** (the full parsed structure from step 3). The subagent returns `prior_finding_status` (fixed / still_actual / partial), plus fresh `findings` for `partial` cases and any genuinely new issues, plus `api_changes`.
+- **`code-reviewer`:** `mode: verify`; **prior findings list** (the full parsed structure from step 3); **`rubricModules`** — write the changed paths at current HEAD (the `nameStatus` paths, the same files the cache refresh above covers) **one per line** to `.build/.agents/pr<n>/rubric-paths.txt`, run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>/rubric-paths.txt`, and brief its `modules` field, even when it is `[]`. The subagent returns `prior_finding_status` (fixed / still_actual / partial), plus fresh `findings` for `partial` cases and any genuinely new issues, plus `api_changes`.
 - **`baselines-reviewer`:** `mode: verify`.
 
 ### 6. Apply API-surface classification
