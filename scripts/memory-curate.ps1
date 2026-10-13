@@ -19,6 +19,9 @@
     -Action verify   Report orphans (file with no index entry) and broken links (index entry with
                      no file). Run after any hand edit to MEMORY.md.
 
+  The index may be two-level: MEMORY.md links `index-*.md` sub-index files, which carry their own
+  pointer lines. All three actions treat MEMORY.md plus every `index-*.md` as the index.
+
   The memory directory is per-user, so it is a REQUIRED parameter - never hardcode a path here.
 
 .PARAMETER MemoryDir
@@ -66,14 +69,19 @@ function Get-IndexedTargets([string]$body) {
         ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
 }
 
+function Get-IndexFiles {
+    @($index) + @(Get-ChildItem -LiteralPath $MemoryDir -Filter 'index-*.md' | Select-Object -ExpandProperty FullName)
+}
+
 function Test-Integrity {
-    $body    = [System.IO.File]::ReadAllText($index)
+    $body    = (Get-IndexFiles | ForEach-Object { [System.IO.File]::ReadAllText($_) }) -join "`n"
     $files   = @(Get-MemoryFiles)
     $targets = @(Get-IndexedTargets $body)
     [ordered]@{
         fileCount   = $files.Count
         linkCount   = $targets.Count
         indexBytes  = (Get-Item -LiteralPath $index).Length
+        subIndexBytes = ((Get-IndexFiles | Select-Object -Skip 1 | ForEach-Object { (Get-Item -LiteralPath $_).Length }) | Measure-Object -Sum).Sum
         orphans     = @($files   | Where-Object { $body -notmatch [regex]::Escape($_) })
         brokenLinks = @($targets | Where-Object { -not (Test-Path -LiteralPath (Join-Path $MemoryDir $_)) })
     }
@@ -86,9 +94,10 @@ switch ($Action) {
             $body = [System.IO.File]::ReadAllText((Join-Path $MemoryDir $f))
             $nums = @()
             if ($f -like 'project_*') {
+                # Each side wrapped in @(): a lone match is a scalar string, and string + string concatenates.
                 $nums = @(
-                    ([regex]::Matches($f,    'project_(\d{3,5})_') | ForEach-Object { $_.Groups[1].Value }) +
-                    ([regex]::Matches($body, '#(\d{4,5})\b')       | ForEach-Object { $_.Groups[1].Value })
+                    @([regex]::Matches($f,    'project_(\d{3,5})_') | ForEach-Object { $_.Groups[1].Value }) +
+                    @([regex]::Matches($body, '#(\d{4,5})\b')       | ForEach-Object { $_.Groups[1].Value })
                 ) | Select-Object -Unique
             }
             [pscustomobject]@{ file = $f; sizeBytes = $body.Length; refs = $nums }
@@ -135,19 +144,22 @@ switch ($Action) {
         }
 
         $before = (Get-Item -LiteralPath $index).Length
-        $kept = foreach ($line in [System.IO.File]::ReadAllLines($index)) {
-            $hits = @($names | Where-Object { $line -match [regex]::Escape("$_.md") })
-            if (-not $hits) { $line; continue }
-            $new = $line
-            foreach ($h in $hits) {
-                # drop "[label](name.md) trailing-hook" plus its separator; label may contain brackets
-                $new = [regex]::Replace($new, '\s*·?\s*\[[^\r\n]*?\]\(' + [regex]::Escape("$h.md") + '\)[^·\r\n]*', '')
+        foreach ($ix in Get-IndexFiles) {
+            $kept = foreach ($line in [System.IO.File]::ReadAllLines($ix)) {
+                $hits = @($names | Where-Object { $line -match [regex]::Escape("$_.md") })
+                if (-not $hits) { $line; continue }
+                $new = $line
+                foreach ($h in $hits) {
+                    # drop "[label](name.md) trailing-hook" plus its separator. The label may contain
+                    # brackets but never "](", so the match cannot start at an earlier link and run across it.
+                    $new = [regex]::Replace($new, '\s*·?\s*\[(?:(?!\]\()[^\r\n])*?\]\(' + [regex]::Escape("$h.md") + '\)[^·\r\n]*', '')
+                }
+                if ($new -match '\([A-Za-z0-9_.-]+\.md\)') {
+                    ($new -replace '—\s*·\s*', '— ' -replace '\)\s*·\s*\[', ') · [' -replace '\s+·\s*$', '').TrimEnd()
+                }
             }
-            if ($new -match '\([A-Za-z0-9_.-]+\.md\)') {
-                ($new -replace '—\s*·\s*', '— ' -replace '\s+·\s*$', '').TrimEnd()
-            }
+            [System.IO.File]::WriteAllLines($ix, [string[]]$kept, (New-Object System.Text.UTF8Encoding $false))
         }
-        [System.IO.File]::WriteAllLines($index, [string[]]$kept, (New-Object System.Text.UTF8Encoding $false))
 
         [ordered]@{
             action      = 'drop'
