@@ -222,6 +222,7 @@ Detail-heavy mechanics live in [`pr-and-push.md`](pr-and-push.md). One-line trig
 - **After every successful push, check for a PR on the branch** and diff the new commits against its body. **On a PR the user authored**, propose an appended `## Follow-up commit` subsection as a diff, applied with `.claude/scripts/pr-body-edit.ps1` — never a hand-rolled fetch → mutate → `gh pr edit` — and verify the **whole** stored body afterwards. **On someone else's PR, do not edit the body at all**; use a review or a new comment. If no PR exists, propose creating one.
 - **Immediately after `gh pr create`, check the diff shape** — one `gh pr view <n> --json commits,files`: [`pr-and-push.md`](pr-and-push.md) → *Immediately after `gh pr create`: check the diff shape*.
 - **After every successful push, re-request Copilot review** — `gh pr edit <N> --repo linq2db/linq2db --add-reviewer copilot-pull-request-reviewer` (not the slug `Copilot`, not the REST `requested_reviewers` endpoint).
+- **Before running tests or triggering CI, sync with `origin/master`** — a stacked PR bottom-up (parent first, then merge it forward); `azp-run.ps1` refuses a head behind master: [`ci-tests.md`](ci-tests.md) → *Sync the branch with `origin/master`*.
 - **Orphaned baselines are never an action item or a review finding; stale *keys* (a follow-up renamed / moved / deleted a test or changed its SQL) are** — close + delete via `close-stale-baselines.ps1`: [`pr-and-push.md`](pr-and-push.md) → *After test renames / moves / deletes*.
 
 ### Pull request rules

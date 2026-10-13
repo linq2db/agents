@@ -52,9 +52,17 @@ branch, push, then trigger. (#5725 drew the same message on two triggers and sta
 third after `-SettleSeconds 180`; whether that was a conflict-free PR still being
 evaluated was not established, so the longer settle remains the advice after a push.)
 
-Hence three behaviours below, the last two defeatable:
+A PR whose head is behind master is refused too: results from a stale branch don't reflect
+what will be validated at merge, and a stacked PR can be conflict-free against its own base
+while the stack conflicts with master - the mergeable check cannot see that. Sync first
+(stacked: sync the parent with master, then merge the parent forward), push, trigger.
+Hit twice on 2026-10-13 in different sessions (#6037 on the #5707 stack, after #6025 landed).
+
+Hence four behaviours below, the last three defeatable:
   mergeable check       wait for GitHub to compute `mergeable` (UNKNOWN right after a
                         push) and exit 2 without posting when it is CONFLICTING
+  master sync check     exit 3 without posting when the PR head lacks master's tip
+                        commit (-AllowStale to trigger anyway)
   -SettleSeconds        pause before posting (default 5) so the push lands first
   -VerifyTimeoutSeconds poll the PR's checks afterwards until the pipeline shows
                         up (default 60); exit non-zero when it never does, so a
@@ -66,7 +74,8 @@ line per pipeline - `azp-run: '<name>' started (buildId <n>).` when the check
 URL carries the Azure build id, ready for `azp-wait.ps1 -BuildId`. Non-zero exit on the
 first `gh` failure, leaving the already-posted triggers in place (a partially
 triggered run is visible in the URLs printed before the error), or when
-verification times out. Exit 2, with nothing posted, when the PR conflicts with its base.
+verification times out. Exit 2, with nothing posted, when the PR conflicts with its base;
+exit 3, with nothing posted, when the PR head is behind master.
 #>
 
 param(
@@ -74,7 +83,8 @@ param(
     [string[]]$Pipeline = @('test-all'),
     [string]$Repo = 'linq2db/linq2db',
     [int]$SettleSeconds = 5,
-    [int]$VerifyTimeoutSeconds = 60
+    [int]$VerifyTimeoutSeconds = 60,
+    [switch]$AllowStale
 )
 
 $ErrorActionPreference = 'Stop'
@@ -114,6 +124,15 @@ for ($i = 0; $i -lt 12 -and $mergeable -eq 'UNKNOWN'; $i++) {
 if ($mergeable -eq 'CONFLICTING') {
     [Console]::Error.WriteLine("azp-run: PR #$Pr conflicts with its base branch - Azure would refuse the run. Merge the base branch, push, then trigger again.")
     exit 2
+}
+
+if (-not $AllowStale) {
+    $head   = gh pr view $Pr --repo $Repo --json headRefOid --jq .headRefOid
+    $behind = gh api "repos/$Repo/compare/master...$head" --jq .behind_by
+    if ($LASTEXITCODE -eq 0 -and [int]$behind -gt 0) {
+        [Console]::Error.WriteLine("azp-run: PR #$Pr head is $behind commit(s) behind master. Sync with master first (stacked PR: sync the parent, then merge it forward), push, then trigger again; -AllowStale to trigger anyway.")
+        exit 3
+    }
 }
 
 $notStarted = @()

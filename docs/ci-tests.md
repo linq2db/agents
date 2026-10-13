@@ -56,7 +56,7 @@ Consequences worth remembering:
 
 One `/azp run` per meaningful change. Do not spam — each run consumes CI capacity.
 
-**Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`AGENTS.md`](../AGENTS.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run.
+**Sync the branch with `origin/master` before running tests or triggering CI.** A PR must be in sync with master to be merged, so results from a stale branch don't reflect the state that will actually be validated. `git fetch origin master`, then merge or rebase per the branch policy in [`AGENTS.md`](../AGENTS.md) → *Creating a new branch* (merge on long-lived / already-merged branches, rebase on short linear ones), **then** run. **A stacked PR is synced bottom-up:** merge master into the parent branch, push it, then merge the parent forward into the child — the child is conflict-free against its own base while the stack conflicts with master, which neither GitHub's `mergeable` nor a base-only check shows. `azp-run.ps1` enforces this: it exits 3 without posting when the PR head is behind master (`-AllowStale` to override). (Hit twice on 2026-10-13 in two sessions: #6037 sat on #5707, which conflicted with master after the split-out #6025 landed.)
 
 ### Provider *breadth* is CI's job — never fan a local run out across the matrix
 
