@@ -196,7 +196,7 @@ From the PowerShell tool, with the **call operator and a real array** — not `p
 
 ```powershell
 Set-Location <worktree>
-& .claude/scripts/analyzer-profile-build.ps1 -ProjectPath <target.csproj> -LogPath .build/.agents/analyzer-perf-<target>.log -ExtraArgs @('-f','net10.0')
+& .claude/scripts/analyzer-profile-build.ps1 -SolutionPath <target.csproj> -LogPath .build/.agents/analyzer-perf-<target>.log -ExtraArgs @('-f','net10.0')
 ```
 
 Run it with the worktree as the working directory. For `Tests/Linq` add `-ExtraArgs @('-f','net10.0','-p:TreatWarningsAsErrors=false')` so a pre-existing Release analyzer warning can't stop the build before `CoreCompile` emits the report.

@@ -63,6 +63,8 @@ This is not a full-text dedup — it's a fixed list of "rules that must live in 
 
 **Contradiction, not just divergence.** The check above catches the *same* rule worded differently. Also flag the harder case: two rules that **conflict** — one doc says "always X", another says "prefer not-X" in the same circumstance, or a rule and its cross-referenced detail doc have drifted to opposite guidance. A contradiction is more dangerous than a duplicate (the agent can't satisfy both) and won't surface as near-identical text, so a grep for shared phrasing misses it — compare the *guidance*, not the wording. Surface both locations and the conflict; **fixKind: creative** — the user decides which wins.
 
+**Layers above the corpus.** Contradictions are not only corpus-internal. Also compare the corpus against (a) the user-global `CLAUDE.md` (read-only — the audit reports, the user decides which layer moves) and (b) the auditing agent's **own harness system prompt**, which is in its context. Two shapes: a corpus rule that **conflicts** with a higher layer (Anthropic's worked example: a base "leave documentation as appropriate" vs a skill's "DO NOT add comments" — the model spends effort reconciling them), and a corpus rule that merely **restates** the harness (the deleted *Batch independent tool calls*, 2026-10-13) — pure always-loaded cost. Quote both texts in the finding. **fixKind:** creative.
+
 **Boundary smell (info).** While scanning, flag a doc or `CLAUDE.md` section that reaches deep into a *neighboring* subsystem's internals it isn't about — e.g. the branching section restating SQL-AST invariants, or a skill doc embedding another skill's procedure. This usually means a rule landed in the wrong file; propose relocating it to the owning doc with a pointer left behind. Distinct from the duplicated / contradiction cases above — here the content may be correct but mis-placed. (Don't over-fire: a one-line pointer into another doc is the intended pattern, not a smell.)
 
 ## 2e. Retired-path check
@@ -89,6 +91,8 @@ Line-count-driven, with stricter thresholds for the **always-loaded payload** �
 For each always-loaded oversize finding, propose a concrete split (which sections move where, what pointer stays). The `proposedFix` is the per-section breakdown rather than a single unified diff — the user picks how aggressive to be.
 
 **Aggregate always-loaded footprint (info, fixKind: manual-only):** independent of any single-file threshold, also compute and **report** the total size of the always-loaded payload — `CLAUDE.md` plus every doc reachable via the `@import` chain from it (currently the root `CLAUDE.md` trampoline + `.claude/AGENTS.md` + `.claude/CLAUDE.md` + `.claude/docs/agent-rules.md`) — in both lines and KB. Every conversation pays this on startup, so the cumulative number is the signal even when each file is individually under budget. Emit an info finding when the total exceeds **60 KB** (🟡) and a warning when it exceeds **90 KB** (🔴) — these match the `chores` *Context budget* thresholds. (2026-10-10: ~86 KB across the four files after a shrink from 97 KB — watch, not green.) The fix is the same per-section relocation as the single-file findings, applied across whichever always-loaded file is the largest contributor; surface the number so growth is trackable run-over-run, don't propose a specific diff.
+
+**Skill / agent description budget (info, fixKind: creative).** Every skill's and agent's `description` is in the always-loaded listing, so it is paid like `CLAUDE.md`. Run `pwsh -NoProfile -File .claude/scripts/skill-descriptions.ps1`: report the total (chars and estimated tokens) beside the always-loaded footprint above, and list each description over **300 characters** with a proposed shortening that keeps what the skill does, when to use it, and its trigger phrases. A sub-skill dispatched by name from an orchestrator (the `release-*` set) needs no trigger phrasing. (2026-10-13: 17.6 k chars, ≈6.8 k tokens, 28 over budget, after the release set went 6,965 → 2,250.)
 
 **Per-skill / per-script (info, fixKind: manual-only):**
 
@@ -159,6 +163,26 @@ Surface prose that could be tightened without losing operational meaning. Scope:
 Do **not** flag: incident-driven rules ("we got burned when…"), tool-shape requirements (`gh --body-file`, MSYS path-mangling, allowlist syntax), or codebase invariants (column-aligned formatting, cross-cutting internals). Those are stable regardless of model.
 
 **Severity:** info. **fixKind:** creative — never propose deletion. The finding is a prompt to *re-test the underlying assumption against the current model*; surface the rule, name the model-era premise, and suggest a concrete cheap experiment to confirm whether it still holds. The user decides whether to relax, keep, or annotate it. When kept, suggest dating it ("verified still needed against <model> on <date>") so the next audit can skip re-litigating it.
+
+## 2l. Stale-command check
+
+Run `pwsh -NoProfile -File .claude/scripts/check-corpus-commands.ps1`. For every `.claude/scripts/<name>.ps1 -Param …` in a tracked `.md` / `.ps1` / `.js` it checks that the script exists and that each `-Param` binds to its `param()` block (exactly or as a unique prefix, as PowerShell binds it), and that every `Skill('<name>')` names a corpus skill. `Build/…/scripts/` paths belong to the superproject and are skipped; `plans/` and `knowledge-base/` too (`-IncludeFrozen`). Its `unknownSlash` list — backticked `/name` mentions matching no corpus skill — is informational: most are Claude Code built-ins or user-level skills.
+
+Expect zero `broken`. **Severity:** error — following the instruction fails. **fixKind:** mechanical when the param block has one plausible match (the 2026-10-13 first run found `-ProjectPath` where the script declares `-SolutionPath`), creative otherwise. The prompt-audit inspiration ranks stale paths and stale commands first for the same reason: a broken instruction costs a failed call every time it is followed.
+
+## 2m. Older-model prompting style
+
+Prompt **form** written for older models, which current models follow more literally than intended (Anthropic, *Reducing cost and improving performance*, 2026-09, and the Claude Code `prompt-audit` it describes). `Grep` for:
+
+- **Emphasis inflation** — all-caps `MUST` / `NEVER` / `ALWAYS` / `CRITICAL` / `IMPORTANT` used as emphasis rather than as a defined severity term; report density per file, not every hit.
+- **Thoroughness rituals** — "be maximally thorough", "double-check", "verify twice", "re-read everything before answering".
+- **Forced scratchpads** — "think step by step", "write your reasoning first", "before answering, list…" where the step adds nothing the model would not do.
+- **Emphasis by repetition** — the same rule stated in several files so it "sticks" (older models needed it; now it is cost, and a drift risk — overlaps §2d).
+- **Stale few-shot examples** — an example whose identifiers, paths or output shape no longer match the current code or script contract.
+
+**Do not flag** a capitalised word that is a defined term (`MAJ`, `MIN` severities; `MUST` inside a quoted RFC-style spec), Claude Code's documented thinking keywords, or a repeated rule that is a deliberate one-line trigger pointing at its owning doc (the `agent-rules.md` pattern).
+
+**Severity:** info. **fixKind:** creative — propose the plainer form; never mass-rewrite, since some emphasis marks a rule that was genuinely broken in practice (check the rule's incident note before softening it).
 
 ## 2k. Stale-memory-reference check
 

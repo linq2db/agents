@@ -189,7 +189,7 @@ gh api "repos/linq2db/linq2db/actions/workflows/350529502/runs?per_page=10" \
 
 then `gh run view <id> --repo linq2db/linq2db --json jobs` for the per-leg verdicts. (Surfaced on #5882: the PR's rollup showed six green `build` jobs and eight red Azure legs, and was reported as "GitHub is green" — sixteen GitHub legs with 361 failing cases were sitting in a comment-triggered run that no PR-scoped query returned.)
 
-**Per-test failures come out of a different place on each system.** A GitHub leg's last step runs `scripts/report-trx.ps1`, which prints a `#### Failed (N)` block and one line per failure carrying the test, its provider and the message — the reliable extraction point, and one `Grep` away:
+**Per-test failures come out of a different place on each system.** A GitHub leg's last step runs `Build/CI/report-trx.ps1`, which prints a `#### Failed (N)` block and one line per failure carrying the test, its provider and the message — the reliable extraction point, and one `Grep` away:
 
 ```
 - `BulkCopyAutoOnlyRowByRow("SapHana.Odbc")` - [Failed] System.Data.Odbc.OdbcException : …
