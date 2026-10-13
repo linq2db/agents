@@ -332,15 +332,15 @@
   - TO-14d: on #6036, red on master (exit -2, NRE at `CompileTemplateAndLoadAssembly:278`), green with the fix.
   - TO-15: the moved files differ from the originals only by the dropped `: TestBase` (rename similarity 98–99%); 38 cases are listed and all passed.
   - Not mutation-proven individually: TO-4/5/6/7/8/9/10/11 (characterization).
-- G-02: skipped — `BaselinesPath` was not used in local runs, so `ScaffoldExecutionTests` baselines are reviewed on the CI provider legs (G-13).
+- G-02: pass (2026-10-13) — `baselines/pr_6037` vs `baselines/pr_5707`: 186 files, all added, all `ScaffoldExecutionTests` (13 PostgreSQL versions × 10 tests, 4 SQL Server contexts × 14 tests). Content reviewed: typed parameters with the right directions for `OutRefTest`; `test_avg(g_1."Value1"::Float)` over `GROUP BY` for the aggregate.
 - G-05: pass (2026-10-13) — `Tests.Scaffold` Release; harness Release net8.0 (FCS restore on net8, which confirms U-4); `Tests.LinqToDB.CLI` Release net8.0; `Tests/Linq` Release net10.0 and net462 (fixture compiled out) — all exit 0 after the analyzer fixes (IDE0330/MA0158 → `Lock`, IDE0340 unbound generic `nameof`, CS0419 cref, NUnit1028 non-public sources, RS0030 → `AttributesExtensions`).
 - G-06: pass (2026-10-13, `7cbe879e4..5e0fb98ae`) — changes to existing files are additions only (packages, slnx/slnf, csproj references, `RunCliProcess` overload, CI job) plus the `: TestBase` removal in the moved fixtures; no reformatting.
 - G-07: pass (2026-10-13) — no `Tests/Tests.Playground` file in `git diff --name-only a558f87ef..5e0fb98ae`.
 - G-09: — (pending)
-- G-10: — (pending) `scaffold-tests` run id observed green at branch head on ubuntu-24.04 + windows-2025, with job durations (>20 min → P11 per D-11)
-- G-11: — (pending) published `Tests/Linq` net10.0 artifact size before vs after
-- G-12: — (pending) `cli-tests` run id observed green at branch head on ubuntu-24.04 + windows-2025 + macos-15, with durations vs `timeout-minutes: 30`
-- G-13: — (pending) SqlServer and PostgreSQL provider legs (`/azp run`) green for `ScaffoldExecutionTests`, with run ids
+- G-10: pass (2026-10-13) — `Scaffold tests` ubuntu-24.04 and windows-2025 green on head `83db6b6d` (after the master sync). Suite duration on CI: 1m47s (run 38315497360, ubuntu), well under the D-11 20-min threshold. The 51 min measured locally was host load. One earlier red on `5e0fb98a` came from the #3749 pin matching Shouldly's debug-info-dependent text; fixed in `f9c02c271`.
+- G-11: skipped — the published `Tests/Linq` artifact size is not reported by the PR legs, so FCS/Roslyn growth per TFM artifact is unmeasured (mitigated by `SatelliteResourceLanguages=en`).
+- G-12: pass (2026-10-13) — `CLI tests` ubuntu-24.04, windows-2025 and macos-15 green on run 38315497360 and again on head `83db6b6d`.
+- G-13: pass (2026-10-13) — provider legs on head `5e0fb98a`: GitHub `tests (comment)` runs 38315620374 (SQL Server 2022/2025, both clients) and 38315645576 (PostgreSQL 9.2–19) succeeded; Azure 24228/24229 succeeded (Windows/x86 builds; main-suite steps skipped on PR runs).
 
 ## P10 Adjudicated
 
