@@ -10,7 +10,9 @@ Each check produces zero or more finding records of the shape defined in the SKI
 
 Two known-noisy classes in its `broken` list, both pre-existing rather than new drift: KB area files link `INDEX.md` siblings that were never generated, and `](url)` / `](<sampleUrl>)` placeholders inside prose parse as links. **Compare the count against the previous run instead of expecting zero** — a jump is the signal.
 
-For the reference kinds the script doesn't cover — `@path` imports in the root `CLAUDE.md` trampoline (check the exact path; see §2b), bare `path]` references, and inline `file:line` citations in `.md` / `.ps1` — resolve against the repo root by hand. Skip external URLs (`http://`, `https://`, `mailto:`) and absolute paths outside the repo.
+**Section references: run `pwsh -NoProfile -File .claude/scripts/check-corpus-anchors.ps1`.** The link script resolves the *file* half only; this one resolves every `<doc>.md → *Section*` / `→ **Lead-in**` reference against the target doc's headings and bold spans, and returns `{ checked, skipped, broken: [{ file, line, doc, name }] }`. `plans/` and `knowledge-base/` are skipped (`-IncludeFrozen` scans them). Expect zero: a hit is a renamed or relocated section, fixed by retargeting the reference to wherever the rule now lives.
+
+For the reference kinds the scripts don't cover — `@path` imports in the root `CLAUDE.md` trampoline (check the exact path; see §2b), bare `path]` references, and inline `file:line` citations in `.md` / `.ps1` — resolve against the repo root by hand. Skip external URLs (`http://`, `https://`, `mailto:`) and absolute paths outside the repo.
 
 Proposed fix (mechanical when the file was renamed and there's one plausible new target; creative when ambiguous): suggest the new path or ask.
 

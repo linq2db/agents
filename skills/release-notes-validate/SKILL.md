@@ -1,6 +1,6 @@
 ---
 name: release-notes-validate
-description: Release-notes coverage audit. Cross-references the milestone's merged PRs and closed issues with the release-notes on the linq2db GitHub wiki landing page (`Releases-and-Roadmap.md`). For each milestone item, checks whether its issue number, PR number, or a clear textual reference appears in the notes; mentioning either side of an issue↔PR pair satisfies coverage. The user marks each gap as missing (add to notes) or intentional omission (record locally for this release). The drafting + publishing of notes is `/release-notes`; this skill is the coverage safety check that runs after. Invoked by `/release` step 5 or directly during release prep.
+description: Release-prep task 5 check — audit the wiki release notes against the milestone's merged PRs and closed issues; the user marks each gap missing or intentional. Invoked by /release or directly.
 ---
 
 # /release-notes-validate

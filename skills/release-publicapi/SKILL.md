@@ -1,6 +1,6 @@
 ---
 name: release-publicapi
-description: PublicAPI.Shipped / PublicAPI.Unshipped reconciliation for the release-prep workflow. Runs a whole-solution Release build with -p:RunApiAnalyzersDuringBuild=true (the analyzers are off in every ordinary build, so this is the only gate before the master→release PR) to surface RS0016/RS0017/RS0025 drift, bulk-fixes it via -Action fix-drift, then moves every project's PublicAPI.Unshipped.txt content into PublicAPI.Shipped.txt across all per-TFM and flat layouts. Distinct from `/api-baselines` (which handles `CompatibilitySuppressions.xml` — a different tool, different files). Invoked by `/release` step 2 or directly when running release prep.
+description: Release-prep task 2 — surface and fix PublicAPI.Shipped / PublicAPI.Unshipped drift with a Release build, then move Unshipped into Shipped. Not /api-baselines (CompatibilitySuppressions.xml). Invoked by /release or directly.
 ---
 
 # /release-publicapi
@@ -23,7 +23,7 @@ Also owns the **analyzer release-tracking** move for the `linq2db.Analyzers` pac
 
 ## Required reading
 
-- [`.claude/docs/code-design.md`](../../docs/code-design.md) → **Never hand-edit API baseline files** still applies to `CompatibilitySuppressions.xml`. PublicAPI.*.txt is **not** under that rule — it's editable by the analyzer's codefixes and by this skill's apply step.
+- [`.claude/AGENTS.md`](../../AGENTS.md) → **Never hand-edit API baseline files** still applies to `CompatibilitySuppressions.xml`. PublicAPI.*.txt is **not** under that rule — it's editable by the analyzer's codefixes and by this skill's apply step.
 - [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Git commit rules** (each commit is its own user request).
 
 ## Procedure

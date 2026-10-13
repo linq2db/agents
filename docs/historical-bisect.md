@@ -5,7 +5,7 @@ as when checking whether an `[ActiveIssue]` gate's issue was ever really fixed �
 migrations, and every one of them makes a step measure something other than what it claims. This doc is
 the list of those traps, each paid for on a real run.
 
-Read it with [`bug-investigation.md`](bug-investigation.md) → *Enabling a gated test after issue close* and
+Read it with [`bug-investigation.md`](bug-investigation.md) → *Enabling an `[ActiveIssue]` test after the issue closes* and
 [`../skills/enable-disabled-test/SKILL.md`](../skills/enable-disabled-test/SKILL.md), which own the
 narrower "issue just closed, enable one test" flow.
 

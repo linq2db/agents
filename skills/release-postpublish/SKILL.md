@@ -1,6 +1,6 @@
 ---
 name: release-postpublish
-description: Post-release-merge tasks. Verifies every expected linq2db nuget published to nuget.org at the release version, opens the docs PR in linq2db.docs (submodule sync to the release tag), creates the GitHub release with the .lpx artifact and auto-generated New Contributors section, then opens the next-version bump PR with the new milestone and the `linq2db.t4models` self-reference re-pinned to the just-released version. Each step is its own explicit user-confirmed action. Invoked by `/release` after the release PR merges to the `release` branch.
+description: After the release PR merges — verify nuget.org publication, open the docs PR, create the GitHub release, open the next-version bump PR. Each step user-confirmed. Invoked by /release.
 ---
 
 # /release-postpublish
@@ -198,7 +198,7 @@ Action:
 
 **Source the preamble from the release-notes harvest, not from PR titles.** Task 5 of the prep phase already produced curated per-PR blurbs at `.build/.agents/release-<ver>-notes-harvest.json`; read `items[]` where `includeBrief && !omit` (36 entries on 6.4.0). Structure follows the previous release's body: `Highlights of this release:` → `Provider-specific highlights:` → per-tool sections → `[Full release notes](<wiki-anchor>)` + `[Nugets](…)`.
 
-> **`tag_name` is stripped by a PATCH that omits it.** Sending only `body` to `PATCH /repos/{o}/{r}/releases/{id}` on a **draft** release silently resets the tag to `untagged-<hash>`. Always include `tag_name`, `target_commitish` and `name` in the payload, then re-fetch and verify all of them plus the body (`github-authoring.md` → *draft-release `tag_name` strip on PATCH*). Hit on 6.4.0 despite being documented.
+> **`tag_name` is stripped by a PATCH that omits it.** Sending only `body` to `PATCH /repos/{o}/{r}/releases/{id}` on a **draft** release silently resets the tag to `untagged-<hash>`. Always include `tag_name`, `target_commitish` and `name` in the payload, then re-fetch and verify all of them plus the body (`github-authoring.md` → *Draft-release `tag_name` strip on PATCH*). Hit on 6.4.0 despite being documented.
 
 > ### ⚠ The release tag must land on `master`, never on the release-branch merge commit
 >

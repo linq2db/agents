@@ -1,6 +1,6 @@
 ---
 name: release-milestone-check
-description: Pre-release milestone audit. Confirms there are no open issues or PRs on the release milestone that would mess with the release if merged after prep, and no leftover open baselines PRs (on `linq2db.baselines`) for milestone-merged source PRs — those auto-generate fresh baselines but stay open after the source PR merges and need closing/merging before the release ships. Tick passes only when both lists are clear. Invoked by `/release` step 3 or directly.
+description: Release-prep task 3 — confirm the release milestone has no open issues or PRs and no leftover open baselines PRs for its merged PRs. Invoked by /release or directly.
 ---
 
 # /release-milestone-check
@@ -26,7 +26,7 @@ description: Pre-release milestone audit. Confirms there are no open issues or P
 
 ## Required reading
 
-- [`.claude/docs/pr-and-push.md`](../../docs/pr-and-push.md) → **When follow-up commits rename / move / delete tests, close the existing baselines PR**.
+- [`.claude/docs/pr-and-push.md`](../../docs/pr-and-push.md) → **After test renames / moves / deletes: clean up stale baselines**.
 
 ## Procedure
 

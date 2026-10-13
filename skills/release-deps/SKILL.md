@@ -1,6 +1,6 @@
 ---
 name: release-deps
-description: Dependency update for the release-prep workflow — NuGet packages and SHA-pinned GitHub Actions. Discovers every <PackageVersion> in Directory.Packages.props plus all <PackageReference VersionOverride="..."> sites across the repo, queries nuget.org for available versions, applies the project's version policy, walks per-package decisions, resolves every action pin in .github/workflows against its latest release (there is no Dependabot here — this is the only thing that updates a pinned SHA), runs all predictive audits (analyzer rule catalogs, polyfill API diffs, fuget API surface diffs, drift checks), batch-applies all consequent edits. **Runs no verification build, no commit, no push, no CI trigger** — those are all owned by `/release-verify` (orchestrator task 6), which sees the cumulative state from every release-prep task and produces the single consolidated commit + push + CI trigger. Per-package custom rules + release-notes URLs accrue in `.claude/docs/release/nuget-package-notes.md`. Invoked by `/release` step 1 or directly when running release prep.
+description: Release-prep task 1 — update NuGet packages and SHA-pinned GitHub Actions under the version policy, with predictive audits. Runs no build, commit or push (those belong to /release-verify). Invoked by /release or directly.
 ---
 
 # /release-deps

@@ -1,6 +1,6 @@
 ---
 name: release-verify
-description: Final verification phase of release prep. Runs **one** Release build to validate that the cumulative state from all earlier release-prep tasks (deps + PublicAPI + milestone-check + test-matrix + release-notes + ad-hoc) compiles cleanly. Reactively walks any new analyzer-rule errors with the user (fix or disable per rule). When any analyzer package was bumped this release, runs `/profile-analyzers` **after** the build is clean to catch performance regressions in new *and* existing rules and surface disable candidates. Refreshes API baselines via `/api-baselines`. Commits the consequent fixes (rule disables, baseline updates, code patches) as a single "release prep verification" commit on the prep PR. Invoked by `/release` step 6 after every other release-prep task is `[x]` or `[-]`.
+description: Release-prep task 6 — one Release build over the cumulative prep state, walk new analyzer errors, profile analyzers after a bump, refresh API baselines, make the single verification commit. Invoked by /release after the other tasks.
 ---
 
 # /release-verify

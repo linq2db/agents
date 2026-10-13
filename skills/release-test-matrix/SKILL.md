@@ -1,6 +1,6 @@
 ---
 name: release-test-matrix
-description: Manual test-matrix walkthrough for release prep — LINQPad 5 (.lpx), LINQPad 7+ (nugets), NuGet T4 scaffold (Tests.T4.Nugets), T4 templates (Tests.T4), CLI scaffold, plus the T4 binary prerequisite and per-provider DB init that gate them. Mostly user-driven (Visual Studio is the test runner for T4 templates) but the skill keeps the order straight, surfaces what to check, gates on per-track pass/fail, and accrues "how do I init this provider" / "exact T4 build command" answers into `.claude/docs/release/` for next time. Invoked by `/release` step 4 or directly when running release prep.
+description: Release-prep task 4 — manual walkthrough of the LINQPad, T4 and CLI scaffold test tracks and their prerequisites, gated per track. Invoked by /release or directly.
 ---
 
 # /release-test-matrix

@@ -1,6 +1,6 @@
 ---
 name: release
-description: One-stop orchestrator for the linq2db release-preparation workflow. Surveys release state on the active branch, renders a two-level checklist (0 branch+version, 1 deps, 2 PublicAPI, 3 milestone-check, 4 test-matrix, 5 release-notes, 6 final-verification + ad-hoc 7.<n>), and dispatches each task to its dedicated sub-skill (`/release-deps`, `/release-publicapi`, `/release-milestone-check`, `/release-test-matrix`, `/release-notes` + `/release-notes-validate`, `/release-verify`, then `/release-publish` post-merge, `/release-postpublish` post-tag). State is persisted in the release PR body (canonical) and mirrored to `.build/.agents/release-<version>.json` for session resume. Use when the user says "release", "/release", "start a release", or "resume release".
+description: Orchestrator for linq2db release prep — surveys release state, renders the task checklist and dispatches each task to its release-* sub-skill; state lives in the release PR body. Use when the user says "release", "/release", "start a release" or "resume release".
 ---
 
 # /release

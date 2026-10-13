@@ -1,6 +1,6 @@
 ---
 name: release-publish
-description: Post-prep-merge release publishing flow. Opens the release PR (master → release), resets the linq2db.baselines repo HEAD to the documented anchor commit so CI regenerates clean baselines on the release PR, walks the user through merging the CI-generated baselines PR + copying-and-tagging fresh baselines on the releases branch in linq2db.baselines, then blocks at the prerelease-nuget team-test gate before authorizing the release PR merge. Every step is explicitly user-gated — no implicit chains across destructive or shared-state actions. Invoked by `/release` after the prep PR merges to master.
+description: After the prep PR merges — open the release PR, reset linq2db.baselines to its anchor, walk the baselines PR and tagging, hold at the prerelease-nuget gate. Every step user-gated. Invoked by /release.
 ---
 
 # /release-publish
