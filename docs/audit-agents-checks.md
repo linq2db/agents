@@ -52,7 +52,7 @@ Proposed fix for missing-section / scaffold gaps: mechanical — suggest the sca
 
 Grep-and-compare. For each of the following "canonical rule" patterns, find every occurrence and check for wording divergence:
 
-- Branch-naming rules (who owns them: `CLAUDE.md` → Branch Conventions, `.claude/docs/agent-rules.md` → Creating a new branch). If both state the *schema* with different words, flag as duplicated-rule; if one is the authoritative statement and the other is a one-line pointer, that's fine.
+- Branch-naming rules (who owns them: `AGENTS.md` → *Creating a new branch* states the schema; `.claude/docs/agent-rules.md` → *Creating a new branch* points at it). If both state the *schema* with different words, flag as duplicated-rule; if one is the authoritative statement and the other is a one-line pointer, that's fine.
 - Commit / push / PR approval rules.
 - Bash chaining / permission-friendly patterns.
 - GitHub content-editing guardrails.

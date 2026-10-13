@@ -18,7 +18,8 @@
     same conventions as check-corpus-links.ps1, then by unique basename. The name resolves
     when it is a case-insensitive prefix of a heading or of any `**bold**` span in that doc
     (or the reverse); a trailing `…` / `...` marks an intended prefix. Only the first name
-    after the arrow is checked.
+    after the arrow is checked. A reference wrapped onto the next line is found; one with no
+    arrow ("the *X* rule in AGENTS.md") is not, nor is a `file:line` citation.
 
     `plans/` (frozen records) and `knowledge-base/` (generated) are skipped unless
     -IncludeFrozen. Targets outside the corpus (the superproject's root AGENTS.md,
@@ -97,7 +98,7 @@ function Resolve-Doc([string]$doc, [string]$fromDir) {
 }
 
 # doc (link target | backticked | bare)  arrow  *name* / **name**
-$refRegex = [regex]'(?:\]\((?<doc>[^)\s#]+\.md)(?:#[^)\s]*)?\)|`(?<doc>[^`\s]+\.md)`|(?<doc>(?<![\w`(/.-])[\w./-]+\.md))\s*(?:→|->)\s*\*{1,2}(?<name>[^*]+?)\*{1,2}'
+$refRegex = [regex]'(?:\]\((?<doc>[^)\s#]+\.md)(?:#[^)\s]*)?\)|`(?<doc>[^`\s]+\.md)`|(?<doc>(?<![\w`/.-])[\w./-]+\.md))\s*(?:→|->)\s*\*{1,2}(?<name>[^*]+?)\*{1,2}'
 
 $broken  = [System.Collections.Generic.List[object]]::new()
 $checked = 0
@@ -110,7 +111,12 @@ foreach ($rel in $tracked) {
 	$dir   = Split-Path -Parent $rel
 	$lines = [System.IO.File]::ReadAllLines($full)
 	for ($i = 0; $i -lt $lines.Count; $i++) {
-		foreach ($m in $refRegex.Matches($lines[$i])) {
+		# A reference may wrap: match line i joined with line i+1, keeping matches that start on line i
+		# (those wholly on line i+1 are found on the next iteration).
+		$cur    = $lines[$i]
+		$joined = if ($i + 1 -lt $lines.Count) { $cur + ' ' + $lines[$i + 1].TrimStart() } else { $cur }
+		foreach ($m in $refRegex.Matches($joined)) {
+			if ($m.Index -ge $cur.Length) { continue }
 			$doc  = $m.Groups['doc'].Value
 			$name = Get-Normalized $m.Groups['name'].Value
 			if (-not $name) { continue }

@@ -122,4 +122,4 @@ Incidental "how often / where seen" asides with no obligation and no incident nu
 ## Observed, not fixed (P3: no policy changes in this plan)
 
 - `worktree.md:7` says to use a worktree "only when the user explicitly asks", contradicting *Worktrees are the default for branch-based task work* (L-03). Pre-existing; left for a separate pass.
-- `pr-and-push.md:10` and `ci-tests.md:59` cite a merge-vs-rebase rule in *Creating a new branch*; it lives in `AGENTS.md`. Pre-existing dangling reference.
+- `pr-and-push.md:10` and `ci-tests.md:59` cited a merge-vs-rebase rule in `agent-rules.md` → *Creating a new branch*; it lives in `AGENTS.md` → *Creating a new branch*, and both references were retargeted there in `df21042`.

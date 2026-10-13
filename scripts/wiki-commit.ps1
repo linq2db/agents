@@ -34,7 +34,7 @@ handle the colon-named entry it can never write to disk.
 
 This script replaces hand-running that six-call sequence and substituting each
 printed SHA into the next call - see `.claude/docs/windows-dev-gotchas.md` ->
-*Cloning the `linq2db.wiki` repo fails on a colon-named page*.
+*Cloning the `linq2db.wiki` repo — fixed, with a colon-page fallback*.
 
 The commit is always based on `origin/master`, never the local branch: the clone
 is long-lived and routinely behind, and a page added upstream after the last

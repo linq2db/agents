@@ -5,7 +5,7 @@ assemblies per TFM, and optionally the strings inside those assemblies.
 
 Why this script exists
 ----------------------
-`.claude/AGENTS.md` and `agent-rules.md` both say a cited external precedent is
+`agent-rules.md` and `evidence-discipline.md` both say a cited external precedent is
 a claim: check the SHIPPED artifact, not the source repo, because shared props /
 imported targets / generated metadata supply what a visible csproj omits. They
 say it without giving you a way to do it, so the sequence gets hand-rolled -
