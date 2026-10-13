@@ -263,6 +263,15 @@ When the PR also touches raw SQL (`FromSql`, `FromSqlScalar`, `Sql.Expr`) or the
 
 When the PR changes how parameters bind on a subset of providers (`IsParameterOrderDependent`, a provider flag, a per-provider binder), the passes also ask *which providers CI actually runs it on* — only out-of-diff files answer that. Cache `Build/Azure/README.md`, the `Build/Azure/net100/*.json` provider configs, each affected provider's `*DataProvider.cs`, and `Internal/DataProvider/Informix/InformixProviderAdapter.cs` (its `IsIDSProvider` decides whether CI's only Informix client, `Informix.DB2`, is positional at all — it is not). (Surfaced on the third #6003 review: two passes spent about eight calls each locating the SAP HANA and Informix legs.)
 
+When the PR turns raw-SQL arguments into parameters or changes how they are named or wrapped, the passes ask *what name a generated parameter gets*, *what a user `DataParameter` keeps*, *which cache a compiled query hits* and *which contexts a test reaches*. Cache:
+- `Internal/SqlProvider/OptimizationContext.cs` (`AddParameter`: render-order naming, dedup, positional providers)
+- `Internal/Linq/Builder/ParametersContext.cs` (default name `p`, `DataParameter.Name`)
+- `Internal/Linq/Builder/SequenceHelper.cs` (`WrapAsParameter`)
+- `Internal/Linq/QueryRunner.cs` (`Cache<T>`, the compiled-table cache, separate from `QueryCache.Default`)
+- `Tests/Base/Attributes/IncludeDataSourcesAttribute.cs` (the params-only constructor excludes LinqService)
+
+(Surfaced on the fourth #6003 review: with both lists above cached, two passes still spent 14 and 11 calls, almost all on these.)
+
 **For a PR that touches eager-load strategy selection or `SqlQueryValidatorVisitor`, the companions are the limit builders and the validator's callers.** Every pass asks the same questions. Does `Take` / `First` make the root query limited? Can a user request `Default` explicitly? What does a stricter validator make each caller decline? Cache these with `include.content: true`:
 - `Internal/Linq/Builder/TakeSkipBuilder.cs` (it sets the limit on the sequence's own query and returns a pass-through context)
 - `Internal/Linq/Builder/WithLoadStrategyBuilder.cs`
