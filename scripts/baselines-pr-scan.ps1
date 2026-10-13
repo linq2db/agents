@@ -39,6 +39,9 @@ Parameters
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
   -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
+  -OutFile <path>      write the JSON there and print one compact line
+                       ({ ok, outFile, bytes, status, counts, inherited }), so
+                       the scan runs once and the file is queried after.
 
 Output (stdout, single JSON object)
 -----------------------------------
@@ -116,7 +119,8 @@ param(
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
     [int]      $MaxImpureFiles     = 25,
-    [int]      $MaxAddedTests      = 60
+    [int]      $MaxAddedTests      = 60,
+    [string]   $OutFile
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -145,7 +149,7 @@ if (-not $NoFetch) { [void](Git -GitArgs @('fetch', 'origin', $branch) -AllowFai
 
 $verify = Git -GitArgs @('rev-parse', '--verify', '--quiet', $remoteRef) -AllowFail
 if ($verify.code -ne 0 -or -not $verify.stdout.Trim()) {
-    [Console]::Out.WriteLine((@{ status = 'branch_missing'; branch = $branch } | ConvertTo-Json -Depth 4))
+    Write-JsonOutput -InputObject ([ordered]@{ status = 'branch_missing'; branch = $branch }) -OutFile $OutFile -Summary ([ordered]@{ status = 'branch_missing' })
     exit 0
 }
 
@@ -427,4 +431,8 @@ $result = [ordered]@{
     }
 }
 
-[Console]::Out.WriteLine(($result | ConvertTo-Json -Depth 6))
+Write-JsonOutput -InputObject $result -Depth 6 -OutFile $OutFile -Summary ([ordered]@{
+    status    = 'ok'
+    counts    = $result.counts
+    inherited = $inherited.Count
+})
