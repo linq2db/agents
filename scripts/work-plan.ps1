@@ -33,6 +33,10 @@ param(
     # and reports a clean zero.
     [string] $RepoRoot,
 
+    # reconcile only: the ref whose changes are reconciled. A review reads a PR from the primary clone without
+    # checking it out, so pass the fetched PR ref (origin/pr/<n>); the working tree is consulted only for HEAD.
+    [string] $Head = 'HEAD',
+
     [switch] $Force,
 
     # validate only: the exit check run before the diff's adversarial read (definition-of-done G-09). An amend
@@ -557,15 +561,22 @@ function Invoke-Reconcile {
         }
     }
 
-    $r = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'diff', '--name-only', "$Base...HEAD")
+    $r = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'diff', '--name-only', "$Base...$Head")
     if (-not $r.ok) {
-        Exit-WithError -Message "git diff against $Base failed: $($r.stderr.Trim())" `
-                       -NextAction 'run git fetch origin master, or pass -Base <ref>'
+        Exit-WithError -Message "git diff $Base...$Head failed: $($r.stderr.Trim())" `
+                       -NextAction 'run git fetch origin master, or pass -Base <ref> / -Head <ref>'
     }
     $changed = @($r.stdout -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
 
-    $w = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain')
-    if ($w.ok) {
+    # An empty diff against a plan with edit-points is a wrong tree, not a clean branch: the primary clone on
+    # master reports zero and reads as "nothing unplanned". (#5983 round 3.)
+    if ($changed.Count -eq 0 -and $authorized.Count -gt 0) {
+        Exit-WithError -Message "no changes between $Base and $Head in $RepoRoot, but the plan authorizes $($authorized.Count) edit-points" `
+                       -NextAction 'pass -RepoRoot <worktree>, or -Head origin/pr/<n> after fetching the PR ref'
+    }
+
+    $w = if ($Head -eq 'HEAD') { Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain') } else { $null }
+    if ($w -and $w.ok) {
         foreach ($l in @($w.stdout -split "`r?`n")) {
             if ($l.Trim() -eq '') { continue }
             $p = $l.Substring(3).Trim()
