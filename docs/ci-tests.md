@@ -120,6 +120,8 @@ Posting is publicly visible and incurs CI cost, so follow the standard confirmat
 
 **One `/azp run <pipeline>` comment starts *both* CI systems — there is no separate GitHub trigger to issue.** `.github/workflows/tests-comment.yml` fires on `startsWith(github.event.comment.body, '/azp run')` and resolves the Azure pipeline name against a `surfaces` map, so the same comment Azure consumes also launches the GitHub `tests` workflow's legs. Offering "re-run `/azp run test-all` **and** the GitHub tests workflow" as two actions is wrong, and the second one has no command behind it. Verify both started the same way you verify anything else: `gh pr checks <n>` for the Azure legs, and the workflow-runs query below for the GitHub half.
 
+**A push to the PR cancels its in-flight Azure `test-all`, and the cancelled legs vanish from `gh pr checks`**, which lists only the new head's contexts — so after a follow-up push, re-post `/azp run test-all` rather than waiting on a build that no longer exists. (#6043: build 24265 `completed/canceled` by the push of the next commit.)
+
 ## Waiting for a run to finish
 
 Launching a wait is only worth it when it converts into a completion notification; otherwise it is the polling the don't-poll rule in [`agent-rules.md`](agent-rules.md) → *Batching and user interaction* forbids.

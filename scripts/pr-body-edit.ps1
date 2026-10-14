@@ -27,7 +27,8 @@ This script sidesteps both by:
 Contract
 --------
 
-Input (stdin, JSON):
+Input (JSON, via -ManifestFile <path> or stdin). From the PowerShell tool use -ManifestFile:
+`Get-Content -Raw x.json | pr-body-edit.ps1` fails with a pipeline parameter-binding error.
   {
     "pr":      5479,                       // required, int
     "owner":   "linq2db",                  // optional, default "linq2db"
