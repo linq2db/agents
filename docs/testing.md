@@ -516,6 +516,10 @@ These are the maintainer's house rules for **new** test code, and they win over 
 
 Review severity for a violation in added test code is `NIT`, with a `suggestion` block (the [`code-reviewer`](../agents/code-reviewer.md) rule 7). (Codified after #6027: all five new `AllAnyTests.Issue6024_*` tests broke these rules. Two review rounds missed them because the rules lived only in personal auto-memory.)
 
+## Constant vs parameter arguments in test queries
+
+A captured variable passed as a method argument inside a query is a query parameter, not a constant: in `foreach (var p in …) t.Select(r => Math.Round(r.D, p))` the translator sees a `SqlParameter` and takes its runtime branch. A test meant to pin a translator's *constant* branch must put the literal in the lambda (`Math.Round(r.D, 4)`), and its SQL must show no `DECLARE` for that argument. (#5943: `Round24`'s "constant precision" section looped over `p` and exercised only the runtime path until the logged SQL showed `DECLARE $p Int32`.)
+
 ## F# tests
 
 F# regression tests live in `Tests/FSharp/*.fs` (compiled into `Tests.FSharp.fsproj`) and are driven from C# fixtures in `Tests/Linq/Linq/FSharpTests.cs`.
