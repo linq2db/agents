@@ -80,6 +80,8 @@ Patterns that triggered prompts in real sessions and the equivalents that don't.
 
 When data is already on disk (e.g. `diff-reader.ps1`'s `writeDir` cache at `.build/.agents/pr<n>/`), `Read` or `Grep` it directly rather than re-fetching via `git show … | tail | cat -A` — the `Read` tool preserves tabs and trailing whitespace literally for whitespace-byte inspection.
 
+**`Grep` with a *directory* path under `.build/` finds nothing — pass the file path.** `Grep` walks a directory the way ripgrep does, honouring `.gitignore`, and `.build/` is ignored, so a directory search there answers "No matches found" even when the files contain the pattern. A file path is searched regardless. `Glob` the directory first (it does list ignored files), then `Grep` each file. (#5959: two empty `Grep`s over a `gh-run-logs.ps1` log folder before the per-file form found the failures.)
+
 ### .NET file APIs ignore `Set-Location` — they follow the *process* working directory
 
 `Set-Location` moves PowerShell's location, which is what cmdlets and native executables honour. It does **not** move the process's current directory, which is what every `System.IO` API resolves relative paths against. In a worktree session that process directory is the **primary clone**, so:
