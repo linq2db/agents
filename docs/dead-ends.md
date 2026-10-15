@@ -36,6 +36,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** any linq2db-level parameter / DDL / charset permutation. What works is sending no binary parameter at all: rebind the Guid as its canonical `VARCHAR(36)` text and wrap it in `CHAR_TO_UUID(@p)` server-side (#5485). Keep that wrap octets-only — a Guid mapped to a text column must stay untouched. (#5483)
 
+## PROV-FIREBIRD: an unzoned `DateTimeOffset` literal shifting with the session time zone
+
+**Tried:** suspecting that Firebird 4+, which creates a `DateTimeOffset` column as `TIMESTAMP WITH TIME ZONE` but writes a `DateTimeOffset` literal without a zone (`TIMESTAMP '0001-01-01 00:00:00.0000'`, its zone-aware converter being commented out), moves an injected `0001-01-01` below year 1 in a session east of UTC, as MySQL 8's offset literal did in a session west of it.
+
+**Failed because:** Firebird converts the unzoned literal in the session's zone and the value *keeps* that zone; `EXTRACT` reads in the value's own zone, so `EXTRACT(YEAR FROM COALESCE(col, TIMESTAMP '0001-01-01 …'))` is 1 at `+00:00`, `+05:00` and `-05:00`, with no range error. Measured on Firebird 4 and 5, both `PreferClientCalculation` arms.
+
+**Don't re-attempt:** a Firebird `ConvertDefaultValue` override to add `+00:00`. `PreferClientCalculationTests.OffsetDefaultIsReadIndependentlyOfFirebirdSessionTimeZone` pins the behaviour. (#5983 round 4)
+
 ## REMOTE: "Signal/R's default JSON protocol escapes non-ASCII as `\uXXXX`"
 
 **Tried:** a review finding that the Signal/R client's request-size check over-rejects because it measures with a default `JsonHubProtocol`, assumed to write every non-ASCII character as a 6-byte escape, while a client with a relaxed encoder writes UTF-8. Probed with a `LinqToDBSignalRConnection` configured via `AddJsonProtocol(o => o.PayloadSerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping)` sending 10 000 Cyrillic characters under a 32 KB limit.

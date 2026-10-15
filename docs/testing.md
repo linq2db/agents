@@ -189,6 +189,19 @@ Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that driv
 
 A third case beyond *reproducible* and *can't-reproduce*: the finding's mechanism is verified against core code, but you can't drive an end-to-end red repro because an *unrelated, independently-tracked* engine bug blocks the only path to it. Then commit the regression test `[ActiveIssue]`-gated on the **blocker's** issue and defer the actual fix until the blocker merges — so the fix is verified over the real path once un-gated (per [`evidence-discipline.md`](evidence-discipline.md) → *Verify a fix by the same path that surfaced the bug*), rather than applying a speculative fix that can't yet be exercised. (#5704, #1813, #5701)
 
+**An `[ActiveIssue]` must reference an issue that outlives the PR, never the PR itself.** A gate on the PR's own number loses its tracker the moment the PR merges. File the issue and gate on it.
+
+**A gate that holds for only one `[Values]` arm needs an ungated sibling for the other.** `ActiveIssue` gates a whole test (or a configuration via `Configurations`), never one parameter value, so a test hard-coded to the failing arm leaves the passing arm unwatched. Move the body into a helper that takes the parameter, and declare two `[Test]` methods: the gated one passing the failing value, an ungated `…With<Value>` one passing the other. (#5983: two gates referenced the PR and ran only the option-off arm; both were moved to #6046, each with an option-on sibling.)
+
+## Native `TimeSpan` columns can't be stored on every provider
+
+A `TimeSpan` property mapped with no `[Duration]` fails on three providers before any query runs, inside `CreateLocalTable`:
+- **SQLite Classic** — the driver binds it through `Convert.ToDateTime`: `Unable to cast object of type 'System.TimeSpan' to type 'System.IConvertible'`.
+- **SQL CE** — `No mapping exists from DbType Time to a known SqlDbType`.
+- **Oracle** — `ORA-00902: invalid datatype` on `CREATE TABLE`.
+
+Exclude them in `[DataSources(...)]`, or map the member with `[Duration]` when the test is not about a native time type. SQLite MS, DuckDB, Access, SQL Server 2008+, PostgreSQL, YDB, Firebird, Sybase, DB2, Informix and MySQL 8 store it. (#5983, `SpanOverMissedLeftJoinReadsDefault`)
+
 ## The runner's `[slow]` line reports assembly arch, not process arch
 
 Microsoft.Testing.Platform's progress output tags still-running tests as `(<exe>|<tfm>|<arch>)` — e.g.

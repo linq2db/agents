@@ -337,6 +337,10 @@ function Invoke-Validate {
         if ($row -notmatch 'proof:\s*[*_]{0,2}\s*(red.{0,3}green|control|characterization)') {
             $errors += "P8 : row declares no proof mode (red-green | control | characterization) -- $row"
         }
+        # work-plan.md -> P8: an unscoped obligation defaults to SQLite and the types its author thought of.
+        if ($row -notmatch 'providers:') {
+            $warnings += "P8 : row names no providers: scope -- $row"
+        }
     }
 
     # P9 gate results.
