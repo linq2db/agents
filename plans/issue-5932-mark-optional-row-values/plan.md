@@ -1,6 +1,6 @@
 # Work plan: issue-5932-mark-optional-row-values — a projection calculates with what the reader reads
 
-**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-26, by the user after critic round 3, over HEAD `762282bfd2`; re-approved 2026-10-14 after critic rounds 8–9 (A-23..A-36, E-43, E-44), over `ac7f439d2`; A-37 approved 2026-10-15, over `d729a85c6`; A-38..A-41 (E-46) pending re-approval after critic rounds 10 (`refuted`) and 10b (`weak`)  ·  **Branch:** issue/5932-mark-optional-row-values
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-26, by the user after critic round 3, over HEAD `762282bfd2`; re-approved 2026-10-14 after critic rounds 8–9 (A-23..A-36, E-43, E-44), over `ac7f439d2`; A-37 approved 2026-10-15, over `d729a85c6`; A-38..A-41 (E-46) re-approved 2026-10-15 by the user after critic rounds 10 (`refuted`) and 10b (`weak`, answered), over `cf53f4b04`  ·  **Branch:** issue/5932-mark-optional-row-values
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
 Tier L: the edit surface spans the shared build pipeline (`Source/LinqToDB/Internal/Linq/Builder/**`, area EXPR-TRANS) and several provider mapping schemas (PROV-* areas) - two or more areas.
@@ -422,7 +422,7 @@ Every fixture runs both option arms (`[Values] bool preferClient`) over `MissedJ
   3. **The `EnumerableBuilder` operators' disposition** is in P10, and the P7 `ContainsBuilder` row says where it no longer holds.
   4. **TO rows** TO-1p, TO-3q, TO-7j with `providers:` scope; the live Oracle cell is owed in P9.
   5. **Stale text rewritten:** the P7 Oracle deferral, the list of providers with their own `ConvertDefaultValue`, U-24.
-  - Pushed as `cf53f4b04` (no `master` lag). The approval of record is void for A-38..A-41 until the user re-approves.
+  - Pushed as `cf53f4b04` (no `master` lag). Re-approved by the user on 2026-10-15 (header).
   6. **Critic round 10b (`weak`):** TO-1p's SQL check now counts one `COALESCE` per spelling instead of one for the query (P12).
 
 ## P12 Critic verdict (M/L)
