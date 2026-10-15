@@ -417,6 +417,8 @@ dotnet build Tests/Linq/Tests.csproj -c Debug -f net462
 
 `--provider` supplies the connection string from `DataProviders.json` without editing the enabled-providers list; the net462 exe runs x86. This is the runtime sibling of the compile-time `agent-rules.md` → *TFM API availability* rule.
 
+**Second cause: the expression tree itself differs.** C# 14 binds `array.Contains(x)` to `MemoryExtensions.Contains(ReadOnlySpan<T>, T)` on net8+ but to `Enumerable.Contains` on net462, and linq2db translates the two differently: `MemoryExtensions` is never queryable, so it goes to the IN-list predicate or the client, while `Enumerable.Contains` over a non-constant array can reach `ContainsBuilder` and become a `VALUES` subquery. A query over `new[] { col, … }.Contains(…)` can therefore build different SQL per TFM, and a local net10 green says nothing about the net462 legs — reproduce on net462 as above. (#5983: green locally on net10, red on every net462 leg.)
+
 ## A narrowed provider set is a claim — re-derive it when the feature stops being provider-conditional
 
 `[DataSources]` is the default for a reason: it runs everything configured, so a provider that cannot do the thing

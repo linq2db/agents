@@ -33,7 +33,7 @@ Launch it with run_in_background and wait for the completion notification; do no
 & .claude/scripts/wait-pr-checks.ps1 -Pr 5873 -Gate @('Build and pack','Analyzer tests')
 
 .OUTPUTS
-Exit 0 = every gated leg SUCCESS. Exit 1 = at least one non-green. Exit 2 = timed out.
+Exit 0 = every gated leg SUCCESS. Exit 1 = at least one non-green. Exit 2 = timed out. Exit 3 = gh failed 3 polls in a row.
 #>
 [CmdletBinding()]
 param(
@@ -59,7 +59,9 @@ $pendingStates = @('QUEUED', 'IN_PROGRESS', 'PENDING', 'WAITING', 'REQUESTED', '
 function Get-Rollup {
 	# --json takes ONE comma-joined argument: a space after the comma makes PowerShell pass two
 	# arguments and gh dies with "accepts at most 1 arg(s), received 2".
-	$json = gh pr view $Pr --repo $Repo --json 'headRefOid,statusCheckRollup' | ConvertFrom-Json
+	$raw = gh pr view $Pr --repo $Repo --json 'headRefOid,statusCheckRollup'
+	if ($LASTEXITCODE -ne 0 -or -not $raw) { return $null }
+	$json = $raw | ConvertFrom-Json
 	$rows = foreach ($c in $json.statusCheckRollup) {
 		[pscustomobject]@{
 			Name   = if ($c.name) { $c.name } else { $c.context }
@@ -70,8 +72,25 @@ function Get-Rollup {
 	[pscustomobject]@{ Head = $json.headRefOid; Rows = @($rows) }
 }
 
+$transient = 0
+
 while ($true) {
-	$all     = Get-Rollup
+	$all = Get-Rollup
+
+	# A failed poll (a GraphQL TLS handshake timeout on #5983) says nothing about the run: retry, and give up
+	# only when the API stays down.
+	if ($null -eq $all) {
+		$transient++
+		'[{0}] PR {1} transient gh failure {2}/3' -f (Get-Date).ToString('HH:mm:ss'), $Pr, $transient
+		if ($transient -ge 3) {
+			'gh pr view failed 3 polls in a row'
+			exit 3
+		}
+		Start-Sleep -Seconds $PollSeconds
+		continue
+	}
+	$transient = 0
+
 	$rows    = @($all.Rows | Where-Object { $Gate -contains $_.Name })
 	$pending = @($rows | Where-Object { $pendingStates -contains $_.Status -or ($_.Status -eq '' -and $pendingStates -contains $_.Result) })
 	$missing = @($Gate | Where-Object { $n = $_; -not ($rows | Where-Object { $_.Name -eq $n }) })
