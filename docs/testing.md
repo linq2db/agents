@@ -505,6 +505,7 @@ These are the maintainer's house rules for **new** test code, and they win over 
 3. **`AssertQuery` instead of a hand-duplicated `AreEqual` expected.** `AreEqual(<LINQ-to-objects copy>, <db query>)` keeps two copies of the query that can drift apart. `AssertQuery(query)` derives the expected result from the same query, against the in-memory collections. Two cases where the rule does not apply:
    - **Scalar results.** A root `Any` / `All` / `Count` cannot go through `AssertQuery`. Use rule 1's form with an in-memory `expected` and `ShouldBe`.
    - **`object`-typed projections.** These need the explicit-comparer caveat in *Test Patterns* above.
+   - **Scalar `decimal` results.** Still `AssertQuery`, but pass `EqualityComparer<decimal>.Default` (`<decimal?>` for a nullable result). The default comparer compares a decimal's public members, `Scale` included, so a provider returning `2.50` for an expected `2.5` fails. An anonymous-type projection is unaffected. (#5943: `Round16` went red on YDB after a conversion from `AreEqual`.)
 
    ```csharp
    // not this

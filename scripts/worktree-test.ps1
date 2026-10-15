@@ -108,7 +108,8 @@ Output (stdout, single JSON object):
     "testProgress": true,            // whether --test-progress was actually passed
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
-    "missingTests": [ ... ]          // only with -ExpectTests; names that did not run
+    "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
+    "hint":      "..."               // only for a recognised environment failure (NuGet cache lock)
   }
 
 `summary` is null when no `Test run summary:` block was produced (typically a
@@ -232,12 +233,18 @@ finally {
 $summary     = $null
 $failedTests = @()
 $buildFailed = $false
+$hint        = $null
 $ranTests    = [System.Collections.Generic.HashSet[string]]::new()
 
 if (Test-Path -LiteralPath $LogPath) {
     $lines = [System.IO.File]::ReadAllLines($LogPath)
 
     if ($lines | Where-Object { $_ -match '^Build failed' }) { $buildFailed = $true }
+
+    # Retrying cannot clear it: the broken package is re-extracted onto a DLL a shared build node holds.
+    if ($lines | Where-Object { $_ -match 'NuGet\.targets.*error : Access to the path' }) {
+        $hint = 'NuGet cache entry half-extracted and locked by a shared build node; do not retry. Restore into a private cache: .claude/docs/windows-dev-gotchas.md -> "A half-deleted package in the NuGet cache".'
+    }
 
     foreach ($line in $lines) {
         if ($line -match '^failed\s+(\S+)') { $failedTests += $Matches[1] }
@@ -279,6 +286,7 @@ $result = [ordered]@{
     failedTests  = @($failedTests | Select-Object -Unique)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
+if ($hint)        { $result['hint']         = $hint }
 
 $result | ConvertTo-Json -Depth 5
 
