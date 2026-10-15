@@ -77,7 +77,11 @@ _None yet._
 
 ## P11 Amendments (M/L)
 
-<!-- fill: append-only. One A-n per change to the plan after approval. Adding or materially changing an E-n VOIDS that part's approval and must be re-earned. The new E-n row goes in P6; this block carries only the rationale. Leave as "_None._" until the first amendment. -->
+<!-- fill: append-only. One A-n per change to the plan after approval. Adding or materially changing an E-n VOIDS that part's approval and must be re-earned. The new E-n row goes in P6; this block carries only the rationale. An amendment that adds an E-n or supersedes a D-n carries an indented line starting with the literal `re-derives:` (not `re-derives (A-n):` — `-Validate` matches the colon right after the word) naming every block row it rewrites. Leave as "_None._" until the first amendment.
+
+- A-1 (YYYY-MM-DD, why) — what changes.
+  re-derives: P4 (U-n), P6 (E-n), P8 (TO-n), …
+-->
 
 _None._
 
