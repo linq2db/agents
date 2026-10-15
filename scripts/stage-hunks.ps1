@@ -39,6 +39,16 @@ Markers are literal text; `<path>` is relative to the worktree.
 
     .claude/scripts/stage-hunks.ps1 -Worktree <path> -CutFile docs/x.md -Cut '## New section|||last words.'
 
+`-Replace '<old>|||<new>'` (with `-CutFile`, alone or beside `-Cut`) restores a line a later commit
+changed - a cut can only drop text. Replacements run first; every `<old>` and every cut start marker must
+occur exactly once, or the call fails rather than editing the wrong occurrence.
+
+`-Hunks` refuses a hunk that applies at the wrong place. With one line of context, an addition whose
+context line repeats (`/// <summary>`, a blank line) can apply cleanly one method off; the script counts
+the file's index -> worktree removals before and after, restores the file's index entry if they grew, and
+fails. Fall back to `-CutFile` / `-Replace` for that file. (#5959: two whole test methods landed one
+method down, silently.)
+
 **Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
 the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
 naming a hunk that does not exist. See `script-authoring.md`.
@@ -49,7 +59,8 @@ param(
     [string]$Split,
     [switch]$ListOnly,
     [string]$CutFile,
-    [string[]]$Cut
+    [string[]]$Cut,
+    [string[]]$Replace
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,17 +69,30 @@ $ErrorActionPreference = 'Stop'
 $scratchDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.build/.agents'
 if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir -Force | Out-Null }
 
-if ($CutFile -or $Cut) {
-    if (-not $CutFile -or -not $Cut) { throw '-CutFile and -Cut go together' }
+if ($CutFile -or $Cut -or $Replace) {
+    if (-not $CutFile -or -not ($Cut -or $Replace)) { throw '-CutFile goes with -Cut and/or -Replace' }
 
     $text = [System.IO.File]::ReadAllText((Join-Path $Worktree $CutFile), [System.Text.UTF8Encoding]::new($false))
+
+    # A replacement restores a line the later commit changed; a cut can only drop text. Both must match once.
+    foreach ($pair in $Replace) {
+        $parts = $pair -split '\|\|\|'
+        if ($parts.Count -ne 2) { throw "malformed -Replace '$pair' - expected '<old>|||<new>'" }
+
+        $s = $text.IndexOf($parts[0], [System.StringComparison]::Ordinal)
+        if ($s -lt 0) { throw "-Replace text not found in ${CutFile}: $($parts[0])" }
+        if ($text.IndexOf($parts[0], $s + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "-Replace text not unique in ${CutFile}: $($parts[0])" }
+        $text = $text.Remove($s, $parts[0].Length).Insert($s, $parts[1])
+    }
+
     foreach ($span in $Cut) {
         $markers = $span -split '\|\|\|'
         if ($markers.Count -ne 2) { throw "malformed -Cut '$span' - expected '<start>|||<end>'" }
 
-        $s = $text.IndexOf($markers[0])
+        $s = $text.IndexOf($markers[0], [System.StringComparison]::Ordinal)
         if ($s -lt 0) { throw "start marker not found in ${CutFile}: $($markers[0])" }
-        $e = $text.IndexOf($markers[1], $s)
+        if ($text.IndexOf($markers[0], $s + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "start marker not unique in ${CutFile}: $($markers[0])" }
+        $e = $text.IndexOf($markers[1], $s, [System.StringComparison]::Ordinal)
         if ($e -lt 0) { throw "end marker not found in ${CutFile}: $($markers[1])" }
         $e += $markers[1].Length
 
@@ -91,11 +115,11 @@ if ($CutFile -or $Cut) {
     & git -C $Worktree update-index --add --cacheinfo "$mode,$sha,$CutFile"
     if ($LASTEXITCODE -ne 0) { throw "git update-index failed ($LASTEXITCODE)" }
 
-    "staged $CutFile with $($Cut.Count) span(s) cut"
+    "staged $CutFile with $($Cut.Count) span(s) cut, $($Replace.Count) replacement(s)"
     return
 }
 
-if (-not $Hunks -and -not $ListOnly) { throw 'pass -Hunks, -ListOnly, or -CutFile with -Cut' }
+if (-not $Hunks -and -not $ListOnly) { throw 'pass -Hunks, -ListOnly, or -CutFile with -Cut / -Replace' }
 
 $patchPath = Join-Path $scratchDir 'stage-hunks-cur.patch'
 & git -C $Worktree diff HEAD -U1 --output=$patchPath
@@ -188,7 +212,37 @@ foreach ($n in ($Hunks | Sort-Object)) {
 $stepPath = Join-Path $scratchDir 'stage-hunks-step.patch'
 [System.IO.File]::WriteAllText($stepPath, $out.ToString())
 
+# With one line of context, an addition hunk whose context line repeats (`/// <summary>`, a blank line) can
+# apply cleanly at the wrong occurrence. Staged where the working tree has it, a hunk only removes lines from
+# the index -> worktree diff; staged elsewhere, it adds removals there. So count them before and after.
+function Get-RemovalCount([string]$path) {
+    @(& git -C $Worktree diff -U0 -- $path | Where-Object { $_ -match '^-' -and $_ -notmatch '^---' }).Count
+}
+
+$touched = @{}
+foreach ($n in $Hunks) {
+    $path = ($lines[$hunkList[$n - 1].Header[0]] -replace '^diff --git a/', '' -replace ' b/.*', '').TrimEnd()
+    if (-not $touched.ContainsKey($path)) {
+        $touched[$path] = [pscustomobject]@{ Entry = (& git -C $Worktree ls-files -s -- $path); Removals = (Get-RemovalCount $path) }
+    }
+}
+
 & git -C $Worktree apply --cached --whitespace=nowarn $stepPath
 if ($LASTEXITCODE -ne 0) { throw "git apply --cached failed ($LASTEXITCODE); patch left at $stepPath" }
+
+$misplaced = @($touched.Keys | Where-Object { (Get-RemovalCount $_) -gt $touched[$_].Removals })
+if ($misplaced.Count -gt 0) {
+    foreach ($path in $misplaced) {
+        $entry = $touched[$path].Entry
+        if ($entry) {
+            $parts = $entry -split '\s+'
+            & git -C $Worktree update-index --cacheinfo "$($parts[0]),$($parts[1]),$path"
+        }
+        else {
+            & git -C $Worktree update-index --force-remove -- $path
+        }
+    }
+    throw "a hunk landed at the wrong place in $($misplaced -join ', ') (its context line repeats); index restored for those files - stage them with -CutFile / -Replace instead"
+}
 
 "staged hunks: $($Hunks -join ', ')"

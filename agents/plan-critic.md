@@ -112,7 +112,7 @@ Emit exactly this block and nothing else.
 ## CRITIC — <holds | weak | refuted>
 
 ### Objections
-- <one per objection, each citing file:line, a search you ran, or a rule id; empty only when the verdict is `holds`>
+- <one per objection, each citing file:line, a search you ran, or a rule id; empty only when the verdict is `holds`. Prefix with `lead:` an objection that needs a run you cannot do — the author must probe it before review>
 
 ### Searches I ran
 - `<pattern>` across <scope> — <what it showed>

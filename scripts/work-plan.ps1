@@ -429,6 +429,21 @@ function Invoke-Validate {
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-11') { $errors += $msg } else { $warnings += $msg }
         }
+
+        # An amendment that adds edit-points (a P6 row citing it) changed what the impact map and test list must
+        # cover, so it owes a `re-derives:` line too. #6003 and #5959: most review findings sat in mechanisms
+        # such amendments brought in without re-walking P4/P7/P8.
+        $p6Lines = (Get-Block -Blocks $blocks -Id 'P6')
+        $p6Lines = if ($null -ne $p6Lines) { $p6Lines.lines } else { @() }
+        foreach ($e in $entries) {
+            $idPattern = "\b$([regex]::Escape($e.id))\b"
+            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
+            if ($e.text -match '(?i)re-derives:') { continue }
+
+            $msg = "P11 : $($e.id) adds edit-points (a P6 row cites it) but has no re-derives: line -- re-walk P4/P7/P8 for what it brought in"
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-16') { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # P12 verdict — an error at Tier L, a warning at Tier M.
