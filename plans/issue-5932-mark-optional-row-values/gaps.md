@@ -128,3 +128,40 @@ Two scored findings: GAP-05 (MIN016) and GAP-10 (SUG007). Counting the worked it
 - **Round-1 recommendation 1 (`re-derives:` list) is still unapplied.** A-35 added E-44 with a single `Year` cell; the MySQL comparison cells came only with `770a9cb45`.
 - **Round-3 recommendation 1 (`class:` sweep) is still unapplied.** A-36.2 measured PostgreSQL and DuckDB but did not enumerate Firebird 4+.
 - **A-31.2 / A-36.4 (G-02) are discharged in fact but not on paper.** Reconciliation (A-37+) is owed for the five round-4 commits; leaving it unrecorded would bring GAP-09 back.
+
+## Round 5 — reviewed HEAD a959b981c, 2026-10-15
+
+The plan is not reconciled for this round. P11 ends at A-37 (over `d729a85c6`), and `a959b981c` (the `ContainsBuilder` inline-array decline) has no A-38. P9 for this head: Azure 24286 and GitHub `tests [all]` are green; the baselines branch is 1944 A / 428 M / 0 D, and the latest run changed no existing baseline. No gate that ran could have caught either finding: CI runs in UTC, and no fixture uses a wrapped inline-array spelling. So neither finding is GAP-08.
+
+### Attribution
+
+- **MIN017** — GAP-02 — U-24 (plan line 67) surveys the `DateTimeOffset` coordinate for six provider families only, all of them clamping (SQL Server, ClickHouse, YDB, Sybase, Access, SQL CE). But SC-7's clause "built so that the literal does not depend on the process's time zone" (line 29) binds every provider. Oracle's converter states its coordinate in code: `OracleMappingSchema.cs:186-188`, a `DateTime` written under `DataType.DateTimeOffset` goes through `value.ToUniversalTime()`. That is the CLR-type × `DataType` arm the base `ConvertDefaultValue` lowering reaches. Nobody read it. The P7 row at line 233 defers Oracle's date handling as "not stated in code, not measured — CI runs the fixture there". Both halves are wrong for this property. It *is* stated in code. And U-24 itself records that "neither UTC CI nor the author's UTC+2/+3 zone can observe" a coordinate defect, so a CI run could not discharge the deferral. Only TO-7g (line 293) and the DB-less TO-7f (line 290) cover a `DateTime` member mapped `DataType.DateTimeOffset`, and both cover SQL Server only (`PreferClientCalculationTests.cs:1035`, `[IncludeDataSources(TestProvName.AllSqlServer2008Plus)]`). Second contributor: GAP-03, through the line-233 deferral, whose reason cannot hold for a zone property — G-01 / G-08 — preventable: yes
+
+- **MIN018** — GAP-03 — The P7 row at line 207 marks "`ContainsBuilder` … builds run under `TryBuildSequence` … — out-of-scope". That reason holds for structure, but an inline array that `ContainsBuilder` turns into a `VALUES` source holds row values. The clear is exactly what keeps their SQL NULL. Three later amendments each fixed part of this and left the rest:
+  - A-16 (line 351) refuted the row for the *tested* value and added consumer 9, but did not re-derive the row for the source's items.
+  - A-26 (line 362) added consumer 11, the items of an inline `IN` list, recognised in `ConvertInPredicate` only through `case ExpressionType.NewArrayInit` (EBV:5433). It did not check which path each spelling of an inline-array `Contains` takes, per wrapper and per TFM (span overload on net10, `Enumerable.Contains` on net462).
+  - A-33 (line 385) wrote down the wrapper set (conversion, `AsEnumerable`, `AsQueryable`) as `IsInlineArray` (EBV:6068-6075), but applied it to `IsSetFunctionCall` alone.
+
+  `a959b981c` then wrote a third recogniser, `a0.NodeType != ExpressionType.NewArrayInit` (`ContainsBuilder.cs:22-25`), instead of calling `IsInlineArray`. No TO in P8 uses a wrapped spelling: TO-1d (line 243) is bare `new[] { 0 }.Contains(j.Value1)`. Second contributor: GAP-02, because round 3's `class:` sweep was not applied to A-33. A search for `NewArrayInit|NewArrayExpression` over the branch diff lists all three sites — G-01 — preventable: yes
+
+### Aggregate
+
+There are two findings, one GAP-02 and one GAP-03, and both repeat a class already in this ledger. MIN017 is round 1's converter-coordinate class (MIN001 / MIN002) moved to a provider the plan never surveyed. MIN018 is round 2's inline `IN` items (MIN010) combined with round 3's wrapper set (MIN014). In both, an earlier fix taught one site the rule and the class was never searched for siblings:
+- **MIN017:** A-24 / A-35 / A-36.2 / A-37.4 surveyed the *session*-zone class (MySQL, PostgreSQL, DuckDB, Firebird), but not the *process*-zone coordinate on providers without a lowering override.
+- **MIN018:** A-33 fixed one inline-array recogniser out of three.
+
+The single change that would have prevented both is the `class:` line from round 3. Every A-n that fixes an instance records the search that lists its siblings, with the result. Here that means every `SetValueToSqlConverter(typeof(DateTime|DateTimeOffset)` arm that calls `ToUniversalTime` / `ToLocalTime` / `LocalDateTime`, and every `NewArrayInit` / `NewArrayExpression` test in the diff. It also has to be enforced by `-Validate` instead of left as guidance, because this is the third round in which it went unapplied.
+
+### Recommended durable fixes
+
+- GAP-02 + GAP-03 ×2 (MIN017, MIN018) → P11 semantics in `work-plan.md` plus a `-Validate` check in `work-plan.ps1`. An A-n that fixes a reviewed instance must carry a `class:` line: the search pattern, the sites it lists, and a disposition per site (fixed / out-of-scope with reason / P10). `-Validate` fails an A-n citing a review id without one. Round-3 recommendation 1 asked for the same thing, but as guidance only.
+- GAP-03 (MIN017, MIN018) → P7 semantics in `work-plan.md`. A `deferred` / `out-of-scope` reason must name an observation that can discharge it. "CI runs it" is invalid for a property the plan itself says CI cannot observe (a process zone on a UTC host). "Built under a clear" is invalid once an amendment refutes part of the same row (A-16), and that row is then re-derived for every value the builder handles.
+- GAP-02 (MIN017) → an attack vector in `plan-critic.md`. A success criterion phrased over *every provider* ("does not depend on the process's time zone") is checked against every provider's converter arms, keyed by CLR type × `DataType`, and not only against the providers the change overrides. This is round-2 recommendation 2 extended from clamping providers to all providers.
+
+### Continuity with rounds 1–4
+
+- **MIN001 / MIN002 (round 1) → SUG004 (round 2) → MySQL / A-35 (round 3) → Firebird (round 4) → MIN017.** This is the fifth round with a date-coordinate or date-arm defect. Round-2 recommendation 2 (read every converter arm, keyed by CLR type × `DataType`) and round-4 recommendation 3 (enumerate every provider sharing the type family) are still unapplied. Each round's survey followed the defect's own mechanism (`LocalDateTime`, then the session zone) instead of the converters.
+- **MIN010 (round 2) → MIN014 (round 3) → MIN018.** The inline-array feature has now been fixed one site at a time three times: items in `ConvertInPredicate`, wrappers in `IsSetFunctionCall`, and the bare spelling in `ContainsBuilder`. Round-3 recommendation 1 (`class:` line) is unapplied for the third consecutive round. `IsInlineArray` already exists, and `a959b981c` did not reuse it.
+- **GAP-09 is at risk again.** Round 4 warned that unreconciled commits would bring it back. `a959b981c` went in without A-38, so the decline's bare-`NewArrayInit` test was never checked against A-33's wrapper set by a critic. It did not cause MIN018 (the finding reproduces with the decline reverted), but A-38 is still owed. Round-2 recommendation 1 (reconcile before each review round) was applied in round 3 and lapsed this round.
+- **Round-4 recommendation 1 (`providers:` scope on each TO) partly applies to MIN017.** TO-7g is SQL Server-only, and nothing in P8 says why that scope can discriminate the `DateTime`-mapped-`DateTimeOffset` shape for other providers.
+- **Dropped this round (not attributed):** a claimed regression that `a959b981c` broke a non-scalar inline-array `Contains` in `WHERE`; refuted by probe — the shape fails to translate with and without the change, on net10 and net462.
