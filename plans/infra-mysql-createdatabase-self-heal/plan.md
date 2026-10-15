@@ -76,13 +76,13 @@ Tier M rather than S: a one-file defect fix, but it has a plausible second locat
 
 ## P9 Verification gates
 
-- G-01: — (pending) TO-1 red then green on MySqlConnector.8.0 and MySql.8.0; TO-2 on every MySQL-family provider with a local container
-- G-01b: — (pending) Azure MySQL job (all five lanes) observed green on the branch head — run id recorded here; covers TO-2 for MySql.5.7 / MySqlConnector.5.7 / MariaDB.11 if their containers are not run locally
-- G-02: — (pending) expectation: zero change to the five `a_CreateData.CreateDatabase(<cfg>)` baselines (`c:\GitHub\linq2db.bls\<cfg>\a_CreateData\`) — the ensure step is raw ADO, untraced (D-2)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
-- extra: — (pending) `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` — analyzers are Release-only and the test project is analyzed
+- G-01: pass — hand-run `dotnet test … -c Testing -f net10.0 --no-build` (not `/test`; the drop step must run without `CreateDatabase`). TO-1 red: databases dropped by probe process → `CreateDatabase` failed on MySql.8.0, MySqlConnector.8.0, MariaDB.11 with `1049 Unknown database` at `CreateData.cs:69`. TO-1/TO-1b green: same state, fixed code → 11/11 (`CreateDatabase` ×3 + SQLite.MS, `CteTests.Test1` ×6 incl. LinqService, `MariaDBProviderResolved`). TO-1b control: mutant (`GetDataProvider(context)`) + MariaDB dropped → `MariaDBProviderResolved` failed (`MySql.5.7.MySqlConnector`), `Test1(MariaDB.11[.LinqService])` failed "DataProvider do not supports Common Table Expressions"; reverted. TO-2: databases present, all five configs → 13/13.
+- G-01b: — (pending) Azure MySQL job (all five lanes) observed green on the branch head — run id recorded here. Local TO-2 already covered all five; this is the CI confirmation.
+- G-02: pass — the five `c:\GitHub\linq2db.bls\<cfg>\a_CreateData\…CreateDatabase(<cfg>).sql` files were rewritten by the TO-2 run (17:15–17:16), first statement still `DROP SCHEMA IF EXISTS`, `CREATE DATABASE IF NOT EXISTS` occurs nowhere under `a_CreateData`; MariaDB.11 header shows `MariaDB.10.MySqlConnector`.
+- G-06: pass — `git diff --stat`: `Tests/Linq/Create/CreateData.cs` only, +25/−1 (using, the `AllMySql` case, the helper).
+- G-07: pass — scratch probe `Tests/Linq/Create/zz_MySqlSelfHealProbe.cs` deleted; `git status --short` shows only `CreateData.cs`.
+- G-09: pass — read-only adversarial review (model `fable`) of the uncommitted diff: no findings. Checked nullability, net462 API surface (reflection on the .NET Framework CLR; no net462 build), connection-string re-serialization (measured on net10 and netfx), identifier quoting, the `AllMySqlData` driver split for all five configs, and the absence of provider resolution in the new path on both TFMs. Not verified: an actual net462 build.
+- extra: pass — `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0`: 0 warnings, 0 errors.
 
 ## P10 Adjudicated (M/L)
 
