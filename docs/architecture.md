@@ -38,7 +38,9 @@ The query cache key is taken from the exposed tree before any builder runs. A no
 - **`[SqlQueryDependent]`** on a parameter. Expose folds the argument to a constant and the comparer evaluates both sides. `PrepareForCache` also folds a `NewArrayInit` of quoted lambdas into constants of `LambdaExpression`, which compare by reference, so every execution misses. #6003 uses it for `FromSql`'s `FormattableString`.
 - **Accept literals only**, as `ExposeExpressionVisitor.ExpandOverSource` does: a quote or a `ConstantExpression`, anything else declined.
 
-(#5708, A-16.)
+**A compiled query has its own key, and it sees less.** `CompiledTable<T>` exposes once per `DependentArgumentValues` key, and `CompiledQuery.CollectDependentArgumentIndexes` puts only compiled-query **argument slots** (`ps[i]`) into it. Whatever expose evaluates from the compiled lambda's **closure** is frozen for the compiled query's lifetime: a captured raw-SQL format, a captured `FormattableString`, a captured `object[]` (#6045). A value read on every call through the build-time type also needs the key to carry its runtime type, or a changed type throws `InvalidCastException` on the reused build. And a rule added at one leaf of a key comparer (`DependentArgumentValues.ValuesEqual`) has to hold on every branch that returns before that leaf — a `FormattableString` or collection branch skipped the type check (#6003 round 5).
+
+(#5708, A-16; #6003 round 5.)
 
 ## Other Key Directories
 

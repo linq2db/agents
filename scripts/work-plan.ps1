@@ -407,7 +407,8 @@ function Invoke-Validate {
         $entries = @()
         $current = $null
         foreach ($l in $p11.lines) {
-            if ($l -match '^-\s+\*\*(A-\d+)') {
+            # bold optional: most plans write `- A-n (date, note) —`, which a bold-only match skipped entirely
+            if ($l -match '^-\s+(?:\*\*)?(A-\d+)') {
                 if ($null -ne $current) { $entries += $current }
                 $current = [ordered]@{ id = $Matches[1]; text = $l }
             }
@@ -425,7 +426,7 @@ function Invoke-Validate {
             if ($missing.Count -eq 0) { continue }
 
             $msg = "P11 : $($e.id) supersedes a decision or adds a public type but has no $($missing -join ' and ') -- it is a new plan pass"
-            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})\)')
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-11') { $errors += $msg } else { $warnings += $msg }
         }
     }
