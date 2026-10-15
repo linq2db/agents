@@ -95,3 +95,36 @@ The single change that would have prevented the most: an amendment that records 
 - **Round-1 recommendation 1 is still unapplied.** That was the `re-derives:` list, re-deriving each SC, U and TO row an amendment invalidates. A-24..A-31 add no P8 row. A-31 overrides stale text (D-7's YDB bullet, TO-7f's "offset zero" prose) rather than re-deriving the TO cells.
 - **MIN006 / SUG001 (G-02 scope).** No round-3 finding traces here, and the gate debt has grown. A-31.2 records that G-02 has not run since A-21, while A-28 widened what E-1j withholds. There is no completed test-all since `7cdc13a35`, and the baselines branch is stale.
 - **Round-2 recommendation 1 (reconcile at the start of each review round) was applied.** A-23..A-31 cover every commit after A-22, and this is the first round with no GAP-09.
+
+## Round 4 — reviewed HEAD 414767af, 2026-10-15
+
+The plan is not reconciled for this round. P11 ends at A-36 (2026-10-14). The round-4 commits (`da6999f9a`, `ddff4cf72`, `6af1b33eb`, `770a9cb45`, `f2fe89b46`) and the G-02 discharge (Azure 24262 plus GitHub tests, baselines 1674 A / 428 M / 0 D) are not recorded yet. P9 still has no G-02 row after A-21, and A-36.4's deferral is open on paper.
+
+### Attribution
+
+- **MIN016** — GAP-05 — The P8 rows TO-1a..TO-1j (plan lines 240-249) carry no provider scope, and the P8 preamble (line 238) fixes the arms and the discriminating row but no providers. The cross-provider claim exists only in G-08 (line 312), which treats the whole fixture's provider list as if it were each test's. The SC-1 sweep `EveryCalculationOverMissedLeftJoinReadsDefault` was written in `772364a6d` (E-19) as `[IncludeDataSources(true, TestProvName.AllSQLite)]`, and several of its shapes exist nowhere else: a bool default under NOT/OR, bitwise `|`, both IN-list forms, the double cast. No obligation could go red for a per-provider rendering of those shapes. SC-7 got a per-provider cell list (TO-7a, line 286); SC-1 never did. Second contributor: GAP-08, because G-08 recorded `pass` on evidence its rows did not support — G-08 — preventable: yes
+- **SUG007** — GAP-10 — `ToNullableOverNestedBinaryReturnsNull` and `NestedNullableOverMissedJoinMatchesAcrossProviders` were both carried in from #5926 (`2dbef0af4`) before the plan existed; TO-4a (line 272) refers to them only as a glob, "`ToNullable*`". A P8 obligation list is not a test inventory. Test hygiene, of the same kind as round-2 NIT001 — — — preventable: no
+
+### Other items worked this round (prior or unnumbered; not scored above)
+
+- **A-29 gates → #6046 (`f2fe89b46`)** — GAP-06. A-29 (line 371) already stated on 2026-10-13 that the resolution owes an issue for the gates and both arms run, with only the option-off arm gated. A-34 then touched the same gates for SUG006 without filing it, A-36 does not mention it, and the plan was re-approved on 2026-10-14 with A-29 still `OPEN`. Second contributor: no corpus rule says an `[ActiveIssue]` reference must be a tracker that outlives the PR, or that a gate on one `[Values]` arm needs an ungated sibling for the other. Preventable: yes.
+- **TimeSpan / MySQL `DateTimeOffset` comparisons (`770a9cb45`, probed, no defect)** — GAP-05. D-1 (line 79) admits `TimeSpan`, but SC-7, U-12 and U-13 surveyed only date types for provider-dependent literal forms, and TO-7i's admitted-type list (line 292) is serializer-only. A-35 added E-44's MySQL lowering with a `Year` cell only and never extended `OffsetOverMissedLeftJoinReadsDefault`'s comparisons to MySQL. Preventable: yes.
+- **Firebird 4/5 session zone (`6af1b33eb`, not reproduced)** — GAP-03, no defect. A-35 and A-36.2 surveyed the session-zone class as MySQL, PostgreSQL and DuckDB, not Firebird 4+, which creates `TIMESTAMP WITH TIME ZONE` but writes the default unzoned. Closed by measurement, preventable: n/a.
+
+### Aggregate
+
+Two scored findings: GAP-05 (MIN016) and GAP-10 (SUG007). Counting the worked items, GAP-05 dominates (MIN016, the TimeSpan / MySQL gap): an obligation existed, but its provider or type scope was implicit, defaulted to SQLite or to the date types, and G-08 summarized fixture-level coverage as per-test. The single change that would have prevented the most: every TO-n carries an explicit `providers:` scope, and a `types:` scope under a D-1-style type gate; G-08 records cross-provider pinning per TO, never per fixture. The A-29 item repeats round 3's pattern: an owed fix recorded but left open through a re-approval.
+
+### Recommended durable fixes
+
+- GAP-05 ×2 (MIN016, TimeSpan/MySQL; round-1 MIN006 is the same class) → P8 semantics in `work-plan.md`, plus a `-Validate` check in `work-plan.ps1`. Each TO-n names `providers:`, and a SQLite-only scope says why SQLite can discriminate the shape. A TO over a type-gated rule names the admitted types it covers. An amendment adding a provider override re-derives every TO cell over that type on that provider. G-08's `pass` cites per-TO scopes.
+- GAP-06 ×1 (A-29 gates) → `definition-of-done.md` G-09 and the round entry in `review-pr/SKILL.md`: an A-n marked `OPEN` or "owes …" blocks re-approval and review dispatch until filed, fixed or promoted to P10 (round-3 recommendation 2, still unapplied). In `testing.md` next to *gate on the blocker's issue*: an `[ActiveIssue]` reference must outlive the PR, never be the PR itself, and a gate on one `[Values]` arm requires an ungated sibling for the other arm.
+- GAP-03 ×1 (Firebird, no defect) → an attack vector in `plan-critic.md`: a provider-behaviour amendment enumerates every provider sharing the affected type family (here, every engine with a zoned timestamp and a session zone). Round-3 recommendation 1's `class:` line, applied to providers rather than spellings.
+
+### Continuity with rounds 1–3
+
+- **MIN006 (round 1) → MIN016.** Same class: an obligation scoped to SQLite for a shape other providers render differently. The general rule, that every TO carries a provider scope, never landed.
+- **SUG006 (round 3) → A-29 gates.** The third time these gates were touched: SUG006 added `ErrorMessage` (A-34); the PR-self reference and single-arm run stayed until `f2fe89b46`. Round-3 recommendation 2 is still unapplied.
+- **Round-1 recommendation 1 (`re-derives:` list) is still unapplied.** A-35 added E-44 with a single `Year` cell; the MySQL comparison cells came only with `770a9cb45`.
+- **Round-3 recommendation 1 (`class:` sweep) is still unapplied.** A-36.2 measured PostgreSQL and DuckDB but did not enumerate Firebird 4+.
+- **A-31.2 / A-36.4 (G-02) are discharged in fact but not on paper.** Reconciliation (A-37+) is owed for the five round-4 commits; leaving it unrecorded would bring GAP-09 back.
