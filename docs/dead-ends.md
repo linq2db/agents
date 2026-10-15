@@ -91,3 +91,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** the attribute evaluates the call only when `IsCompilable` holds, and `CanBeEvaluatedOnClientCheckVisitorBase.VisitMethodCall` rejects any server-side-only method, including one inside a quoted lambda argument. A `SelectDynamic` template `(x, n) => Sql.Property<decimal>(x, n)` made every inline call throw *"requires client-side evaluation but its arguments are not compilable"*. A correlated source is not compilable either, so it gets the same error.
 
 **Don't re-attempt:** `[EagerEvaluation]` for an overload whose lambdas may contain `Sql.*` calls. Desugar in a builder instead, running the public method over `ExpressionQueryImpl.CreateQuery(…, sourceExpression)`, and keep the folded arguments in the cache key: [`architecture.md`](architecture.md) → *Values a builder reads after the cache key*. (#5708)
+
+## EXPR-TRANS: reproducing a host-only clrjit crash by matching the .NET Framework build
+
+**Tried:** reproducing #6042, a stack overflow in `clrjit.dll` from the `QueryCache` static constructor. First on GitHub Actions images, including `windows-2025` with the reporter's exact build (4.8.09221) as x86 and x64. Then by measuring how much stack the JIT needs for that initializer, on the theory that the thread was already out of stack.
+
+**Failed because:** neither reproduces; the stack headroom matched an empty class to within 1 KB. The trigger was the host: a C++Builder process that unmasks FP exceptions, so the x86 JIT faults compiling `double >= long.MaxValue`.
+
+**Don't re-attempt:** chasing a native-host crash by framework version or stack depth. Ask first what hosts the process and whether it is x86, then probe with FP exceptions unmasked ([`bug-investigation.md`](bug-investigation.md) → *A .NET Framework crash only inside a native host*). (#6042, #6053)

@@ -40,6 +40,15 @@ When a task fails through an external tool (a formatter, driver, build step, SDK
 
 **A build that breaks on a toolchain bump: name the upstream change before proposing a fix.** Diff the artifact between the two toolchain versions (for an assembly: its `TargetFramework` attribute and assembly references), then trace that file's packaging history upstream to the PR that changed it and read its stated rationale. The fix is then chosen against the intended new behaviour, not just the symptom. (#5942: RC2 broke `netstandard2.0` F# compiles; the cause was dotnet/fsharp#20555, which packs the `net10.0` FSharp.Core into the SDK.)
 
+## A .NET Framework crash only inside a native host — suspect the FPU control word
+
+Delphi and C++Builder start with FP overflow, divide-by-zero and invalid-operation exceptions unmasked. .NET code called from such a host inherits that per-thread state.
+
+- **Symptoms:** on x86 only, an `SEHException`, `STATUS_FLOAT_MULTIPLE_TRAPS` (0xC00002B5), or a stack overflow inside `clrjit.dll` while compiling a method.
+- **Known triggers:** a `double` compared with `long.MaxValue`, and `NaN` / `±Infinity` constants.
+- **Probe:** an x86 `net462` exe calls `_control87(0, _EM_INVALID | _EM_ZERODIVIDE | _EM_OVERFLOW)` from `msvcrt.dll`. Then either `RuntimeHelpers.RunClassConstructor` on the suspect type, or `RuntimeHelpers.PrepareMethod` over every non-generic method of `linq2db.dll`. The sweep needs `[HandleProcessCorruptedStateExceptions]` and runs in a child process per variant.
+- **Fix:** use integer math or bit patterns in linq2db. The host-side workaround is masking FP exceptions around calls into .NET. (#6042, #6051)
+
 ## Explain the mechanism before proposing the fix
 
 And certainly before offering a choice between fixes. A remedy chosen from a symptom encodes whatever the symptom suggested, and a fix menu built that way asks the user to pick between options that may all answer the wrong question. Write the causal chain out first — what ran, in what order, in which process, and why that made the operation fail — then let the scope of the fix fall out of it. The same explanation that justifies a fix usually deletes half the candidates. (#5786)
