@@ -38,6 +38,8 @@ When you believe a refactor preserves behavior and a test then fails, do **not**
 
 When a task fails through an external tool (a formatter, driver, build step, SDK), prove the defect isn't in *our* code before accepting "the tool is limited" — isolate it in the tool's underlying SDK or a minimal harness. (A `dotnet format` under-application looked like a tool limitation but was our `WellKnownFixAllProviders.BatchFixer` choice; the fix was a custom `FixAllProvider`.)
 
+**A build that breaks on a toolchain bump: name the upstream change before proposing a fix.** Diff the artifact between the two toolchain versions (for an assembly: its `TargetFramework` attribute and assembly references), then trace that file's packaging history upstream to the PR that changed it and read its stated rationale. The fix is then chosen against the intended new behaviour, not just the symptom. (#5942: RC2 broke `netstandard2.0` F# compiles; the cause was dotnet/fsharp#20555, which packs the `net10.0` FSharp.Core into the SDK.)
+
 ## Explain the mechanism before proposing the fix
 
 And certainly before offering a choice between fixes. A remedy chosen from a symptom encodes whatever the symptom suggested, and a fix menu built that way asks the user to pick between options that may all answer the wrong question. Write the causal chain out first — what ran, in what order, in which process, and why that made the operation fail — then let the scope of the fix fall out of it. The same explanation that justifies a fix usually deletes half the candidates. (#5786)
