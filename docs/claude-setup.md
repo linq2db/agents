@@ -58,6 +58,8 @@ Settings precedence: project-local `.claude/settings.local.json` > user-level `~
 
 **A corpus push publishes other sessions' commits too.** Parallel sessions commit into the same clone, and a push carries every local commit below yours. Before `git -C .claude push`, run `git -C .claude log --oneline origin/master..HEAD` and name each commit you didn't author; one that belongs to work still in flight (its session has uncommitted edits in the same area) is the user's call to publish. (2026-10-13: one such commit went out unannounced with a corpus-trim push.)
 
+**A rejected corpus push while another session has uncommitted corpus edits: merge, don't rebase.** `git -C .claude pull --rebase` refuses on a dirty tree, and `--autostash` stashes and restores the other session's file under it. Run `git -C .claude fetch origin master`, check that `git -C .claude diff --name-only HEAD...origin/master` doesn't overlap the dirty files, then `git -C .claude merge --no-edit origin/master` and push. The merge leaves their working-tree files untouched. (#5983 round 5.)
+
 ## Agent-agnostic corpus guidance lives elsewhere
 
 Guidance that applies to **any** agent maintaining this corpus — authoring long instruction docs ("lost in the middle" placement), the supply-chain risk of editing skills/hooks/agents, and the eval-harness proposal — has moved to [`maintaining-the-corpus.md`](maintaining-the-corpus.md). The rule for treating untrusted fetched agent/editor config as executable is in [`AGENTS.md`](../AGENTS.md) → *Security*. This file keeps only the Claude-Code-specific harness mechanics below.
