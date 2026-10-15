@@ -1227,6 +1227,38 @@ LibRed works exactly when the LINQPad *query runtime* is .NET 11+.
 - **Unverified:** LibRed end-to-end in LINQPad on a .NET 11 query (Windows and macOS). No LINQPad test
   project exists; test builds go to the local feed (`6.6.0-local.1`–`.3`).
 
+### A-20 — `LibRed.Ado` 11.0.0-alpha.4: net10.0 target, and seven more gates retire (2026-10-15)
+
+alpha.4 (published 2026-10-07) adds a **net10.0** target to `LibRed.Ado`/`.Engine`/`.Core`/`.Sql`, which removes
+the premise of D-12 and of the net11-only shape of A-19 and the CLI. User's call: enable LibRed on net10
+**including LINQPad and CLI**.
+
+- **net10 enablement.** `Tests/linq2db.Providers.props` references `LibRed.Ado` on net10.0 and net11.0;
+  `UserDataProviders.json.template` lists the two configs in `NET100` as well as `NET110`; the CI config
+  `access.libred.json` moves from `NET110.Azure` to the shared `Azure.TestJob` section like every other job (the
+  leg is Linux-only, so there is no netfx pass to keep it from). D-12's "net11 provider lists only" rule now
+  reads "never the NETFX list". CLI: the `LibRed.Ado` reference joins the unconditional provider list and the
+  `#if !NET11_0_OR_GREATER` refusal in `ScaffoldCommand.Execute` goes. LINQPad: the driver targets net10 already,
+  so the `ProviderInfo.MinimumRuntime` / `FrameworkVersion`-parsing machinery A-19 added for LibRed alone is
+  **removed** rather than left unused, together with the `GetDataProvider` runtime check and troubleshoot text.
+- **Merge note.** Master split the Jet CI leg into `r_Access_MDB_Odbc` + `z_Access_MDB_OleDb`, taking `z_`;
+  the LibRed leg is now `zz_Access_LibRed`.
+- **Measured** with the full suite on both configs, net11.0 (15 745 cases, 31 failures):
+  - **Gates retired** — R7 `CVar` (`TestSqlVariant`), R6 zero date (`TestZeroDate`), R1/R13 declared-type
+    (`AggregatesKeepTheDeclaredUnit`, `Issue1601`), R4 indexed GUID vs string (`ClientConversion_UnmappedOperators`),
+    `IS [NOT] TRUE/FALSE` and `IS [NOT] DISTINCT FROM` no longer parse-fail (`PredicateTests`; `IS UNKNOWN` still
+    does), R12 `WITH OWNERACCESS OPTION` (D-5 reversed: the three exclusions in `Extensions/AccessTests`,
+    `DocExampleTests`, `QueryExtensionTests` revert to base).
+  - **Behaviour moved toward ACE** — LibRed now rejects a leading space and control characters in a column name
+    (`ArgumentException`), so `Issue3893Test` returns to base's three-way split with one unscoped gate.
+  - **Still failing, re-stamped alpha.4** — GUID through a set operation with null literals (`Issue3360`), text
+    column vs numeric literal list (`Issue2608Test`; the literal form — R2's parameter form was not re-measured),
+    sub-second `DATETIME` precision (R5, `TestMergeTypes`).
+  - **Re-run after the edits**, the touched fixtures plus the Access suites (236 cases): net11.0 one failure,
+    `StackUseTests.TestExpressionVisitorHops(10)` — provider-free, local Debug stack depth on the RC2 runtime,
+    green on every #5942 CI leg; net10.0 0 failures. The two full-run gRPC failures (timeout, SSL EOF) passed on
+    re-run. Third-party notices: the five LibRed/ANTLR components gain a net10.0 version.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
