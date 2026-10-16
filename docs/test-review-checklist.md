@@ -89,7 +89,11 @@ Firebird v3 caps identifiers at 31 characters; Oracle at 30 / 128 depending on v
 
 ### `Issue<N>` names in a shared feature fixture
 
-A test added to a feature fixture (`Tests/Linq/Linq/<Feature>Tests.cs` etc.) names its models, converters and method for what they are and what they check; the issue appears only as the URL in `[Test(Description = "...")]`. Flag new `Issue<N>`-prefixed types or test names there, and new tests placed inside an existing `#region Issue …` block, as MIN. `Issue<N>Tests.cs` / `IssueTests.cs` are exempt. Existing `Issue<N>*` members are legacy, not a precedent. (#6060)
+A test added to a feature fixture (`Tests/Linq/Linq/<Feature>Tests.cs` etc.) names its models, converters and method for what they are and what they check; the issue appears only as the URL in `[Test(Description = "...")]`. Flag new `Issue<N>`-prefixed types or test names there, and new tests placed inside an existing `#region Issue …` block, as MIN. Existing `Issue<N>*` members are legacy, not a precedent. (#6060)
+
+### A new or extended per-issue `Issue<N>Tests.cs` fixture
+
+Tests no longer go in per-issue fixtures. Flag as MIN a PR that adds an `Issue<N>Tests.cs` file — `Tests/Linq/UserTests/Issue<N>Tests.cs` or `Tests/EntityFrameworkCore/Tests/Issue<N>Tests.cs` — or adds tests to an existing one. The fix is to move the tests into the fixture that owns the behaviour they check, or into a new fixture named for that behaviour (`Tests/Linq/<Area>/<Behaviour>Tests.cs`), with the names rules above applied. The catch-all `IssueTests.cs` is not a per-issue fixture and stays allowed. Existing `Issue<N>Tests.cs` files are legacy, not a precedent. (#6058)
 
 ### `[TestFixture]` doubled on a partial class
 
