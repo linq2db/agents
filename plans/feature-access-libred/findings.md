@@ -19,6 +19,29 @@ Packages: `LibRed.Ado` → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`, `Ant
 
 ---
 
+# alpha.4 (2026-10-16)
+
+Measured with `.build/.agents/libred-a4-probe` (net10.0, the new target) against copies of the committed
+`TestData.LibRed.mdb` / `.accdb` containers; the syntax results it produced are recorded in the #5969 plan, A-6
+(U-8, U-10, U-12). One finding belongs here, as a candidate upstream report.
+
+## The engine cannot run under `InvariantGlobalization`
+
+With `<InvariantGlobalization>true</InvariantGlobalization>` in the host project, the first statement that
+reaches `LibRed.Engine.Execution.ExpressionEvaluator` fails with `TypeInitializationException: The type
+initializer for 'LibRed.Engine.Execution.ExpressionEvaluator' threw an exception.`, and every later statement
+that reaches it fails the same way for the life of the process — a static constructor that throws poisons the
+type. Statements that never reach the evaluator (plain projections, `TOP`, the `IS DISTINCT FROM` battery) kept
+working, which is why the failure looks query-specific at first. With the property removed, all 44 statements
+of the same battery ran. The inner exception (re-run with the inner chain printed, `accdb4-invariant.txt:53-54`)
+is `CultureNotFoundException: Only the invariant culture is supported in globalization-invariant mode.
+(Parameter 'name')` — the static constructor creates a named `CultureInfo`, which invariant mode refuses. The
+alpha.4 notes say nothing consults the runtime's culture any more for collation, so this is one site that still
+does. The linq2db test projects do not set the property, so the suite is unaffected; an application published
+invariant (a common choice for trimmed and container images) would hit it.
+
+---
+
 # alpha.3 (2026-09-22)
 
 ## Regressions against alpha.2
