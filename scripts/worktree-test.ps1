@@ -109,6 +109,10 @@ Output (stdout, single JSON object):
     "testProgress": true,            // whether --test-progress was actually passed
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
+    "failures":  [ { "test": "SomeTest(\"SQLite.MS\")", "message": [ "Shouldly...", ... ] } ],
+                                     // first -MaxFailures (20) distinct failures, each with up to
+                                     // -FailureLines (8) message lines - stack frames and the
+                                     // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
                                      // failures in a Tests/Linq run whose filter lacks CreateData.CreateDatabase
@@ -136,7 +140,9 @@ param(
     [switch]$SharedCompilation,
     [switch]$NoRestore,
     [switch]$NoTestProgress,
-    [string[]]$ExpectTests
+    [string[]]$ExpectTests,
+    [int]$FailureLines = 8,
+    [int]$MaxFailures  = 20
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -237,6 +243,7 @@ finally {
 
 $summary     = $null
 $failedTests = @()
+$failures    = @()
 $buildFailed = $false
 $hint        = $null
 $ranTests    = [System.Collections.Generic.HashSet[string]]::new()
@@ -251,8 +258,26 @@ if (Test-Path -LiteralPath $LogPath) {
         $hint = 'NuGet cache entry half-extracted and locked by a shared build node; do not retry. Restore into a private cache: .claude/docs/windows-dev-gotchas.md -> "A half-deleted package in the NuGet cache".'
     }
 
-    foreach ($line in $lines) {
-        if ($line -match '^failed\s+(\S+)') { $failedTests += $Matches[1] }
+    $seenFailures = [System.Collections.Generic.HashSet[string]]::new()
+
+    for ($li = 0; $li -lt $lines.Length; $li++) {
+        $line = $lines[$li]
+        if ($line -match '^failed\s+(\S+)') {
+            $failedTests += $Matches[1]
+
+            # The message block under the failed line, minus stack frames, so the caller need not dig the log.
+            $head = ($line -replace '\s+\(\d.*?\)$', '').Substring(7)
+            if ($failures.Count -lt $MaxFailures -and $seenFailures.Add($head)) {
+                $message = @()
+                for ($j = $li + 1; $j -lt $lines.Length -and $message.Count -lt $FailureLines; $j++) {
+                    $m = $lines[$j] -replace '\x1b\[[0-9;]*m', ''
+                    if ($m -match '^\S' -or $m -match '^\s+DataConnection:') { break }
+                    if ($m -match '^\s+(at |from |--- End of|\d+\)\s+at )' -or $m.Trim() -eq '') { continue }
+                    $message += $m.Trim()
+                }
+                $failures += [ordered]@{ test = $head; message = @($message) }
+            }
+        }
         if ($line -match '^\s*(passed|failed|skipped)\s+([^\s(]+)') { [void]$ranTests.Add($Matches[2]) }
     }
 
@@ -293,6 +318,7 @@ $result = [ordered]@{
     testProgress = $useTestProgress
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
+    failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
 if ($hint)        { $result['hint']         = $hint }

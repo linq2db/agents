@@ -188,6 +188,8 @@ Per item, **always surface prove-with-test+fix as an offered action** — not ju
 
 Exception — when the user says "run tests now" / "build now" / similar mid-walk, build + run the filtered tests for the in-progress fix immediately, report results, then resume the walk on the user's direction.
 
+**The same batching covers measurements and container-bound work: collect every disposition first, then act.** A `measure` or a `prove-with-test+fix` that needs a provider container is recorded as a disposition and the walk moves on — don't stop to start containers, run the probe, or apply the fix mid-walk, and don't ask for container starts item by item. After the last item, list the collected actions, ask once for every container they need, and run them as one batch with one master control. A cheap local step already in flight (a file-DB run on SQLite / DuckDB / SqlCe / Access) may finish while the walk continues. (#5959 round 4: the maintainer, asked mid-walk to start four containers for parked items — *"better to finish walk and then do tasks that require docker to save time… collect review items replies and then action on them"*.)
+
 At the end of the walk, run the thread-disposition bundle **first** (`post-pr-thread-replies.ps1`), then post the accumulated `accept-for-post` set as one draft review — the same one-pending-review ordering constraint as `submit-all` above (a standalone thread reply 422s while a fresh draft is pending).
 
 When every finding was dispositioned `fix` (the `accept-for-post` set is empty), **no draft review is posted** — the pushed commits plus the PR-body `## Follow-up commit(s)` subsection are the entire outcome. Still run the thread-disposition bundle if any prior-review threads were audited; skip the empty draft-review POST.
