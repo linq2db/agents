@@ -87,6 +87,10 @@ Firebird v3 caps identifiers at 31 characters; Oracle at 30 / 128 depending on v
 
 `IQueryable.ToSqlQuery()` returns the SQL of the non-terminal sequence — it doesn't include the terminal aggregate's wrapping. To assert SQL emitted by `query.Sum()` / `query.Count()` / `query.Min()`, capture from `db.LastQuery` *after* the terminal aggregate call, not via `query.ToSqlQuery()`. The latter will assert against the wrong SQL and pass for the wrong reason.
 
+### `Issue<N>` names in a shared feature fixture
+
+A test added to a feature fixture (`Tests/Linq/Linq/<Feature>Tests.cs` etc.) names its models, converters and method for what they are and what they check; the issue appears only as the URL in `[Test(Description = "...")]`. Flag new `Issue<N>`-prefixed types or test names there, and new tests placed inside an existing `#region Issue …` block, as MIN. `Issue<N>Tests.cs` / `IssueTests.cs` are exempt. Existing `Issue<N>*` members are legacy, not a precedent. (#6060)
+
 ### `[TestFixture]` doubled on a partial class
 
 A `[TestFixture]` attribute on the same partial class declared in two files runs the fixture's tests twice (or NUnit complains, depending on version). When the diff adds a new partial of an existing fixture, the new file should not re-declare `[TestFixture]`. Flag at the new attribute.
