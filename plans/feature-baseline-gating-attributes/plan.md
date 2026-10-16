@@ -1,0 +1,164 @@
+# Work plan: feature-baseline-gating-attributes — Baseline gating: [NoBaselines], in-memory direct/remote comparison, ActiveIssue mismatch mode
+
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-10-16 (after critic round 2, verdict weak)  ·  **Branch:** feature/baseline-gating-attributes
+**Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
+
+## P1 Problem
+
+Tests opt out of SQL baselines with an in-test scope, `using (new DisableBaseline(reason[, condition]))` (`Tests/Base/ScopedSettings.cs:99-115`; the `reason` is never stored). 175 sites mix three different intents in one mechanism: (a) a whole test that cannot produce a stable baseline (GUIDs, clocks, threads, sequences — 101 sites, plus 2 `Issue256Tests` sites that are a name collision), (b) a known or suspected direct-vs-remote SQL mismatch being hidden (#5169 and "TODO: inconsistent …" sites — 18), (c) setup/cleanup SQL, fragments or parameter-dependent conditions excluded from an otherwise-baselined test (54, incl. the S066 PostgreSQL fragment whose reason mentions remote but which is by design). 101 + 2 + 18 + 54 = 175 (`git grep -n "new DisableBaseline(" -- Tests`). Intent (b) is invisible: nothing reports when the hidden mismatch is fixed — measured 2026-10-16: both #5169 YDB gates (`StringFunctionTests.LastIndexOf2`, `StringJoinTests.JoinAggregateArrayNotNullAndFilter`) match direct SQL on unmodified `origin/master` (`C:\Worktrees\linq2db\6055-remote-binary-dbdatatype\.build\.agents\probe-ydb-baselines-unfixed.log`), so they have been stale for an unknown time.
+
+The direct-vs-remote check itself only runs when `TestConfiguration.BaselinesPath` is set (`Tests/Base/BaselinesManager.cs:43`) and reads the expected side back from disk (`Tests/Base/BaselinesWriter.cs:85`). An `[ActiveIssue]` that expects the mismatch therefore depends on the environment: #6048 added `ActiveIssueAttribute.RequiresBaselines` for runs without a path, but a run that executes only the `.LinqService` case (a filtered local run, an MTP retry child — `testing.md:1006`) still passes it and the gate reports "passed but is marked" (red).
+
+## P2 Success criteria
+
+- SC-1 A whole-test opt-out is declared by `[NoBaselines(reason)]` on a method or class, optionally scoped by `Configuration`, and suppresses capture for direct and remote cases of the matching providers only → TO-1, TO-2
+- SC-2 The direct-vs-remote comparison runs on every run, with or without `BaselinesPath`; when a path is set, `.sql` files are unchanged and `.sql.other` is written for every ungated mismatch, and only for those → TO-3, TO-4, TO-6
+- SC-3 `[ActiveIssue(n, BaselinesMismatch = true)]` turns a recorded mismatch into Inconclusive, a recorded match into Failure ("fixed"), and leaves a case whose counterpart did not run alone — on either side of the pair → TO-5, TO-6
+- SC-4 Every whole-test `DisableBaseline` site whose condition is provider-only is migrated to the attribute; the remaining scopes are infrastructure, fragments, or parameter-dependent, and are listed → TO-7
+- SC-5 Every bug-flavoured gate is re-measured and ends as: removed (no mismatch), `[ActiveIssue(…, BaselinesMismatch = true)]` (mismatch), or recorded with the reason it stays → TO-8
+- SC-6 Migration changes no baseline file in the baselines repo other than: files of SC-5 sites whose gate is removed, the new `Issue256Tests` files once its cases get distinct names (E-12), and the new `BaselinesTests` files (E-9); no new ungated `.sql.other` → TO-9
+
+## P3 Constraints & anti-goals
+
+- Test infrastructure only: no change under `Source/`.
+- Baseline output is preserved for every migrated whole-test site (SC-6); a site whose scope did NOT cover the whole test keeps its scope (moving it to an attribute would drop baselines that are captured today).
+- `DisableBaseline` is not removed: the 49 infrastructure scopes (`CreateLocalTable`, `TestBase.Tables` caches, identity reset, EF `InitializeDatabase`, OrmBattle preload, setup helpers), 4 fragments and 1 parameter-dependent scope (`Issue681Tests.TestTableFQN`, depends on `withServer`) need it (user decision 2026-10-15: keep the scope for setup/infrastructure churn and for test-parameter conditions).
+- Local runs without a baselines path will now fail on a direct/remote mismatch nobody gated (user decision 2026-10-15: compare in memory on every run). CI behaviour is unchanged: every `/azp` and release leg already compares (scout: `testing.yml:36`, `tests-comment.yml:107,148`, `default.yml:45-46`).
+- No new behaviour for EF Core suites beyond the attribute hook: they dump direct-only (`Tests/EntityFrameworkCore/TestBase.cs:87-98`) and never compare.
+
+## P4 Unknowns
+
+- U-1 Where can an attribute disable capture for the whole case, including server-side LinqService SQL? — resolved-by scout: only after `CustomTestContext.Begin` (`Tests/Base/TestBase.cs:180`), which replaces the per-test context (`Tests/Base/CustomTestContext.cs:59-71`); `IApplyToContext` / `IWrapSetUpTearDown` / `ITestAction.BeforeTest` run earlier and are wiped. The context object is shared with the server via `_remoteByProvider` (`CustomTestContext.cs:61-70`, `Tests/Base/Remote/TestLinqService.cs:16`), so a flag set there covers remote SQL. EF has its own `OnBeforeTest` (`Tests/EntityFrameworkCore/TestBase.cs:78-81`).
+- U-2 Is any SQL logged before `Begin` that an attribute set in `OnBeforeTest` would miss? — resolved-by scout: no; `OneTimeSetUp` SQL (`Tests/Linq/Samples/ConcurrencyCheckTests.cs:165-174`) lands in `_shared`, which drops BASELINE writes (`CustomTestContext.cs:130-143`); no derived `[SetUp]` runs SQL; no class overrides `OnBeforeTest`.
+- U-3 Can the `ActiveIssue` wrapper read a per-test comparison outcome? — resolved-by scout: it is `IWrapSetUpTearDown` (`ActiveIssueAttribute.cs:42`), so it sees TearDown failures, but `CustomTestContext.Release` (`TestBase.cs:246-249`) has already run when it inspects the result; the outcome must live outside the per-test context, keyed by NUnit test `Id` (not `FullName`: `Issue256Tests` yields 12 cases per provider with one `FullName`).
+- U-4 Which side of a direct/remote pair detects the mismatch? — resolved-by scout: whichever writes second; the pair runs ordered on one lane (`BaselinesWriter.cs:69-71`) but the order is not established in-tree; the first writer can only report "not compared yet".
+- U-5 Where can only one side of a pair run in a process? — resolved-by scout: MTP retry child runs (`--retry-failed-tests`, `build-vars.yml:24`; entries with `retry: true` at `test-matrix.yml:316,423,478,521,559`), a failed first side (dump skipped, `BaselinesManager.cs:40-41`), filtered local runs, `DisableRemoteContext` configs (`Build/Azure/net*/sqlserver.2005.json:4`), different TFMs (separate processes, no TFM in the key, `BaselinesWriter.cs:38`).
+- U-6 Memory of an always-on in-memory comparison — resolved-by scout: 8k–27k cases per process (`ci-tests.md:177,261,270`, `testing.md:826`; estimates from logged totals); storing a fixed-size hash per key instead of the text bounds it to a few MB.
+- U-7 How do `NoBaselines` configurations match a context? — resolved-by scout: `NUnitUtils.GetContext` returns the provider with `.LinqService` stripped plus an `isRemote` flag (`Tests/Base/NUnitUtils.cs:50-75`, `ProviderNameHelpers.cs:51-62`); `ActiveIssueAttribute.AppliesTo` matches `Configurations` exactly against the stripped name (`ActiveIssueAttribute.cs:202`). No shared helper exists today.
+- U-8 What does each `DisableBaseline` site become? — resolved-by scout (census, 175 sites, IDs S001–S175 in `git grep` file order; the migration script re-derives each site's form and condition from that grep and fails on any site it cannot classify): 100 method-attribute sites (17 of them bug-flavoured), 3 whole-test-in-helper (attribute on every caller: Oracle `BulkCopyRetrieveSequence[Async]` S057/S058, `MiniProfilerTests.TestSqlServerImpl` S049 — bug-flavoured), 18 class-level sites (MultiThreadingTests, TemporalTableTests, Issue1398Tests, Issue278Tests; Issue256Tests' 2 sites go to E-12 instead), 49 keep-infra, 4 keep-fragment, 1 keep-parameter. So E-11 = 101 non-bug sites (83 method + 2 helper + 16 class-level sites → 4 class attributes: MultiThreadingTests 5, TemporalTableTests 8, Issue1398Tests 2, Issue278Tests 1 helper scope), E-12 = 2, E-13 = 18 (17 method + S049); 101 + 2 + 18 + 54 kept = 175. `IsMsProvider(context)` (`SqlServerTests.cs:1752`, `SqlServerTypesTests.cs:346`) maps to `TestProvName.AllSqlServerMS` + `TestProvName.SqlAzureMiMS`.
+- U-9 Do whole-test scopes in multi-threaded tests (worker threads, `Parallel.ForEach`) behave the same under an attribute? — resolved-by scout: the scope and the attribute set the same flag on the same per-test context object, resolved by test id on every thread that inherits the NUnit execution context; equivalence is verified by TO-9 (no baseline file appears for those tests).
+- U-10 Does `Issue256Tests`' "test name conflicts" belong under `[NoBaselines]`? — resolved-by scout: no — it is a baseline key collision (12 `ValueSource` delegates render to one `FullName`, `Issue256Tests.cs:38-56`), which `testing.md` → *A test's full name must be unique* classes as a test-authoring bug; it gets distinct case names instead (E-12).
+
+## P5 Decisions
+
+### D-1 — `[NoBaselines]` attribute applied in `OnBeforeTest`
+
+- **chosen:** `NoBaselinesAttribute(string reason)` in `Tests/Base/Attributes`, `AttributeTargets.Method | Class`, `AllowMultiple = true`, with `Configuration` / `Configurations` matching the stripped provider name the way `ActiveIssue` does. `TestBase.OnBeforeTest` and the EF `TestBase.OnBeforeTest` set `BASELINE_DISABLED` right after `CustomTestContext.Begin` when any method- or class-level instance applies. The provider-matching code moves into one internal static helper used by both attributes.
+- **rejected:** an `IApplyToContext` / `ITestAction` attribute that sets the flag itself — runs before `Begin`, which replaces the context (U-1).
+- **rejected:** skip the dump in `BaselinesManager.Dump` instead of suppressing capture — keeps capturing SQL the test then discards, and diverges from what the scope did (capture off), so `GetCurrentBaselines()` would differ between the two mechanisms.
+- **rejected:** keep `DisableBaseline` with a stored reason — leaves the whole-test intent buried in method bodies, where it cannot be found by attribute and cannot be scoped declaratively.
+- **why this:** same semantics as the scope (capture off for the whole case), declared where NUnit metadata is read, greppable, and provider-scoped without code.
+- **failure mode of the choice:** a whole-test attribute is coarser than a scope; if a site's scope did not actually cover the whole test, baselines that exist today disappear — guarded by the census coverage column and TO-9. A class-level attribute also covers tests added to the fixture later; it is used only where the fixture's subject is what makes it unbaselinable (MultiThreadingTests, Issue1398Tests, Issue278Tests: concurrency; TemporalTableTests: `AS OF` the current time) — `TemporalTableTests.TemporalNoOptimization` (`:263-284`) executes no SQL (only `ToSqlQuery()` / `GetSelectQuery()`), so it has no baseline today and loses none.
+
+### D-2 — Compare direct vs remote in memory on every run, by hash
+
+- **chosen:** `BaselinesWriter` keeps a process-wide map from a path-free key (context incl. provider suffix, class, normalized test name; compared `OrdinalIgnoreCase` like today's `_baselines`, `BaselinesWriter.cs:22-23`, so case-variant names still collide as they do on a Windows file system) to a SHA-256 of the normalized baseline per side. Every dump compares against it, with or without `BaselinesPath`. When a path is set, files and `.other` are written as today — except that a mismatch on a case governed by `[ActiveIssue(…, BaselinesMismatch = true)]` writes no `.other` (the gate already records it; `.claude/scripts/baselines-diff.ps1:649-654` and `testing.md:1001` treat every `.other` as a failure, and `tests.yml:596-610` commits it). Duplicate detection ("Baseline already in use") moves to the same map. The mismatch message text stays verbatim.
+- **rejected:** keep the full text in memory — 8k–27k cases per process (U-6) for a diagnostic that the `.other` file already provides when a path is set.
+- **rejected:** compare only when a path is set (status quo) — keeps gates environment-dependent (P1).
+- **why this:** makes the mismatch a deterministic test outcome in any run that executes both sides, at constant memory per case.
+- **failure mode of the choice:** without a path, the error message cannot show the other side's SQL (only a hash was kept); it shows the current side and says so. Local runs now surface ungated mismatches (accepted, P3). And a gated mismatch leaves no `.other` — the only artifact that ever showed both sides (`testing.md:1006`): its remote SQL is recorded nowhere, a changed-but-still-mismatching remote side gives no signal, and an `.other` already on baselines master is never rewritten. Seeing it again means removing the gate and running with a path. Accepted (P10): it is what makes "no ungated `.other`" a checkable gate.
+- **how "gated" is decided:** one shared `ActiveIssueAttribute.GovernsBaselinesMismatch(ITest)` — the same `GetAttributes` / `SelectGoverning` / `ThrowsFamilyGoverns` path the command uses, with an ambiguous selection treated as not governed (the command turns that case red, so its `.other` must be written). The writer and the command call the same method, so they cannot disagree.
+
+### D-3 — Publish the comparison outcome keyed by test `Id`
+
+- **chosen:** the second writer of a pair records `Matched` / `Mismatched` in a static concurrent map keyed by `TestExecutionContext.CurrentContext.CurrentTest.Id`; absence means not compared. `ActiveIssueCommand` reads and removes the entry.
+- **rejected:** NUnit test `Properties` — written into the result XML / TRX of every test.
+- **rejected:** the per-test `CustomTestContext` — already released when the command inspects the result (U-3).
+- **why this:** survives `Release`, does not leak into results, and is unique per case even where `FullName` collides.
+- **failure mode of the choice:** an entry for a case no `ActiveIssue` command reads stays in the map; bounded by one small entry per compared case.
+
+### D-4 — `ActiveIssue.BaselinesMismatch` replaces `RequiresBaselines`
+
+- **chosen:** a `BaselinesMismatch` flag. When it governs: recorded `Mismatched` → Inconclusive ("still mismatching"); recorded `Matched` → Failure ("fixed, remove the attribute"); not compared → result left alone; any other failure → Failure (regression). It counts as explicit targeting. `RequiresBaselines` (added by #6048) and its two tests are removed; its one use (`Tests/Linq/Linq/IssueTests.cs:1216`) moves to `BaselinesMismatch = true` and drops `SkipForNonLinqService` / `ErrorMessage`.
+- **rejected:** keep matching the exception message with `RequiresBaselines` — still red on a lone-remote run (P1), and only the second side of the pair can ever carry the message (U-4).
+- **rejected:** keep both flags — two ways to express one gate.
+- **why this:** the verdict comes from the comparison itself, so it is correct on either side of the pair and in runs where the pair is incomplete.
+- **failure mode of the choice:** in a run that never executes both sides of a gated test (e.g. only the remote case is filtered in), the gate gives no signal — by design, recorded in P10. On CI legs with `retry: true` (Oracle 11/12, 18/19, 21/23, Access ACE ODBC/OleDb — `test-matrix.yml:316,423,478,521,559`), a "fixed" Failure is retried alone by MTP (`build-vars.yml:24`); the child has no counterpart, leaves the result alone and the leg goes green (`testing.md:1006`, build 23411). So a `BaselinesMismatch` gate cannot report a fix on those legs — the Jet/MDB Access legs (`test-matrix.yml:432-443,575-586`) and every other provider do not retry and report both verdicts. (Nuance: a run with more than 5 failures does not retry, `--retry-failed-tests-max-tests 5`.) The gate is still used there: on a retried leg it is no worse than `[NoBaselines]`, and everywhere else — local runs, non-retry legs — it reports the fix.
+
+### D-5 — Migrate by script, then review per file
+
+- **chosen:** a PowerShell script under `.build/.agents/` rewrites census forms (a) `using var`, (b) `using (…) { … }` block (removes the braces and de-indents the body one level), (c) `cond ? new DisableBaseline(…) : null` and (d) provider-only second-argument conditions into `[NoBaselines(reason[, Configuration = …])]` on the test method, driven by the census table; helper and class-level sites (U-8) are edited by hand. Verified by build + TO-7/TO-9.
+- **rejected:** hand-edit 121 sites — unreviewable and error-prone (AGENTS.md → *fix the loop*).
+- **why this:** the transformation is mechanical per form; the census gives every site's form and condition.
+- **failure mode of the choice:** form (b) de-indents block bodies, so the diff is larger than the semantic change (review with whitespace ignored); a misparsed condition would scope the attribute wrongly — TO-7 checks each site's provider list against the census.
+
+### D-6 — Bug-flavoured gates are measured, not carried
+
+- **chosen:** for each of the 18 sites, remove the scope and run direct + remote with a scratch `BaselinesPath` twice: no mismatch and stable → gate removed; remote mismatch → `[ActiveIssue(<issue>, Configuration = …, BaselinesMismatch = true)]` on every provider (retried legs are a known blind spot, D-4/P10); run-to-run instability → `[NoBaselines("TODO: #<issue> …")]` with a filed issue. Sites whose providers are not available locally (Access S047, S144; DB2 S160) are measured by the CI `test-all` run of this PR: the Jet/MDB and DB2 legs by their verdict (an ungated mismatch reddens them and nothing is pushed, `.github/workflows/tests.yml:593-597`), the ACE legs by the committed `.sql.other` on the baselines branch (their retried verdict is green). An ACE `.other` will be byte-identical to `.sql` (the retry child overwrites `.sql` with the remote body, `testing.md:1006`), so it proves a mismatch exists but carries no direct side; the filed issue says so. S066 (PostgreSQL direct-only BulkCopy fragment, by design) stays a fragment scope.
+- **rejected:** convert them to `[NoBaselines]` as-is — re-labels a bug as an unavoidable limitation and keeps it invisible.
+- **why this:** P1's measured staleness; each gate becomes self-reporting.
+- **failure mode of the choice:** a CI-only measurement costs a second CI round for the three unavailable sites.
+
+## P6 Edit-points
+
+- E-1 `Tests/Base/Attributes/NoBaselinesAttribute.cs` — new attribute (D-1)
+- E-2 `Tests/Base/Attributes/ActiveIssueAttribute.cs` — `BaselinesMismatch` flag and verdict (D-4); `GovernsBaselinesMismatch(ITest)` shared with the writer (D-2); remove `RequiresBaselines`; use the shared provider-matching helper (D-1)
+- E-3 `Tests/Base/BaselinesWriter.cs` — in-memory hash map (`OrdinalIgnoreCase` key), comparison on every run, outcome map keyed by test `Id`, files unchanged when a path is set except no `.other` for a mismatch governed by a `BaselinesMismatch` gate (D-2, D-3)
+- E-4 `Tests/Base/BaselinesManager.cs` — `Dump` compares regardless of `BaselinesPath`; writes files only with a path (D-2)
+- E-5 `Tests/Base/TestBase.cs:OnBeforeTest` — apply `[NoBaselines]` after `Begin` (D-1)
+- E-6 `Tests/EntityFrameworkCore/TestBase.cs:OnBeforeTest/OnAfterTest` — apply `[NoBaselines]`; `Release` in `finally` so a duplicate-key throw from `Dump` cannot leak the context
+- E-7 `Tests/Base/ScopedSettings.cs:DisableBaseline` — XML doc stating it is for setup/cleanup, fragments and parameter-dependent conditions
+- E-8 `Tests/Linq/Infrastructure/ActiveIssueTests.cs` — replace the `RequiresBaselines` tests with `BaselinesMismatch` tests (TO-5)
+- E-9 `Tests/Linq/Infrastructure/BaselinesTests.cs` — new fixture for TO-1..TO-4, TO-6
+- E-10 `Tests/Linq/Linq/IssueTests.cs:Issue5972_UInt64` — `RequiresBaselines` gate → `BaselinesMismatch = true`
+- E-11 The 101 non-bug attribute sites of the census (83 method, 2 helper → callers, 16 class-level sites → 4 class attributes) in `Tests/Linq/**` and `Tests/EntityFrameworkCore/Tests/{IssueTests,ToolsTests}.cs` — scope removed, attribute added (D-5)
+- E-12 `Tests/Linq/UserTests/Issue256Tests.cs` — distinct case names for the 12 `ValueSource` delegates; scope removed (U-10)
+- E-13 `Tests/Linq/**` — the 18 bug-flavoured sites (S047, S049, S050, S082–S089, S144, S146, S147, S158, S160, S166, S167) — per D-6 outcome; S066 unchanged
+
+## P7 Impact map
+
+- `CustomTestContext.BASELINE_DISABLED` readers — `git grep -n BASELINE_DISABLED -- Tests`: `BaselinesManager.cs:19` (only reader), `ScopedSettings.cs:107-113` (writer), `CustomTestContext.cs:12-17` (key) — covered by E-5, E-6
+- `BaselinesManager.Dump` callers — `Tests/Base/TestBase.cs:230`, `Tests/EntityFrameworkCore/TestBase.cs:87-98` — covered by E-4, E-5, E-6
+- `BaselinesWriter.Write` / `WriteMetrics` — `BaselinesManager.cs:47`; `WriteMetrics` keys on `_baselines.Count` to decide whether a run captured anything (`BaselinesWriter.cs:150-156`) — covered by E-3 (the new map must keep that answer: "a baseline was written to disk", not "compared in memory")
+- `RequiresBaselines` — `git grep -n RequiresBaselines -- Tests`: `ActiveIssueAttribute.cs:118,148,196`, `IssueTests.cs:1216`, `ActiveIssueTests.cs:296,298,366` — covered by E-2, E-8, E-10
+- Mismatch message literal — `BaselinesWriter.cs:90`, `IssueTests.cs:1216`; corpus docs `testing.md:91,610,769,999`, `review-rubric/rubric-tests.md:51`, `scripts/baselines-diff.ps1:652` (parses the message) — covered by E-3 (message text kept verbatim so the script and docs stay valid)
+- Corpus docs describing `DisableBaseline`, baselines as CI-only, and `.sql.other` as "the only artifact showing both sides" (`testing.md:295`, `testing.md:997-1008`, `.claude/agents/baselines-reviewer.md:49`, `.claude/scripts/baselines-diff.ps1:650-654` comment, `.claude/skills/create-issue/SKILL.md:103`) — deferred: corpus doc edit after this PR merges
+- `ActiveIssue` deference to the `ThrowsWhen` family (`ActiveIssueAttribute.cs:253-254,296-303`) — a mismatch on a Throws-governed case is unreachable (the governed body throws, so the dump is skipped, `BaselinesManager.cs:40-41`) — out-of-scope
+- `[UsesRemoteContext]` tests (`NUnitUtils.cs:26-33`, `AsyncTests.cs`) — `isRemote=false`, server SQL lands in `_shared` and is dropped today — out-of-scope
+- `DisableBaseline` sites — census S001–S175 (`git grep -n "new DisableBaseline(" -- Tests`, 175 hits) — covered by E-11, E-12, E-13
+- Kept `DisableBaseline` sites (S001–S045 except S036/S043/S044 handled per census, S048, S051, S052, S066, S069, S070, S074, S076, S077, S159, S165, S175) — out-of-scope
+- CI legs — every `/azp` and release leg already compares (`testing.yml:36`, `tests-comment.yml:107,148`, `default.yml:45-46`); manual `workflow_dispatch` without `baselines_branch` (`tests.yml:27-29`) and local runs gain the comparison — covered by E-3
+- MTP retry children and other one-sided runs (U-5) — not compared, the mismatch gate leaves them alone — covered by E-2
+- `TestConfiguration.BaselinesPath` readers — `BaselinesManager.cs:43`, `ActiveIssueAttribute.cs:196` — covered by E-2, E-4
+- EF Core `Dump(false, ".EFxx")` provider suffix in the key (`Tests/EntityFrameworkCore/TestBase.cs:87-98`, `BaselinesWriter.cs:38`) — covered by E-3
+
+## P8 Test obligations
+
+- TO-1 `BaselinesTests.NoBaselinesSuppressesCapture([DataSources])` with `[NoBaselines("test")]`: runs a query, `GetCurrentBaselines()` is empty on direct and remote; discriminating input: the same body without the attribute captures the SELECT (TO-2); red arm = E-1 present with E-5's application removed (not a missing type, which would only fail to compile); providers: all `[DataSources]`, measured locally on SQLite.MS + SQLite.MS.LinqService, the rest via CI — proof: red→green
+- TO-2 `BaselinesTests.NoBaselinesConfigurationScoped([DataSources])` with `[NoBaselines("test", Configuration = <one provider>)]`: capture is empty for that provider (direct and remote) and non-empty for every other; providers: all `[DataSources]`, measured locally on SQLite.Classic, SQLite.MS (one configured, one not) — proof: red→green
+- TO-3 `BaselinesTests` comparer unit tests on a fresh comparer instance: direct-then-remote equal → Matched; different → Mismatched; remote-then-direct different → Mismatched on the direct side; one side only → not compared; same side twice → "already in use"; two names differing only in case → "already in use" (as on today's case-insensitive map); EF suffix keys do not collide; providers: none (pure) — proof: red→green
+- TO-4 With `BaselinesPath` set to a scratch directory, files written for existing tests are byte-identical to the pre-change writer for the same run (`Issue6055Tests` not on this branch; use `TagTests`, `JoinTests.InnerJoin6`, `IssueTests.Issue5972_UInt64`); providers: SQLite.MS, PostgreSQL.16 — proof: characterization
+- TO-5 `ActiveIssueTests` `Decide` cases for `BaselinesMismatch`: Mismatched → Inconclusive, Matched → Failure, not compared → null, other failure → Failure; `SelectGoverning`: a `BaselinesMismatch` instance beats a blanket one; providers: none (pure) — proof: red→green
+- TO-6 `BaselinesTests.MismatchIsGated([DataSources] restricted to SQLite.MS + LinqService)`: emits different SQL on the direct and remote case on purpose and carries `[ActiveIssue(BaselinesMismatch = true)]`; run without `BaselinesPath` it ends Inconclusive on the second side and untouched on the first; with a scratch `BaselinesPath` the same, and no `.sql.other` is written for it (D-2); and the ungated cell: the same mismatch without the attribute, with a scratch path, writes the `.sql.other` and fails (a mutant that never writes `.other` turns this cell red); control: the mutation that removes the attribute turns the second side red with the mismatch message without a path (before E-3/E-4 it passes, because the comparison was path-dependent); providers: SQLite.MS — proof: control
+- TO-7 Script output check: every migrated site's attribute `Configuration` equals the census provider list (conditional sites S047, S068, S071–S073, S135, S144, S146, S147, S160, S163, S164, S166), and `git grep "new DisableBaseline(" -- Tests` lists exactly the kept sites; providers: none — proof: characterization
+- TO-8 Per D-6, each bug site measured direct + remote, twice, with a scratch `BaselinesPath`: S082–S089, S158, S167 on SQLite.Classic, SQLite.MS, PostgreSQL.16, SqlServer.2022, DuckDB, YDB (where the test runs); S049/S050 on SqlServer.2022; S166 on PostgreSQL.16; S146/S147 on YDB (already measured: no mismatch, also on unmodified master); S047, S144 (Access) and S160 (DB2) via CI — Jet/MDB and DB2 by leg verdict, ACE by the committed `.sql.other` (D-6); providers: as listed — proof: characterization
+- TO-9 CI `/azp run test-all` baselines diff for this PR: no baseline file added or removed except for SC-5 sites whose gate was removed, the new `Issue256Tests` files (E-12) and the new `BaselinesTests` files (E-9); no new ungated `.sql.other`; providers: every CI test-all leg — proof: characterization
+
+## P9 Verification gates
+
+- G-01: — (partial) stage 1 on SQLite.Classic/MS, net10.0: TO-1/TO-2 green, red under the E-5 mutation (6 suppression cases); TO-3/TO-5 green; TO-6 green (remote Inconclusive, direct passes), ungated mutation red without a path; TO-4 76 common baseline files byte-identical old vs new writer, no `.sql.other` for the gated case. TO-7, TO-8 pending (stages 2–3)
+- G-02: — (pending) TO-9 CI baselines diff
+- G-05: 78a67b2dc (green, stage 1) Release builds of `Tests/Linq` net10.0 and net462, EF10 (net10.0) and EF3 (net462) succeed; net10.0 required `SHA256.HashData` (CA1850), so the hash is `#if NETFRAMEWORK`-split with `SHA256.Create().ComputeHash` on net462
+- G-06: — (pending)
+- G-07: — (pending)
+- G-09: — (pending)
+
+## P10 Adjudicated
+
+- A gated test whose direct and remote cases never run in the same process (filtered run, MTP retry child, `DisableRemoteContext`) gets no verdict from `BaselinesMismatch` (D-4): an absent comparison is not evidence either way. Consequence on `retry: true` legs (Oracle 11/12, 18/19, 21/23, Access ACE): a "fixed" verdict is retried alone into green; local runs and every other leg still report it. Whether an MTP retry child can be detected in-process (which would let the gate fail instead) is not established; not pursued here.
+- A gated mismatch writes no `.sql.other` (D-2), so the gated test's remote SQL is recorded nowhere until the gate is removed.
+- Local runs without a baselines path now fail on an ungated direct/remote mismatch (user decision 2026-10-15).
+- Without a path, a mismatch message shows only the current side's SQL (D-2: hashes, not text, are kept).
+- Form (b) migrations de-indent block bodies; review the migration commit with whitespace ignored.
+
+## P11 Amendments
+
+_None._
+
+## P12 Critic verdict
+
+**Round 1 (fable): refuted.** Objections: (1) on `retry: true` legs a fixed `BaselinesMismatch` gate is retried alone into green, contradicting D-4's claim and blinding Access/Oracle gates and the CI measurement of S047/S144; (2) TO-6's deliberate mismatch writes a `.sql.other` on every CI leg, which `baselines-diff.ps1:649-654` classes as a failure and TO-9 forbids; (3) counts did not reconcile (P1 sum, 17 vs 18 bug sites, E-11 overlapping E-13); (4) E-12 adds `Issue256Tests` baseline files that SC-6 did not allow; (5) the D-2 key must stay case-insensitive; (6) TO-1's red arm was a compile failure; (7) class-level attributes silently cover future tests. Critic searched: all 175 `DisableBaseline` sites mapped to S001–S175 and 30 read for coverage (census split confirmed), `IsMsProvider` vs `DataProviders.json`, `GetProviderName`, `DatabaseLaneStrategy`, `[SetUp]`s, every census fixture's base class, `ThrowsWhen` timing, `[Repeat]`/`[Retry]`, `WriteMetrics`, `tests-comment.yml`. Strongest point: the per-process mechanism (U-1, U-3, U-4) and the census held under attack.
+Response: (1) D-4 failure mode + P10 state the retry blind spot; D-6 uses `[NoBaselines("TODO: #…")]` instead of a mismatch gate on Oracle/Access; TO-8 reads the committed `.sql.other` for Access; (2) D-2/E-3: no `.other` for a mismatch governed by a `BaselinesMismatch` gate; TO-6 asserts it; TO-9/SC-6 say "no new ungated `.sql.other`"; (3) counts fixed (103 + 18 + 2 + 54); (4) SC-6/TO-9 carve out E-12's files; (5) `OrdinalIgnoreCase` in D-2/E-3 + TO-3 cell; (6) TO-1 names the mutant; (7) D-1 states where class level is used and why.
+
+**Round 2 (fable): weak.** Objections: (1) D-6 over-generalised the retry blind spot to all of Access (the Jet/MDB legs do not retry) and TO-8's "read the committed `.other`" cannot say "no" on non-retry legs (nothing is pushed when a leg goes red), while ACE `.other` files carry no direct side; (2) no obligation covered the ungated `.other` write the baselines review depends on; (3) E-9's own fixture adds baseline files outside SC-6's carve-out; (4) "governed by a `BaselinesMismatch` gate" was under-specified — writer and command could disagree; (5) the `.other` suppression's cost to the review was unrecorded, and P7 missed three corpus consumers; (6) counts off by two (101, not 103); (7) G-05 built net10.0 only while `SHA256.HashData` is .NET 5+; (8) SC-2 contradicted D-2. Critic searched: both CI systems' retry step templates and `report-trx.ps1` (last attempt wins), Inconclusive handling on GH legs (folded into skipped — TO-6 safe), every `.other` reader, `BaselinesPath` / `BaselinesWriter` / `RequiresBaselines` references, `Begin` / `[SetUp]`, class-level coverage, `[Repeat]` / `[Retry]`, EF data-source attributes. Strongest point: the retry-leg mechanism and the Id-keyed in-memory comparison held.
+Response: all eight applied — D-6 uses the mismatch gate on every provider with the retry blind spot recorded; TO-8 reads MDB/DB2 verdicts and ACE `.other`; TO-6 gained the ungated-with-path cell; SC-6/TO-9 carve out E-9; `GovernsBaselinesMismatch(ITest)` shared by writer and command (ambiguous → not governed) in D-2/E-2; P10 and P7 record the `.other` trade-off and consumers; counts 101; G-05 adds net462 and names `SHA256.Create()`; SC-2 aligned.
