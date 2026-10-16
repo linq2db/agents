@@ -28,6 +28,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** hunting for a LINQ shape. If the per-boundary reset needs a guard, test the visitor directly on a hand-built AST. (#6027)
 
+## SQL-AST: forcing a Transform-mode rebuild of a typed `SqlBinaryExpression` with an `x + 0` child
+
+**Tried:** a `Decimal(10,2)`-typed `A + (B + 0)` emitted from a `Sql.Extension` builder, expecting the remoting pass (`PrepareStatementForRemoting`, Transform-mode visitors) to reduce `B + 0` and rebuild the sum with `element.SystemType` (`QueryElementVisitor.cs:3060`), dropping its `DbDataType`.
+
+**Failed because:** the build-time `Finalize` already runs `SelectQueryOptimizerVisitor`'s expression optimizer in **Modify** mode (`SelectQueryOptimizerVisitor.cs:43,223`), which reduces `B + 0` in place before any Transform pass sees it, so the rebuild is never reached and the probe is the plain-sum case again.
+
+**Don't re-attempt:** an optimizer-foldable child. Use a child only the *convert* visitor replaces — a `SqlCoalesceExpression`, turned into a `Coalesce` function — which does reach the rebuild; it showed the type loss on the direct path as well (#6056). (#6055)
+
 ## PROV-FIREBIRD: binary Guid *parameter* writes on a UTF8 Firebird 6 database
 
 **Tried:** binding a binary Guid to a `CHAR(16) CHARACTER SET OCTETS` / `BINARY(16)` column (INSERT VALUES, UPDATE SET, WHERE compare) as raw `byte[]`; as native `FbDbType.Guid`; with `FbParameter.Charset` set to `Octets` (and, by reflection, every other charset value) or `FbDbType.Binary`; with explicit `CHAR(16) CHARACTER SET OCTETS` DDL instead of `BINARY(16)`; with an explicit OCTETS CAST target.
