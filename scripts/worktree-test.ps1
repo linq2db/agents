@@ -78,7 +78,8 @@ Input (named parameters):
                            failed / skipped line lands in `missingTests` and fails the
                            run (exit 1). Use it when a broad filter carries a test you
                            just wrote: the summary counts alone cannot show that the
-                           new test was among them.
+                           new test was among them. A comma-separated string is split,
+                           since -File delivers `-ExpectTests A,B` as one element.
 
 `--test-progress` is passed by default, per `.claude/docs/agent-rules.md` ->
 "Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`".
@@ -109,7 +110,8 @@ Output (stdout, single JSON object):
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
-    "hint":      "..."               // only for a recognised environment failure (NuGet cache lock)
+    "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
+                                     // failures in a Tests/Linq run whose filter lacks CreateData.CreateDatabase
   }
 
 `summary` is null when no `Test run summary:` block was produced (typically a
@@ -140,6 +142,9 @@ param(
 . "$PSScriptRoot/_shared.ps1"
 
 $ErrorActionPreference = 'Stop'
+
+# -File passes `-ExpectTests A,B` as the single string "A,B".
+$ExpectTests = @($ExpectTests | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 if (-not (Test-Path -LiteralPath $RepoRoot -PathType Container)) {
     Exit-WithError -Message "RepoRoot not found: $RepoRoot" -NextAction 'pass -RepoRoot <absolute worktree path>'
@@ -269,6 +274,10 @@ if (Test-Path -LiteralPath $LogPath) {
             }
         }
     }
+}
+
+if (-not $hint -and $failedTests.Count -gt 0 -and $Project -match 'Tests[\\/]Linq[\\/]' -and $Filter -notmatch 'CreateData\.CreateDatabase') {
+    $hint = 'Filter has no CreateData.CreateDatabase: a data-dependent failure may be a stale or unseeded test database. Rerun with it before reading the failure as a defect.'
 }
 
 $missingTests = @($ExpectTests | Where-Object { $_ -and -not $ranTests.Contains($_) })
