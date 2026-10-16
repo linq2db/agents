@@ -51,3 +51,38 @@ Classes: GAP-03 ×3, GAP-02 ×3, GAP-05 ×2, GAP-07 ×1, GAP-10 ×1. One cause: 
 - GAP-03/GAP-02/GAP-05 ×7 → `work-plan.ps1 -Action validate` + `work-plan.md` → *P11 Amendments*: an `A-n` that adds `E-n` rows must carry a `re-derives:` line naming new `P4`/`P7`/`P8` rows — an error regardless of date or wording.
 - GAP-03/GAP-02/GAP-07 ×3 → `work-plan.md` → *P12* + `plan-critic.md`: a critic lead marked "reasoned, unprobed" may not be carried to review; it becomes a `TO-n`, a `P7 deferred:` row with a reason, or a `P10` entry, and `validate -Done` fails on an open lead.
 - GAP-07/GAP-02 ×2 → `work-plan/SKILL.md` step 4: embed `testing.md` → *A narrowed provider set is a claim* beside *Test layout*; extend `testing.md`'s `no-issue:` rule to refusals and probed server limits only — a gate whose observed failure is a wrong value gets a filed issue.
+
+## Round 4 — reviewed HEAD 13d9127549a47e03c8afe7ebeb396e8d7f34ec0c
+
+Findings: BLK001 (Access ODBC gate missing on TO-22), BLK002 (Informix `DateCastSetOperationTypesTheLiteralAsDate`), MAJ001 (SQLite IN list beside a computed DATE — probed, regression vs master), MAJ002 (`PercentileDisc` over DATE in a set operation loses the literal's time — probed on DuckDB, regression), MIN001, MIN002, SUG001, SUG002, NIT001.
+
+### Attribution
+
+- **BLK001** — GAP-08 — `TO-22` (`A-7` R-1, `CoarseAggregateCapturedListKeepsValueTime`, `DateTimeFunctionsTests.cs:2006`) is `[DataSources]` but was proven on ClickHouse ×3 + YDB only, with no post-`A-5` `G-01` row; `work-plan.ps1 -Action validate -Done` fails today ("G-01 names no test for TO-19/TO-20/TO-21/TO-22"). The plan already held the fact (`A-4`, TO-20's sibling #5998 gate); TO-22's `P8` row names no provider scope — G-01 — preventable: yes
+- **BLK002** — GAP-08 — `DateCastSetOperationTypesTheLiteralAsDate` (`b62b7eba3`) proven on Firebird.5 only, though TO-16's own row lists Informix among the servers that type the union themselves and Informix was run locally for `E-19`/`E-26`/TO-18. Secondary GAP-03: no `P7` Informix row for the `.Date` (`DATETIME YEAR TO DAY`) vs cast-to-`Date` (`DATE`) mismatch `E-13` exposed — G-01 — preventable: yes
+- **MAJ001** — GAP-03 — `A-6` (`E-31`) / `A-7` R-1 (`E-34`) extended `==`'s own-type rule to IN lists; on SQLite `==` is only right because of `E-14`'s `strftime` normalisation in `ConvertExprExprPredicate`. No `P7` row for the IN-list twin of a provider `ExprExpr` compensation (`E-14` SQLite, `E-16` Sybase), though `E-32` built that twin for ClickHouse. Secondary GAP-05: TO-20/TO-22 use only `MAX(DateTime)`, never a computed DATE operand — G-01 — preventable: yes
+- **MAJ002** — GAP-02 — `E-8`'s second arm rests on "every production constructor declares the schema default (critic census, 14 sites)"; the census searched `new SqlExtendedFunction\(` and missed factory / aggregate-builder construction (`WindowFunctionsMemberTranslator.cs:929/1151/1243`), where `PERCENTILE_*` and string aggregates take their argument's type. `A-7` named those sites and dismissed them unprobed as "not date-comparison paths", though `E-13`'s consumer is not a comparison. Secondary GAP-03 — G-01 — preventable: yes
+- **MIN001** — GAP-05 — `E-13`'s predicate admits every node `GetColumnDescriptorForTyping` resolves (CASE, conditional, single-arg function); TO-16 covers `MAX(coarse)` and a date cast only, and `A-7` skipped `E-13` as covered. Repeats R3-02 on the same predicate — G-01 — preventable: partly
+- **MIN002** — GAP-05 — `IsStoredValue`'s CTE guard's recursion arm (`ExpressionBuildVisitor.cs:5174-5176`) has no `TO-n` exercising real recursion; TO-19 covers the non-recursive path-scoping case. Secondary GAP-02: asserted in a comment, not asked in `P4`. Repeats R3-04 on the same guard — G-01 — preventable: partly
+- **SUG001** — GAP-05 — `A-7` R-3's invariant (LAG/LEAD default shares the first argument's server type) has no `TO-n`; its interaction with `ConstantDescriptor`'s identity test inside a comparison was never exercised (TO-19 covers a projection) — — — preventable: partly
+- **SUG002** — GAP-03 — `E-12` lists nullability among stored-path members, but no `P7` row covered provider renderings of a nullability wrapper (Informix `NVL(field, NULL)`); `A-7` listed `IsStoredValue`'s callers, not the shapes it receives — — — preventable: partly
+- **NIT001** — GAP-10 — the YDB exclusion on `DatePartMillisecondBeforeTheEpoch` has a measured reason recorded only in `fa8b62519`'s commit message; `A-6`'s exclusion audit did not cover the fifth entry — — — preventable: no
+
+### Aggregate
+
+GAP-05 ×3, GAP-08 ×2, GAP-03 ×2, GAP-02 ×1, GAP-10 ×1. Everything above MIN has two causes: both blockers are tests added in a review-fix round, proven on 1–4 providers, declared `[DataSources]` and pushed with no `G-01` row (`validate -Done` would have stopped both); both MAJ sit inside `A-7`'s re-walk, which enumerated callers of each changed mechanism but not the provider compensations the old `==` path relied on (MAJ001) nor factory construction sites (MAJ002, named and dismissed unprobed). The three GAP-05 items land on predicates already flagged in round 3 (`E-13` R3-02, CTE guard R3-04), patched for the reported input only; neither `A-6` nor `A-7` got a `P12` critic round.
+
+### Recommended durable fixes (route to `/session-reflect` plan-rule bucket)
+
+- GAP-08 ×2 → `definition-of-done.md` + `review-pr` / `/code-review` dispatch: a review round on a planned branch may not start while `work-plan.ps1 -Action validate -Done` fails; promote `P8`'s "row names no providers: scope" warning to an error for any `TO-n` an `A-n` adds — the row names the providers its proof ran on beside those its `[DataSources]` declares, and `G-01` records a run closing the gap.
+- GAP-03/GAP-02 ×3 → `work-plan/SKILL.md` scout brief + `work-plan.md` → *P11 Amendments*: a re-walk has two sides — callers of the changed mechanism, and the sibling compensations the old path relied on. Extending a rule to a new predicate kind (`==` → `IN`) lists every provider override of the old predicate's convert hook and requires a row for its twin. A census claim ("every constructor does X") searches factory and builder construction, not `new T(`. An "out of scope, no row" line whose reason is a domain claim becomes a `P4` probe.
+- GAP-05 ×3 → `plan-critic.md` attack vector enforced by `validate`: every predicate an `E-n` adds or narrows needs a `TO-n` or `P10` entry per admitted arm, including the arm a guard exists for; `validate` requires a `P12` delta round for every `A-n` carrying a `re-derives:` line.
+
+### Continuity with rounds 1–3
+
+- Round 1 GAP-03/GAP-02 (caller sweep in the scout brief): landed (`SKILL.md:118`) and applied via `A-7`, which found R-1 (TO-22). Recurs in MAJ001/SUG002 because the sweep is caller-shaped only.
+- Round 1 GAP-05 (critic: can the `TO-n` go red / one path only): recurs in MIN001/MIN002/SUG001 — no critic ran on `A-6`/`A-7`.
+- Round 1 GAP-06 (anchored `ActiveIssue` `ErrorMessage`): does not recur.
+- Round 3 rec 1 (`re-derives:` line): `A-7` carries it; `A-6` introduced `E-31`/`E-32` without one (warning only, pre-cutoff). `A-7` missed MAJ001 (in its own `E-34` and `E-31`) and MAJ002 (sites named in its own out-of-scope bullet) for scope reasons, not a missing line.
+- Round 3 rec 2 (unprobed lead may not reach review): recurs in MAJ002, but the lead was the author's own dismissal, not a critic lead — the rule should cover author out-of-scope reasons too.
+- Round 3 rec 3 (*A narrowed provider set is a claim*): landed (`work-plan/SKILL.md:70`); BLK001/BLK002 are the opposite case — a known failure with no gate — which this round's first fix covers.
