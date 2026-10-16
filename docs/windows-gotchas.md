@@ -18,6 +18,8 @@ Glob is fine for discovery patterns (`Source/**/*.cs`) in the primary clone; the
 
 **Worktree paths are a second Glob blind spot — even for discovery patterns.** `Glob` with a `path` argument pointing at a linked `git worktree` (e.g. `path: "C:\GitHub\<clone>.<slug>"`) can return "No files found" for files that exist there — including plain discovery patterns like `Source/**/*.xml`, not just documentation-named single paths. Confirmed on #5687: `Glob("Source/**/CompatibilitySuppressions.xml", path=<worktree>)` returned empty while the same pattern in the primary clone found both files, and a direct `Read` of the worktree file succeeded. When globbing inside a worktree comes back empty, `Read` a known path (or run the glob in the primary clone and map the relative path across) before concluding the files are absent.
 
+**A pattern whose first segment contains a dot is a third blind spot.** `Glob("PostgreSQL.16/**/*.other", path=<dir>)` and `Glob("SqlServer.2022.MS/**/*.sql", path=<dir>)` both returned "No files found" for files that existed, while `**/*TestTypesInsertByMerge*` under the same `path` found them — baselines trees are named after dotted provider names, so this bites every per-provider sweep. Lead the pattern with `**/`, or count with `Get-ChildItem -Recurse`, before treating an empty result as absence. (#6061 stage-3 measurement.)
+
 ## `Grep` context lines can mangle a leading `//`
 
 `Grep` with `-A` / `-B` / `-C` can render a C# line comment's leading slashes as a stray backslash: a source line reading `\t\t// TODO: Remove in v7` came back in the context block as `\t\t\ TODO: Remove in v7`. That reads as a syntax error in a file that compiles, so the natural reaction is to chase a defect that isn't there.

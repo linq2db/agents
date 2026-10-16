@@ -63,6 +63,10 @@ Softer evidence than code, so keep it at MIN: the author may have verified more 
 
 (Surfaced on #5678: `MySqlConnectorProviderSpecificReadMatrix` included `AllMariaDB` while the body listed only Oracle/DB2/PostgreSQL/DuckDB/Access as verified; MariaDB narrows `CAST(x AS SIGNED)` to `INT` where MySQL reports `BIGINT`, so two rows were wrong and the MariaDB leg was the build's only red job.)
 
+### A hard-coded generic `DataType` in a test that runs on every provider
+
+When a `[DataSources]` test builds a typed `DbDataType` (a custom `Sql.Extension` builder, a `SqlCastExpression`, a column mapping) with a generic `DataType` — `DataType.Decimal`, `DataType.DateTime2`, … — check that every provider in the set has a type name for it. ClickHouse has none for `DataType.Decimal` (only `Decimal32/64/128/256`) and throws `Cannot infer type name from (System.Decimal, Decimal, …)` at `CREATE TABLE` or the cast. Derive the type from the provider's mapping instead — `MappingSchema.GetDbDataType(typeof(T)).WithPrecisionScale(p, s)` — or leave `DataType` unset on the column and give only `Precision` / `Scale`. Flag `MIN`. (Surfaced on [#6057](https://github.com/linq2db/linq2db/pull/6057): `Issue6055Tests` passed locally and failed on all six ClickHouse configs of the CI leg.)
+
 ### Time-based assertions / DB-server-vs-runner timezone
 
 `Sql.GetDate()` / server-side `NOW()` / `CURRENT_TIMESTAMP` returns the DB server's local time, which may differ from the runner's `DateTime.Now` by hours when the DB runs in Docker or on a remote host. Assertions on:
