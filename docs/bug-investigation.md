@@ -47,7 +47,9 @@ Delphi and C++Builder start with FP overflow, divide-by-zero and invalid-operati
 - **Symptoms:** on x86 only, an `SEHException`, `STATUS_FLOAT_MULTIPLE_TRAPS` (0xC00002B5), or a stack overflow inside `clrjit.dll` while compiling a method.
 - **Known triggers:** a `double` compared with `long.MaxValue`, and `NaN` / `±Infinity` constants.
 - **Probe:** an x86 `net462` exe calls `_control87(0, _EM_INVALID | _EM_ZERODIVIDE | _EM_OVERFLOW)` from `msvcrt.dll`. Then either `RuntimeHelpers.RunClassConstructor` on the suspect type, or `RuntimeHelpers.PrepareMethod` over every non-generic method of `linq2db.dll`. The sweep needs `[HandleProcessCorruptedStateExceptions]` and runs in a child process per variant.
-- **Fix:** use integer math or bit patterns in linq2db. The host-side workaround is masking FP exceptions around calls into .NET. (#6042, #6051)
+  - **Make the probe x86 in the csproj and print `Environment.Is64BitProcess`.** An SDK-style net462 exe is AnyCPU and runs 64-bit, where nothing faults. Passing `-p:PlatformTarget=x86` to an incremental rebuild reused the AnyCPU exe, so rebuild with `--no-incremental`.
+  - **`PrepareMethod` is a no-op for a method that is already compiled, and preparing one method can run other code.** Type initializers and native DLL init run during a prepare can reset the control word. Anything compiled after that reset was compiled masked, and it counts as passing when the sweep reaches it. Re-arm before every prepare, and continue in a fresh process after a prepare that leaves the word reset.
+- **Fix:** use integer math or bit patterns in linq2db. Build special values with `BitConverter.Int64BitsToDouble(<bits>)` at the point of use. A `static readonly` double built the same way still faults: once its class is initialized, the JIT folds the field into a constant. The host-side workaround is masking FP exceptions around calls into .NET. (#6042, #6051)
 
 ## Explain the mechanism before proposing the fix
 
