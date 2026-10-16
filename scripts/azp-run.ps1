@@ -67,7 +67,13 @@ Hence four behaviours below, the last three defeatable:
   -VerifyTimeoutSeconds poll the PR's checks afterwards until the pipeline shows
                         up (default 60); exit non-zero when it never does, so a
                         silent no-op surfaces as a failure the caller can retry
-                        rather than as a comment URL that means nothing
+                        rather than as a comment URL that means nothing. Before
+                        calling it a no-op, it looks for a failed build of that
+                        pipeline on refs/pull/<n>/merge carrying validationResults:
+                        that is a YAML validation error, which the bot reports only
+                        as "Azure Pipelines failed to run 1 pipeline(s)" - not a
+                        conflict and not the push race, so a retry cannot help. The
+                        script prints the reason and exits 4.
 
 Output: prints one new comment URL per line on stdout, then a verification
 line per pipeline - `azp-run: '<name>' started (buildId <n>).` when the check
@@ -81,7 +87,8 @@ its `authorize` job log (gh-leg-history.ps1 reads it). Non-zero exit on the
 first `gh` failure, leaving the already-posted triggers in place (a partially
 triggered run is visible in the URLs printed before the error), or when
 verification times out. Exit 2, with nothing posted, when the PR conflicts with its base;
-exit 3, with nothing posted, when the PR head is behind master.
+exit 3, with nothing posted, when the PR head is behind master; exit 4 when Azure
+refused the pipeline's YAML (the reason is on stderr).
 #>
 
 param(
@@ -142,7 +149,22 @@ if (-not $AllowStale) {
 }
 
 $notStarted = @()
+$invalid     = @()
 $claimedRuns = @{}
+
+# A pipeline whose YAML fails validation never gets a check, but Azure still records a failed build on the PR's
+# merge ref carrying the reason in validationResults; the bot only answers "failed to run 1 pipeline(s)".
+function Get-RefusedBuild([string]$name, [datetime]$since) {
+    try {
+        $builds = Invoke-RestMethod "https://dev.azure.com/linq2db/linq2db/_apis/build/builds?branchName=refs/pull/$Pr/merge&`$top=10&queryOrder=queueTimeDescending&api-version=7.0"
+    }
+    catch { return $null }
+    return @($builds.value | Where-Object {
+        $_.definition.name -eq $name -and
+        ([datetime]$_.queueTime).ToUniversalTime() -ge $since -and
+        @($_.validationResults | Where-Object { $_.result -eq 'error' }).Count -gt 0
+    })[0]
+}
 
 # GitHub `tests (comment)` runs created at or after $since and not yet reported for an earlier pipeline.
 function Get-DispatchRun([datetime]$since) {
@@ -199,9 +221,18 @@ foreach ($name in $Pipeline) {
         }
     }
     else {
-        $notStarted += $name
-        [Console]::Error.WriteLine("azp-run: '$name' did not register a check within $VerifyTimeoutSeconds s - the comment posted but no run started. Re-run this trigger.")
+        $refused = Get-RefusedBuild $name $postedAt
+        if ($refused) {
+            $invalid += $name
+            $why = (@($refused.validationResults | ForEach-Object { $_.message }) | Select-Object -Unique) -join ' | '
+            [Console]::Error.WriteLine("azp-run: '$name' was refused - the pipeline YAML failed validation (Azure build $($refused.id)): $why A retry will not help; fix the template on the branch.")
+        }
+        else {
+            $notStarted += $name
+            [Console]::Error.WriteLine("azp-run: '$name' did not register a check within $VerifyTimeoutSeconds s - the comment posted but no run started. Re-run this trigger.")
+        }
     }
 }
 
+if ($invalid.Count -gt 0)    { exit 4 }
 if ($notStarted.Count -gt 0) { exit 1 }
