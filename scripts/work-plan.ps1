@@ -386,6 +386,24 @@ function Invoke-Validate {
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
         }
+
+        # A mutation P8 names must have a recorded red in G-01: a named mutation nobody ran is a claim, not a
+        # control (work-plan.md -> "A control obligation records the mutation").
+        $mutationRx = '[Mm]utations?\s+(?:"([^"]+)"|`([^`]+)`(?:\s*(?:\u2192|->)\s*`([^`]+)`)?)'
+        foreach ($row in (Get-BlockRows -Block $p8)) {
+            if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
+            $to   = $Matches[1]
+            $seen = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($m in [regex]::Matches($row, $mutationRx)) {
+                $name = if ($m.Groups[1].Success) { $m.Groups[1].Value }
+                        elseif ($m.Groups[3].Success) { "$($m.Groups[2].Value)`` $([char]0x2192) ``$($m.Groups[3].Value)" }
+                        else { $m.Groups[2].Value }
+                if ($seen.Add($name) -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                    $msg = "P9 : G-01 records no run of $to's mutation '$name' -- name the red it produced, or drop the claim"
+                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                }
+            }
+        }
     }
 
     # P10 entries need a reason.

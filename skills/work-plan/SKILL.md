@@ -242,6 +242,7 @@ The distinction that matters: **"does not write the fix unprompted" is not "refu
 1. Add the new `E-n` row **to `P6`** — `-Reconcile` reads `P6` and nothing else, so an edit-point recorded only in the amendment is invisible to it and the gate then reports authorized work as unplanned.
 2. Add an `A-n` entry to `P11` carrying the rationale, and say plainly that the affected approval is void and must be re-earned.
 3. **At Tier L, re-dispatch the critic on the delta** when the amendment widens `P6` or adds an area, and append the verdict to `P12`. A whole-plan re-critique for a one-row amendment is waste; skipping it entirely is how prose added after the single critic pass ships unattacked.
+   **When the delta adds or re-resolves a `U-n` that establishes a mechanism, the delta is wider than the rows you touched.** Grep the plan for every earlier `P5` decision, `A-n` and `P3` freeze clause that rests on the same premise. Name each in the `A-n`'s `re-derives:` line and in the critic's dispatch scope, and re-probe each one the mechanism could falsify. A delta critique otherwise attacks the new rows while the old decisions keep the refuted premise. (#5943: U-21 measured that a `CAST` to the inferred `(22,9)` rounds a computed value's real scale, and A-7 fixed D-6's pin. A-3's identical pin and the `P3` freeze of the widening rules kept the premise for another round, and became that round's major.)
 4. Re-run `-Action validate`.
 
 ## Mode: postmortem
