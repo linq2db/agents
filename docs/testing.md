@@ -869,6 +869,10 @@ Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/
 
 **Write `Action act = () => { … };`, not `var act = …` — the `var` form is type-dependent.** Shouldly's sync overload is `ShouldThrow<T>(this Func<object?> actual)` alongside the `Action` one, so `var act = () => q.ToList();` compiles *only* because `Func<List<T>>` converts to `Func<object?>` by reference covariance. Point the same idiom at an expression of a **value** type and the covariance is gone: `var act = () => Helper(db);` on an `int`-returning helper infers `Func<int>` and fails with `error CS1929: 'Func<int>' does not contain a definition for 'ShouldThrow'`. Copying the `var` shape from a passing fixture (`Exceptions/JoinTests.cs:60`) is what walks you into it. An explicit `Action` with a statement body discards the result and works for both. (#5704.)
 
+### `Person` inside a `TestBase` fixture is the property, not the type — and `Person.ID` is a field
+
+`TestBase` declares `protected IEnumerable<Person> Person`, so in a fixture `nameof(Person.ID)` binds to that property and fails with `CS1061: 'IEnumerable<Person>' does not contain a definition for 'ID'`. Qualify the type: `nameof(Model.Person.ID)`. When hand-building an expression tree over `Tests.Model.Person`, use `Expression.PropertyOrField` — `ID` is a field, and `Expression.Property` throws `Instance property 'ID' is not defined`. (#6008: one rebuild each.)
+
 ### `ShouldBe` on a LINQ query operator's result needs a materializing call first
 
 `ShouldBe(IEnumerable<T>)` is resolved by extension-method overload lookup, and it does **not** bind against `IOrderedEnumerable<T>` — the compiler picks the `IEnumerable<string>` overload and reports `error CS1929: 'IOrderedEnumerable<int>' does not contain a definition for 'ShouldBe' and the best extension method overload … requires a receiver of type 'System.Collections.Generic.IEnumerable<string>'`. The misleading part is the message, which names `string` for a sequence of `int` and reads as a type-inference bug rather than a receiver-shape problem.

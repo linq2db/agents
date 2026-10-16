@@ -292,6 +292,10 @@ A mixed-version LinqService deployment — client and server on different builds
 
 A property mapped without the `DataType` its server column needs (a `DateTime` column with no `DataType = DataType.DateTime`, so linq2db types it from the schema default) is a configuration mistake. Don't propose engine support to compensate for it, and decline review findings that ask for it. The reverse matters as much: before arguing that a regression needs fixing, state whether the repro's mapping is correct — when it is and linq2db loses the declared type on the way (an untyped `COALESCE`, a window function typed from its CLR type), that is an engine bug. (#5959)
 
+### One raw SQL format uses one parameter reference style
+
+A `FromSql` / `Sql.Expr` format that mixes `{n}` items with positional (`?`) or provider-named (`@p`) markers is not supported in general: renumbering `{n}` (`BasicSqlOptimizer.NormalizeExpressions`) or dropping an unreferenced argument cannot know which argument a literal marker binds. Users pick one style. Don't add engine support for mixed formats, and decline review findings that ask for it; existing best-effort behaviour (order-dependent providers keep unreferenced arguments, a `DataParameter` is never dropped) stays as it is. (#6008: `Sql.Expr("({1} * 0 + ?)", a, b)` loses `a` on Access, identically on master.)
+
 ### Quoting and escaping identifiers is the engine's job
 
 A name linq2db emits as an identifier is quoted and escaped by the provider's SQL builder. Don't put a call-site validation layer in front of it, and don't write a doc caveat telling callers to pre-sanitize: a name that cannot be emitted safely is a quoting defect to fix ([#6022](https://github.com/linq2db/linq2db/issues/6022)), not input to reject. A value that only ever becomes an alias needs no check at all — `IIdentifierService.CorrectAlias` reduces every alias to `[A-Za-z0-9_]`. Runtime-string APIs (`Sql.Property`, `TableName`/`SchemaName`, `Unpivot(params string[])`) are where a quoting gap turns into injection, so they set the bar. (#5708)
