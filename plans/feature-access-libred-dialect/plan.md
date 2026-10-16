@@ -1,6 +1,6 @@
 # Work plan: feature-access-libred-dialect — LibRed extended SQL dialect
 
-**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-23 (E-1..E-14, after critic round 1)  ·  **Branch:** feature/access-libred-dialect
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-23 (E-1..E-14, after critic round 1); 2026-10-16 (A-6, E-20..E-25, after critic round 4)  ·  **Branch:** feature/access-libred-dialect
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
 Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, base `feature/access-libred`, milestone `6.x`.
@@ -94,8 +94,9 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - No change to SQL AST, `IDataProvider`, translator interfaces, `BasicSqlBuilder` or `BasicSqlOptimizer`. If a
   failure seems to need one, stop and raise it.
 - No public API outside `LinqToDB.Internal.*`.
-- Not in scope: CTE, MERGE, OUTPUT/RETURNING, CAST, IS DISTINCT FROM, LATERAL, INTERSECT/EXCEPT ALL, ROLLUP,
-  NULLS FIRST/LAST, LIKE ESCAPE, UPDATE…FROM — LibRed's grammar has none of them.
+- Not in scope: CTE, MERGE, OUTPUT/RETURNING, CAST, LATERAL, INTERSECT/EXCEPT ALL, ROLLUP,
+  NULLS FIRST/LAST, LIKE ESCAPE, UPDATE…FROM — LibRed's grammar has none of them (`IS DISTINCT FROM` moved in
+  scope by A-6, alpha.4).
 - Provider-specific Access tests (`[IncludeDataSources]` naming Access) are not retargeted — except where the test
   asserts a Jet limit LibRed lifts by design (A-3: the two second-resolution tests in
   `IntervalTranslationTests.Difference.cs`, narrowed to `AllNativeAccess`).
@@ -109,6 +110,11 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - U-5 Does the Linux CI leg `z_Access_LibRed` pass on the base? — #5956's run 35801786703 failed on `\` paths; `3b6b73ba7` fixed them; a green base run is a precondition for using CI as the full-suite gate, otherwise the full suite runs locally on Windows (17 min measured on #5956) — resolved-by probe (CI dispatch on the base before TO-11)
 - U-6 Do `IsAnyOf(AllAccess)` runtime branches (~19, e.g. `TakeSkipTests.cs:751`, `MergeTests.Types.cs:387`) mis-handle LibRed once features are on? — left as is; changed only where a failing test points at one — resolved-by user answer (plan approval: "if needed - add AllAccessLibRed")
 - U-7 Harness capability for TO-1: running the full suite restricted to two providers — `--provider` per run is supported (`.claude/docs/testing.md` → *Scoping a run to specific providers*), and `/test` forwards it in worktree mode — resolved-by scout
+- U-8 (A-6) Which of the alpha.4 syntax additions does the engine accept, with what semantics? — measured on both containers (raw ADO, `.build/.agents/libred-a4-probe`, identical on `.mdb` and `.accdb`): `TOP 2 WITH TIES` / `TOP 50 PERCENT WITH TIES` / `TOP @p WITH TIES` / `OFFSET … FETCH NEXT 2 ROWS WITH TIES` return the tie rows (3, where plain `TOP 2` returns 2); `(VALUES (1,'x'),(2,'y')) [AS] [v]([a],[b])` with literals and with parameters, and as a `JOIN` source, return typed columns; FROM-less `SELECT NULL AS [a] WHERE 1 = 0` works; `(SELECT …) AS [q]([x],[y])` works; `IS [NOT] DISTINCT FROM` with a column, a parameter, a `NULL` parameter and a `NULL` literal, also under `IIF` and `NOT`, returns the standard results; `IS [NOT] TRUE` parses and evaluates; `CONCAT_WS` skips `NULL` items (`'a',NULL,'c'` → `a-c`, all-`NULL` → empty string, SQL Server semantics); `TRANSLATE` works; `Nz([N], 0)` is typed `String` and returns text; `GETUTCDATE()` / `SYSUTCDATETIME()` equal the client's `DateTime.UtcNow` to the second and `SYSDATETIME()` equals local `Now()` — resolved-by probe
+- U-9 (A-6) Is there a seam for emitting `IS [NOT] TRUE`? — no: `SqlPredicate.IsTrue.Reduce` (`SqlPredicate.cs:874-894`) always lowers it to `expr = TrueValue` (+ `IS NULL` arm), the builder always optimizes with `reducePredicates: true` (`BasicSqlBuilder.cs:932,3168,3182`), and `BuildPredicate` has no `IsTruePredicate` case (`:2789-2890`); enabling it is a change to cross-cutting core, which P3 forbids — resolved-by scout
+- U-10 (A-6) Does a `NULL` in the first `VALUES` row break column typing? — measured: `(VALUES (NULL), (2)) [v]([a])` declares `a` as `Object`/`VarChar` and returns `Int32` for row 2; linq2db's materializer reads by the mapped type, not the declared one, so this is expected to be harmless, and TO-13 is the measurement; `IsSqlValuesTableValueTypeRequired` (`BasicSqlBuilder.Merge.cs:281`) is the lever if it is not — resolved-by probe (engine side), TO-13 (linq2db side)
+- U-12 (A-6, critic round 4) What do the cells round 4 found unmeasured do? — measured (`accdb3.txt:150-182`): a `NULL` **parameter** in row 1, `(VALUES (@p1 = NULL, 'x'), (2, NULL)) [v]([a],[b])`, declares `a` `Object`/`VarChar` and returns `Int32` for row 2 (same as the literal case); `CAST(NULL AS INT)` → `SqlParseException` (no `CAST` in the grammar, P3), while `SELECT NULL AS [a] WHERE 1 = 0 … [v]([a])` works; `CONCAT_WS('', 'a', NULL, 'c')` → `ac`; a `''` item keeps its separator (`CONCAT_WS(', ', '', 'M')` → `, M`, also through `IIF`/`COALESCE`), as .NET's `string.Join` does; **`SYSUTCDATETIME()` reads back `Kind=Utc`** (full tick precision), **`GETUTCDATE()` `Kind=Unspecified`** (millisecond precision), `Now()` `Kind=Local` — resolved-by probe
+- U-11 (A-6) Does LibRed run under `InvariantGlobalization`? — measured **no**: with `<InvariantGlobalization>true</InvariantGlobalization>` the probe got `TypeInitializationException` from `LibRed.Engine.Execution.ExpressionEvaluator`'s static ctor on the first query that reached it, and every later query through it failed the same way; with the property removed all 44 statements ran. The test projects do not set it, so the suite is unaffected; it is an upstream report (E-25) — resolved-by probe
 
 ## P5 Decisions (M/L; rejected alternatives mandatory at L)
 
@@ -196,6 +202,12 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - E-17c `Source/LinqToDB/Sql/Sql.DateTimeOffset.cs:DateDiff` — registration (A-3)
 - E-18 `Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs:MathMemberTranslator.Power` — power helper (A-3)
 - E-19 ~~`AccessBooleanSortKeyLoweringVisitor.cs`~~ — deleted in `10f517d5f`; the boolean sort-key rewrite lives in E-10 (`AccessSqlExpressionConvertVisitor`, all flavours)
+- E-20 (A-6) `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs:.ctor` — LibRed block (`:76-86`): `IsDistinctFromSupported = true`; `TakeHintsSupported = TakeHints.Percent | TakeHints.WithTies` (shared value at `:53` is `Percent`)
+- E-21 (A-6) `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSqlBuilder.cs` — `BuildIsDistinctPredicate` override emitting the standard `IS [NOT] DISTINCT FROM` (the `SqlServer2022SqlBuilder.cs:26-31` shape, since `AccessSqlBuilderBase.cs:118-131` overrides it with IIF); `IsValuesSyntaxSupported => true`, `SupportsColumnAliasesInSource => true` (shared `false` at `AccessSqlBuilderBase.cs:56-57`)
+- E-22 (A-6) `Source/LinqToDB/Internal/DataProvider/Access/Translation/AccessLibRedMemberTranslator.cs` — string translator: **only the separator branch** of the item form of `TranslateStringJoin` (`:160-167`) uses `ConfigureConcatWs` (native `CONCAT_WS`) instead of the `Mid` emulation; the `withoutSeparator` branch (`:156`, reached by `string.Concat(IEnumerable)`) stays on `ConfigureConcat` — unlike `SqlServer2017MemberTranslator.cs:111`, which routes both; date translator: `TranslateUtcNow` → `GETUTCDATE()` (U-12: `SYSUTCDATETIME()` reads back `Kind=Utc`, which `DateTimeFunctionsTests.cs:197-200` rejects); `TranslateZonedUtcNow` is not overridden, so the base fallback (`DateFunctionsTranslatorBase.cs:1986-2015`) routes `DateTimeOffset.UtcNow` to it as well, as `TranslateZonedNow` → `Now` already does for Access
+- E-23 (A-6) `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — the new overrides on public `LinqToDB.Internal.*` types
+- E-24 (A-6) `Tests/Linq/Linq/TakeSkipTests.cs:TakeWithTies,TakeWithTies2`, `Tests/Linq/Linq/CachingTests.cs:TakeHint` — add `TestProvName.AllAccessLibRed` to the inclusion lists; `Tests/Linq/Linq/DateTimeFunctionsTests.cs:CurrentTimestampUtc` — `AllAccess` → `AllNativeAccess` in the exclusion; `Tests/Linq/Linq/EnumerableSourceTests.cs` — one new test, a local collection whose **first** row has a `NULL` in a nullable column (TO-13's U-10/U-12 cell, absent from the corpus); plus whatever TO-12..TO-16 triage needs (re-exclusion / gate per D-1/D-2)
+- E-25 (A-6) `.claude/plans/feature-access-libred/findings.md` — the `InvariantGlobalization` failure (U-11)
 
 ## P7 Impact map (M/L)
 
@@ -225,6 +237,16 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - `Source/LinqToDB/Sql/WindowFunctions.FeatureMatrix.md:23`, cited from `SupportsAnalyticFunctionsContextAttribute.cs:10` — Access listed as having no window functions — covered by E-14
 - `Build/Azure/pipelines/templates/test-matrix.yml:493-503`, `Build/Azure/configs/access.libred.json` — CI leg is Linux, net11.0 only — out-of-scope (bounds TO-11)
 - `Source/LinqToDB/Sql/Sql.cs` / `Linq/Expressions.cs` `ProviderName.Access`-keyed registrations reach LibRed through the mapping-schema chain (#5956 plan P7) — unaffected — out-of-scope
+- (A-6) `SqlProviderFlags.cs:541` `IsDistinctFromSupported` (serialized, `[DataMember(Order = 59)]`, in hash/equality `:833,917`); its only gate is `SqlExpressionConvertVisitor.cs:346-366`, which otherwise expands to `IS NULL`/`<>` (`:368-392`) — searched `IsDistinctFrom|DistinctFromSupported` over `Source/LinqToDB` — covered by E-20, TO-12 (LinqService cases carry the flag through the remote contract)
+- (A-6) `AccessSqlBuilderBase.cs:118-131` overrides `BuildIsDistinctPredicate` with an IIF form that is dead today (the visitor expands first) and would become LibRed's output if only the flag were set; `SqlServer2022SqlBuilder.cs:26-31` is the re-implement-the-standard-text precedent — searched `BuildIsDistinctPredicate` — covered by E-21
+- (A-6) `SqlProviderFlags.cs:66,762-767` `TakeHintsSupported` / `GetIsTakeHintsSupported`, checked only at build time (`ExpressionBuilder.SqlBuilder.cs:109-113,130-131`, hints and Skip mutually exclusive); rendered only on the TOP path, `BasicSqlBuilder.cs:2646-2682` (`BuildSkipFirst` → `BuildTakeHints`), never by `BuildOffsetLimit` (`:2684-2719`); `AccessLibRedSqlBuilder.cs:33-37` calls base `BuildSkipFirst` exactly when `SkipValue == null` — searched `TakeHints|WithTies|TakeHintsSupported` — covered by E-20, TO-14
+- (A-6) hint queries opt out of `ReplaceTakeSkipWithRowNumber` (`BasicSqlOptimizer.cs:2382`) and of sub-query merging (`SelectQueryOptimizerVisitor.cs:1523-1526,2524-2525`) — LibRed reaches these opt-outs for the first time — searched same — covered by E-20 (measured by TO-14)
+- (A-6) `BasicSqlBuilder.cs:2084-2134` `BuildSqlValuesTable`: `IsValuesSyntaxSupported` picks `BuildValues` over the FROM-less `BuildValuesAsSelectsUnion` (`BasicSqlBuilder.Merge.cs:283-343`, `FakeTable` null for Access); an empty source → `BuildEmptyValues` (`:2161-2181`) regardless of the flag, which emits `CAST(NULL AS …)` through the base `BuildTypedExpression` (`:2170,4268-4275`, no Access override) — `CAST` does not parse on LibRed (U-12), the path is unchanged by A-6 except for the alias list, and its tests keep their `AllAccess` exclusion (TO-13) — searched `IsValuesSyntaxSupported|SupportsColumnAliasesInSource|FakeTable` over `Internal/DataProvider`, `BuildTypedExpression` under `Internal/DataProvider/Access` — covered by E-21, TO-13
+- (A-6) `SupportsColumnAliasesInScalarSource` defaults to `SupportsColumnAliasesInSource` (`BasicSqlBuilder.Merge.cs:21`), so a raw-SQL **scalar** source (`FromSqlScalar`) gains an `alias(col)` list on LibRed too (`BasicSqlBuilder.cs:2071-2079`) — measured accepted for a derived SELECT (U-8) — covered by E-21, TO-13
+- (A-6) `SqlValuesTable` producers reaching LibRed: local-collection sources (`EnumerableSourceTests`), the KeyedQuery eager-load VALUES join (`ExpressionBuilder.EagerLoadKeyedQuery.cs:250-289`); MERGE sources throw on Access (`AccessSqlBuilderBase.cs:237-240`) — searched `AsQueryable|EnumerableContext` in the eager-load builder — covered by E-21 (measured by TO-13)
+- (A-6) `StringMemberTranslatorBase.cs:603-673` `ConfigureConcatWs` (NULL items wrapped in `Coalesce(v,'')` when null-as-empty, `:643-645`); LibRed item form today `AccessLibRedMemberTranslator.cs:153-170` (Mid emulation); `string.Join` / `Sql.ConcatStrings` / `ConcatStringsNullable` / `string.Concat(IEnumerable)` all reach it (`:59-88`) — searched `CONCAT_WS|ConcatWithSeparator|ConcatStrings` — covered by E-22, TO-15
+- (A-6) `DateFunctionsTranslatorBase.cs:71-72,1986-2015`: `DateTime.UtcNow` and `Sql.CurrentTimestampUtc` route to `TranslateUtcNow` (base null → client-side), and `TranslateZonedUtcNow` **falls back to `TranslateUtcNow`**, so `DateTimeOffset.UtcNow` also goes server-side on LibRed (Access's `TranslateZonedNow` → `Now`, `AccessMemberTranslator.cs:196-211`, is the precedent for a DateTime-valued offset member) — searched `TranslateUtcNow|CurrentTimestampUtc|UtcNow` — covered by E-22, TO-16
+- (A-6) tests opting LibRed out of the newly advertised features: `TakeSkipTests.cs:700,715` and `CachingTests.cs:213` (inclusion lists without Access), `DateTimeFunctionsTests.cs:180` (`AllAccess` exclusion), `Issue5935Tests.cs:194-284` (already `AllNativeAccess`); `TakeSkipTests.cs:673,687` `TakeWithPercent*` already include `AllAccess` — searched `TakeHints\.|CurrentTimestampUtc|FROM-less` under `Tests` — covered by E-24
 
 ## P8 Test obligations (M/L)
 
@@ -239,6 +261,12 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - TO-9 VALUES table source, STRING_AGG (`StringJoinTests`), aggregate DISTINCT (U-4) — each only if its bucket enables it; else the bucket's re-exclusion is the obligation — proof: red→green per enabled feature
 - TO-10 Symmetry guard on the unchanged path: `Access.Ace.OleDb` suite in chunks (fresh process each; union = full suite) = base failure set; its baselines identical to a base capture except the boolean sort-key delta — proof: characterization
 - TO-11 Full suite on both LibRed configs after triage: 0 unexplained failures (SC-4); on CI leg `z_Access_LibRed` if U-5 is green, else locally — proof: characterization
+- TO-12 (A-6) `IsDistinctFromTests` on both LibRed configs: rows unchanged, LibRed baselines contain `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` where the pre-A-6 capture has the `IS NULL` / `<>` expansion; `Access.Ace.OleDb` baselines of the fixture unchanged — proof: characterization (observable: baseline diff)
+- TO-13 (A-6) `EnumerableSourceTests` (both partials) and the KeyedQuery eager-load tests (`EagerLoadingStrategyKeyedQueryTests`, `Issue5935Tests`) on both LibRed configs: pass, and LibRed baselines contain `(VALUES …) [alias](cols)` where the pre-A-6 capture has the FROM-less `UNION ALL`; the new E-24 test (`NULL` parameter in row 1 of a nullable column — U-10/U-12's `Object`-typed column through linq2db's reader, `ConvertFromDataReaderExpression.cs:223,265,298`) passes on both LibRed configs and on `Access.Ace.OleDb`; the scalar-source alias list through `SelectQueryTests.Issue2779Test1` / `Issue2779Test4` (`SelectQueryTests.cs:256-270,310-326`, LibRed already included) — `FromSqlTests` scalar cases exclude `AllAccess` and do not reach it. The empty-source path (`BuildEmptyValues` → `BuildTypedExpression` `CAST`, `BasicSqlBuilder.cs:2170,4268-4275`) stays unreachable on LibRed: `CAST` does not parse (U-12) and `EnumerableSourceTests.EmptyValues*` / `EmptySubQuery` (`:771,791,837`) keep their `AllAccess` exclusion — proof: characterization (observable: baseline diff) + the new test
+- TO-14 (A-6) `TakeSkipTests.TakeWithTies` / `TakeWithTies2` and `CachingTests.TakeHint` with LibRed added to their inclusion: red before E-20 (`LinqToDBException: TakeHints are … not supported`, `ExpressionBuilder.SqlBuilder.cs:109-110`), green after, with `TOP … WITH TIES` in the LibRed baseline — proof: red→green
+- TO-15 (A-6) `StringJoinTests` item-form cases (separator, `null` items, and the `''`-item cell at `StringJoinTests.cs:401`) on both LibRed configs: rows unchanged, LibRed baselines contain `CONCAT_WS(` where the pre-A-6 capture has `Mid(`; the aggregate STRING_AGG cases and the `withoutSeparator` cases of `StringConcatTests` (`:217,443,461`) unchanged — proof: characterization (observable: baseline diff)
+- TO-16 (A-6) `DateTimeFunctionsTests.CurrentTimestampUtc` (narrowed by E-24) green on LibRed with `GETUTCDATE()` (its `Kind == Unspecified` assertion at `:197-200` holds, U-12); `UtcNow`, `DateTimeOffsetNowUtc` (`AllAccess` in the `Full.DateTime` branch, `:302-311`), `NullabilityCheck` stay green server-side — proof: red→green for `CurrentTimestampUtc` only if it is red with the narrowing alone, else characterization
+- TO-17 (A-6) Symmetry guard: the TO-12..TO-16 fixtures on `Access.Ace.OleDb` — results and baselines identical to the pre-A-6 capture — proof: characterization
 
 ## P9 Verification gates
 
@@ -356,6 +384,35 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
   grammar `functionCall` takes `withinGroup` before `OVER`, `WindowFunctions.cs:103-105`); the D-2 re-exclusion was
   wrong. `IsOrderedSetWindowedSupported => true` on the LibRed window translator; `AllAccessLibRed` dropped from
   `PercentileContWindowed` / `PercentileDiscWindowed`.
+- A-6 (2026-10-16, user: "enable alpha.4 syntax") — `LibRed.Ado` 11.0.0-alpha.4 (#5956 `0e931586c`) adds syntax this
+  plan's P3 listed as out of scope only because alpha.3's grammar lacked it. **The approval of record is void for
+  E-20..E-25 and must be re-earned.** Re-earned 2026-10-16 after critic round 4 (user: "yes"). P3's "Not in scope" line now reads minus `IS DISTINCT FROM`; everything else
+  in it stands.
+  - D-6 (new) **which alpha.4 additions LibRed emits.** chosen, all LibRed-only per D-3: `IS [NOT] DISTINCT FROM`
+    (flag + builder text, E-20/E-21); `TOP n [PERCENT] WITH TIES` through the existing TOP path — the hint builder
+    forbids Skip with hints (`ExpressionBuilder.SqlBuilder.cs:112-113,130-131`), so `FETCH … WITH TIES` is never
+    reached and needs no rendering (E-20); `VALUES` table source with a column alias list, replacing the FROM-less
+    `UNION ALL` (E-21); `CONCAT_WS` for the `string.Join` item form (E-22); `SYSUTCDATETIME()` for
+    `DateTime.UtcNow` / `Sql.CurrentTimestampUtc` — `GETUTCDATE()` (E-22).
+  - rejected: `IS [NOT] TRUE/FALSE` — no seam short of core (U-9). rejected: `Nz` — always a Variant, measured
+    typed `String` (U-8), and COALESCE-shaped null handling already exists. rejected: `TRANSLATE` — no linq2db member
+    maps to it outside the SQL Server-only `SqlFn.Translate` (`SqlFn.cs:3212-3213`), so there is nothing to
+    route. rejected: derived-SELECT column lists — linq2db emits `(SELECT …) AS t(a, b)` for no source but a raw
+    scalar one (`BasicSqlBuilder.cs:2071-2079`); the VALUES list is the only reachable form. rejected:
+    `SYSUTCDATETIME()` (the SQL Server 2008+ choice, `SqlServer2008MemberTranslator.cs:40-53`) — LibRed returns it
+    `Kind=Utc` (U-12), which changes the materialized `DateTime.Kind` against every other provider and fails
+    `DateTimeFunctionsTests.cs:197-200`; `GETUTCDATE()` is `Kind=Unspecified` at millisecond precision, the base
+    SQL Server translator's choice (`SqlServerMemberTranslator.cs:173-184`). (This line was the reverse before critic
+    round 4; the probe overturned it.) rejected: moving the `withoutSeparator` branch to `CONCAT_WS('', …)` — it
+    works (U-12) but changes `string.Concat` SQL for no gain; scoped out of E-22.
+  - why: every enabled form is measured in U-8/U-12 in the shape linq2db emits, and each lands in an existing
+    LibRed seam with no shared-file edit.
+  - failure mode: VALUES changes the SQL of every query that sources a local collection on LibRed — the widest
+    baseline churn of the five; TO-13 bounds it. `CONCAT_WS` changes only where the item form had a separator.
+  - re-derives: P3 (scope line); SC-2 (its enabled-feature set gains the five forms, each with a `TO-n`); P4 U-8,
+    U-9, U-10, U-11, U-12 (new); P7 the eleven A-6 rows (new); P8 TO-12..TO-17 (new); TO-9 (its VALUES branch is now
+    decided — TO-13 carries it); TO-11 (the full-suite gate now includes the A-6 shapes); TO-10 / SC-3 unchanged —
+    every A-6 edit is LibRed-only, which TO-17 checks on `Access.Ace.OleDb`.
 
 ## P12 Critic verdict (M/L)
 
@@ -394,3 +451,25 @@ helper — native byte-identical verified by reading), `SupportsBooleanType`, `W
 `SqlNullsOrderingLoweringVisitor` call site, `TransformStatement` call site, `BuildSqlComment`/`BuildTag`,
 skip/take builder path, LibRed mapping-schema precedence, base interval lowering, PublicAPI entry-for-member
 count. Round 3 (the revision) pending.
+
+weak — round 4 (delta A-6), `plan-critic` on **fable**, 2026-10-16. Objections and responses (folded into A-6 / U-12 /
+E-22 / E-24 / TO-13 / TO-15 / TO-16 the same day, each answered by a new probe cell, `accdb3.txt:150-182`):
+
+- TO-13 cited fixtures that cannot observe its claims: `FromSqlTests` scalar cases exclude `AllAccess` → cites
+  `SelectQueryTests.Issue2779Test1/Test4` instead; no corpus case has a `NULL` first row and the probe had measured a
+  literal, not a parameter → U-12 measures the parameter, E-24 adds a test; the empty-source path emits
+  `CAST(NULL AS …)`, not the probed bare `NULL` → measured `CAST` does not parse, path dispositioned as unreachable
+  (its tests keep the `AllAccess` exclusion), P7 row corrected.
+- E-22's range spanned the `withoutSeparator` branch too, which the cited precedent also moves → scoped to the
+  separator branch only; `CONCAT_WS('', …)` probed anyway; the `''`-item cell probed and `StringJoinTests.cs:401`
+  named in TO-15.
+- lead: `SYSUTCDATETIME()`'s `Kind` unrecorded → measured `Kind=Utc`; **design changed to `GETUTCDATE()`**
+  (`Kind=Unspecified`). The critic's lead was right.
+- lead (minor): `CachingTests.TakeHint` shape (WITH TIES inside a cross-join sub-source) unprobed → kept; TO-14's
+  "green after" is a prediction, not a measurement.
+
+Critic searched: the `IsDistinctFromSupported` gate and every `SqlPredicate.IsDistinct` producer, every
+`BuildIsDistinctPredicate`, `TakeHints*` across `Source`, the VALUES / column-alias builder consumers incl. MERGE,
+`TranslateUtcNow` / `CurrentTimestampUtc`, `WrapParameters`, `InvariantGlobalization` across the worktree, the reader
+keying in `ConvertFromDataReaderExpression`. Not checkable by it: the alpha.4 release notes. No round 5 — every
+objection accepted as stated and answered by measurement, none disputed.
