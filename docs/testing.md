@@ -179,6 +179,19 @@ Because the CLI multi-targets `net8.0;net9.0;net10.0` and `Testing` collapses to
 
 **A DB2 `--provider-location` folder for local CLI runs.** DB2 is not bundled with the CLI. Assemble a provider folder from the `Net.IBM.Data.Db2` package in the NuGet cache: copy `lib/net10.0/IBM.Data.Db2.dll` and the `buildTransitive/clidriver/` directory (~81 MB) into one folder, then pass that folder's `IBM.Data.Db2.dll` path to `--provider-location`. The package's own targets lay a consuming app's output out the same way. The IBM client mangles its messages unless `DB2CODEPAGE=1208` is set.
 
+## The x86 FPU JIT sweep (`Tests/Tests.FpuJit`)
+
+`Tests/Tests.FpuJit` is a net462 x86 console exe, not an NUnit project, run by the `x86 FPU-unmasked JIT sweep` job in `.github/workflows/build.yml` on every PR. With FP exceptions unmasked (as C++Builder / Delphi hosts leave them) it `PrepareMethod`s every method of every shipped assembly with a .NET Framework target, and fails on any method the x86 .NET Framework JIT cannot compile — in practice a `NaN` / `±Infinity` constant or a `double.IsPositiveInfinity` / `IsNegativeInfinity` compare. Build the special values with `Internal/Common/FloatingPointHelper` instead (#6051). `/test` does not run it; locally, on Windows:
+
+```bash
+dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+.build/bin/Tests.FpuJit/Release/net462/linq2db.Tests.FpuJit.exe
+```
+
+Exit 0 = clean, 1 = JIT faults (`FAIL` lines name the methods), 2 = an environment or coverage error (`ERROR` lines), 3 = harness failure.
+
+**A shipped Source project gaining or losing a .NET Framework target changes the sweep's input list, and nothing fails when it is missed.** That covers a new project on the default TFMs (`Directory.Build.props` includes `net462`), an explicit `net4x` added to an existing one, or one dropped. Update both lists in the same PR: the `ProjectReference` in `Tests/Tests.FpuJit/Tests.FpuJit.csproj` and the assembly name in `ExpectedAssemblies` in `Tests/Tests.FpuJit/Program.cs`. The harness fails when an assembly it expects is missing. It cannot know about an assembly nobody listed: an unlisted project is simply not swept, and the gate stays green (#6051, plan P10). The LINQPad driver (net472) is the one deliberate exclusion.
+
 ## BUGCHECK-gated tests
 
 Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that drive `#if BUGCHECK`-gated test hooks on the core library — e.g. `QueryCacheEvictionTests` driving `QueryCache.RunSweepNow` / `BucketCount`) only compile in **Debug / Testing / Azure** configurations. `BUGCHECK` is defined in `Source/LinqToDB/LinqToDB.csproj` and mirrored into `Tests/Directory.Build.props` so the test project sees the same symbol. Consequences:
