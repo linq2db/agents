@@ -71,3 +71,37 @@ Three findings, three classes. The one major is the third failure of a single pr
 - Round 2 recommendation GAP-02 → `plan-critic.md:84` — landed in 9844c84 (2026-10-15 23:22), after A-7's plan commit (a6f9429, 22:16), and no critic round ran under it before this review: it existed but never bound the clause it was written about. Recommendation 1 above closes that gap.
 - Round 2 recommendation GAP-03 (a mechanism a `P5` alternative names gets a `P7` row of its routes) — MAJ002 is the `U-n` analogue: the mechanism was named in U-21, and the sweep it called for arrived only as U-29 in A-8.
 - Round 1 GAP-09 / round 2 MIN007 / round 2 GAP-07 (test layout) — no recurrence.
+
+## Round 4 — reviewed HEAD 8fe94a3f3
+
+Plan present (Tier L, approved through A-8); judged against the A-8 plan the fixes 6f9ae5747, 0924146ae and a8de12a13 were built from. Findings reasoned from code, none run at attribution time; dispositions pending.
+
+### Attribution
+
+- **MIN009** — GAP-02 — the plan took a CLR `decimal` to be a YQL `Decimal` without checking it. D-5 (`plan.md:108`) gates the exact path on `isDecimal`, which is the CLR type. D-4 and D-6 prescribe every work type as `new DbDataType(SystemType, DataType, null, …)`, which copies the value's `DataType`. No `P4` row asked which `DataType`s a CLR decimal maps to on YDB. The evidence was in the tree at plan time: `YdbSchemaProvider.cs:189` (DyNumber → `DataType.DecFloat`/`decimal`), `YdbSqlBuilder.cs:160`, and the `YdbTypeTests.cs:320-321` `[ActiveIssue]` pinning the exact refusal the new comparisons hit ("Uncompatible types in compare: DyNumber '==' Decimal(22,9)"). Secondary GAP-03: no `P7` row enumerated what lands on the CLR-decimal key. The A-6 producer scout searched C# expression shapes, U-29 swept D-8's key operands only, and the partition-table vector (`plan-critic.md:60`) has no "SQL DataType of a CLR decimal" axis. — — — preventable: yes
+- **MIN010** — GAP-05 — TO-15 is D-8's only separating input, and every row in it is a computed operand; none is a `Precision`-only column. The critic round that refuted `Scale == null`, and so produced the `Precision == null &&` half (A-8 re-dispatch), recorded in its own search "Precision-only columns in Tests/Linq (none)". The missing fixture was therefore known when the key changed, and no obligation followed. The `P7` row still reads "D-8 keys on `Scale == null`": it was never re-derived. The per-predicate vector (df4eff5) landed after A-8's approval. — — — preventable: yes
+- **SUG001** — GAP-05 — TO-14 pins D-7's constant boundary cell `p = −intDigits` on its failing side only. `G-01` records the `<` → `<=` mutation (`mut-d7.log`), but no obligation names a constant `p = −13` row that must succeed, so a regression making the cell fail for every value stays green. It is the round 3 MIN008 fix, again a late control with less scrutiny. Secondary: the bare `ShouldThrow<Exception>()` is an authoring slip that no plan block carries. — G-01 (one mutation direction recorded) — preventable: partly
+- **NIT012** — GAP-03 — A-8's `P7` rows swept the readers of the inferred type, not the claims at the edited site that option A falsifies. `P10` records the behaviour that makes the `:749` comment false. E-13 carries no comment-correction clause (A-7's E-11 shows the form), and A-8's `re-derives:` omits the no-op shortcut. — — — preventable: partly
+- **NIT013** — GAP-10 — the wording did not exist at plan time, and D-8 states correctly both facts the comment gets wrong (inferred covers computed values and columns with neither P nor S; only a positive p adds digits). This is an authoring slip transcribing the plan into a comment. — — — preventable: no
+- **NIT014** — GAP-07 — `Round30` is new test code under A-8's E-14, but `SKILL.md:70` embeds *Test layout* only on the create path; *Mode: amend* has no embed step. Round 2's GAP-07 recommendation did not land. — — — preventable: partly
+- **NIT015** — GAP-07 — same mechanism as NIT014. `Round28` came in through A-7's E-12, and the round 3 fix a8de12a13 edited it without the rule resurfacing. — — — preventable: partly
+- **OOS001** — GAP-05 — D-8 names "columns mapped with neither `Precision` nor `Scale`" as inferred, and U-29 recorded no YDB test rounding such a column. Yet TO-15 has computed operands only, and the plain unattributed `[Column] decimal` has neither a `TO-n` nor a `P10` acceptance. MIN010 has the same shape on the other side of the key. — — — preventable: yes
+
+### Aggregate
+
+GAP-05 leads with 3 of 8 rows (MIN010, OOS001, SUG001). It is followed by GAP-07 ×2 (both nits), then one row each for GAP-02, GAP-03 and GAP-10. The substantive findings share one shape: a type-keyed predicate (D-8's `isInferred`, D-5/D-6's `isDecimal`) was tested only on the inputs it was written for. Twice a scout's fixture census came back "(none)", and the plan recorded it instead of turning it into an obligation. MIN009 is the fourth instance of the premise behind VER001/OOS002/MAJ002 — linq2db's `DbDataType` taken as the YQL type — this time on the `DataType` axis rather than the scale axis.
+
+### Recommended durable fixes
+
+- GAP-05 ×2 + GAP-02 ×1 → `plan-critic.md` per-predicate vector (df4eff5) plus the `:60` axes: extend "node kind" to the mapping shapes a type-keyed predicate admits. The axes are CLR type × `DataType` (from the provider's schema-provider type map and its SqlBuilder `DataType` switch) × declared shape (P+S / P-only / neither / `DbType`-only). Each admitted or excluded shape gets a `TO-n` or a `P10` entry. A "(none)" fixture census is an obligation, not a note. When a critic round changes a key, the newly separated arm owes a row.
+- GAP-07 ×2 → `work-plan/SKILL.md` *Mode: amend*: when an amendment adds or widens an `E-n` under `Tests/`, or a review-fix commit edits a plan-owned test, re-embed *Test layout*. Fold round 2's whole-branch-test-diff recommendation into the same edit.
+- GAP-05 ×1 → `work-plan.md:174`: a boundary-cell obligation pins both sides, with a row that must fail and one that must succeed. The named mutation covers one direction; the success row covers "the cell now fails everything".
+
+### Continuity
+
+- Round 3 MIN008 recurs as SUG001: the twin built to fix it is reachable now but one-sided. The `-Validate` recommendation that landed checks named mutations only, not the opposite direction.
+- Round 1 MIN001 / round 3 MIN008 (the fixture cannot separate the arms) recur as MIN010 and OOS001, in a stronger form: those arms have no fixture at all.
+- Round 2 VER001/OOS002 and round 3 MAJ002 (the inferred type taken as the YQL type) recur as MIN009, on the `DataType` axis.
+- Round 1's partition-table recommendation (`plan-critic.md:60`) recurs in MIN009: the vector has no `DataType` axis, and the plan still has no `P5` partition table.
+- Round 2 NIT005–NIT010 (GAP-07) recur as NIT014/NIT015 through *Mode: amend*. Round 2's recommendation never landed.
+- Round 3's recommendation (re-check earlier decisions against a delta's new mechanism, 49215eb) landed after A-8; no finding this round traces to its absence.
