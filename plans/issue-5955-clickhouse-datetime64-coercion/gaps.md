@@ -86,3 +86,38 @@ GAP-05 ×3, GAP-08 ×2, GAP-03 ×2, GAP-02 ×1, GAP-10 ×1. Everything above MIN
 - Round 3 rec 1 (`re-derives:` line): `A-7` carries it; `A-6` introduced `E-31`/`E-32` without one (warning only, pre-cutoff). `A-7` missed MAJ001 (in its own `E-34` and `E-31`) and MAJ002 (sites named in its own out-of-scope bullet) for scope reasons, not a missing line.
 - Round 3 rec 2 (unprobed lead may not reach review): recurs in MAJ002, but the lead was the author's own dismissal, not a critic lead — the rule should cover author out-of-scope reasons too.
 - Round 3 rec 3 (*A narrowed provider set is a claim*): landed (`work-plan/SKILL.md:70`); BLK001/BLK002 are the opposite case — a known failure with no gate — which this round's first fix covers.
+
+## Round 5 — reviewed HEAD dd69903045c0e4958e051c2c079920e497ec9970
+
+Findings: MIN001 (ClickHouse widens a computed `DateOnly` operand to `DateTime64` beside a captured collection), MIN002 (SQLite IN-list `strftime` rewrite applies to the operand only), MIN003 (decimal "own type" is the schema default, not the value's scale), MIN004 (#6050 Sybase gate `ErrorMessage` matches only the no-source form), SUG001 (`ValueConverter: null` clause untested on its only consumer), OOS-1 (`GetInListValueType`'s date arm ignores a `ValueConverter`). All source-traced, none probed at attribution time — a row is void if its finding is refuted in the walk.
+
+### Attribution
+
+- **MIN001** — GAP-03 — `A-8` widened `E-32` (`f0b8b0418`, `ClickHouseSqlExpressionConvertVisitor.cs:111-113`) to any computed operand beside a captured-collection parameter, with no `P4`/`P7` row listing the mapping shapes that reach its `DataType is DateTime or Date or Date32` test (CLR `DateOnly` maps to `Date32`) or `E-34`'s `GetInListValueType` → `ClickHouseMappingSchema.ConvertDateOnly` as a consumer of the widened operand. `work-plan/SKILL.md:130` prescribes that mapping-shape sweep. The sibling twin `E-35` carries `IsDateTime(type.SystemType)`; before the widening, `A-6`'s arm fired only beside a `DateTime64` value, which excluded `DateOnly` implicitly — preventable: yes
+- **MIN002** — GAP-02 — `E-35` (`A-8`, `5c3a371f9`) assumes every list value is timestamp text and rewrites `Expr1` alone; checkable against the original it copies (`E-14`'s `ConvertExprExprPredicate`, which normalises whichever side is a `Date`) and against the shapes `InList.Values` can take. Secondary GAP-05: TO-23's lists are constants or captured arrays, never a `Date`-typed expression — preventable: yes
+- **MIN003** — GAP-02 — `E-34`'s decimal arm (`d2da94700`, narrowed by `76fc77952`) takes the value's "own type" as `MappingSchema.GetDbDataType(value.GetType())`, the schema default — the same assumption as R3-01, and `U-1`(a) already records that the schema default is not an expression's own type. `A-9` asked what a column `DataType` means beyond width, not the mirror question for the value. Secondary GAP-05: TO-28 has one arm (a value finer than a scale-2 column), no column finer than the default, no YDB parameter case — preventable: yes
+- **MIN004** — GAP-07 — `testing.md:79`/`:87` (`8886a9b`, written from this PR's own CI failure) say to match `should be{0}<expected>{1}but was`, but step 4 of `work-plan/SKILL.md:70` embeds only *Test layout* and *A narrowed provider set is a claim*. The gate came from `A-9`'s CI triage and was proven by `G-01` from CI alone, which cannot fail this form (no test sources there). Third `ErrorMessage` miss on this branch — preventable: partly
+- **SUG001** — GAP-05 — `E-31`'s `ValueConverter: null` clause has no `TO-n` on its one reachable consumer (captured-collection branch of `ConvertInPredicate`); TO-14's `CoarseConvertedAggregateComparedWithValue` exercises `==` only, TO-20/TO-22 use unconverted columns. Round 4's per-arm rule landed in `plan-critic.md` (`df4eff5`), but neither `A-8` nor `A-9` had a `P12` round — preventable: partly
+- **OOS-1** — GAP-03 — `E-34` is the IN-list twin of `E-12`'s descriptor rule, which carries a converter condition; R-1's `P7` row lists call sites, not the conditions mirrored. `d2da94700` put the converter test beside the date arm, `76fc77952` bound it to the decimal arm only, while the `<remarks>` state it for every arm. No `P7 deferred:` row or `P10` entry covers it — preventable: partly
+
+### Aggregate
+
+GAP-02 ×2, GAP-03 ×2, GAP-05 ×1, GAP-07 ×1. Four of the five code findings share one cause: IN-list mechanisms written as twins of an `==` rule (`E-32`, `E-34`, `E-35`) kept the clauses their author remembered and dropped one — the value side (`E-35` vs `E-14`), the CLR guard (`E-32` vs `E-35`), the converter (`E-34` vs `E-12`), the value type's facets (MIN003). None got a critic round: `A-8`/`A-9` carry `re-derives:` lines naming `P6`/`P8`/`P9` but no `P4`/`P7` row, and `validate -Done` passes because its `P12` check fires only on "supersedes `D-n`" / "public type" and its `re-derives:` check accepts any text.
+
+### Recommended durable fixes (route to `/session-reflect` plan-rule bucket)
+
+- GAP-02/03/05 ×5 → `work-plan.ps1 -Action validate`: an `A-n` carrying `re-derives:` without a `P12` round naming it is an error, and its `re-derives:` line must cite a `P4`/`P7` row id or `P7: none — <searched>`.
+- GAP-02/03 ×4 → `work-plan/SKILL.md` step 5 beside *A re-walk has two sides*, plus a `plan-critic.md` attack vector: a twin's `P6` row carries a clause-parity table against the original — sides rewritten, value-side type test, CLR-type guard, converter test, and where the value's "own type" comes from (schema default vs the value's facets).
+- GAP-07 ×1 → `testing.md` + `work-plan/SKILL.md:70`: move the `ErrorMessage` paragraph under its own `## Gating an assertion failure` heading and add it to step 4's embed list; a gate proven only by CI is unproven for its message form — one local run, or a pattern matching both Shouldly forms.
+
+### Continuity with rounds 1–4
+
+- Round 1 GAP-03/GAP-02 (caller sweep): landed; MIN001 needed the neighbouring mapping-shape sweep (`SKILL.md:130`), which `A-8` never ran.
+- Round 1 GAP-05 (can the `TO-n` go red / one path only): recurs in SUG001 and as the secondary class of MIN002/MIN003.
+- Round 1 GAP-06 (anchored `ErrorMessage`): the rubric rule caught MIN004 at review; the miss recurs author-side as GAP-07 — third occurrence (round 1 MIN201, TO-16 post-`A-5`, MIN004).
+- Round 3 rec 1 (`re-derives:` line): `A-8`/`A-9` comply in form, but the line names no `P4`/`P7` row — fix 1 closes that.
+- Round 3 rec 2 (unprobed lead may not reach review): not exercised — no critic ran on `A-8`/`A-9`, so no leads existed.
+- Round 3 rec 3 (*A narrowed provider set is a claim*): met; MIN004's gate rests on a measured failure (#6050), only its message form is wrong.
+- Round 4 rec 1 (`validate -Done` before review): landed and held — no GAP-08 this round.
+- Round 4 rec 2 (two-sided re-walk): landed in `df4eff5` (10-17 01:52), after `5c3a371f9` and `f0b8b0418`. It ensures a twin exists, not that its clauses match — hence MIN001/MIN002/OOS-1 as clause-parity defects (fix 2).
+- Round 4 rec 3 (a `TO-n` per admitted arm; a critic round per `re-derives:` amendment): landed as prose in `plan-critic.md` only; validate's `P12` check unchanged, so SUG001 and the secondaries of MIN002/MIN003 are exactly what it targeted (fix 1).
