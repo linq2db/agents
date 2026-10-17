@@ -49,3 +49,30 @@ GAP-07 ×10, GAP-01 ×2, GAP-02 ×1. The GAP-07 count is one cause: a convention
 - **Round-1 OOS-2 (GAP-01, deltas not routed to the PR body) recurs as MIN008** — it was outside round 1's top three, so no corpus change was made (`011dfa8`).
 - **Not recurring:** round 1's GAP-05 stale re-derivation (MIN003–MIN005) and GAP-03 render branches (MIN001, SUG001) — every A-5..A-15 carries a `re-derives:` line and A-5 gives `HandleStringFormat` a per-branch verdict. Round 1's corpus fixes (`011dfa8`, 2026-10-17 00:58) postdate head `79d85fb59`, so this shows the walk applied them by hand, not that the corpus rules work.
 - **New:** GAP-07, from a convention added mid-branch (`406f742`).
+
+## Round 3 — reviewed HEAD cedda6868
+
+## Attribution
+
+- **MIN009** — GAP-03 — `P7` has no row for shipped prose stating the contract D-1 changes: the `DataExtensions` row (plan.md:107) maps only `GenerateFormattableString` caller bodies to E-2, never the `<summary>` of the overloads E-2 edits, where "Any parameter values you supply will automatically be converted to a DbParameter" (`DataExtensions.cs:1533-1538`) is the claim SC-1 falsifies. A `Grep DbParameter` over the E-2 file's XML docs would have found it. Second class: GAP-01 — round 2's fix (`work-plan.md:78` *User-visible deltas vs master*, corpus `50662c9`) was never applied to this plan's `P3` although A-20 postdates it; and even applied, the rule routes deltas only to the PR body, not to shipped XML docs — — preventable: yes
+- **SUG003** — GAP-01 — the plan held both omitted contract points (D-1 failure-mode line: lexer rejects → every argument kept, plan.md:51; A-12: anything but the `TrySplit` shape throws `LinqToDBException`, plan.md:196), but no block requires a public member's XML doc to state the `D-n`/`A-n` contract points it implements; E-1's note (plan.md:88) and G-03 (plan.md:164) check presence only. A-12's `re-derives:` names "D-5 member signature", not its doc; A-13 later edited the same `<param>` (`FormattableStringHelper.cs:289`) without adding the throw. Same mechanism as round-2 SUG002 — G-03 — preventable: partly
+- **NIT011** — GAP-06 — the rule was in front of the author: A-19 (plan.md:203) existed solely to reformat E-10/E-11/E-13 against `testing.md` → *Test layout* rule 1, and nine E-11 lines survived. The sweep was by eye; `Grep "\)\.Should"` over the test diff returns exactly the residue. The rule's do/don't example (`testing.md:487-501`) shows only a multi-call LINQ chain, not a single static call + assertion on one line. Not GAP-07: A-19 named the rule — — preventable: yes
+- **NIT012** — GAP-01 — the opening line was true when written; #6003's squash-merge (`8ce8e6517`) is recorded in A-4 (plan.md:187), so not unknowable. No rule ties a base/stack change recorded in an `A-n` to the PR body's opening context; `definition-of-done.md:23` scopes the body check to *Behaviour change* and *Tests* only, and `P9` records no run of it for the `cedda6868` push. The plan header (plan.md:6, "Stacked on #6003 … head `4404711ae`") is stale the same way — — preventable: partly
+
+## Aggregate
+
+GAP-01 ×2, GAP-03 ×1, GAP-06 ×1. Code-correctness and SQL/provider passes found nothing; every defect this round is prose that no longer matches the contract. Three of four (MIN009, SUG003, NIT012) are prose describing a contract or state a `D-n`/`A-n` changed and nothing re-derived — a shipped XML doc, a new member's XML doc, the PR body — while the plan held the correct facts each time (SC-1, D-1, A-12, A-4). The single most preventive change is a contract-prose rule: every `D-n`/`A-n` that creates or changes an observable public contract lists, found by `Grep`, the prose that states it (existing XML docs on affected overloads, the new member's doc, the PR body), and the gate checks content, not presence.
+
+## Recommended durable fixes
+
+- GAP-03/GAP-01 ×2 (MIN009, SUG003; recurs from round-2 SUG002) → `work-plan.md` *User-visible deltas vs master* (`:78`) + a `definition-of-done.md` G-03 clause: each delta line names where the old contract is stated in shipped prose (`Grep` the `<summary>`/`<remarks>` of every public overload on the changed path for the old claim) with an edit-point; G-03 checks each new/changed public member's XML doc states the `D-n`/`A-n` contract points it implements (keep-all arm, throw arm, delegate call shape).
+- GAP-06 ×1 (NIT011) → `testing.md` → *Test layout* rule 1: add a do/don't pair for single call + assertion (`Helper.M(x).ShouldBeTrue()`); in `work-plan/SKILL.md` *Mode: amend* step 4 the sweep is a `Grep` (`\)\.Should` on lines not starting with `.`) over the branch's new test code, not a read-through.
+- GAP-01 ×1 (NIT012) → `definition-of-done.md:23`: when an `A-n` records a base change (stacked parent merged, rebase), refresh the body's opening context and the plan header in the same push. Separately re-walk this plan against rules added since approval (`work-plan.md:342`): its `P3` still has no deltas list.
+
+## Continuity (round 3)
+
+- **Round-1 OOS-2 → round-2 MIN008 → round-3 MIN009 (deltas not routed)** — third consecutive round. Round 2's fix landed (`work-plan.md:78`, `definition-of-done.md:23`, `50662c9`), but this plan was never re-walked against it (no `P3` deltas list, though A-20 came 19 minutes after the rule), and the rule names only the PR body as destination — MIN009 is the same D-1 delta reaching shipped XML docs.
+- **Round-2 SUG002 → round-3 SUG003 (G-03 checks presence, not content)** — same helper, same mechanism; round 2 named the cause but kept it outside its top three, so no corpus change was made.
+- **Round-2 NIT001–010 (GAP-07) → round-3 NIT011 (GAP-06)** — the class shifted: the convention now reaches the author; the residue comes from an eyeball sweep against an example that lacks this shape.
+- **Round-2 MIN008 PR-body staleness → round-3 NIT012** — the DoD body check exists but its scope omits base/stack context.
+- **Not recurring:** U-2 shape enumeration (round-1 OOS-1, round-2 MIN007), round-1 GAP-05 amendment re-derivation, round-1 GAP-03 render branches.

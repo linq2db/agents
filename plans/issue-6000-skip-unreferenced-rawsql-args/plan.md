@@ -3,7 +3,7 @@
 **Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-10-10 (user, after critic round 1 `weak`, all objections addressed)  ·  **Branch:** issue/6000-skip-unreferenced-rawsql-args
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
-Stacked on #6003 (`issue/6000-fix-nested-fromsql-cache`, head `4404711ae`). Replaces the previous design of PR #6008 (commit `2bcb6bc29`, name-matching in `BasicSqlBuilder`), which is discarded; its four tests are reused.
+Was stacked on #6003 (merged as `8ce8e6517`; branch rebased onto master, A-16). Replaces the previous design of PR #6008 (commit `2bcb6bc29`, name-matching in `BasicSqlBuilder`), which is discarded; its four tests are reused.
 
 ## P1 Problem
 
@@ -202,6 +202,7 @@ Second, structural: `FormattableString` handling is spread across 5 files (shape
 - A-18 (2026-10-17, review round 2 SUG002, user chose fix): `AreEqual` / `ComputeHashCode` delegates are called once with the whole argument arrays; P3 said "element comparer". E-1 gains `<param>` docs; P3 corrected. No behaviour change.
 - A-19 (2026-10-17, review round 2 NIT001–010, user chose fix): new test code reformatted to `testing.md` → *Test layout* rule 1 (one call per line) in E-10, E-11, E-13. No behaviour change.
 - A-20 (2026-10-17, review round 2 baselines follow-up, user chose fix): A-16's reading of the 4 Access `FromSql_PositionalPlaceholder_DataParameter` baselines (`@id` → `@p`) as harmless was wrong under `baselines-reviewer.md` → *Order-dependent output is a regression*: TO-5 `ArgumentReferencedByPositionIsSent` shared its SQL text, so whichever test ran first owned the query-cache entry. E-10: TO-5 uses `WHERE ? = PersonID`. Proof: on `5fcf3bc92` a local Access OleDb run of both tests wrote the sibling baseline with `@p`; after the change Access OleDb + ODBC write `@id`, 18/18 green (Access OleDb, Access ODBC, SQLite.Classic, direct + remote). Commit `cedda6868`. re-derives: TO-5 (SQL text), G-02 (the 4 Access modifications should leave the baselines delta). Voids approval of E-10 only.
+- A-21 (2026-10-17, review round 3, user chose fix): MIN009 — the `FromSql(RawSqlString, params)` `<summary>` (E-2) promised every argument becomes a DbParameter, which D-1 falsifies; a sentence now states the `{n}` drop rule and its DataParameter / positional-provider exceptions. SUG003 — the `PrepareRawSqlArguments` doc (E-1) states D-1's invalid-format keep-all and A-12's `LinqToDBException`. NIT011 — E-11 assertion lines one call per line. NIT012 — PR body opening line and this plan's header no longer say stacked on #6003. No behaviour change. Verified: Release `net10.0` build of `Source/LinqToDB` clean (crefs resolve); `FormattableStringHelperTests` 47/47. Commits `671a79d12`, `fc930fd8d`. re-derives: G-03 (doc content checked against D-1 / A-12, not only presence). Voids approval of E-1/E-2/E-11 only.
 
 ## P12 Critic verdict (M/L)
 
