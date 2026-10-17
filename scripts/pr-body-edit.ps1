@@ -36,7 +36,7 @@ Input (JSON, via -ManifestFile <path> or stdin). From the PowerShell tool use -M
     "insertions": [                        // required, non-empty
       {
         "anchor":   "## Test plan",        // ASCII literal, must match exactly once (or matchCount: "first"/"last" when multiple allowed)
-        "position": "before",              // "before" | "after"; default "before"
+        "position": "before",              // "before" | "after" | "end" (see below); default "before"
         "text":     "…full text block…"    // inserted verbatim; caller is responsible for leading/trailing blank lines
                                            // NOTE with position "after": the insertion is spliced immediately after
                                            // the matched STRING, not after the line containing it. The two coincide
@@ -56,6 +56,11 @@ Input (JSON, via -ManifestFile <path> or stdin). From the PowerShell tool use -M
         "anchor":   "## Checklist",
         "position": "before",
         "text":     "…"
+      },
+      {
+        "position": "end",                 // append: no anchor; joined to the body with exactly one blank line
+        "textFile": ".build/.agents/x.md"  // instead of "text": UTF-8 file read verbatim - for a drafted section,
+                                           // which saves JSON-escaping it into the manifest
       }
     ],
     "replacements": [                      // optional; either this or `insertions` must be non-empty
@@ -191,17 +196,30 @@ $entries = @()
 $idx = 0
 foreach ($ins in @(if ($hasInsertions) { $m.insertions })) {
     $idx++
-    if (-not $ins.anchor -or -not ([string]$ins.anchor)) { Exit-WithError "insertions[$idx].anchor is required" }
-    $anchor = ([string]$ins.anchor).Replace("`r`n", "`n")
-    if ($anchor -cmatch '[^\x00-\x7F]') {
-        Exit-WithError "insertions[$idx].anchor contains non-ASCII characters; anchors must be ASCII to survive round-tripping through native-command stdout"
-    }
     $position = if ($ins.position) { [string]$ins.position } else { 'before' }
-    if ($position -ne 'before' -and $position -ne 'after') {
-        Exit-WithError "insertions[$idx].position must be 'before' or 'after'"
+    if ($position -notin @('before','after','end')) {
+        Exit-WithError "insertions[$idx].position must be 'before', 'after' or 'end'"
     }
-    if ($null -eq $ins.text) { Exit-WithError "insertions[$idx].text is required" }
-    $text = ([string]$ins.text).Replace("`r`n", "`n")
+    $anchor = $null
+    if ($position -eq 'end') {
+        if ($ins.anchor) { Exit-WithError "insertions[$idx]: position 'end' takes no anchor" }
+    }
+    else {
+        if (-not $ins.anchor -or -not ([string]$ins.anchor)) { Exit-WithError "insertions[$idx].anchor is required" }
+        $anchor = ([string]$ins.anchor).Replace("`r`n", "`n")
+        if ($anchor -cmatch '[^\x00-\x7F]') {
+            Exit-WithError "insertions[$idx].anchor contains non-ASCII characters; anchors must be ASCII to survive round-tripping through native-command stdout"
+        }
+    }
+    if (($null -eq $ins.text) -eq (-not $ins.textFile)) { Exit-WithError "insertions[$idx]: exactly one of text / textFile is required" }
+    if ($ins.textFile) {
+        $textPath = [System.IO.Path]::GetFullPath([string]$ins.textFile, (Get-Location).Path)
+        if (-not [System.IO.File]::Exists($textPath)) { Exit-WithError "insertions[$idx].textFile not found: $textPath" }
+        $text = [System.IO.File]::ReadAllText($textPath, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n")
+    }
+    else {
+        $text = ([string]$ins.text).Replace("`r`n", "`n")
+    }
     $matchCount = if ($ins.matchCount) { [string]$ins.matchCount } else { 'one' }
     if ($matchCount -notin @('one','first','last')) {
         Exit-WithError "insertions[$idx].matchCount must be 'one', 'first', or 'last'"
@@ -285,6 +303,15 @@ foreach ($r in $replacements) {
 # --- Apply each insertion sequentially -------------------------------------
 $results = @()
 foreach ($e in $entries) {
+    if ($e.position -eq 'end') {
+        # Appending is the follow-up-commit case: one blank line between the body and the block,
+        # whatever whitespace either side carries.
+        $body     = $body.TrimEnd("`n") + "`n`n"
+        $insertAt = $body.Length
+        $body    += $e.text.Trim("`n")
+        $results += [pscustomobject]@{ anchor = $null; position = 'end'; ok = $true; insertedAt = $insertAt }
+        continue
+    }
     $indices = @()
     $from = 0
     while ($true) {

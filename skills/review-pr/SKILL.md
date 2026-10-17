@@ -278,6 +278,15 @@ When the PR turns raw-SQL arguments into parameters or changes how they are name
 
 (Surfaced on the fourth #6003 review: with both lists above cached, two passes still spent 14 and 11 calls, almost all on these.)
 
+When the PR decides at build time which raw-SQL arguments reach SQL (drops, replaces with `NULL`, or filters them), the passes ask *does the replacement register a parameter on any provider* and *is the deciding flag part of the cache key*. Cache:
+- `Source/LinqToDB/Mapping/ValueToSqlConverter.cs` and `Internal/Extensions/MappingExtensions.cs` (`TryConvertToSql`: a null literal renders `NULL` before any converter)
+- `Internal/SqlProvider/SqlExpressionConvertVisitor.cs` (`VisitSqlValue`: when a value becomes a dynamic parameter) and `Internal/DataProvider/WrapParametersVisitor.cs`
+- `Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs` (the one non-Access `BuildValue` override)
+- `Data/ConnectionOptions.cs` (`ConfigurationID`, which keys the query cache per provider) and `Remote/RemoteDataContextBase.cs` (a remote context's `SqlProviderFlags` come from the server)
+- `Internal/Linq/ExpressionCacheHelpers.cs`
+
+(Surfaced on the second #6008 review: the `sql-and-provider` pass spent 24 calls against its budget locating exactly these.)
+
 **For a PR that touches eager-load strategy selection or `SqlQueryValidatorVisitor`, the companions are the limit builders and the validator's callers.** Every pass asks the same questions. Does `Take` / `First` make the root query limited? Can a user request `Default` explicitly? What does a stricter validator make each caller decline? Cache these with `include.content: true`:
 - `Internal/Linq/Builder/TakeSkipBuilder.cs` (it sets the limit on the sequence's own query and returns a pass-through context)
 - `Internal/Linq/Builder/WithLoadStrategyBuilder.cs`

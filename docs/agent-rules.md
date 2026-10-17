@@ -64,6 +64,7 @@ Full table: [`windows-gotchas.md`](windows-gotchas.md) → *Permission-friendly 
 MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` calls. Detail: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) (tool-neutral) and [`windows-gotchas.md`](windows-gotchas.md) (Claude-tool-specific). One-line triggers:
 
 - `gh api` rejects a leading-slash endpoint (use `gh api user`, never `gh api /user`).
+- `gh search issues --repo linq2db/linq2db` returns `[]` even when matches exist — search with `gh issue list --repo linq2db/linq2db --search "<terms>" --state all`: [`issue-search.md`](issue-search.md).
 - `git show <ref>:<path>` fails with `ambiguous argument` when `<ref>` contains `/` — use `git ls-tree` + `git cat-file -p` instead.
 - **`git ls-tree … -- '<glob>'` does not glob, and an empty result is not absence.** Enumerate with `git diff --name-only <base>...<ref>` or `git ls-files`, then `Grep`: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *`git show <ref>:<path>` is path-mangled…*.
 - **`gh … --body` is banned.** Always `--body-file <path>` or `--body-file -`; for `/azp run …` use `.claude/scripts/azp-run.ps1`.

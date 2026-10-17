@@ -531,6 +531,8 @@ dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
 
 (net10.0 alone is enough to surface the diagnostic — analyzers are TFM-independent.) Otherwise CI fails on e.g. `MA0186` (Equals parameter missing `[NotNullWhen(true)]`) after a green local run, costing a red CI cycle.
 
+**Untracked scratch probes fail the pre-push Release build of `Tests/Linq`.** A probe fixture left under `Tests/Linq/` (never committed, so CI never sees it) compiles into the local Release build, and its analyzer findings are errors there — `IDE0200` on a probe's lambda failed it on #5959 while every tracked file was clean. Move the probes out of the project (e.g. into the worktree's `.build/.agents/`) for the Release build and back afterwards, rather than fixing scratch code or reading the red as the branch's.
+
 **PublicAPI RS0016/RS0017 are a *separate* opt-in the Release build above does NOT run.** The `Microsoft.CodeAnalysis.PublicApiAnalyzers` diagnostics — RS0016 (public symbol missing from `PublicAPI.Unshipped.txt`) and RS0017 (entry in the declared API but not in code) — are gated behind `RunApiAnalyzersDuringBuild`, which defaults to **`false`** in `Source/Directory.Build.props`. A plain `dotnet build -c Release` reports **0 errors even when new public members are unregistered**. To surface them locally after adding/removing/renaming public surface, add the flag:
 
 ```

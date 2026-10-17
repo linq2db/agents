@@ -35,7 +35,9 @@ context line is preserved and the ranges are recomputed.
 typically an insertion directly beside an edited line, which git always reports as one hunk.
 It stages the file's **working-tree** content with each span (start marker through end marker,
 plus the blank line after it) removed, so everything except the later commit's parts goes in.
-Markers are literal text; `<path>` is relative to the worktree.
+Markers are literal text; `<path>` is relative to the worktree. A start marker that begins mid-line
+leaves that line's indentation behind, so include the leading tabs in it. The file's UTF-8 BOM, if any,
+is preserved.
 
     .claude/scripts/stage-hunks.ps1 -Worktree <path> -CutFile docs/x.md -Cut '## New section|||last words.'
 
@@ -72,7 +74,11 @@ if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchD
 if ($CutFile -or $Cut -or $Replace) {
     if (-not $CutFile -or -not ($Cut -or $Replace)) { throw '-CutFile goes with -Cut and/or -Replace' }
 
-    $text = [System.IO.File]::ReadAllText((Join-Path $Worktree $CutFile), [System.Text.UTF8Encoding]::new($false))
+    # ReadAllText drops a UTF-8 BOM; write it back when the file had one, or the staged blob loses it (#6008).
+    $cutPath = Join-Path $Worktree $CutFile
+    $head    = [System.IO.File]::ReadAllBytes($cutPath) | Select-Object -First 3
+    $hasBom  = $head.Count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF
+    $text    = [System.IO.File]::ReadAllText($cutPath, [System.Text.UTF8Encoding]::new($false))
 
     # A replacement restores a line the later commit changed; a cut can only drop text. Both must match once.
     foreach ($pair in $Replace) {
@@ -105,7 +111,7 @@ if ($CutFile -or $Cut -or $Replace) {
     }
 
     $blobPath = Join-Path $scratchDir 'stage-hunks-cut.tmp'
-    [System.IO.File]::WriteAllText($blobPath, $text, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($blobPath, $text, [System.Text.UTF8Encoding]::new($hasBom))
 
     # --path applies the file's attributes / eol conversion, as `git add` would.
     $sha = & git -C $Worktree hash-object -w "--path=$CutFile" $blobPath
