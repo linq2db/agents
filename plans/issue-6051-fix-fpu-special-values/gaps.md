@@ -45,3 +45,30 @@ GAP-02 dominates again: 2 of 3 primary (SUG003's secondary is GAP-02 too), all f
 - **Round-1 durable fix #2 (decode raw numbers) partly recurs** in MIN003: `G-01` quotes "the same 5 DuckDB methods unverified (allowed)" and "10 resets, DuckDB only" on four runs, never asking why those 5 or why an initializer runs at JIT time.
 - **GAP-05 recurs as a secondary class** (round 1: MIN001, OOS-1 — TO-3g, TO-3c/f could not disagree; round 2: SUG003 primary, MIN002 secondary).
 - **GAP-03** (round 1 NIT001) did not recur.
+
+## Round 3 — reviewed HEAD e64946b4d488f3e30cb5b99cff53273bd04b9919 (2026-10-17)
+
+### Attribution
+
+- **SUG004** — GAP-02 — `P11 A-7` (2), "a warm-up reset records `UNVERIFIED <Type>::.cctor()` (fails unless allowlisted)", introduced a second producer of UNVERIFIED records (`Program.cs:710-712`) that continues in-process, while `A-3` defined `AllowedUnverified`'s meaning on the restarting prepare path ("a second reset [after an `at` retry in a fresh process] records `UNVERIFIED`", `Program.cs:440-448`). A-7's `re-derives:` line enumerates reset sources and item shapes but never re-derives what an allowlist entry accepts once a non-restarting producer feeds the prefix match (`Program.cs:294`); the declaration comment (`Program.cs:44-45`) kept A-3's meaning. The rule that should have fired existed: `work-plan.md` → *P11* third shape (added 2026-10-15, `9fdc730`, before A-7) covers an exception an earlier `A-n` recorded inside the path when new inputs are routed into it, and requires the re-derivation to name it with a justification that still holds — but it is phrased around "X still baked" exceptions, so it did not fire on a harness allowlist. Secondary GAP-05: A-7 retired `TO-3h`, and `TO-3m` exercises only the empty-allowlist ERROR path, so no control shows what a populated entry accepts. — G-09 — preventable: yes
+- **NIT002** — GAP-10 — prose only. The plan is right: `E-8`..`E-11` say "infinity checks via helper" for DuckDB, YDB, Oracle, Firebird, and only `E-12`/`E-13` (DB2, ClickHouse) say "special values via helper constants". The wording at `SpecialFloatingPointValueTests.cs:21-22` arrived with the `A-6` move (`bcaa8f713`); no plan block would carry a fixture comment's grammar. — — — preventable: no
+- **NIT003** — GAP-01 — `P2 SC-1` ("all 12 .NET Framework–shipped assemblies") and `D-4` *why this* ("every netfx-shipped library") state the sweep's universe without the LINQPad driver (net472) exclusion, which lives only as a `D-4` rejected alternative and a `P10` entry. `U-9` routed its own `P10` blind spots into the code ("documented in the harness header", now `Program.cs:3-5`); no row did the same for the LINQPad exclusion or `P10`'s "a netfx library added later is not swept". The comment at `Tests.FpuJit.csproj:18` (commit 1, `e3ba64f67`) echoes SC-1's wording — plan-seeded like round-1 NIT001, not pure prose. — G-09 — preventable: partly
+
+### Aggregate
+
+Three findings, three classes (GAP-02, GAP-01, GAP-10) — no systemic fix this round, only point misses; and the lowest-severity round yet (1 SUG, 2 NIT, no MIN). The one pattern-bearing item is SUG004: A-7 satisfied round 2's sixth shape on its own axis (reset sources × item shapes, with TO-3m A/B controls) but reopened a hole a *finding* had already recorded — round-1 SUG001's allowlist-vs-non-restarting-path shape — and the rule that would have caught it (third re-derive shape) existed but did not fire on its wording.
+
+### Recommended durable fixes
+
+- GAP-02 × 1 (SUG004) → `work-plan.md` → *P11 Amendments*, third shape — add the example: an allowlist / exclusion an earlier `A-n` defined is such an exception; an amendment that adds a producer of the records it matches states on its `re-derives:` line whether that producer restarts or continues, and what an entry therefore accepts. Cite #6058 round 3 (A-7's warm-up `UNVERIFIED` continues in-process where A-3's restarts — round-1 SUG001's shape).
+- GAP-02 × 1 (SUG004, same finding) → `plan-critic.md` attack vector — when an amendment fixes a review finding at one instance (round 1: a comment on `AllowedDependencySkips` only, `83226ba8d`), sweep the sibling sites of the same shape (every allowlist in the harness) and fix them or record why not.
+- GAP-01 × 1 (NIT003) → `work-plan.md` → *P10* semantics — a `P10` exclusion that narrows an `SC-n`'s universe rewrites that SC's wording and names the code site stating the universe (header, csproj comment) as where it is recorded, as `U-9` did.
+
+### Continuity
+
+- **SUG004 repeats round-1 SUG001's shape exactly** — an allowlist matched against records from a path that continues in the same child after a control-word reset, so an entry silently accepts masked compiles beyond its stated scope. Round 1 fixed the instance only (declaration comment on `AllowedDependencySkips`, `Program.cs:39-41`) and got no durable rule of its own; A-7 then created the same shape on the sibling allowlist four lines below.
+- **Round-2 recommendation ("controls span earlier-recorded shapes") was applied and held on its axis.** A-7's `re-derives:` enumerates reset sources and item shapes with TO-3m A/B controls. SUG004 is on an axis the sixth shape does not cover — shapes recorded by earlier *findings* about consumers of a record stream, not *input* shapes on the path — hence the third-shape example above rather than a seventh shape.
+- **GAP-02 remains the modal class across three rounds** (4/5, 2/3, 1/3), by amendment: A-3 → 4 findings, A-5 → 2, A-7 → 1. The chain is converging: each remedy produced fewer, lower-severity findings than the one it fixed.
+- **GAP-05 recurs only as a secondary class** (rounds 1, 2, 3).
+- **Plan-seeded comment recurs:** NIT003 (GAP-01) and round-1 NIT001 (GAP-03) are both commit-1 comments that echo plan wording narrower/wider than the code; GAP-03 itself did not recur.
+- **GAP-10 appears for the first time** (NIT002, prose).
