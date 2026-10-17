@@ -42,6 +42,10 @@ The query cache key is taken from the exposed tree before any builder runs. A no
 
 (#5708, A-16; #6003 round 5.)
 
+### A computed expression's `DataType` comes from the schema, not from its operands
+
+`SqlBinaryExpression`, aggregates and most functions are built with a CLR type only (`ExpressionBuildVisitor` → `SqlBinaryExpression(Type systemType, …)`; `QueryHelper.GetDbDataTypeImpl` returns `new DbDataType(systemType)` for them). The overloads a provider visitor or translator actually calls, `QueryHelper.GetDbDataType(expr, MappingSchema)` and `ISqlExpressionFactory.GetDbDataType`, then fill an undefined `DataType` from the mapping schema's default for that CLR type. So `x + x` and `SUM(x)` over a `[Column(DataType = DataType.Double)] decimal` arrive typed `Decimal`, and a predicate keyed on storage `DataType` cannot see that the operands are Doubles; their `Precision`/`Scale` are null too (an inferred type). A storage-keyed gate is reliable for columns and literals only. Decide what a computed value over non-default storage does, and give it a test or a recorded limit. (#5943 A-9, U-32: the YDB Decimal-storage gate fixed Double-stored columns, and computed values over them still take the Decimal path and fail loudly.)
+
 ## Other Key Directories
 
 - `Source/LinqToDB/Mapping/` — Attribute-based and fluent mapping configuration (`[Table]`, `[Column]`, `FluentMappingBuilder`)
