@@ -343,6 +343,8 @@ dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings
 
 **`--list-tests` discovers nothing without `--provider`.** Every `[DataSources]` / `[IncludeDataSources]` method resolves zero providers and so contributes zero cases, leaving a listing that looks like the fixture does not exist. Always pass `--provider <name>` when using the listing to check whether a method is covered — which is the check the zero-cases rule under *Tests that pass but catch nothing* depends on.
 
+**Size a regression sweep with `--list-tests` before launching it.** Run the same `--provider` / `--filter` with `--list-tests` (about 7 s) and read the `found N test(s)` line. Filter by fixture (`FullyQualifiedName~.WhereTests.`), not by a bare substring: `~Where` / `~Join` / `~SubQuery` match method names across the whole suite. (#5983 round 6: such a filter matched 5,044 methods, about 47 k cells over five providers, and was killed after 2 h a third done.)
+
 **To exercise the remote (LinqService) path, pass the BASE provider name, not the `.LinqService` suffix.** `DataSourcesBaseAttribute` auto-appends a `<provider>.LinqService` case for every base provider (unless `.runsettings` sets `DisableRemoteContext` / `NoLinqService`), so `--provider Firebird.5` runs **both** the direct `Firebird.5` and the remote `Firebird.5.LinqService` cases. Passing `--provider Firebird.5.LinqService` double-suffixes it to `Firebird.5.LinqService.LinqService`, which has no connection string → those cases silently don't run (you'll see only `CreateDatabase` execute). This is also why `test-runner`, given a `.LinqService` provider name, comes back green-but-empty.
 
 ### Running EF Core tests locally
