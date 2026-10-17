@@ -284,8 +284,10 @@ When the PR decides at build time which raw-SQL arguments reach SQL (drops, repl
 - `Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs` (the one non-Access `BuildValue` override)
 - `Data/ConnectionOptions.cs` (`ConfigurationID`, which keys the query cache per provider) and `Remote/RemoteDataContextBase.cs` (a remote context's `SqlProviderFlags` come from the server)
 - `Internal/Linq/ExpressionCacheHelpers.cs`
+- `Source/LinqToDB/Sql/Sql.ExpressionAttribute.cs` (`ToParametersNullabilityType`: whether a `NULL` argument changes `Sql.Expr` nullability) — not the near-miss `Sql/Sql.ExtensionAttribute.cs`, a different file
+- `Tests/Base/Attributes/DataSourcesAttribute.cs` (which providers a params-only `[DataSources(...)]` exclusion leaves in)
 
-(Surfaced on the second #6008 review: the `sql-and-provider` pass spent 24 calls against its budget locating exactly these.)
+(Surfaced on the second #6008 review: the `sql-and-provider` pass spent 24 calls against its budget locating exactly these. The last two on the third: two passes fetched the nullability mapping by hand after the near-miss was cached instead.)
 
 **For a PR that touches eager-load strategy selection or `SqlQueryValidatorVisitor`, the companions are the limit builders and the validator's callers.** Every pass asks the same questions. Does `Take` / `First` make the root query limited? Can a user request `Default` explicitly? What does a stricter validator make each caller decline? Cache these with `include.content: true`:
 - `Internal/Linq/Builder/TakeSkipBuilder.cs` (it sets the limit on the sequence's own query and returns a pass-through context)

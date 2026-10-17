@@ -500,6 +500,18 @@ These are the maintainer's house rules for **new** test code, and they win over 
        .ShouldBe(expected);
    ```
 
+   A single call followed by an assertion is a chain too — the shape an eyeball sweep misses (#6008 round 3):
+
+   ```csharp
+   // not this
+   FormattableStringHelper.TrySplit(create, out var format, out var split).ShouldBeTrue();
+
+   // this
+   FormattableStringHelper
+       .TrySplit(create, out var format, out var split)
+       .ShouldBeTrue();
+   ```
+
 2. **Query syntax, multi-line, one clause per line.** Use query syntax whenever the query has a `join` or `SelectMany`. A plain `Where`/`Select` chain can stay method syntax, laid out per rule 1.
    - Put `var query =` on its own line, then `from`, `where`, `orderby`, `group … into` and `select` each on their own line.
    - Break a non-trivial `select new` into `{ … }` lines.
