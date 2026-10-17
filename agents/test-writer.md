@@ -83,6 +83,8 @@ Same pattern applies to every `Use<Provider>(Func<ProviderOptions, ProviderOptio
 - `[EFDataSources]` — all enabled providers, EFCore tests.
 - `[EFIncludeDataSources(TestProvName.AllSqlServer, TestProvName.AllPostgreSQL)]` — EFCore tests, multi-family scope.
 
+Before naming a family in `[IncludeDataSources]` for a window function or ordered-set aggregate, read that provider's `*MemberTranslator` flags and comments. They record what the server refuses: DB2's `PERCENTILE_DISC` takes only a numeric sort key (`DB2MemberTranslator`), which a DATE-ordered test listing `AllDB2` hit on CI (#5959).
+
 Pick the narrowest set that still covers the behavior. Provider-agnostic behavior → `[DataSources]`. Provider-specific → `[IncludeDataSources]` / `[EFIncludeDataSources]` with a `TestProvName.All<Family>` constant. Never hardcode a single version unless the test is testing version-specific behavior.
 
 **Exclude a provider with the attribute, never with an early `return`.** Use `[DataSources(<excluded>)]`, or `Assert.Ignore("<reason>")` when only one `[Values]` value is unsupported (see [`testing.md`](../docs/testing.md) → *Excluding a provider from one combination*). An `if (context.IsAnyOf(…)) return;` guard records a pass for a case that never ran. (#5972)

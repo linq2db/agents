@@ -20,6 +20,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a builder-side frame fix alone. Correlated outer references and CTE fields need `NullabilityContext` itself to judge them in the frame that holds their outer join, or the optimizer undoes the builder's decision. Measure the mixed-column shape, not only the parent-only one. (#5983, igor-tkachev's MIN008 / MIN009; tests gated `[ActiveIssue(5983)]` in `7e24e0528`)
 
+## SQL-PROVIDER: an IN-list value keeping its own type beside any computed column value
+
+**Tried:** widening `BasicSqlBuilder.GetInListValueType` so a captured IN-list value keeps its own type beside any computed operand (MIN/MAX, COALESCE, value window functions, a CASE) that reaches a column without a value converter, not only a coarse date/time one. The aim was `[1.004m].Contains(MAX(Decimal64(18,2)))` writing `1.004` rather than `1.00` on ClickHouse.
+
+**Failed because:** a column type can name how a value is stored, not just its width. `listText.Contains(r.ValueText.GetValueOrDefault())` over a Guid mapped `DataType.Text` / `DbType = "TEXT"` is a CASE over the column, so the Guid was written as a blob and matched nothing on every SQLite config (`SQLiteTests.Issue4808Test`, GitHub run 39044449090).
+
+**Don't re-attempt:** a computed-vs-stored test alone. The value keeps its own type only where the two types differ in precision: a coarser date/time column, or decimal beside decimal with no converter. Every other column type still lends itself. (#5959, `d2da94700` narrowed by `76fc77952`)
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
