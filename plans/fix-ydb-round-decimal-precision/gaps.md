@@ -105,3 +105,38 @@ GAP-05 leads with 3 of 8 rows (MIN010, OOS001, SUG001). It is followed by GAP-07
 - Round 1's partition-table recommendation (`plan-critic.md:60`) recurs in MIN009: the vector has no `DataType` axis, and the plan still has no `P5` partition table.
 - Round 2 NIT005–NIT010 (GAP-07) recur as NIT014/NIT015 through *Mode: amend*. Round 2's recommendation never landed.
 - Round 3's recommendation (re-check earlier decisions against a delta's new mechanism, 49215eb) landed after A-8; no finding this round traces to its absence.
+
+## Round 5 — reviewed HEAD 3b512f3e8
+
+Plan present (Tier L, approved through A-9, plan commit 945a84d); judged against the A-9 plan the fixes 0ee7fd338, 01a94279f, 4837c1fe6, a615b1230 and 3b512f3e8 were built from. All P9 gates passed; CI green on 3b512f3e8. Walk items map: item 2 = OOS003, item 3 = OOS004, item 9 = OOS005. Dispositions: MIN011, OOS003, OOS004, SUG202 probe then fix/record; NIT017/217/218/226, NIT219, NIT220-224, NIT225 fix; OOS005 probe and fix here.
+
+### Attribution
+
+- **MIN011** — GAP-02 — the plan said the mirror (`[Column(DataType = DataType.Decimal)] double`) behaves "as on master" without checking master's SQL per partner operand. D-9 (`plan.md:148`) and its mirror partition row (`:156`) cover only "beside a floating operand"; TO-16 (`:239`) took `M * 2.5` as the floating-partner cell, but the column descriptor types the literal Decimal, so the cell is mirror × Decimal storage, which master cast to Double through `IsFloating`'s CLR arm (`_base/...YdbSqlExpressionConvertVisitor.cs:239-240`). The critic-prescribed `IsFloating := DataType is Double or Single` (`plan.md:416`) drops that arm. Secondary GAP-05: `2.5` is exact in both Decimal and Double, so the control could not redden on a change of compute type; G-02 (A-9) reported the `DecimalStoredDoubleArithmetic` baseline "as expected" by file count while it shows `r.M * Decimal('2.5', 22, 9)`. — G-02 (checked counts, not SQL) — preventable: yes
+- **OOS003** — GAP-03 — the D-9 partition (`:151-158`) gives the mirror Round and arithmetic cells but no `(long)` / `Convert.ToInt64` cell, although D-9 says "`ConvertConversion` keys on storage alone, as before for that mirror". The A-9 P7 row on the CLR-keyed Text route (`:218`) analysed only the Round result's narrowing, not `TruncateDecimal`'s work types, which copy `SystemType` (D-6, `:121`) and arrive as `double` at `:352-365`. Round 4 MIN009 flagged D-6's copying on the CLR-decimal side only. — — — preventable: yes
+- **OOS004** — GAP-02 — the DyNumber P10 entry (`:275`) and partition row (`:158`) cite U-30 (`:77`), measured at 8fe94a3f3 on the old route (`TruncateDecimal`: `Cannot cast type DyNumber into Decimal(35,1)`). A-9's own `IsDecimalStorage` (E-16, no `DecFloat` arm) moves `(long)x` to the base `CAST(<DyNumber> AS Int64)`, unprobed; G-01 (A-9, `:251`) re-ran `YdbTypeTests` but not U-30's `DyNumberToInt64` scratch. 49215eb covers earlier decisions resting on a new `U-n`, not a `U-n` probed on a route the same amendment changes. — G-01 (no post-edit re-run) — preventable: yes
+- **SUG202** — GAP-02 — G-01 (A-9, `:251`) records TO-18's remote/direct message split and pins it with no mechanism. The plan's #6055 class (P10 `:269`, `:278`) predicts it but lists `Round29`–`Round31`, `Round34`, `Round35`, not `Round23`'s constant boundary on declared `D22s9`. Secondary GAP-10: the missing comment is prose. — — — preventable: partly
+- **NIT017/NIT217/NIT218/NIT226** — GAP-07 — *Mode: amend* step 4 (`SKILL.md:252`, embed *Test layout* and sweep the branch's new test code) landed in 50662c9 before A-9 (945a84d) and was not run: A-9 neither embedded the rule nor swept; E-21 (`:183`) restated only the lines NIT014/NIT015 named. — — — preventable: yes
+- **NIT219** — GAP-07 — same mechanism: 0ee7fd338 fixed Round30 (NIT014) but not its runtime twin Round31 from the same E-14; E-21 has no `class:` line. — — — preventable: yes
+- **NIT220–NIT224** — GAP-07 — Round32–35 and `DecimalStoredDoubleArithmetic` are new A-9 test code (E-19/E-20), written after amend step 4 existed but without its embed, so *Test layout* rules 1 and 3 never reached the author. — — — preventable: yes
+- **NIT225** — GAP-01 — no rule requires a provider exclusion to carry its reason at the attribute; `testing.md:439-446` says a narrowing "encodes a *reason*" without requiring it in code. Round 2 NIT004 asked for this rule; it never landed. — — — preventable: partly
+- **OOS005** — GAP-02 — A-4 (`:290`) decided "E-6 opens `UsingColumnDescriptor(null)` before the exponent only (the base keeps it, as Round's value does)" by analogy, never probed for a constant base; the A-4 critic round and the P7 Max/Min row (`:205`) generalised a literal-beside-column measurement. Neither looked at YDB's `TranslatePow`, which casts the result back to the base's descriptor-cut type. Secondary GAP-03: no sweep of sibling argument slots (Pow's base, Round's value). — — — preventable: yes
+
+### Aggregate
+
+GAP-02 leads with 4 of 9 rows (MIN011, OOS004, SUG202, OOS005): each is a claim one run would have tested, recorded untested — "as on master" for the mirror's arithmetic, U-30 carried past the edit that moved its route, a remote pin with no mechanism, "the base keeps it, as Round's value does". GAP-07 follows with 3 rows covering 10 nit IDs, all from one cause: the amend-mode embed-and-sweep step landed 2½ hours before A-9 and was not run. The single change that would have prevented the most substantive findings: for each operation and partner operand of a type-keyed classifier, a cell probed on the post-edit tree and compared with master's SQL (MIN011, OOS003, OOS004).
+
+### Recommended durable fixes
+
+- GAP-02 ×2 + GAP-03 ×1 (MIN011, OOS004, OOS003) → `plan-critic.md` mapping-shape vector (fa0d742): list every operation consuming the predicate (Round, binary arithmetic, `(long)` / `Convert.To*`); for a two-operand classifier, every partner class including a literal typed by the column descriptor; cite a master-vs-head SQL comparison for every "as on master" cell; a `U-n` / `P10` probe taken before an edit that changes that shape's route is void until G-01 re-runs it.
+- GAP-07 ×3 → `work-plan.ps1 -Validate`: fail any `A-n` that adds or widens an `E-n` under `Tests/` unless it carries a `conventions:` line recording the embed and the `git diff <base>... -- Tests/` sweep. Third round with this class; the rule exists, enforcement is missing.
+- GAP-02 ×2 (OOS005, SUG202) → `plan-critic.md` attack vector: a scope sentence leaving a sibling argument slot unchanged "as X does" is a correctness claim needing a probe of that slot's constant form or a `P10` line; a G-01 result pinning a provider- or remote-divergent message must name its mechanism or carry the sibling into the existing `P10` class.
+
+### Continuity
+
+- Round 4 MIN009 (CLR type taken as storage) returns on the mirror side as MIN011 and OOS003. Round 4's census recommendation landed as fa0d742 after A-9's plan commit and both critic rounds; as worded it would still miss MIN011 (checks both mirrors, not each mirror against each partner class or operation).
+- Round 3's recommendation (49215eb) landed before A-9; OOS004 is the case it does not cover — a probe made stale by the amendment's own edit.
+- Round 2/4 GAP-07 returns as NIT017–NIT226; this time the recommendation landed (50662c9) before A-9 and was not run.
+- Round 2 NIT004 (exclusion reason at the attribute, GAP-01) returns as NIT225; the `testing.md` rule never landed.
+- Round 4 SUG001 / round 3 MIN008 (late controls get less scrutiny) returns as MIN011's secondary GAP-05.
+- A-4's instance-only Pow fix returns as OOS005; matches the plan-critic "amendment must carry its class" vector, which postdates A-4.
