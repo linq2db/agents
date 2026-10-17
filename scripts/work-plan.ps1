@@ -462,6 +462,24 @@ function Invoke-Validate {
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-16') { $errors += $msg } else { $warnings += $msg }
         }
+
+        # The `re-derives:` line alone records an intention, not a re-walk: #5959's A-8/A-9 named only P6/P8/P9,
+        # had no critic round, and 4 of round 5's 5 code findings sat in what they brought in. So an amendment
+        # adding edit-points must also cite a P4/P7 row (or `P7: none - <searched>`) and be named by a P12 round.
+        foreach ($e in $entries) {
+            $idPattern = "\b$([regex]::Escape($e.id))\b"
+            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
+
+            $missing = @()
+            $reDerives = [regex]::Match($e.text, '(?i)re-derives:[^\n]*')
+            if (-not ($reDerives.Success -and $reDerives.Value -match '\b(P4|P7|U-\d+|R-\d+)\b')) { $missing += 'a P4/P7 row in its re-derives: line' }
+            if ($p12Text -notmatch $idPattern) { $missing += 'a P12 critic round naming it' }
+            if ($missing.Count -eq 0) { continue }
+
+            $msg = "P11 : $($e.id) adds edit-points but lacks $($missing -join ' and ') -- the re-walk and its critique are what catch a dropped clause"
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # P12 verdict — an error at Tier L, a warning at Tier M.
