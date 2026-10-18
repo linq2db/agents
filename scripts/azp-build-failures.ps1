@@ -59,6 +59,11 @@ Read `build.result` for that: a build canceled outright can leave its timeline
 empty, so `canceledJobs` - the jobs the timeline records as canceled - is only
 filled when single jobs were canceled inside a build that ran.
 `prSourceSha` is the PR head the run built; `sourceVersion` is the merge commit.
+
+`failedJobs` lists every failed Job record of the current timeline with its error issues. A job whose
+agent was lost ("We stopped hearing from agent ...") carries its cause only there: its running Task
+reports `failed` with `reportedFailedTotal: 0` and no failures, and the remaining Tasks `abandoned`. Read
+it before treating a zero-failure failed task as a mystery (#5943: build 24407's SQL Server 2008 leg).
 #>
 
 param(
@@ -145,6 +150,17 @@ $timelines = @([pscustomobject]@{ attempt = 'current'; records = $current.record
 
 $canceledJobs = @(@($current.records) | Where-Object { $null -ne $_ -and $_.type -eq 'Job' -and $_.result -eq 'canceled' } | ForEach-Object { $_.name } | Sort-Object -Unique)
 
+# A job that lost its agent fails at the Job level ("We stopped hearing from agent ..."): its running Task
+# reports `failed` with no parsable test failure and the rest `abandoned`, so the cause is only here.
+$failedJobs = @(@($current.records) |
+    Where-Object { $null -ne $_ -and $_.type -eq 'Job' -and $_.result -eq 'failed' -and $_.issues } |
+    ForEach-Object {
+        [pscustomobject]@{
+            name   = $_.name
+            issues = @($_.issues | Where-Object { $_.type -eq 'error' } | ForEach-Object { $_.message })
+        }
+    })
+
 # Oldest first, so the earliest attempt's failures are reported before the retry's.
 $priorTimelineIds = @($current.records |
     Where-Object { $_.previousAttempts } |
@@ -226,6 +242,7 @@ if ($failedTasks.Count -eq 0) {
         buildId         = $BuildId
         build           = $build
         canceledJobs    = $canceledJobs
+        failedJobs      = $failedJobs
         logsDir         = $WriteDir
         attemptsScanned = @($timelines.attempt)
         failedTaskCount = 0
@@ -318,6 +335,7 @@ $result = [ordered]@{
     buildId         = $BuildId
     build           = $build
     canceledJobs    = $canceledJobs
+    failedJobs      = $failedJobs
     logsDir         = $WriteDir
     attemptsScanned = @($timelines.attempt)
     failedTaskCount = $failedTasks.Count

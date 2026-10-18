@@ -420,6 +420,27 @@ function Invoke-Validate {
         }
     }
 
+    # P10 ids: a cited `L-n` must be defined by a P10 entry. A promised P10 line that an edit never wrote reads
+    # exactly like one that exists (#5943: D-12 cited a narrow-family entry for two rounds; it had been spliced away).
+    $p10Ids = @()
+    if ($null -ne $p10) {
+        $p10Ids = @($p10.lines | ForEach-Object { if ($_ -match '^-\s+(?:\*\*)?(L-\d+)\b') { $Matches[1] } })
+    }
+    $otherLines = @($blocks | Where-Object { $_.id -ne 'P10' } | ForEach-Object { $_.lines })
+    $cited = @($otherLines | ForEach-Object { [regex]::Matches($_, '\bL-\d+\b') | ForEach-Object { $_.Value } } | Sort-Object -Unique)
+    foreach ($id in $cited) {
+        if ($p10Ids -notcontains $id) { $errors += "P10 : $id is cited but no P10 entry defines it (``- $id ...``)" }
+    }
+    if ($p10Ids.Count -gt 0) {
+        $p12Block = Get-Block -Blocks $blocks -Id 'P12'
+        $p12Lines = if ($null -ne $p12Block) { $p12Block.lines } else { @() }
+        foreach ($l in $p12Lines) {
+            if ($l -match '(?i)Changed:[^\n]*\bP10\b' -and $l -notmatch '\bL-\d+\b') {
+                $warnings += "P12 : a disposition adds P10 lines without naming their L-n ids -- $($l.Substring(0, [Math]::Min(120, $l.Length)))"
+            }
+        }
+    }
+
     # P11 — an amendment that supersedes a D-n or adds a public type is a new plan pass: it must carry a
     # `re-derives:` line, and P12 must record a critic round that names it. The prose rule alone did not stop
     # #5708's A-13/A-14 (9 of 22 review findings), so entries dated from 2026-10-11 fail; older ones warn.

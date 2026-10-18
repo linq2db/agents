@@ -217,6 +217,8 @@ Analyzers are Release-only and `Testing` builds `net10.0` only, so `G-05` is not
 
 Accepted trade-offs and deliberate deferrals — **the do-not-flag set for this branch's reviews**. Each entry needs a reason, and where the reason is a measurement, the measurement.
 
+**Each entry carries a stable id**, `- L-<n> (A-k) …`, and every citation of an entry elsewhere in the plan names it (`P10 L-4`), including a `P12` disposition that adds entries (`Changed: P10 L-7, L-8`). `-Action validate` fails a cited `L-n` that no `P10` entry defines, and warns on a `P12` "Changed: … P10 line" that names no id once the plan uses ids. A disposition that promised a `P10` line and an edit that never wrote it otherwise look identical: on #5943 critic round A-10's "Changed: two P10 lines" landed one, a splice ate the other, and `D-12` went on citing it until review round 6 found the regression it was meant to record (MIN012). Plans predating the id carry none and are not checked.
+
 Two guards keep this from becoming a silencer, and both are enforced in the reviewer's briefing:
 
 - **An entry with no reason suppresses nothing.**

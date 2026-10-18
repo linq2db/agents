@@ -462,6 +462,20 @@ emission was deleted and everything became translated SQL, the pins had no remai
 the one provider whose emitted SQL the change actually altered and the only one gaining a version gate, was not in
 any of them. *"as we moved from native to translated sql - those should execute all providers as [DataSources]"*.)
 
+**State the reason at the attribute.** A narrowed set — an exclusion in `[DataSources(...)]`, or an `[IncludeDataSources(...)]` that is not a single-provider translator test — carries a `//` line directly above the test (or in its leading comment) naming why each provider is in or out: the measured failure, or the provider-conditional mechanism the test exists for. A test comment that implies a wider set than the attribute runs is the same defect in reverse — a reader widens it and gets a red leg.
+
+```csharp
+// Sybase: https://stackoverflow.com/questions/25281843
+[Test]
+public void PowDecimalBaseScale([DataSources(TestProvName.AllSybase)] string context)
+
+// Only YDB and ClickHouse render a decimal literal's scale, so only they can cut the value.
+[Test]
+public void RoundDecimalValueScale([IncludeDataSources(true, TestProvName.AllYdb, TestProvName.AllClickHouse)] string context)
+```
+
+Not this: a two-provider `[IncludeDataSources]` whose comment explains only how the query is shaped, or a YDB-only test commented "on the providers that render a literal's scale". `.claude/scripts/test-diff-sweep.ps1` lists every narrowed attribute a branch adds, with the line above it. (#5943: asked for in review rounds 2 and 5, missed again in round 6 — NIT019, NIT020.)
+
 ## Test Patterns
 
 ```csharp
