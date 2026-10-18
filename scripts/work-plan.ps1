@@ -3,7 +3,8 @@
 #
 #   -Action init       scaffold .claude/plans/<key>/plan.md from the template
 #   -Action validate   schema completeness; ok=false with per-block errors (-Done: the exit check —
-#                      a still-pending gate and a TO-n with no test named in G-01 become errors)
+#                      a still-pending gate and a TO-n with no test named in G-01 become errors;
+#                      -Summary: counts and errors only)
 #   -Action gates      derive the applicable definition-of-done gate subset from P6
 #   -Action reconcile  report changed files that no P6 edit-point authorizes
 #   -Action gap-report render .claude/plans/<key>/gaps.md as counts + dominant class
@@ -41,7 +42,11 @@ param(
 
     # validate only: the exit check run before the diff's adversarial read (definition-of-done G-09). An amend
     # mid-implementation legitimately has pending gates, so without it they stay warnings.
-    [switch] $Done
+    [switch] $Done,
+
+    # validate only: emit counts and errors, not the edit-point list or the warnings — a Tier L plan's full output
+    # overflows a tool-output cap.
+    [switch] $Summary
 )
 
 Set-StrictMode -Version Latest
@@ -512,6 +517,23 @@ function Invoke-Validate {
     }
 
     $ok = ($errors.Count -eq 0)
+
+    if ($Summary) {
+        Write-JsonOutput ([ordered]@{
+            ok         = $ok
+            action     = 'validate'
+            key        = $PlanKey
+            tier       = $planTier
+            status     = $planStatus
+            verdict    = $verdict
+            editPoints = $editPoints.Count
+            warnings   = $warnings.Count
+            errors     = @($errors)
+        })
+        if (-not $ok) { exit 1 }
+        return
+    }
+
     Write-JsonOutput ([ordered]@{
         ok         = $ok
         action     = 'validate'
