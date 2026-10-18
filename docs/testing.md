@@ -544,6 +544,8 @@ These are the maintainer's house rules for **new** test code, and they win over 
    - **`object`-typed projections.** These need the explicit-comparer caveat in *Test Patterns* above.
    - **Scalar `decimal` results.** Still `AssertQuery`, but pass `EqualityComparer<decimal>.Default` (`<decimal?>` for a nullable result). The default comparer compares a decimal's public members, `Scale` included, so a provider returning `2.50` for an expected `2.5` fails. An anonymous-type projection is unaffected. (#5943: `Round16` went red on YDB after a conversion from `AreEqual`.)
 
+   What a conversion trades away: `AssertQuery` re-reads every table the query names (`TableName(…)` included) and runs the expected side over that read-back data, then compares count plus a two-way `Except` — order is not checked, and a value the database stored wrongly is wrong on both sides. So changing the test's data cannot prove a converted test can fail; prove it with a product mutation that forces a wrong value (#5943 round 5: away-from-zero answered to-even turned each converted `Round32`–`Round35` red). The actual query runs first, so a red and an `[ActiveIssue]` gate's exception are unchanged.
+
    ```csharp
    // not this
    AreEqual(

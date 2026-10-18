@@ -485,6 +485,19 @@ function Invoke-Validate {
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
+
+        # An amendment adding test edit-points owes the amend-mode step 4 record: the *Test layout* embed and a sweep
+        # of the branch's test diff. #5943 rounds 2, 4 and 5 drew layout nits from amendment-added tests; by round 5
+        # the step existed in the skill and still was not run, so its record is now checked.
+        foreach ($e in $entries) {
+            $idPattern = "\b$([regex]::Escape($e.id))\b"
+            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+\s+`?Tests/' -and $_ -match $idPattern })) { continue }
+            if ($e.text -match '(?i)\bconventions:') { continue }
+
+            $msg = "P11 : $($e.id) adds test edit-points but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # P12 verdict — an error at Tier L, a warning at Tier M.

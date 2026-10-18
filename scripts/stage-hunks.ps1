@@ -49,7 +49,9 @@ occur exactly once, or the call fails rather than editing the wrong occurrence.
 context line repeats (`/// <summary>`, a blank line) can apply cleanly one method off; the script counts
 the file's index -> worktree removals before and after, restores the file's index entry if they grew, and
 fails. Fall back to `-CutFile` / `-Replace` for that file. (#5959: two whole test methods landed one
-method down, silently.)
+method down, silently.) Simpler when the refused hunk belongs to one commit: commit that file's other
+hunks first, so the refused one is the file's whole remaining diff and stages with a plain `git add`
+(#5943 round 5).
 
 **Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
 the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
