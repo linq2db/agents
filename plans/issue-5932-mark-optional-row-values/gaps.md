@@ -205,3 +205,76 @@ GAP-03 ×3, GAP-02, GAP-05, GAP-10 ×1 each. Every GAP-03 is the same missing ar
 - **Chains:** MIN010 → MIN014 → MIN018 → NOTE001 / MIN020 / NIT002 — the inline-array feature has produced findings five rounds running, each fixing one site of the class. MIN003 / MIN011 / MIN015 → NOTE002: the contract paragraph's last residue is a stale review comment.
 - **Applied since round 5:** reconcile-before-review (round 2) held — A-43 recorded before dispatch, no GAP-09.
 - **Gate debt:** critic round 11 objection 2 open; no CI run on `a8f04fd92`; P9 has no row for A-43; HANA and YDB unobserved at this head.
+
+## Round 7 — reviewed HEAD 1c6516a73, 2026-10-18
+
+The plan is reconciled up to `25b9c09c7`: A-44 records the reviewer's round-6 commits, and critic round 12 (`weak`) ran on the A-44 delta in parallel with this review. Two commits are not recorded: `ec6cf84b0` (merge of `master`) and `1c6516a73` (the MA0020 `List.Exists` change at E-48's site). Neither finding traces to them, so no finding is GAP-09; A-45 is owed for both.
+
+P9: CI is green on `1c6516a73` (Azure `test-all` 24385, GitHub tests run 39064149306). This is the first CI run over E-47 / E-48. No test spells either `LinqExtensions.AsQueryable` overload, so no gate that ran could have caught MIN021, and it is not GAP-08. `-Validate -Done` fails on 28 G-01 rows with no test method recorded, and on A-44 having no `re-derives:` line. Ids: MIN021, NIT003.
+
+### Attribution
+
+- **MIN021** — GAP-02. Preventable: yes. Gate: G-01.
+  - The A-40 recogniser row in P7 (line 206) describes `UnwrapInlineArray` by method name only: "a conversion, `AsEnumerable`, `AsQueryable` over a `NewArrayExpression`". A-33 (line 402) calls these "the pure wrappers `BuildArrayAggregationFunction` strips", and critic round 8 accepted the mirror "mirrors … exactly" (line 574).
+  - The admission predicate itself was never read. `IsQueryable` → `IsBuiltInQueryable` includes `typeof(LinqExtensions)` (`InternalExtensions.cs:249`), so the db-bound `AsQueryable(source, db)` and its 3-arg configured overload are admitted too. Neither is a pure wrapper.
+  - E-47's row (line 207) rests on that unchecked premise: a resolved node "is a client value, as the bare one is". That equivalence holds only for `Queryable.AsQueryable`, `Enumerable.AsEnumerable` and a cast.
+  - Critic round 11 objection 1 named the exact overload (line 598). A-44.2 (line 442) closed the objection "except `LinqExtensions.AsQueryable(db)`, still unspelled", and the user delegated it to this review.
+  - Second contributor, GAP-05: TO-1p, TO-1q and TO-3q (lines 308-310) spell only `Queryable.AsQueryable()`, so no obligation could go red for either `LinqExtensions` overload.
+  - Round 6's decline-census recommendation covered E-47's *callers* (critic round 11 found three) but not the recogniser's *admitted inputs*, which is the axis that was missing here.
+- **NIT003** — GAP-10. Preventable: partly (the A-44 reconciliation could have caught it; no block existed to prevent the original wording). Gate: none.
+  - The comment at `SqlExpressionOptimizerVisitor.cs:1756-1758` was written in the reviewer's fix commit `e954ab239`, before any plan block for E-48 existed. E-48's P6 row and A-44.1 were both written afterwards, at reconciliation.
+  - The reconciled text contradicts itself. The E-48 row (line 208) gets the behaviour right: "becomes the `OR` of `ExprExpr(x, Equal, item, true)` over every item". A-44.1 (line 441) repeats the comment's misreading: "constant and parameter items stay in the list".
+  - A-44 had both sentences in hand and recorded the wrong one as a disposition. Critic round 12 ran on that delta and did not flag the contradiction. A-44.1 needs the same correction as the comment.
+
+Out-of-scope observations. These are not findings; each is attributed only for the plan gap it exposes:
+
+- **E-48's reach is wider than P3 discloses** (bare `new int?[]{…}`, `SqlExtensions.In/NotIn`, any nullable column under LikeClr with no LEFT JOIN) — GAP-03.
+  - E-48 has no P7 row (critic round 12 objection 3), so nothing enumerated the inputs `VisitInListPredicate` receives.
+  - P3's deviation (line 36) still scopes the change to "an inline array … reached through a cast, `AsEnumerable` or `AsQueryable`", although A-44.1 itself says the bare spelling was already wrong on master.
+  - Second contributor: P5 has no D-n for E-48 (objection 4). The site moved to the SQL-OPT layer, where every `IN` list reaches it, and the altitude question was never asked.
+- **E-48 has no projection-position test** — GAP-05. TO-3r (line 311) is SC-3, predicates only, but E-48 runs in the optimizer over every `IN` predicate, including one in the select list. This is a recurrence of round 5's *After the walk* rule (probe in a predicate *and* a projection).
+- **TO-1q's discriminating providers are unstated** — GAP-05. Its scope is `[DataSources]`, "command count on direct contexts" (line 310). It does not name where master eager-loads the shape (DuckDB and SQL CE measured; SAP HANA and YDB inferred, per A-43 line 436). Round-4 recommendation 1 recurs.
+- **No `CompareNulls.LikeSql` control for TO-3r** (critic round 12 objection 5) — GAP-05. The obligation has no arm that can disagree.
+- **A positive `IN` nested in another predicate is still three-valued** — pre-existing, no gap attributed. If promoted, it belongs in the missing E-48 census and in P10.
+
+### Aggregate
+
+Two findings: GAP-02 (MIN021) and GAP-10 (NIT003).
+
+- **MIN021 is the sixth consecutive round in which the inline-array feature has produced a finding.** The plan described its recogniser by spelling, not by predicate, and, as in round 6 (MIN020, NIT002), the defect was found only because an `Open` critic objection was delegated to review. Three review passes and the critic converged on it.
+- **NIT003 and the E-48 observations share one mechanism.** E-48 entered the plan as a narrative disposition (A-44.1), with no D-n, no P7 census and no `re-derives:` line. The plan's description of E-48 is therefore the author's intent rather than a reading of the code, and it got the item handling, the reach and the P3 deviation wrong.
+
+Two changes would have prevented the most:
+
+- A shared recogniser's row states its admission predicate as read in code (declaring types × methods × overloads), and every equivalence built on it is checked per admitted overload. This covers MIN021 and the whole earlier MIN010 → MIN018 chain.
+- A `-Validate` failure blocks review dispatch. This covers the E-48 observations, and NIT003 in part.
+
+### Recommended durable fixes
+
+- **GAP-02 ×1** (MIN021; MIN014 / MIN018 in the same chain) → an attack vector in `plan-critic.md`, plus P7 semantics in `work-plan.md`:
+  - A recogniser shared by several sites is written in P6 / P7 as its predicate cited at `file:line`, listing the declaring types it admits (`IsQueryable` / `IsBuiltInQueryable`), not only the method names.
+  - Any claim built on it ("a client value, as the bare one is", "pure wrapper") is checked per admitted overload.
+  - Its `class:` sweep enumerates the overloads, not the spellings.
+- **GAP-03 + GAP-10** (the E-48 observations; NIT003 partly) → `review-pr/SKILL.md` round entry and `definition-of-done.md` G-09:
+  - A `-Validate` failure on the latest A-n blocks the next review round. Examples: a missing `re-derives:` line, or a new E-n in a new area without a D-n and a P7 reach row. The check fired on A-44 and did not stop dispatch.
+  - A disposition that describes a mechanism is checked against the E-n row it reconciles.
+- **GAP-05 ×3** (TO-1q's providers, TO-3r's control, E-48's projection position) → P8 semantics in `work-plan.md`, plus `-Validate`:
+  - `providers:` names the discriminating providers and why they discriminate.
+  - A rule keyed on a `CompareNulls` mode gets a cell in the other mode that must disagree.
+  - An optimizer-level E-n gets a TO in each clause position the optimizer visits (predicate and select list).
+
+### Continuity with rounds 1–6
+
+- **MIN010 → MIN014 → MIN018 → NOTE001 / MIN020 / NIT002 → MIN021: the inline-array feature has produced a finding six rounds running.** Each round examined the recogniser by the spellings in front of it — bare, then wrapped, then which callers decline — and none read its admission predicate.
+- **Round-3 recommendation 2 (an `Open` objection blocks dispatch): unapplied a fifth time** (rounds 3, 4, 5, 6, 7). As in round 6, delegating it to review was the user's explicit choice, and A-44.2 recorded the overload as `Open`. The cost was one more review round. The delegated item was verified against source but never probed at runtime, so a red test is still owed.
+- **Round-1 recommendation 1 (`re-derives:`): now enforced by `-Validate`, and it fired on A-44.** Enforcement works but is not yet a dispatch blocker (second durable fix above).
+- **Round-6 recommendation 1 (decline census): applied to callers** by critic round 11. MIN021 shows the census must also cover the declining recogniser's admitted inputs.
+- **Round-6 recommendation 2 (a P3 deviation is probed and pinned by a TO on the deviation itself): half applied.** TO-3q gained its SQL assertion (A-44.4), but the P3 deviation (line 36) was not re-derived after E-48, so it misstates E-48's reach (critic round 12 objection 2).
+- **Round-4 recommendation 1 (`providers:` scope that says why it discriminates): recurs** in TO-1q.
+- **Round-5 *After the walk* (probe a decline in a predicate and a projection): recurs twice** — in MIN021's predicate effect (an IN list where master raised an explicit error) and in E-48's missing projection-position test.
+- **Reconcile-before-review: held for A-44.** `ec6cf84b0` and `1c6516a73` are still unrecorded (A-45 owed), and `1c6516a73` edits E-48's site.
+- **Gate debt:**
+  - CI on `1c6516a73` is the first run over E-47 and E-48. Critic round 11 objection 2 (HANA / YDB unobserved) is discharged in fact, but P9 has no row for A-43 or A-44.
+  - E-48's baseline blast radius was handed to `test-all` (A-44.1), and P9 records no G-02 baselines review for it.
+  - `-Validate -Done` fails on 28 G-01 rows with no test method recorded.
+  - Critic round 12 (`weak`) has five objections, all unanswered.
