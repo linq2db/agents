@@ -140,3 +140,36 @@ GAP-02 leads with 4 of 9 rows (MIN011, OOS004, SUG202, OOS005): each is a claim 
 - Round 2 NIT004 (exclusion reason at the attribute, GAP-01) returns as NIT225; the `testing.md` rule never landed.
 - Round 4 SUG001 / round 3 MIN008 (late controls get less scrutiny) returns as MIN011's secondary GAP-05.
 - A-4's instance-only Pow fix returns as OOS005; matches the plan-critic "amendment must carry its class" vector, which postdates A-4.
+
+## Round 6 — reviewed HEAD 510644f57
+
+Plan present (Tier L, approved through A-10, plan commit feabe17, A-10 local gates b30a1d3); judged against the A-10 plan the fixes ce7730399, cb3fa66d4, f0115b17f, fa045f28b and 510644f57 were built from. All P9 gates passed, G-02 (A-10) included (Azure 24407 / GitHub 39084422370 green but for the infra-lost SQL Server 2008 leg). MIN012 is reasoned from code and docs, not run.
+
+### Attribution
+
+- **MIN012** — GAP-02 — D-12 (`plan.md:187`) chose to keep the literal's `DataType` "so ClickHouse's `Decimal32/64/128/256` … render with the literal's own scale", with only the `Decimal128` exponent baseline as ClickHouse evidence (U-37); no `U-n` probed the narrow families. The failure mode (`:190`) states only the silent→loud cell, not the correct→loud one (p < S, where head truncated to S and still rounded correctly). The A-10 re-dispatch critic listed "Not checked: … Decimal32 overflow" (`:502`) and its weak objection "ClickHouse narrow-family overflow" was disposed "Changed: two P10 lines" — only the `double`-literal line landed; `P10:334` carries a splice from the same commit, so the narrow-family entry D-12 cites never existed. `-Validate` cannot see it (P10 entries have no ids). The probe was cheap: G-01 (A-10) ran ClickHouse.Driver on both legs. — — — preventable: yes
+- **MIN013** — GAP-02 — SC-15 (`:37`) and TO-20 treat `Convert.ToInt64` as `(long)`'s route; U-34 recorded only `TruncateDecimal`'s casts, never the `Convert.ToInt64` SQL, which is `Math.Round` + an integer cast and so passes through the mirror's Double-path Round narrowing (through Text). The plan knew that path (P7 `:265`, P10 `:339`). `ConvertTests.cs:175` copies SC-15's over-general claim. Secondary GAP-05: SC-15's SQL property rests on a characterization plus a baseline read, and G-02 (A-10) recorded "no `AS Text`" per test, not per column — round 5 MIN011's G-02 shape again. — G-02 (ran, recorded per test) — preventable: yes
+- **NIT018** — GAP-06 — A-10's `conventions:` line (`:366`) records the *Test layout* embed and sweep; rule 1's "not this" example is exactly a chain inside an assertion argument. E-27 (`:222`) lists the swept tests by hand and omits `Round25`, so `MathFunctionTests.cs:919` was never looked at. — — — preventable: yes
+- **NIT019** — GAP-06 — A-10 item (6) and E-26 adopted the reason line at a narrowed attribute; critic round A-10 then moved `Round36`'s cells to a YDB-only test and the `:1560` comment kept its two-provider wording. Partly prose; the corpus rule asked for in round 2 (NIT004) and round 5 (NIT225) still has not landed in `testing.md`. — — — preventable: partly
+- **NIT020** — GAP-06 — same convention, same blocks: `RoundDecimalValueScale` explains its shape but not its provider set (D-12's class). — — — preventable: partly
+- **OOS-1** — not-a-gap: out-of-plan-scope — P3 `:45`, D-9's partition row and P7 `:265` keep the Double path's SQL; the overflow bound (|A·10^p| ≥ 10^13) has no P10 line, though the Single sibling does (`:339`).
+- **OOS-2** — GAP-05 — TO-23 (`:295`, added by critic round A-10) prescribes a wrong value in the data observed red, which the plan's own `AssertQuery` scout (P7 `:271`) shows cannot go red; G-01 (A-10) substituted a product mutation without amending TO-23. Third late-added control checked less carefully than the originals (round 3 MIN008, round 4 SUG001). — G-01 (substitute proof, TO-23 not amended) — preventable: yes
+
+### Aggregate
+
+GAP-06 leads by count (3 of 7, all nits): the convention was in front of the author; the misses are a hand-enumerated sweep and comments not re-checked after critic round A-10 moved cells. The two substantive findings are GAP-02 with one shape — a probed cell taken to stand for its siblings (`Decimal128` for `Decimal32`/`Decimal64`; `(long)`'s SQL for `Convert.ToInt64`'s), both runnable in the same G-01 session. For MIN012 the critic named the gap and its disposition was lost in an edit. Single change preventing the most substantive findings: a failure-mode or SC sentence covering a family of sibling cells cites a probe per sibling, in both directions of the behaviour change, or a P10 line saying the cell is unprobed.
+
+### Recommended durable fixes
+
+- GAP-06 ×3 → `work-plan/SKILL.md` *Mode: amend* step 4 + a sweep script under `.claude/scripts/`: replace the hand-listed swept tests with a mechanical sweep of `git diff <base>... -- Tests/` flagging lines with two or more chained calls (including inside an assertion argument) and narrowed `[IncludeDataSources]` / exclusion attributes with no reason comment above them; output on the `conventions:` line. Same edit: land the reason-at-the-attribute rule in `testing.md` → *A narrowed provider set is a claim* (asked for in rounds 2 and 5).
+- GAP-02 ×2 → `plan-critic.md` mapping-shape / operation census vectors (fa0d742, e394e99): a D-n failure mode or SC generalising from a probed cell to its siblings (a provider's type-family members from its `DataType` map; each operation consuming the classifier, `Convert.To*` via `Math.Round` included) needs a probe per sibling or a P10 "unprobed" line, stating both silent→loud and correct→loud; a critic "Not checked:" item touching a D-n failure mode counts as a `lead:`.
+- GAP-02 secondary (MIN012) → `work-plan.md` P10 semantics + `work-plan.ps1 -Validate`: stable P10 ids; every P10 citation in P5 / P8 / P12 (including "Changed: N P10 lines") names one; `-Validate` fails on a citation naming no entry.
+
+### Continuity
+
+- Round 4's census recommendation (fa0d742) landed before A-10 and worked — the critic surfaced the narrow-family overflow; the miss was a disposition never written (MIN012).
+- Round 5 recommendation 1 (operation × partner census, `Convert.To*` included) landed as e394e99 after A-10's plan commit; MIN013 is its `Convert.To*` cell — right, but late.
+- Round 5 MIN011's secondary (G-02 read by summary, not SQL) recurs in MIN013 at test granularity.
+- Rounds 2/4/5 GAP-07 move to GAP-06: the embed now runs; the weak link is the hand sweep.
+- Round 2 NIT004 / round 5 NIT225 recur as NIT019/NIT020; the corpus rule still has not landed.
+- Round 3 MIN008 / round 4 SUG001 (late controls get less scrutiny) recur as OOS-2.
