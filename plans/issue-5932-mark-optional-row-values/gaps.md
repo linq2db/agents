@@ -278,3 +278,39 @@ Two changes would have prevented the most:
   - E-48's baseline blast radius was handed to `test-all` (A-44.1), and P9 records no G-02 baselines review for it.
   - `-Validate -Done` fails on 28 G-01 rows with no test method recorded.
   - Critic round 12 (`weak`) has five objections, all unanswered.
+
+## Round 8 — reviewed HEAD c473e0150, 2026-10-18
+
+The plan is reconciled up to `5850397ba` (A-45, re-approved 2026-10-18). `c473e0150` (sdanyliv's provider gates on TO-1r) is unrecorded, so A-46 is owed. Its file is authorized as E-19, so no finding is GAP-09. P9: `-Validate -Done` passes (0 errors, 94 warnings); G-02 for A-43..A-45 is `blocked` on CI. Run 39083095609, which caught MIN122, was in flight at dispatch, not skipped, so MIN122 is not GAP-08. A-45's local verification covered SQLite.MS, DuckDB, SqlCe and PostgreSQL.18 only. Ids: MIN122, MIN222, NIT204.
+
+### Attribution
+
+- **MIN122** (TO-3s red on DB2) — GAP-02, second contributor GAP-05. Preventable: partly. Gate: G-01 / G-02.
+  - A-45.4 and D-8 widened E-48 to `_isInsidePredicate` on the unchecked premise that the null-safe `OR` chain compared as a value is evaluated with standard 3VL on every provider. Probe B1 already showed providers splitting on this shape (SqlCe `1,2,5` vs the rest `2,5`), yet the matrix stayed at four providers while a DB2 container was locally runnable (G-01, 2026-09-29: "DB2 26 / 26").
+  - DB2's operand-order quirk itself was not foreseeable and is pre-existing (master's no-array `e.Flag == (e.Id == e.Item || e.Id == 5)` drops the same row). The check that would have exposed it was available.
+  - TO-3s's `providers:` names where the test discriminates, not where E-48's new SQL must be shown correct (round-4 recommendation 1 recurs).
+- **MIN222** (TO-3s `!=` arm cannot go red) — GAP-05. Preventable: yes. Gate: G-01.
+  - TO-3s obliges both `==` and `!=` to return C#'s rows but derives the discriminating answer for `==` only. Over the seed the `!=` arm returns no rows in C# and in 3VL alike. The red-first record is per method, not per arm. A-45 read TO-3r's seed arm by arm in the same amendment but not TO-3s.
+- **NIT204** (gate comment) — GAP-10. Preventable: no (an A-46 reconciliation recording each gate's failure class could have caught the wording). Gate: none.
+  - The comment was written in `c473e0150`, after A-45. Which providers throw for TO-1r, and why (Access's FROM-less `VALUES`, YDB / ClickHouse's correlated-subquery refusal, an outer reference inside `VALUES` elsewhere), surfaced only in CI run 39083095609.
+
+### Aggregate
+
+Flat classes (GAP-02, GAP-05, GAP-10), but MIN122 and NIT204 share one cause: the review was dispatched while G-02 was blocked on the CI run that produced both, and A-45's local evidence covered four providers. MIN222 is the recurring arm-with-no-discriminating-row shape. The single change that would have prevented the most: when an amendment's local run covers fewer providers than its `[DataSources]` scope and G-02 is `blocked`, wait for that CI run before dispatch, or run the locally available containers (DB2, Oracle, Firebird, Informix, HANA).
+
+### Recommended durable fixes
+
+- **GAP-02 + GAP-10** (MIN122, NIT204) → `review-pr/SKILL.md` round entry and `definition-of-done.md` G-02: a `blocked` G-02 over an A-n whose local run is a provider subset blocks review dispatch until the CI run finishes and its per-provider failures are recorded in an A-n. A probe matrix whose providers disagree on one input obliges a run on every locally available provider before the amendment is marked measured.
+- **GAP-05** (MIN222) → P8 semantics in `work-plan.md` plus a `-Validate` check: a TO with several assertion arms (`==` / `!=`, plain / negated, LikeClr / LikeSql) names the discriminating seed row and C# answer per arm, and red-first is recorded per arm.
+- **GAP-05 + GAP-02** → `plan-critic.md` attack vector: a data-gap reading recorded for one TO in an A-n is demanded for every TO that A-n adds, and `providers:` says where the new SQL is shown correct.
+
+### Continuity with rounds 1–7
+
+- **The inline-array / E-48 feature has produced a finding seven rounds running** (MIN010 → MIN014 → MIN018 → NOTE001 / MIN020 / NIT002 → MIN021 → MIN122, MIN222, NIT204).
+- **MIN006 (r1) → MIN016 (r4) → MIN122:** an obligation verified on a provider subset, the rest left to a CI run nobody read before acting. Round-4 recommendation 1 applied in form only.
+- **MIN005 (r1) → SUG008 (r6) → TO-3r's LikeSql cell (r7) → MIN222:** the fourth assertion arm that cannot go red. Round-7 recommendation 3 was answered for TO-3r by promotion to P10 and not generalised.
+- **NIT001 (r2) → NIT003 (r7) → NIT204:** comments written outside the plan.
+- **Reconcile-before-review held for A-45 and fails at the tail again** (`c473e0150` unrecorded), as in round 7.
+- **Applied since round 7:** A-45's `re-derives:` line; D-8 for E-48; TO-3t pins E-48 in a select-list position; TO-1q names its discriminating providers.
+- **Unapplied again:** round-3 recommendation 2. A `blocked` gate is not a validation error, so the round-7 `-Validate` blocker does not cover it.
+- **Gate debt:** G-02 for A-43..A-45 still blocked; no baselines review of `test-all` 24385 / 24405 recorded (24405 was cancelled); the full-suite baseline diff is E-48's only `WithNull != null` control.
