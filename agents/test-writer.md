@@ -69,6 +69,7 @@ Same pattern applies to every `Use<Provider>(Func<ProviderOptions, ProviderOptio
 - EFCore tests targeting net462 run against EF Core 3.1 (the `EF3` project). APIs added in EF Core 6+ (`UseSequence`, newer metadata reader surfaces, etc.) are not available there. Wrap the affected test method in `#if !NETFRAMEWORK` when it depends on post-EF-3.1 EFCore APIs.
 - Conditional-compile the minimum surface — usually just the test method itself, not whole classes.
 - Feature flags such as `SUPPORTS_COMPOSITE_FORMAT`, `SUPPORTS_SPAN`, `ADO_ASYNC` (defined in `Directory.Build.props`) select feature availability rather than C# version; use them when a test depends on a specific runtime feature rather than a TFM.
+- A regression test for a **netstandard2.0-asset break** (#6067: a modern runtime loading linq2db's ns2.0 build) gets **no** TFM guard. It is green on every normal TFM before the fix too, so the caller proves it red with `worktree-test.ps1 -LinqToDBAsset netstandard2.0`. Say so in your rationale. ([`testing.md`](../docs/testing.md) → *Running against the netstandard2.0 asset*.)
 
 ## Naming conventions
 

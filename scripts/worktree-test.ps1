@@ -86,6 +86,27 @@ Input (named parameters):
                            just wrote: the summary counts alone cannot show that the
                            new test was among them. A comma-separated string is split,
                            since -File delivers `-ExpectTests A,B` as one element.
+  -LinqToDBAsset <tfm>     optional; `netstandard2.0` only. Runs the tests against
+                           linq2db's netstandard2.0 code paths: the asset a modern-
+                           runtime app loads once its runtime's TFM is dropped, or
+                           when it consumes linq2db through a netstandard2.0 library.
+                           Requires -Tfm (a net8+ test TFM). Builds the test project
+                           (unless -NoBuild), then builds Source/LinqToDB at -Tfm with
+                           the ns2.0 define set (no NET8_0_OR_GREATER / SUPPORTS_* /
+                           ADO_*, plus NETSTANDARD2_0). It overlays that linq2db.dll/.pdb
+                           onto the test output, runs with --no-build, restores the
+                           test output and rebuilds Source/LinqToDB normally.
+                           A *simulation*, by necessity: the real ns2.0 binary can't
+                           host tests compiled against net8+, whose `with` on a linq2db
+                           record calls a covariant `<Clone>$` that ns2.0 lacks. It
+                           reproduces every TFM gate. It does not reproduce ns2.0's
+                           polyfilled-type identities (`Index`, `Range`, `IsExternalInit`
+                           bind to the BCL types here). A test that calls an API the
+                           asset lacks fails with MissingMethodException - a feature-
+                           parity gap, not a break. CI has no such leg: this is the only
+                           way to prove an ns2.0 fix red. See
+                           `.claude/docs/code-design.md` -> "A TFM gate may withhold a
+                           feature, never recognition of unchanged source".
 
 `--test-progress` is passed by default, per `.claude/docs/agent-rules.md` ->
 "Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`".
@@ -113,6 +134,7 @@ Output (stdout, single JSON object):
     "project":   "Tests/.../X.csproj",
     "logPath":   "C:/.../worktree-test-X-net10.0-1234.log",
     "testProgress": true,            // whether --test-progress was actually passed
+    "linqToDBAsset": "netstandard2.0", // only with -LinqToDBAsset; the asset the tests ran against
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
     "failures":  [ { "test": "SomeTest(\"SQLite.MS\")", "message": [ "Shouldly...", ... ] } ],
@@ -148,6 +170,7 @@ param(
     [switch]$NoTestProgress,
     [switch]$NoBuild,
     [string[]]$ExpectTests,
+    [string]$LinqToDBAsset,
     [int]$FailureLines = 8,
     [int]$MaxFailures  = 20
 )
@@ -191,6 +214,14 @@ if ($NoBuild -and $SerialBuild) {
     Exit-WithError -Message '-NoBuild and -SerialBuild are mutually exclusive' -NextAction 'drop one of them'
 }
 
+if ($LinqToDBAsset -and -not $Tfm) {
+    Exit-WithError -Message '-LinqToDBAsset needs -Tfm: the overlay replaces linq2db.dll in one TFM output folder' -NextAction 'pass -Tfm net10.0'
+}
+
+if ($LinqToDBAsset -and $LinqToDBAsset -ne 'netstandard2.0') {
+    Exit-WithError -Message "-LinqToDBAsset supports netstandard2.0 only, not $LinqToDBAsset" -NextAction 'pass -LinqToDBAsset netstandard2.0'
+}
+
 # On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
 # runner does not register the extension and answers the flag with its help text + exit 5.
 $useTestProgress = (-not $NoTestProgress) -and ($Project -notmatch 'Tests\.Analyzers')
@@ -232,6 +263,89 @@ if ($SerialBuild) {
     }
 }
 
+function Get-MSBuildProperty([string]$ProjectPath, [string]$Property, [string]$TargetFramework) {
+    $value = & dotnet msbuild $ProjectPath "-getProperty:$Property" "-p:Configuration=$Configuration" "-p:TargetFramework=$TargetFramework"
+    if ($LASTEXITCODE -ne 0 -or -not $value) {
+        Exit-WithError -Message "could not evaluate $Property of $ProjectPath ($TargetFramework)" -NextAction 'check that the project restores'
+    }
+    return ($value | Select-Object -Last 1).Trim()
+}
+
+# The overlay: the test host runs linq2db compiled at the test TFM with the asset TFM's define set (see
+# -LinqToDBAsset in the header). The real ns2.0 binary can't be overlaid: tests compiled against net8+ call
+# records' covariant `<Clone>$`, which the ns2.0 build doesn't have.
+$overlay = $null
+if ($LinqToDBAsset) {
+    $assetProject = Join-Path $repoFull 'Source/LinqToDB/LinqToDB.csproj'
+    if (-not $buildLogPath) { $buildLogPath = $LogPath -replace '\.log$', '-build.log' }
+
+    $assetDefines  = @((Get-MSBuildProperty $assetProject 'DefineConstants' $LinqToDBAsset) -split ';' | Where-Object { $_ })
+    # The SDK adds these in a target, after evaluation, so -getProperty doesn't report them.
+    $assetDefines += 'NETSTANDARD', 'NETSTANDARD2_0', 'NETSTANDARD1_0_OR_GREATER', 'NETSTANDARD1_1_OR_GREATER', 'NETSTANDARD1_2_OR_GREATER',
+                     'NETSTANDARD1_3_OR_GREATER', 'NETSTANDARD1_4_OR_GREATER', 'NETSTANDARD1_5_OR_GREATER', 'NETSTANDARD1_6_OR_GREATER', 'NETSTANDARD2_0_OR_GREATER'
+
+    # Warnings off: the asset's code compiled against the net BCL warns where the real asset doesn't (CS0114 on
+    # BulkCopyReader.DisposeAsync - a new slot, which is the asset's actual semantics - and nullable flow).
+    $simulateArgs = @('build', $assetProject, '-c', $Configuration, '-f', $Tfm, '-p:BuildProjectReferences=false',
+        '-p:TreatWarningsAsErrors=false', '-p:DisableImplicitFrameworkDefines=true', "-p:DefineConstants=$($assetDefines -join '%3B')")
+    $restoreArgs  = @('build', $assetProject, '-c', $Configuration, '-f', $Tfm, '-p:BuildProjectReferences=false')
+
+    Push-Location -LiteralPath $repoFull
+    try {
+        $steps = @(, $simulateArgs)
+        if (-not $NoBuild -and -not $SerialBuild) {
+            $steps = @(, @('build', $projectFull, '-c', $Configuration, '-f', $Tfm)) + $steps
+        }
+        foreach ($step in $steps) {
+            & dotnet @step *>> $buildLogPath
+            if ($LASTEXITCODE -ne 0) {
+                [ordered]@{
+                    ok            = $false
+                    exitCode      = $LASTEXITCODE
+                    buildFailed   = $true
+                    repoRoot      = $repoFull
+                    project       = $Project
+                    logPath       = $buildLogPath
+                    buildLogPath  = $buildLogPath
+                    linqToDBAsset = $LinqToDBAsset
+                    summary       = $null
+                    failedTests   = @()
+                } | ConvertTo-Json -Depth 5
+                exit 1
+            }
+        }
+
+        $assetDll = Get-MSBuildProperty $assetProject 'TargetPath' $Tfm
+        $outDir   = Get-MSBuildProperty $projectFull  'TargetDir'  $Tfm
+    }
+    finally {
+        Pop-Location
+    }
+
+    $targetDll = Join-Path $outDir (Split-Path -Leaf $assetDll)
+    if (-not (Test-Path -LiteralPath $assetDll) -or -not (Test-Path -LiteralPath $targetDll)) {
+        Exit-WithError -Message "overlay source or target missing: $assetDll -> $targetDll" -NextAction 'build both projects once without -NoBuild'
+    }
+
+    $backupDir = Join-Path (Split-Path -Parent $LogPath) "linqtodb-asset-backup-$PID"
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+
+    $overlay = foreach ($ext in '.dll', '.pdb') {
+        $from = [System.IO.Path]::ChangeExtension($assetDll,  $ext)
+        $to   = [System.IO.Path]::ChangeExtension($targetDll, $ext)
+        if (-not (Test-Path -LiteralPath $from)) { continue }
+        $backup = $null
+        if (Test-Path -LiteralPath $to) {
+            $backup = Join-Path $backupDir (Split-Path -Leaf $to)
+            Copy-Item -LiteralPath $to -Destination $backup -Force
+        }
+        Copy-Item -LiteralPath $from -Destination $to -Force
+        [pscustomobject]@{ Target = $to; Backup = $backup }
+    }
+
+    $NoBuild = $true
+}
+
 $dotnetArgs = @('test', '--project', $projectFull, '-c', $Configuration)
 if ($Tfm)      { $dotnetArgs += @('-f', $Tfm) }
 if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
@@ -251,6 +365,20 @@ try {
 }
 finally {
     Pop-Location
+
+    # Put the original asset back, timestamps included, and rebuild Source/LinqToDB's own output, which the
+    # simulated build replaced: a later `--no-build` run must not pick the simulation up.
+    foreach ($o in @($overlay)) {
+        if (-not $o) { continue }
+        if ($o.Backup) { Copy-Item -LiteralPath $o.Backup -Destination $o.Target -Force }
+        else           { Remove-Item -LiteralPath $o.Target -Force }
+    }
+    if ($LinqToDBAsset) {
+        if ($overlay) { Remove-Item -LiteralPath $backupDir -Recurse -Force }
+        Push-Location -LiteralPath $repoFull
+        try     { & dotnet @restoreArgs *>> $buildLogPath }
+        finally { Pop-Location }
+    }
 }
 
 $summary     = $null
@@ -337,6 +465,7 @@ $result = [ordered]@{
     failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
+if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
 if ($hint)        { $result['hint']         = $hint }
 
 $result | ConvertTo-Json -Depth 5

@@ -140,6 +140,35 @@ The failure shape is what makes this expensive: the direct half of the suite is 
 
 The test-side counterpart is already covered — see [`testing.md`](testing.md) → *`[ThrowsForProvider]` covers the `.LinqService` context, and tolerates the remote wrapper*.
 
+### A TFM gate may withhold a feature, never recognition of unchanged source
+
+The `netstandard2.0` asset is not only a .NET Framework / legacy build. **Modern runtimes load it too**, in two ways:
+- an app references linq2db through a netstandard2.0 library (#6067: a net10 / net48 project);
+- every time the lowest modern TFM is removed, apps still on that runtime fall back to ns2.0. Dropping net6 did this to net6/7 apps, and dropping net8/9 does it to theirs.
+
+So code behind `#if NETx_0_OR_GREATER` / `SUPPORTS_*` / `ADO_*` (or `#if !NETSTANDARD2_0`) is code those apps lose. Decide what that costs by class:
+
+| Class | Example | Policy |
+|---|---|---|
+| **Hard fail**: source that compiles against *every* supported TFM (net462 included) throws at runtime on the ns2.0 asset, because a modern compiler or BCL binds it to a different member or a driver returns a different type for it | #6067: C# 14 compiles `array.Contains(x)` to `MemoryExtensions.Contains(ReadOnlySpan<T>.op_Implicit(array), x)`, recognised only under `#if NET8_0_OR_GREATER`. Npgsql 10 returning `DateOnly` for a `date` column read into `DateTime`, converted only under `SUPPORTS_DATEONLY` | **Must work on ns2.0** |
+| **Provider discovery**: a gate on assembly names, probe lists, factory lookup | SAP HANA probing only `Sap.Data.Hana.Core.v2.1` on ns2.0 | **Make it work on ns2.0**: costs nothing, saves a "provider not found" |
+| **Feature parity**: opt-in modern types and APIs | `DateOnly`/`TimeOnly`, `DistinctBy`/`LeftJoin`, `Half`/`Int128`, async ADO overloads | **Gate freely**; ns2.0 support only on user request. A user can usually close the gap with `MappingSchema` converters |
+
+The test for the first row: *would the same source compile on net462?* If it does and works on the net build, the ns2.0 build must not throw on it.
+
+**Fix shape:** recognise the shape at runtime instead of compiling it out. Match the member by name and the declaring type by `FullName`, not `typeof` (`ValueTaskToTaskMapper.cs`, `ExpressionBuildVisitor`'s `op_Implicit` / `` "ReadOnlySpan`1" `` pattern), or resolve the type with `Type.GetType` and build the expression by reflection (`SqlServerDataProvider`'s `System.Text.Json` branch). A type that ns2.0 polyfills internally (`Index`, `Range`, `IsExternalInit`) is *not* the BCL type on a modern runtime, so it too must be matched by name.
+
+**Verification.** CI never runs the ns2.0 asset, so a fix is green on every leg before *and* after the change. Prove it red locally with `worktree-test.ps1 -LinqToDBAsset netstandard2.0 -Tfm net10.0`, which runs the tests against linq2db built with the ns2.0 define set; see [`testing.md`](testing.md) → *Running against the netstandard2.0 asset*.
+
+#### Removing or bumping the lowest TFM
+
+A change that removes or raises a modern TFM in `<TargetFrameworks>`, or narrows a feature macro in `Directory.Build.props`, moves a population of apps onto the ns2.0 asset. Before it merges:
+
+1. **List** the gates those apps lose: `.claude/scripts/tfm-gate-inventory.ps1` prints every TFM-gated block in `Source/` by file and macro.
+2. **Classify** each by the table above. Most are feature parity; only the first two rows need work.
+3. **Sweep**: run `Tests/Linq` on SQLite with `-LinqToDBAsset netstandard2.0`. A `MissingMethodException` is a feature-parity gap (the tests call net-only API); any other red is a candidate hard fail.
+4. **Record** the result (classified hard fails and provider items, or "none") in the PR body, and file each actionable item as its own issue.
+
 ### `IsDependsOnSources` ignore-set doesn't cover field/column refs
 
 `QueryHelper.IsDependsOnSources(expr, onSources, sourcesToIgnore:)` applies `sourcesToIgnore` only on the **direct `ISqlTableSource`-element** match path. The `SqlField` / `SqlColumn` paths — how predicates actually reference tables — check `OnSources.Contains(field.Table)` / `Contains(column.Parent)` **without** consulting `sourcesToIgnore`. So `sourcesToIgnore` does *not* subtract a table a predicate reaches through a field, and `IsDependsOnSources(pred, [t], sourcesToIgnore: [t])` still returns true.

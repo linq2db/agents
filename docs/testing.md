@@ -440,6 +440,24 @@ dotnet build Tests/Linq/Tests.csproj -c Debug -f net462
 
 **Second cause: the expression tree itself differs.** C# 14 binds `array.Contains(x)` to `MemoryExtensions.Contains(ReadOnlySpan<T>, T)` on net8+ but to `Enumerable.Contains` on net462, and linq2db translates the two differently: `MemoryExtensions` is never queryable, so it goes to the IN-list predicate or the client, while `Enumerable.Contains` over a non-constant array can reach `ContainsBuilder` and become a `VALUES` subquery. A query over `new[] { col, … }.Contains(…)` can therefore build different SQL per TFM, and a local net10 green says nothing about the net462 legs — reproduce on net462 as above. (#5983: green locally on net10, red on every net462 leg.)
 
+## Running against the netstandard2.0 asset
+
+The divergence above is between two *user* TFMs. There is a third combination that no CI leg runs: a **modern runtime loading linq2db's netstandard2.0 asset**. That is what an app gets when it consumes linq2db through a netstandard2.0 library, or when its runtime's TFM has been dropped. Here the user's code is compiled for net8+ (so `array.Contains` *is* the `MemoryExtensions` shape), but every `#if NET8_0_OR_GREATER` branch in linq2db is missing (#6067). Which gates must still work there is policy: [`code-design.md`](code-design.md) → *A TFM gate may withhold a feature, never recognition of unchanged source*.
+
+Run it locally. The script builds `Source/LinqToDB` at the test TFM with the netstandard2.0 define set, so every TFM gate takes its ns2.0 branch, and overlays that `linq2db.dll` onto the net10.0 test output:
+
+```powershell
+& .claude/scripts/worktree-test.ps1 -RepoRoot <checkout> -Project Tests/Linq/Tests.csproj -Tfm net10.0 -LinqToDBAsset netstandard2.0 -Filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<Fixture>.<Test>" -Provider SQLite.MS
+```
+
+It runs with `--no-build`, then restores the test output and rebuilds `Source/LinqToDB` normally. The JSON reports `linqToDBAsset`, so a result can't be mistaken for a normal run.
+
+**Why a simulation, not the real ns2.0 binary.** Overlaying the actual netstandard2.0 `linq2db.dll` fails every test in setup with `MissingMethodException: …ClickHouseOptions.<Clone>$()`. Tests compiled against net8+ call a record's covariant `<Clone>$` for every `with`, and the ns2.0 build doesn't have it. The simulation reproduces every `#if` gate. It does not reproduce the ns2.0 polyfills' type identities (`Index`, `Range`, `IsExternalInit` bind to the BCL types here). (#6067.)
+
+Two reading rules:
+- **`MissingMethodException` / `TypeLoadException` is a feature-parity gap, not a break.** The tests call API that the ns2.0 code paths don't have.
+- **A regression test for an ns2.0 break is green on every CI leg before the fix as well.** Its red→green proof exists only under this simulation, so record both runs in the PR.
+
 ## A narrowed provider set is a claim — re-derive it when the feature stops being provider-conditional
 
 `[DataSources]` is the default for a reason: it runs everything configured, so a provider that cannot do the thing

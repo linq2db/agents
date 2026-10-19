@@ -49,6 +49,7 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 - C# 14, nullable enabled, `TreatWarningsAsErrors=true`. .NET SDK 10 (`global.json`). Analyzers run in **Release only**; banned APIs in `Source/BannedSymbols.txt`.
 - XML docs required on new public types/members.
 - TFMs: `net462`, `netstandard2.0`, `net8.0`–`net10.0`. Feature-flag macros (e.g. `SUPPORTS_SPAN`, `ADO_ASYNC`) live in `Directory.Build.props`.
+- **Modern runtimes load the `netstandard2.0` asset too**: via a netstandard2.0 library, and whenever their TFM is dropped. A TFM gate may withhold an opt-in feature, but never the recognition of source that also compiles on net462 (#6067: C# 14 span `Contains`). Dropping a TFM needs an ns2.0 break inventory: [.claude/docs/code-design.md](.claude/docs/code-design.md) → *A TFM gate may withhold a feature, never recognition of unchanged source*.
 
 ### Build gotchas that fast-iteration hides
 
