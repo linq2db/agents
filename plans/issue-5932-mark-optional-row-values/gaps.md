@@ -314,3 +314,77 @@ Flat classes (GAP-02, GAP-05, GAP-10), but MIN122 and NIT204 share one cause: th
 - **Applied since round 7:** A-45's `re-derives:` line; D-8 for E-48; TO-3t pins E-48 in a select-list position; TO-1q names its discriminating providers.
 - **Unapplied again:** round-3 recommendation 2. A `blocked` gate is not a validation error, so the round-7 `-Validate` blocker does not cover it.
 - **Gate debt:** G-02 for A-43..A-45 still blocked; no baselines review of `test-all` 24385 / 24405 recorded (24405 was cancelled); the full-suite baseline diff is E-48's only `WithNull != null` control.
+
+## Round 9 — reviewed HEAD 88aa473b9, 2026-10-19
+
+The plan is reconciled up to `95b2beb23` (A-46). `88aa473b9` is not recorded, so A-47 is owed. That commit holds the reviewer's own baselines-walk pins and touches only `Issue2478Tests.cs`, `Issue3001Tests.cs`, `Issue3043Tests.cs` and `Issue4336Tests.cs`. Neither finding is in those files, so neither is GAP-09.
+
+P9 state at dispatch:
+- `-Validate -Done` passes (0 errors, 94 warnings).
+- CI is green on HEAD (Azure `test-all` 24417, GitHub 39192537122).
+- The user skipped the baselines pass. The delta since the last full pass is `88aa473b9` only.
+
+No gate that ran could have caught either finding. No test divides by a missed-row column, and MIN223 shows only under mutation. G-02 could not have caught MAJ001 even if run: SC-8's expected-change class (line 30, "a projection calculates with a nullable-in-query NOT NULL column") counts a `COALESCE`'d divisor as an expected baseline change. Neither finding is GAP-08.
+
+Ids: MAJ001, MIN223.
+
+### Attribution
+
+- **MAJ001** — GAP-01 — SC-1 (line 23), D-3 consumer (1) (line 95), P10: no block says what an operator whose domain excludes the default reads over a defaulted operand — preventable: yes
+  - SC-1 lists "binary arithmetic and bitwise operators", with C# over a default row as the oracle. D-3 (1) gives `HandleBinaryMath` "both operands", with no per-operator split. Division and `Modulo` appear nowhere in P1–P12. TO-1a / TO-1b (lines 257-258) cover `+` and `|` only.
+  - The plan did ask whether the server can reject the injected value (U-12 line 57, SC-7 line 29, D-7). It asked that only of the literal itself, a date the column cannot hold. It never asked it of an operator applied to the literal: `x / 0`, `x % 0`, `Log(0)`, or `DATEADD` below a 0001-01-01 default.
+  - SC-1's oracle also assumed that C# over a default row yields a value. For an int / decimal divisor it is a `DivideByZeroException`.
+  - Critic round 1 (P12 lines 535-537) is the only critic round over the whole design. It checked the consumer set by *site* (`new SqlPredicate\.`, 16 sites) and called it complete. Critic rounds 2–12 ran on deltas, and no review round re-attacked D-3 (1). Nothing ever read the consumer list by what each operator does.
+  - The rule that should exist: check each D-3 consumer for operators whose domain excludes the default (a divisor, a log argument, a date shift). Each one gets a P5 / P10 decision and a TO on a provider that raises (SQL Server, PostgreSQL, Oracle).
+  - Second contributor, GAP-05: no TO divides by a missed-row column.
+- **MIN223** — GAP-05 — P8 TO-5d (line 300), not re-derived after A-1 (line 405) replaced its instrument and mutation — G-01 — preventable: yes
+  - TO-5d still names `Sql.Ext.Count(j.Value1 + 1).Over().ToValue()` and the mutation "classify an `[Sql.Extension]` attribute by its own flags only".
+  - A-1 (2026-09-26) found that this instrument never reaches `ConvertExtension`. It replaced the instrument with `[Sql.Extension("COUNT({value})", IsAggregate = true)]`, which carries the aggregate flag itself. It changed the mutation to "drop the `ConvertExtension` clear".
+  - A-1 stated the consequence in words: "its 'extension as a whole' half has no current-syntax built-in instrument". It also named shapes that still reach that half: `PostgreSQLExtensions.ArrayAggregate(...).Over()`, `SqlFn.NextValueForOver`, user chains. It added no TO for any of them and did not mark the P10 rule (line 387) as unpinned. As a result, the disjunct at EBV:1258 that implements P10's `[Sql.Extension]` rule has no instrument whose mutation can go red.
+  - G-01 (line 330) records "TO-5d red" without a test name, against the whole-clear mutation. The gate passed on the instrument, not on the disjunct.
+  - A-1 predates the `re-derives:` rule (round-1 recommendation 1). It also predates the per-arm red-first rule (`work-plan.md:146`, round-8 recommendation 2), which was applied going forward (TO-3s, A-46) and never swept back over existing TOs.
+
+Out-of-scope observation (not a finding; attributed only for the plan gap it exposes):
+
+- **NULL-handling attribute functions receive the defaulted argument** (`SqlFn.IsNull`, user `COALESCE` / `ISNULL` mappings) — GAP-01.
+  - D-3 consumer (8) (line 95) defaults every argument of a row-wise `[Sql.Function]` / `[Sql.Expression]`.
+  - The "not consumers" list (line 96) exempts identity templates and the nullable casts. It exempts no function that treats NULL as an input.
+  - D-2's failure mode (line 91) treats `COALESCE` only as a node that stops the operand walk, never as a consumer whose argument gets defaulted.
+  - The reason for an exemption was already in the plan for the neighbouring class. P10 line 387 (critic round 1 objection 5) records that a server-side-only call keeps the calculation in SQL in both arms, so defaulting its argument buys no agreement between the arms. That reasoning was applied only to `[Sql.Extension]`, never to row-wise server-side-only functions such as `SqlFn.IsNull`. It is also still "reasoned, unprobed".
+  - Same root as MAJ001: the consumer list was checked by site, not by what each consumer does with NULL or with the default.
+
+### Aggregate
+
+GAP-01 dominates (MAJ001 and the out-of-scope observation); MIN223 is GAP-05.
+
+MAJ001 and the observation trace to the same missing artifact: a semantic pass over D-3's consumers. For each consumer it would ask two things. Does its operator accept the default in its domain? `/`, `%`, `Log` and date shifts do not. Does it read NULL as input? `ISNULL` and `COALESCE` mappings do.
+
+Critic round 1 checked the list by site only, and every later critic and review round attacked deltas. So the base consumer list went unattacked for nine rounds, and MAJ001 is the ledger's first MAJ.
+
+MIN223 is the recurring obligation part that cannot go red, this time in the plan's oldest amendment.
+
+The single change that would have prevented the most: a semantics row per D-3 consumer (domain over the default, NULL as input), demanded by the critic on the base design and not only on deltas.
+
+### Recommended durable fixes
+
+- **GAP-01 ×2** (MAJ001, the out-of-scope observation) → an attack vector in `plan-critic.md`, plus P5 semantics in `work-plan.md`.
+  - When a design injects a substitute value (a default, a clamp, a sentinel) into operands, list each consumer with (a) the operators whose domain excludes the substitute and what each server does there, and (b) whether the consumer reads NULL as input.
+  - Each answer becomes a P5 decision or a P10 entry, plus a TO on a provider that raises. A site census does not discharge it.
+  - The first critic run after this vector lands applies it to the base D-n, not only to the current delta.
+- **GAP-05 ×1** (MIN223) → `work-plan.md:146` and the G-01 semantics in `definition-of-done.md`, plus `-Validate`.
+  - A rule made of several disjuncts needs one instrument per disjunct. The mutation that drops that disjunct must be shown red on that instrument. An instrument that satisfies the rule through a different disjunct (here `IsAggregate = true`) does not count.
+  - A G-01 red-first record names the test method and the mutation actually run.
+  - An A-n that replaces a TO's instrument or mutation must rewrite the P8 row.
+
+### Continuity with rounds 1–8
+
+- **The inline-array / E-48 chain is broken.** This is the first round since round 2 with no inline-array or E-48 finding; the chain MIN010 → … → MIN122 / MIN222 / NIT204 stops at round 8.
+- **MAJ001 opens a new axis.** It is the first finding in D-3 consumer (1) and the ledger's first MAJ. Round 2's MIN010 reformed the consumer census by operand position (round-2 recommendation 3). No recommendation ever asked for the census by operator semantics.
+- **MIN005 (r1) → SUG008 (r6) → TO-3r's LikeSql cell (r7) → MIN222 (r8) → MIN223: the fifth obligation part that cannot go red.** Round-8 recommendation 2 landed in `work-plan.md:146`, but it covers assertion arms, not rule disjuncts, and it was never swept back over pre-existing TOs. TO-5d dates from A-1.
+- **Applied since round 8:** recommendation 1, in fact. This round was dispatched with CI green on HEAD, and no finding traces to an unread CI run. `-Validate -Done` passes.
+- **Reconcile-before-review fails at the tail for the third round running.** Round 7 left `ec6cf84b0` / `1c6516a73` unrecorded, round 8 left `c473e0150`, and this round `88aa473b9`, the reviewer's own commit. A-47 is owed. No finding traces to it.
+- **Round-3 recommendation 2** (an `Open` objection or a "reasoned, unprobed" residual blocks dispatch) is still unapplied for P10 line 387. Its server-side-only claim, from critic round 1 objection 5, is the residual the out-of-scope observation sits beside, and it was never probed.
+- **Gate debt:**
+  - The baselines pass was skipped this round; the delta is the reviewer's own pins.
+  - The G-01 rows still record red-first without test names (TO-5d).
+  - A-47 is owed.
