@@ -117,7 +117,8 @@ status == "branch_missing", only the header fields plus an all-zero
         *simpler*: the work moved to the client, which changes what DISTINCT
         sees and leaves a predicate untranslatable.
       `null-routing-changed` — a column bare on the - side wrapped as
-        `Coalesce(col, <literal>)` on the + side. Equal for some predicates
+        `Coalesce(col, <literal>)` (or Nvl / IfNull / IsNull, IIF(col IS NULL,
+        lit, col), CASE WHEN col IS NULL THEN lit ELSE col END) on the + side. Equal for some predicates
         and not others when the column comes from a missing outer-joined row.
     The reviewer must classify each — suspect or expected-with-rationale —
     before returning. No cap; the list is the worklist.
@@ -436,11 +437,16 @@ function Get-RegressionArchetypes {
     #    "comparison is unknown" to "compare the default", which agrees with
     #    the old SQL for some operators and not others. Issue3001Tests case
     #    (#5983): `CASE WHEN h.Levels > 1` -> `Coalesce(h.Levels, 0) > 1`, equal
-    #    for `> 1` and different for `< 1`.
-    $coalColPattern = '(?i)\bCoalesce\s*\(\s*((?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64})\.(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64}))\s*,\s*(?:-?\d+(?:\.\d+)?|[N]?''[^'']*''|TRUE|FALSE)\s*\)'
-    $removedCoal = @([regex]::Matches($removed, $coalColPattern) | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() })
+    #    for `> 1` and different for `< 1`. Providers spell the wrap differently
+    #    (Informix Nvl, Access IIF(x IS NULL, 0, x)); all spellings count.
+    $nrCol = '(?<col>(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64})\.(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64}))'
+    $nrLit = '(?:-?\d+(?:\.\d+)?|[N]?''[^'']*''|TRUE|FALSE)'
+    $coalColPattern = '(?i)\b(?:Coalesce|Nvl|IfNull|IsNull)\s*\(\s*' + $nrCol + '\s*,\s*' + $nrLit + '\s*\)' +
+                      '|\bIIF\s*\(\s*' + $nrCol + '\s+IS\s+NULL\s*,\s*' + $nrLit + '\s*,\s*\k<col>\s*\)' +
+                      '|\bCASE\s+WHEN\s+' + $nrCol + '\s+IS\s+NULL\s+THEN\s+' + $nrLit + '\s+ELSE\s+\k<col>\s+END'
+    $removedCoal = @([regex]::Matches($removed, $coalColPattern) | ForEach-Object { $_.Groups['col'].Value.ToLowerInvariant() })
     $rerouted = @([regex]::Matches($added, $coalColPattern) | Where-Object {
-        $col = $_.Groups[1].Value
+        $col = $_.Groups['col'].Value
         ($removedCoal -notcontains $col.ToLowerInvariant()) -and ($removed.IndexOf($col, [StringComparison]::OrdinalIgnoreCase) -ge 0)
     } | ForEach-Object { $_.Value } | Select-Object -Unique)
     if ($rerouted.Count -gt 0) {
