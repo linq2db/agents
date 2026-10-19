@@ -28,6 +28,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a computed-vs-stored test alone. The value keeps its own type only where the two types differ in precision: a coarser date/time column, or decimal beside decimal with no converter. Every other column type still lends itself. (#5959, `d2da94700` narrowed by `76fc77952`)
 
+## SQL-PROVIDER: witnessing the cast-of-cast fold with an integer or integral-constant comparison
+
+**Tried:** pinning that `SqlExpressionOptimizerVisitor.VisitSqlCastExpression` keeps `CAST(CAST(x AS Int) AS Double)` (an `int` result widened back to `double`) with `where Sql.Degrees((int)r.M) == 57`, then `== 57.0`, on the providers that emulate `Degrees` inside that pair.
+
+**Failed because:** `== 57` compares in `int`, so the truncating cast stands alone and no pair reaches the fold: green with the guard reverted, as on master. `== 57.0` never reaches SQL as a widening: the build layer's comparison simplifier (`RestoreCompare`'s constant arm, #6070) rewrites an integral `double` constant into an `int` comparison and drops the cast, so it was red with the guard as well.
+
+**Don't re-attempt:** a comparison shape. Project the value, then filter with a non-integral bound (`from d in … select Sql.Degrees((int)r.M)!.Value where d < 57.1 select d`), and prove it red under "revert the guard" before adding it. (#5943, `9f0c4fb08`)
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
