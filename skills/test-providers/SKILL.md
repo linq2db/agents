@@ -28,6 +28,7 @@ Only when the user explicitly invokes `/test-providers` — typically before a `
 | `<provider> [<provider>…]` (e.g. `SQLite.MS PostgreSQL.18`) | **Set** mode. Mark exactly the listed providers enabled in the affected TFM bucket(s) and disable every other provider in those buckets. Start the corresponding containers if needed. **Default scope is `NET100` only** — see *Bucket scope* below to widen. |
 | `add <provider> [...]` | **Additive** mode. Mark the listed providers enabled in the affected TFM bucket(s) without changing the rest. Start containers as needed. **Default scope is `NET100` only.** |
 | `remove <provider> [...]` | **Subtractive** mode. Mark the listed providers disabled in the affected TFM bucket(s). Does not stop containers (user does that explicitly via `stop`). **Default scope is `NET100` only.** |
+| `start <container> [...]` | **Container-only** mode for a `--provider` run: start the named containers, record them, wait until they answer. No `UserDataProviders.json` edit. See *Start mode* below. |
 | `stop` / `stop <container> [...]` | Stop all (or named) containers we have records of from this session. No `UserDataProviders.json` edit. |
 | `reset` | Restore `UserDataProviders.json` from `UserDataProviders.json.template` after explicit confirmation. Does not touch containers. |
 
@@ -78,7 +79,7 @@ Run one shell command per invocation; no chaining, no shell control flow. (Claud
 
 Parse args in this order:
 
-1. **Mode token.** First positional token decides the mode: `add`, `remove`, `stop`, `reset`, or (anything else) Set mode.
+1. **Mode token.** First positional token decides the mode: `add`, `remove`, `start`, `stop`, `reset`, or (anything else) Set mode.
 2. **Bucket-scope clause.** Look anywhere in the remaining args for `in <bucket>[,<bucket>...]` or `in all`. Strip it from the args; record the resolved bucket list (default `["NET100"]` when absent). See *Bucket scope* in the **Accepted arg shapes** section.
 3. **Family-rule normalisation** (Set / add / remove only). For each remaining provider token, apply the **Family-variant shortcuts** and **Bare-family version** rules per [`test-databases.md`](../../docs/test-databases.md) → **Provider name resolution**. Keep an internal record `rewrites: [{from, to, reason}]` of every token that changed — this drives the *Normalised inputs* block in step 4. Tokens that are already fully qualified (or match an exclusion list and were typed explicitly) record `from === to` and don't appear in the rewrites list.
 4. **Ambiguity check.** If a bare token could plausibly be a provider ID or a container name (rare — most container names like `pgsql18` don't collide with provider IDs), stop and ask. Do not guess.
@@ -203,6 +204,15 @@ For each `will-start` container: `docker start <name>` (one Bash call per contai
 For each `will-create` container: `Data/Setup Scripts/<script>.cmd` (one Bash call per script). These can take minutes; do not run more than two heavy-provider scripts in parallel because they compete heavily for I/O and RAM.
 
 Record `startedByUs[<container>] = true` for every container we transitioned from `exited` / `created` / missing to `running`. Persist this map in memory for the lifetime of the agent session (read by step 6 of `stop` mode).
+
+### 5d. Start mode
+
+Triggered by `/test-providers start <container> [...]`. Use it when a run selects providers with `--provider` and only the container is missing; the `Providers` arrays are not involved.
+
+1. **Read state.** One `docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"` call. A named container absent from it is not created here: report it and point at its setup script in [`test-databases.md`](../../docs/test-databases.md).
+2. **Confirm.** List each container as `running` (no action) or `will-start`, with the heavy-provider cost note where it applies. The user naming the container in the invocation is the go-ahead for a light provider; a heavy one still needs an explicit yes.
+3. **Start.** One `docker start <name>` per container. Record `startedByUs[<name>] = true`. The `track-docker-start` hook appends the name to `.build/.agents/docker-session-started.txt`, which the end-of-session stop prompt reads; `Read` the file to confirm the line landed rather than appending it yourself (no file means the hooks are not wired — [`test-databases.md`](../../docs/test-databases.md) → *Session-started containers*).
+4. **Wait for readiness.** `Up` means the process started, not that it accepts connections. Probe each container once its own way and report the result — e.g. ClickHouse answers `SELECT version()` over HTTP on 8123. A container that exits during startup (status `Exited (137)` is the host OOM killer) is reported, not retried.
 
 ### 6. Stop mode
 
