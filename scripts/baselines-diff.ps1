@@ -116,6 +116,9 @@ status == "branch_missing", only the header fields plus an all-zero
         the bare columns it chose between. The only archetype for SQL getting
         *simpler*: the work moved to the client, which changes what DISTINCT
         sees and leaves a predicate untranslatable.
+      `null-routing-changed` — a column bare on the - side wrapped as
+        `Coalesce(col, <literal>)` on the + side. Equal for some predicates
+        and not others when the column comes from a missing outer-joined row.
     The reviewer must classify each — suspect or expected-with-rationale —
     before returning. No cap; the list is the worklist.
   Each `changePatterns[]` entry also carries `sizeMetrics` (the per-pattern
@@ -426,6 +429,25 @@ function Get-RegressionArchetypes {
                 snippet = Get-Utf8SafeTruncate -Text ($carried -join ', ') -MaxBytes 180
             }) | Out-Null
         }
+    }
+
+    # 8. A column the - side used bare now wrapped as Coalesce(col, literal).
+    #    For a column from a missing outer-joined row this moves NULL from
+    #    "comparison is unknown" to "compare the default", which agrees with
+    #    the old SQL for some operators and not others. Issue3001Tests case
+    #    (#5983): `CASE WHEN h.Levels > 1` -> `Coalesce(h.Levels, 0) > 1`, equal
+    #    for `> 1` and different for `< 1`.
+    $coalColPattern = '(?i)\bCoalesce\s*\(\s*((?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64})\.(?:\[[^\]\r\n]{1,64}\]|"[^"\r\n]{1,64}"|`[^`\r\n]{1,64}`|\b\w{1,64}))\s*,\s*(?:-?\d+(?:\.\d+)?|[N]?''[^'']*''|TRUE|FALSE)\s*\)'
+    $removedCoal = @([regex]::Matches($removed, $coalColPattern) | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() })
+    $rerouted = @([regex]::Matches($added, $coalColPattern) | Where-Object {
+        $col = $_.Groups[1].Value
+        ($removedCoal -notcontains $col.ToLowerInvariant()) -and ($removed.IndexOf($col, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+    } | ForEach-Object { $_.Value } | Select-Object -Unique)
+    if ($rerouted.Count -gt 0) {
+        $hits.Add([ordered]@{
+            name = 'null-routing-changed'
+            snippet = Get-Utf8SafeTruncate -Text ($rerouted -join ', ') -MaxBytes 180
+        }) | Out-Null
     }
 
     return ,$hits.ToArray()
