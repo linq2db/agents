@@ -35,6 +35,16 @@ Input — two forms (preferred first)
                                   summary line instead: { ok, outFile, bytes, status,
                                   counts, testGroups, patterns, orphans, branchWriteWindow }
 
+    Projection mode (reads a prior -OutFile result; no git, no fetch; prints text):
+      -From <path>              — the -OutFile JSON to read
+      -Select <spec>            — regressionCandidates | sizeOutliers | archetype:<name>
+                                  | testBase:<regex>; one line per pattern:
+                                  testBase | sampleProvider | providerCount | sampleStatus
+                                  | [archetypes] | patternHash
+      -WithDiff                 — with -Select, also the sample's +/- lines
+      -CompareTo <path>         — a second -OutFile JSON; prints archetype hits gained
+                                  and lost from it to -From (gate for an archetype edit)
+
     Pass a Windows path through -BaselinesPath, never through the stdin JSON: its
     backslashes are JSON escapes, and the call dies with "Bad JSON escape sequence".
 
@@ -157,11 +167,58 @@ param(
     [string]$BaselineRepo,
     [string]$HeadRef,
     [string]$ManifestFile,
-    [string]$OutFile
+    [string]$OutFile,
+    [string]$From,
+    [string]$Select,
+    [string]$CompareTo,
+    [switch]$WithDiff
 )
 
 $global:ScriptBaseName = 'baselines-diff'
 . "$PSScriptRoot/_shared.ps1"
+
+# Projection mode: read a prior -OutFile result instead of diffing. The file is
+# one multi-MB JSON line that Grep / Read cannot page through, so readers kept
+# writing throwaway scripts to project it.
+if ($From) {
+    if (-not (Test-Path -LiteralPath $From)) { Exit-WithError "-From file not found: $From" }
+    if (-not $Select -and -not $CompareTo) { Exit-WithError '-From needs -Select and/or -CompareTo' }
+    $doc = Get-Content -Raw -LiteralPath $From | ConvertFrom-Json
+
+    function Get-PatternKey($p) { "$($p.testBase) | $($p.sampleProvider) | $($p.patternHash)" }
+    function Format-Pattern($p) {
+        "$($p.testBase) | $($p.sampleProvider) | $($p.providerCount) | $($p.sampleStatus) | [$(@($p.regressionArchetypes) -join ',')] | $($p.patternHash)"
+        if ($WithDiff -and $p.sampleDiff) {
+            $p.sampleDiff -split "`n" | Where-Object { $_ -match '^[-+]' -and $_ -notmatch '^(\+\+\+|---) ' } | ForEach-Object { "    $_" }
+        }
+    }
+
+    if ($Select) {
+        $rows = switch -Regex ($Select) {
+            '^regressionCandidates$' { @($doc.regressionCandidates) }
+            '^sizeOutliers$'         { @($doc.sizeOutliers) }
+            '^archetype:(.+)$'       { $a = $Matches[1]; @($doc.changePatterns | Where-Object { @($_.regressionArchetypes) -contains $a }) }
+            '^testBase:(.+)$'        { $rx = $Matches[1]; @($doc.changePatterns | Where-Object { $_.testBase -match $rx }) }
+            default { Exit-WithError "-Select: expected regressionCandidates | sizeOutliers | archetype:<name> | testBase:<regex>, got '$Select'" }
+        }
+        "# $($rows.Count) pattern(s): testBase | sampleProvider | providerCount | sampleStatus | [archetypes] | patternHash"
+        $rows | ForEach-Object { Format-Pattern $_ }
+    }
+
+    if ($CompareTo) {
+        if (-not (Test-Path -LiteralPath $CompareTo)) { Exit-WithError "-CompareTo file not found: $CompareTo" }
+        $prior = Get-Content -Raw -LiteralPath $CompareTo | ConvertFrom-Json
+        $hits = { param($d) $h = @{}; foreach ($p in $d.changePatterns) { foreach ($a in @($p.regressionArchetypes)) { $h["$a :: $(Get-PatternKey $p)"] = 1 } }; $h }
+        $now = & $hits $doc
+        $was = & $hits $prior
+        "# archetype hits: prior=$($was.Count) current=$($now.Count)"
+        '# gained:'
+        $now.Keys | Where-Object { -not $was.ContainsKey($_) } | Sort-Object
+        '# lost:'
+        $was.Keys | Where-Object { -not $now.ContainsKey($_) } | Sort-Object
+    }
+    return
+}
 
 # Parse an SQL baseline path per .claude/docs/baselines-repo-layout.md.
 # Shape: <Provider>/<ns1>/.../<ClassName>/<full.ns.Class>.<Method>(<params>).sql
