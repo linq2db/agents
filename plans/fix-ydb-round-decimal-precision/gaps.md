@@ -208,3 +208,13 @@ GAP-05 leads with 3 of 8 (MIN016, SUG003, MIN017) and is MIN014's secondary, all
 - Rounds 2, 5 and 6 (reason at the attribute) landed in `testing.md` (2255788); MIN015 is its reverse case — the rule produced a reason line, and the reason was never measured.
 - Round 6's P10-ids recommendation landed (2255788); no lost-disposition recurrence this round.
 - Rounds 2–5's "probe the premise" GAP-02 line continues in MIN014 and MIN015, on ClickHouse rather than YDB, both with the container already running.
+
+## Round 7 addendum — CI on the A-12 push (G-02 A-12 fail), fixed by A-13
+
+Not a review finding: GitHub run 39291708236 on head `626342194`, `DateTimeFunctionsTests.Parse1` / `DateOnlyFunctionTests.Parse2` red on SQLite, Informix and YDB.
+
+- **CI-01** — GAP-02 — D-16's failure mode and P10 (A-12) asserted that an unrecognised pair "keeps both casts, a redundant cast, never a wrong value", and U-47 deferred the census to G-02. That bound holds for SQL shape only: a kept `CAST(CAST(x AS text) AS <temporal>)` runs the provider's text → date cast, and three providers get it wrong. The claim was checkable locally at no cost: the whole `Tests/Linq` suite on SQLite.MS (no container) runs the fold's existing consumers. G-01 (A-12) ran only the new tests and the fixtures already named. Secondary GAP-03: P7 had no row for the fold's existing consumers. The impact map enumerated who the guard *protects* and none of the shapes that relied on the fold, so G-02, driven off P7, could only discover them. — G-01 (A-12: no suite-wide run on a local provider for a shared-optimizer edit) — preventable: yes
+
+### Recommended durable fix
+
+- GAP-02 → `plan-critic.md` and `work-plan.md` G-01: when an edit narrows a shared optimizer rewrite (a fold, a simplification), G-01 includes one full `Tests/Linq` run on a containerless provider (SQLite.MS). A "fails safe, only a redundant cast" claim is a value claim about every provider's kept SQL, not a shape claim.
