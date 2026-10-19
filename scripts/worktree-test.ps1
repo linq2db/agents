@@ -72,6 +72,12 @@ Input (named parameters):
                            passing test's exception / stack".
   -NoTestProgress          optional; suppress the `--test-progress` flag this script
                            passes by default.
+  -NoBuild                 optional; adds `--no-build` and skips any build, reusing the
+                           worktree's existing output. For a re-run with another
+                           provider or filter after a build already succeeded — the
+                           hand-run test exe it replaces loses this script's parsed
+                           summary. Exclusive with -SerialBuild. A run against a stale
+                           or missing build fails or tests old code; it does not rebuild.
   -ExpectTests   <list>    optional; test METHOD names (no class, no arguments) that
                            must have run. Implies -OutputDetailed, since MTP lists a
                            passed test only in that mode. Any name with no passed /
@@ -140,6 +146,7 @@ param(
     [switch]$SharedCompilation,
     [switch]$NoRestore,
     [switch]$NoTestProgress,
+    [switch]$NoBuild,
     [string[]]$ExpectTests,
     [int]$FailureLines = 8,
     [int]$MaxFailures  = 20
@@ -179,6 +186,10 @@ $logParent = Split-Path -Parent $LogPath
 if (-not (Test-Path -LiteralPath $logParent)) { New-Item -ItemType Directory -Force -Path $logParent | Out-Null }
 
 $buildLogPath = $null
+
+if ($NoBuild -and $SerialBuild) {
+    Exit-WithError -Message '-NoBuild and -SerialBuild are mutually exclusive' -NextAction 'drop one of them'
+}
 
 # On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
 # runner does not register the extension and answers the flag with its help text + exit 5.
@@ -227,6 +238,7 @@ if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
 if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed') }
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
+if ($NoBuild) { $dotnetArgs += '--no-build' }
 
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
 $runSettings = Join-Path $repoFull '.runsettings'
@@ -303,6 +315,10 @@ if (Test-Path -LiteralPath $LogPath) {
 
 if (-not $hint -and $failedTests.Count -gt 0 -and $Project -match 'Tests[\\/]Linq[\\/]' -and $Filter -notmatch 'CreateData\.CreateDatabase') {
     $hint = 'Filter has no CreateData.CreateDatabase: a data-dependent failure may be a stale or unseeded test database. Rerun with it before reading the failure as a defect.'
+}
+
+if (-not $hint -and $NoBuild -and -not $summary) {
+    $hint = '-NoBuild found no runnable build output for this project/TFM/configuration; run once without -NoBuild.'
 }
 
 $missingTests = @($ExpectTests | Where-Object { $_ -and -not $ranTests.Contains($_) })
