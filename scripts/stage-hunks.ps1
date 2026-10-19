@@ -53,6 +53,13 @@ method down, silently.) Simpler when the refused hunk belongs to one commit: com
 hunks first, so the refused one is the file's whole remaining diff and stages with a plain `git add`
 (#5943 round 5).
 
+`-AddFile <path> -Add '<start>|||<anchor>', ...` is the build-up inverse of `-CutFile`, for when most of a
+file's diff belongs to *later* commits: it takes the file's **index** content and inserts each working-tree
+span (start marker up to, not including, the anchor) before the same anchor there. The anchor must occur once
+in the index content; the start marker must not occur there yet. The index version is checked out through
+git's own eol / attribute conversion, so a CRLF working tree over an LF index needs no handling. (#5943 A-11:
+a test file whose two new methods went to two commits and whose remaining edits went to a third.)
+
 **Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
 the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
 naming a hunk that does not exist. See `script-authoring.md`.
@@ -64,7 +71,9 @@ param(
     [switch]$ListOnly,
     [string]$CutFile,
     [string[]]$Cut,
-    [string[]]$Replace
+    [string[]]$Replace,
+    [string]$AddFile,
+    [string[]]$Add
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,14 +82,73 @@ $ErrorActionPreference = 'Stop'
 $scratchDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.build/.agents'
 if (-not (Test-Path $scratchDir)) { New-Item -ItemType Directory -Path $scratchDir -Force | Out-Null }
 
+function Read-TextWithBom([string]$path) {
+    $head = [System.IO.File]::ReadAllBytes($path) | Select-Object -First 3
+    [pscustomobject]@{
+        HasBom = $head.Count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF
+        Text   = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false))
+    }
+}
+
+function Set-IndexContent([string]$path, [string]$text, [bool]$hasBom) {
+    $blobPath = Join-Path $scratchDir 'stage-hunks-cut.tmp'
+    [System.IO.File]::WriteAllText($blobPath, $text, [System.Text.UTF8Encoding]::new($hasBom))
+
+    # --path applies the file's attributes / eol conversion, as `git add` would.
+    $sha = & git -C $Worktree hash-object -w "--path=$path" $blobPath
+    if ($LASTEXITCODE -ne 0) { throw "git hash-object failed ($LASTEXITCODE)" }
+    $entry = & git -C $Worktree ls-files -s -- $path
+    $mode  = if ($entry) { $entry.Split(' ')[0] } else { '100644' }
+    & git -C $Worktree update-index --add --cacheinfo "$mode,$sha,$path"
+    if ($LASTEXITCODE -ne 0) { throw "git update-index failed ($LASTEXITCODE)" }
+}
+
+if ($AddFile -or $Add) {
+    if (-not $AddFile -or -not $Add) { throw '-AddFile goes with -Add' }
+    if ($CutFile -or $Cut -or $Replace) { throw '-AddFile and -CutFile are separate calls' }
+
+    $work = (Read-TextWithBom (Join-Path $Worktree $AddFile)).Text
+
+    # The index version, smudged as a checkout would, so its line endings match the working tree's.
+    # checkout-index creates the path's directories below the prefix, not the prefix itself.
+    $prefix = Join-Path $scratchDir 'stage-hunks-index'
+    New-Item -ItemType Directory -Path $prefix -Force | Out-Null
+    & git -C $Worktree checkout-index -f "--prefix=$($prefix.Replace('\', '/'))/" -- $AddFile
+    if ($LASTEXITCODE -ne 0) { throw "git checkout-index failed ($LASTEXITCODE) - is $AddFile in the index?" }
+    $index = Read-TextWithBom (Join-Path $prefix $AddFile)
+    $text  = $index.Text
+
+    foreach ($span in $Add) {
+        $markers = $span -split '\|\|\|'
+        if ($markers.Count -ne 2) { throw "malformed -Add '$span' - expected '<start>|||<anchor>'" }
+
+        $s = $work.IndexOf($markers[0], [System.StringComparison]::Ordinal)
+        if ($s -lt 0) { throw "start marker not found in the working tree's ${AddFile}: $($markers[0])" }
+        if ($work.IndexOf($markers[0], $s + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "start marker not unique in the working tree's ${AddFile}: $($markers[0])" }
+        $e = $work.IndexOf($markers[1], $s, [System.StringComparison]::Ordinal)
+        if ($e -lt 0) { throw "anchor not found after the start marker in the working tree's ${AddFile}: $($markers[1])" }
+
+        if ($text.IndexOf($markers[0], [System.StringComparison]::Ordinal) -ge 0) { throw "start marker already in the index content of ${AddFile}: $($markers[0])" }
+        $i = $text.IndexOf($markers[1], [System.StringComparison]::Ordinal)
+        if ($i -lt 0) { throw "anchor not found in the index content of ${AddFile}: $($markers[1])" }
+        if ($text.IndexOf($markers[1], $i + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "anchor not unique in the index content of ${AddFile}: $($markers[1])" }
+
+        $text = $text.Insert($i, $work.Substring($s, $e - $s))
+    }
+
+    Set-IndexContent $AddFile $text $index.HasBom
+    Remove-Item -LiteralPath (Join-Path $prefix $AddFile) -Force
+    "staged $AddFile with $($Add.Count) span(s) added"
+    return
+}
+
 if ($CutFile -or $Cut -or $Replace) {
     if (-not $CutFile -or -not ($Cut -or $Replace)) { throw '-CutFile goes with -Cut and/or -Replace' }
 
     # ReadAllText drops a UTF-8 BOM; write it back when the file had one, or the staged blob loses it (#6008).
-    $cutPath = Join-Path $Worktree $CutFile
-    $head    = [System.IO.File]::ReadAllBytes($cutPath) | Select-Object -First 3
-    $hasBom  = $head.Count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF
-    $text    = [System.IO.File]::ReadAllText($cutPath, [System.Text.UTF8Encoding]::new($false))
+    $source = Read-TextWithBom (Join-Path $Worktree $CutFile)
+    $hasBom = $source.HasBom
+    $text   = $source.Text
 
     # A replacement restores a line the later commit changed; a cut can only drop text. Both must match once.
     foreach ($pair in $Replace) {
@@ -112,22 +180,13 @@ if ($CutFile -or $Cut -or $Replace) {
         $text = $text.Remove($s, $e - $s)
     }
 
-    $blobPath = Join-Path $scratchDir 'stage-hunks-cut.tmp'
-    [System.IO.File]::WriteAllText($blobPath, $text, [System.Text.UTF8Encoding]::new($hasBom))
-
-    # --path applies the file's attributes / eol conversion, as `git add` would.
-    $sha = & git -C $Worktree hash-object -w "--path=$CutFile" $blobPath
-    if ($LASTEXITCODE -ne 0) { throw "git hash-object failed ($LASTEXITCODE)" }
-    $entry = & git -C $Worktree ls-files -s -- $CutFile
-    $mode  = if ($entry) { $entry.Split(' ')[0] } else { '100644' }
-    & git -C $Worktree update-index --add --cacheinfo "$mode,$sha,$CutFile"
-    if ($LASTEXITCODE -ne 0) { throw "git update-index failed ($LASTEXITCODE)" }
+    Set-IndexContent $CutFile $text $hasBom
 
     "staged $CutFile with $($Cut.Count) span(s) cut, $($Replace.Count) replacement(s)"
     return
 }
 
-if (-not $Hunks -and -not $ListOnly) { throw 'pass -Hunks, -ListOnly, or -CutFile with -Cut / -Replace' }
+if (-not $Hunks -and -not $ListOnly) { throw 'pass -Hunks, -ListOnly, -CutFile with -Cut / -Replace, or -AddFile with -Add' }
 
 $patchPath = Join-Path $scratchDir 'stage-hunks-cur.patch'
 & git -C $Worktree diff HEAD -U1 --output=$patchPath
