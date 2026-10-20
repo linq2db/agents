@@ -28,6 +28,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a computed-vs-stored test alone. The value keeps its own type only where the two types differ in precision: a coarser date/time column, or decimal beside decimal with no converter. Every other column type still lends itself. (#5959, `d2da94700` narrowed by `76fc77952`)
 
+## SQL-PROVIDER: typing a decimal literal beside a computed decimal from the schema default or a fixed cap
+
+**Tried:** three ways to type a literal / IN-list value / set-operation branch beside a computed decimal (`MAX`, `Math.Abs`, a conditional) so `MAX(Decimal(18,2)) == 1.004m` keeps the `.004`: (a) the mapping schema's default decimal type; (b) widening, then clamping integer-first at the cap (`YdbMappingSchema.GetCommonDecimalType`'s rule); (c) `SqlDataType.GetMaxPrecision(DataType.Decimal)` as the cap.
+
+**Failed because:** (a) the default (`Decimal128(29,10)` on ClickHouse, `(22,9)` on YDB, `(18,10)` on most) is narrower than many operands in scale or integer digits — measured against master: ClickHouse `Decimal128(38,12)` `Abs(x) == lit` 1 → 0, YDB `Decimal(35,2)` `IN` → `OverflowException` and `UNION` → `YdbException`, and set operations truncated on DB2, SqlCe and DuckDB. (b) An integer-first clamp narrows the literal back to the column scale, the defect it was meant to fix; that rule is for two column operands of unknown magnitude, while a literal's digits are known. (c) `GetMaxPrecision(Decimal)` is 29, the CLR decimal's width (`SqlDataType.cs:157`), not any provider's limit.
+
+**Don't re-attempt:** any of the three. `QueryHelper.GetDecimalTypeForValue` keeps the operand's type when the value fits, otherwise takes both sides' integer digits and scale; ClickHouse moves up a family by total digits (a comparison stays in the operand's family and overflows it); the cap is 31, DB2's limit and the smallest among providers that render a literal's precision (Informix 32, YDB 35; Access drops decimal casts; SQL Server / Sybase / Firebird re-derive facets from the value); past it the value keeps its own facets. (#5959 A-12, `55204bb7f`; four critic rounds, each confirmed by a probe)
+
 ## SQL-PROVIDER: witnessing the cast-of-cast fold with an integer or integral-constant comparison
 
 **Tried:** pinning that `SqlExpressionOptimizerVisitor.VisitSqlCastExpression` keeps `CAST(CAST(x AS Int) AS Double)` (an `int` result widened back to `double`) with `where Sql.Degrees((int)r.M) == 57`, then `== 57.0`, on the providers that emulate `Degrees` inside that pair.
