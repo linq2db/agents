@@ -671,6 +671,14 @@ Two details the obvious fix gets wrong:
 - **Scope the key to YDB** — `[PrimaryKey(Configuration = ProviderName.Ydb)]`, or `[PrimaryKey(ProviderName.Ydb, n)]` for a composite, per the `Tests/Model/ParentChild.cs:23` precedent. An unconditional `[PrimaryKey]` changes the DDL on *every* provider, and a `string` column in a key is rejected by several of them once it maps to a long-text type.
 - **YDB enforces PK uniqueness on insert**, so a natural key is not always available. Where fixture rows are deliberately non-unique — duplicate rows that make a `Distinct()` count differ from a row count, several rows per group so `AVG`/`MIN`/`MAX` differ from `SUM` — a natural key silently *merges* rows and voids exactly the discrimination the test was built for. Add a surrogate `Id` instead.
 
+### Access has no 64-bit integer column
+
+Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
+
+### Firebird types a multi-row insert's literal column from the first row
+
+`CreateLocalTable(data)` on Firebird writes the rows as one multi-row insert of literals, and the column's type comes from the first row's literal: `1.23456789` makes it `NUMERIC(9,8)`, so a later `123456789.25` fails the whole insert with `numeric value is out of range` before the query under test runs. The direct leg fails and the LinqService leg can pass, which reads like a remote divergence. Keep each column's rows in one literal shape (same integer and fractional digit counts), or put the widest value first. (#5943: `ScalarThroughText` and a probe table, both direct-only on Firebird 5.)
+
 ### YDB: a failing query under `CreateLocalTable` reports `Connection is closed`
 
 On YDB a reader failure closes the connection, so the `using var t = db.CreateLocalTable(...)` dispose that follows — `TempTable.Dispose` → `DropTable` — throws `InvalidOperationException : Connection is closed`, and that is the exception the direct `YDB` context reports. The real error is gone from the failure message. Read the `.LinqService` leg, which surfaces it (e.g. `Value does not fit into decimal`), or the log's `Rows Count:` line, which shows how far the reader got. (#5943: `Round20("YDB")` reported `Connection is closed` after 4 of 6 rows; `Round20("YDB.LinqService")` showed the decimal overflow.)

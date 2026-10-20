@@ -532,7 +532,8 @@ function Invoke-Validate {
         # the step existed in the skill and still was not run, so its record is now checked.
         foreach ($e in $entries) {
             $idPattern = "\b$([regex]::Escape($e.id))\b"
-            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+\s+`?Tests/' -and $_ -match $idPattern })) { continue }
+            # A Tests/ path anywhere on the row counts: an E-n leading with a source file can still add tests (#5943 E-39).
+            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' -and $_ -match $idPattern })) { continue }
             if ($e.text -match '(?i)\bconventions:') { continue }
 
             $msg = "P11 : $($e.id) adds test edit-points but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
