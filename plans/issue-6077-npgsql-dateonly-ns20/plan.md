@@ -1,6 +1,6 @@
 # Work plan: issue-6077-npgsql-dateonly-ns20 — netstandard2.0 build reads Npgsql 10 date/time/daterange into classic types
 
-**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-10-20 (E-1…E-6)  ·  **Branch:** issue/6077-npgsql-dateonly-ns20
+**Tier:** L  ·  **PR:** linq2db#6092  ·  **Status:** approved  ·  **Approved-at:** 2026-10-20 (E-1…E-6)  ·  **Branch:** issue/6077-npgsql-dateonly-ns20
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
 ## P1 Problem
@@ -121,13 +121,25 @@ Mechanism (scout, `ConvertBuilder.cs:483-522`, `:30`): `Converter.GetConverter(D
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: pass — `worktree-test.ps1` against PostgreSQL.18. The ns2.0 "before" run had the source stashed (11 red); after the fix, 14/14 green (9/9 after the A-2 renames).
+  - TO-1 `PostgreSQLTests.TestDate` — ns2.0: red before, green after.
+  - TO-2 `PostgreSQLTests.TestRange`, `TestRangeBulkCopy`, `TestRangeBulkCopyAsync` — ns2.0: red before, green after.
+  - TO-3a `PostgreSQLTests.ReadTimeAsTimeSpanScalar` — ns2.0: red before, green after.
+  - TO-3b `PostgreSQLTests.ReadTimeAsTimeSpanEntity` (direct and `.LinqService`) — ns2.0: red before, green after.
+  - TO-3c `PostgreSQLTests.ReadTimeAsTimeSpanScalar`, `ReadTimeAsTimeSpanEntity` — net10.0 green before the fix.
+  - TO-4 `PostgreSQLTests.ReadTimeAsDateTime` — ns2.0: red before, green after; net10.0 green.
+  - TO-5a `PostgreSQLTests` (whole fixture) — net10.0: 212 passed / 13 skipped before and after; net462: the same 5 pre-existing failures before and after (`Issue4250Test` ×2, `TestBigInteger` ×3).
+  - TO-5b `ProviderSpecificReaderValueTests.PostgreSQLProviderSpecificReadMatrix` — net10.0 green before and after (inside the 212).
+  - TO-6 `Tests.Common.ConvertTests` (whole fixture) — net10.0 and net462 green before and after.
+  - TO-7 `ConvertTests.DateOnlyToDateTime` — ns2.0: red before, green after; net10.0 green.
+  - TO-8 `PostgreSQLTests.ReadDateAsString` — ns2.0: red before (`"12/12/2012"`), green after; net10.0 green.
+  - TO-9 `ConvertTests.DateOnlyToString` — ns2.0: red before, green after; net10.0 green.
+- G-02: n/a — read-side conversions only. No emitted-SQL change and no baselines path configured; the net10.0 results are identical before and after.
+- G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net10.0`, both exit 0.
+- G-06: pass — the diff touches only E-1…E-6 regions.
+- G-07: pass — nothing under `Tests/Tests.Playground/`.
+- G-08: pass — core `Converter` / default `MappingSchema` changes surfaced in P5 (D-1, D-4); red→green above, including the DB-less `ConvertTests`.
+- G-09: pass — code-reviewer on the uncommitted diff: MIN001 (`Issue<N>` names in a shared fixture), NIT001/002 (one call per line), NIT003 (`nameof(TimeSpan.Ticks)` on a TimeOnly member). All four were applied (A-2). It verified E-1/E-2/E-3/E-6 shape, key and no-throw claims clean, and raised no rule-28 finding. Out-of-scope notes: release-note material (ns2.0 `date`→`string` value change; DateOnly→DateTime now works for every provider), and no CI leg can redden the new tests (the #6067 umbrella decision: local only).
 
 ## P10 Adjudicated (M/L)
 
@@ -135,7 +147,11 @@ _None yet._
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-20, net462 baseline) — TO-8's `Issue6077DateToString` is `#if NET8_0_OR_GREATER` (test TFM). The net462 "before" baseline failed it: the net462 tests run Npgsql 8.0.9, which returns `DateTime` for `date`, so the string carries a time part. That divergence predates this branch and is not an ns2.0 one. No edit-point changes; TO-8 now runs on net8+ only, like TO-7 and TO-9.
+  re-derives: P8 (TO-8)
+- A-2 (2026-10-20, G-09 code-reviewer pass) — E-4's tests renamed after their behaviour, with the issue only in `Description` (test-review-checklist → *`Issue<N>` names in a shared feature fixture*): `Issue6077TimeToTimeSpanScalar` → `ReadTimeAsTimeSpanScalar`, `Issue6077TimeToTimeSpanEntity` → `ReadTimeAsTimeSpanEntity`, `Issue6077DateToString` → `ReadDateAsString`, `Issue6077TimeToDateTime` → `ReadTimeAsDateTime`, `Issue6077Table` → `TimeColumnTable`. Assertions use one call per line (testing.md → *Test layout*). No behavioural change; TO-3a/3b/4/8 refer to the new names.
+  conventions: testing.md → *Test layout* rule 1; test-review-checklist → *`Issue<N>` names*; swept `git diff -- Tests/` of this branch (2 files, 6 tests) by hand.
+  re-derives: P8 (TO-3a, TO-3b, TO-4, TO-8)
 
 ## P12 Critic verdict (M/L)
 
