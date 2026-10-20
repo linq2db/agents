@@ -562,6 +562,8 @@ Entries with empty `sampleUrl` / `samplePath` (rollup entries not tied to a spec
 
 ### 9. Confirm with user, then post
 
+**Re-read the PR head before the walk or the post — the author may have pushed mid-review.** A review with probes or long runs spans hours, and the author can answer a finding before it is raised. Run `gh pr view <n> --repo linq2db/linq2db --json headRefOid --jq .headRefOid`; if it differs from the reviewed head, re-fetch `origin/pr/<n>`, read `git diff <reviewed-head> origin/pr/<n>`, and re-check each pending finding against the delta before presenting it. (#6069: `34d035cb3`, pushed during an 11-hour probe run, added the exact test the pending coverage finding was about to request.)
+
 **Pre-show meta-content scan.** Before showing the user anything, grep the assembled review body **and** every line / file / reply comment body for forbidden meta-tokens. If any match, strip or rewrite the offending fragment and re-check. Do not rely on "I'll remember not to do it" — the rule is already documented twice (`.claude/docs/review-conventions.md` → *Audience*, step 5 above) and still gets violated. Tokens to reject:
 
 - `Prior review continuation`, `continues from`, `ID-continuation`, `continuation floor`, `starting point` (except in the disclaimer, whose *"starting points for discussion"* [`review-conventions.md`](../../docs/review-conventions.md) mandates), `starting floor`
