@@ -49,13 +49,35 @@ try {
     [void](New-Item -ItemType Directory -Path $stateDir -Force)
     $stateFile = Join-Path $stateDir 'docker-session-started.txt'
 
-    $existing = @()
-    if (Test-Path $stateFile) {
-        $existing = Get-Content -LiteralPath $stateFile -Encoding UTF8 | Where-Object { $_ -ne '' }
+    # Parallel `docker start` calls run one hook each; an unlocked read-merge-rewrite lost all but one of four
+    # names (#5959). Hold the file exclusively for the whole merge, retrying while another hook has it.
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    $stream = $null
+    for ($attempt = 0; $null -eq $stream; $attempt++) {
+        try {
+            $stream = [System.IO.File]::Open($stateFile, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+        }
+        catch [System.IO.IOException] {
+            if ($attempt -ge 100) { throw }
+            Start-Sleep -Milliseconds 50
+        }
     }
 
-    $all = @($existing + $started) | Sort-Object -Unique
-    [System.IO.File]::WriteAllLines($stateFile, $all, [System.Text.UTF8Encoding]::new($false))
+    try {
+        $reader   = [System.IO.StreamReader]::new($stream, $utf8, $false, 4096, $true)
+        $existing = @($reader.ReadToEnd() -split "`r?`n" | Where-Object { $_ -ne '' })
+        $reader.Dispose()
+
+        $all = @($existing + $started) | Sort-Object -Unique
+
+        $stream.SetLength(0)
+        $writer = [System.IO.StreamWriter]::new($stream, $utf8)
+        foreach ($name in $all) { $writer.WriteLine($name) }
+        $writer.Dispose()
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 catch {
     # Never block the tool call on a hook error.
