@@ -111,6 +111,14 @@ Input (named parameters):
                            way to prove an ns2.0 fix red. See
                            `.claude/docs/code-design.md` -> "A TFM gate may withhold a
                            feature, never recognition of unchanged source".
+  -PerProvider             optional; with a -Provider list, runs each provider as its own
+                           invocation - its own log and summary - one after another, and
+                           prints `{ ok, providers: [ { provider, result } ] }` with each
+                           `result` the single-run JSON below. The first run builds (unless
+                           -NoBuild); the rest pass -NoBuild. For a probe or sweep across
+                           providers, where a combined run's failures cannot be told apart
+                           by provider at a glance and one database is driven by one
+                           process at a time. Exclusive with -LogPath.
   -GroupFailures           optional; adds `failureGroups`: every failure (not just the
                            first -MaxFailures) grouped by test METHOD, with a count and
                            the first message line. For triaging a broad sweep, where a
@@ -183,7 +191,8 @@ param(
     [string]$LinqToDBAsset,
     [switch]$GroupFailures,
     [int]$FailureLines = 8,
-    [int]$MaxFailures  = 20
+    [int]$MaxFailures  = 20,
+    [switch]$PerProvider
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -192,6 +201,44 @@ $ErrorActionPreference = 'Stop'
 
 # -File passes `-ExpectTests A,B` as the single string "A,B".
 $ExpectTests = @($ExpectTests | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+# -PerProvider: one run, log and summary per provider, sequentially - a failure is attributed to its provider and each
+# provider's database is driven by one process at a time. The first run may build; the rest reuse its output.
+$Provider = @($Provider | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if ($PerProvider) {
+    if ($Provider.Count -lt 1) { Exit-WithError -Message '-PerProvider needs -Provider' -NextAction 'pass -Provider a,b,c' }
+    if ($LogPath)             { Exit-WithError -Message '-PerProvider writes one log per provider; drop -LogPath' -NextAction 'omit -LogPath' }
+
+    $passThrough = @()
+    foreach ($kv in $PSBoundParameters.GetEnumerator()) {
+        if ($kv.Key -in 'Provider', 'PerProvider', 'NoBuild', 'SerialBuild', 'SharedCompilation', 'NoRestore') { continue }
+        if ($kv.Value -is [System.Management.Automation.SwitchParameter]) { if ($kv.Value) { $passThrough += "-$($kv.Key)" } }
+        elseif ($kv.Value -is [array]) { $passThrough += "-$($kv.Key)"; $passThrough += ($kv.Value -join ',') }
+        else { $passThrough += "-$($kv.Key)"; $passThrough += [string]$kv.Value }
+    }
+
+    $runs = @()
+    for ($i = 0; $i -lt $Provider.Count; $i++) {
+        # @() around the whole if: a one-element result unrolls to a string, and splatting a string into a native
+        # command passes it character by character.
+        $buildArgs = @(if ($i -gt 0 -or $NoBuild) { '-NoBuild' }
+                       else { if ($SerialBuild) { '-SerialBuild' }; if ($SharedCompilation) { '-SharedCompilation' }; if ($NoRestore) { '-NoRestore' } })
+        $out  = & pwsh -NoProfile -File $PSCommandPath @passThrough -Provider $Provider[$i] @buildArgs
+        $code = $LASTEXITCODE
+        $json = ($out | Out-String).Trim()
+        $run  = $null
+        if ($json) { try { $run = $json | ConvertFrom-Json } catch { $run = $null } }
+        if ($null -eq $run) { $run = [pscustomobject]@{ ok = $false; exitCode = $code; error = $(if ($json) { $json } else { 'no JSON output - see the error on stderr above' }) } }
+        $runs += [pscustomobject]@{ provider = $Provider[$i]; result = $run }
+        if ($i -eq 0 -and $run.buildFailed) { break }
+    }
+
+    Write-JsonOutput ([ordered]@{
+        ok        = -not ($runs | Where-Object { -not $_.result.ok })
+        providers = $runs
+    })
+    exit ($(if ($runs | Where-Object { -not $_.result.ok }) { 1 } else { 0 }))
+}
 
 if (-not (Test-Path -LiteralPath $RepoRoot -PathType Container)) {
     Exit-WithError -Message "RepoRoot not found: $RepoRoot" -NextAction 'pass -RepoRoot <absolute worktree path>'
@@ -360,7 +407,7 @@ if ($LinqToDBAsset) {
 $dotnetArgs = @('test', '--project', $projectFull, '-c', $Configuration)
 if ($Tfm)      { $dotnetArgs += @('-f', $Tfm) }
 if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
-if ($Provider) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
+if ($Provider.Count -gt 0) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
 if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed') }
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
 if ($NoBuild) { $dotnetArgs += '--no-build' }
