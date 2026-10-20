@@ -36,7 +36,11 @@ Input (named parameters):
   -Provider      <list>    optional; passed through to --provider (comma list)
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
-                           Default: <RepoRoot>/.build/.agents/worktree-test-<project>[-<tfm>]-<pid>.log
+                           Default: <RepoRoot>/.build/.agents/worktree-test-<project>[-<tfm>]-<pid>-<HHmmssfff>.log.
+                           The timestamp matters: several calls from one PowerShell
+                           process share the PID, and a later run would overwrite an
+                           earlier run's log - the evidence of a failure you still
+                           have to read.
   -SerialBuild             optional; build first as its own step, with -m:1
                            -p:UseSharedCompilation=false, to <LogPath>-build.log.
                            Reach for it when a run is killed mid-flight leaving an
@@ -107,6 +111,10 @@ Input (named parameters):
                            way to prove an ns2.0 fix red. See
                            `.claude/docs/code-design.md` -> "A TFM gate may withhold a
                            feature, never recognition of unchanged source".
+  -GroupFailures           optional; adds `failureGroups`: every failure (not just the
+                           first -MaxFailures) grouped by test METHOD, with a count and
+                           the first message line. For triaging a broad sweep, where a
+                           few hundred failures fall into a few dozen causes.
 
 `--test-progress` is passed by default, per `.claude/docs/agent-rules.md` ->
 "Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`".
@@ -142,6 +150,8 @@ Output (stdout, single JSON object):
                                      // -FailureLines (8) message lines - stack frames and the
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
+    "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
+                                     // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
                                      // failures in a Tests/Linq run whose filter lacks CreateData.CreateDatabase
   }
@@ -171,6 +181,7 @@ param(
     [switch]$NoBuild,
     [string[]]$ExpectTests,
     [string]$LinqToDBAsset,
+    [switch]$GroupFailures,
     [int]$FailureLines = 8,
     [int]$MaxFailures  = 20
 )
@@ -198,7 +209,7 @@ if (-not $LogPath) {
     if (-not (Test-Path -LiteralPath $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
     $stem    = [System.IO.Path]::GetFileNameWithoutExtension($Project)
     $suffix  = if ($Tfm) { "-$Tfm" } else { '' }
-    $LogPath = Join-Path $logDir "worktree-test-$stem$suffix-$PID.log"
+    $LogPath = Join-Path $logDir "worktree-test-$stem$suffix-$PID-$(Get-Date -Format 'HHmmssfff').log"
 }
 
 if (-not [System.IO.Path]::IsPathRooted($LogPath)) {
@@ -398,12 +409,29 @@ if (Test-Path -LiteralPath $LogPath) {
         $hint = 'NuGet cache entry half-extracted and locked by a shared build node; do not retry. Restore into a private cache: .claude/docs/windows-dev-gotchas.md -> "A half-deleted package in the NuGet cache".'
     }
 
-    $seenFailures = [System.Collections.Generic.HashSet[string]]::new()
+    $seenFailures  = [System.Collections.Generic.HashSet[string]]::new()
+    $failureGroups = [ordered]@{}
 
     for ($li = 0; $li -lt $lines.Length; $li++) {
         $line = $lines[$li]
         if ($line -match '^failed\s+(\S+)') {
             $failedTests += $Matches[1]
+            $method       = $Matches[1] -replace '\(.*$', ''
+
+            if ($GroupFailures) {
+                if (-not $failureGroups.Contains($method)) {
+                    $first = $null
+                    for ($j = $li + 1; $j -lt $lines.Length; $j++) {
+                        $m = $lines[$j] -replace '\x1b\[[0-9;]*m', ''
+                        if ($m -match '^\S' -or $m -match '^\s+DataConnection:') { break }
+                        if ($m -match '^\s+(at |from |--- End of|\d+\)\s+at )' -or $m.Trim() -eq '') { continue }
+                        $first = $m.Trim()
+                        break
+                    }
+                    $failureGroups[$method] = [ordered]@{ test = $method; count = 0; message = $first }
+                }
+                $failureGroups[$method].count++
+            }
 
             # The message block under the failed line, minus stack frames, so the caller need not dig the log.
             $head = ($line -replace '\s+\(\d.*?\)$', '').Substring(7)
@@ -465,6 +493,7 @@ $result = [ordered]@{
     failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
+if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
 if ($hint)        { $result['hint']         = $hint }
 

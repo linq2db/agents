@@ -164,6 +164,8 @@ gh api repos/linq2db/linq2db/milestones?state=open --jq '.[] | {number, title}'
 
 Present in the order defined in [`.claude/docs/pr-and-push.md`](../../docs/pr-and-push.md) → **Creating a PR** → **Milestone** (next-version first, then remaining versioned by version, then non-versioned alphabetical).
 
+**An incidental finding defaults to `Backlog`.** A bug you found while working on something else — no user reported it, and it lies outside the change you are making (another provider, another area) — goes to `Backlog`, not to the milestone of the work that surfaced it. Put `Backlog` first in the list for these. (#6084–#6086: sibling ns2.0 gaps found during the #6077 sweep; the maintainer said *"fill it for backlog"*.)
+
 Allow the user to reply with a number, a title, or "none" to skip.
 
 ### 7. Present the full proposal and wait
