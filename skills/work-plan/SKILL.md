@@ -231,7 +231,7 @@ Never record a pre-critique approval on the header line. If the user approves at
 
 ### 9. Validate, then commit the plan on its own
 
-1. `work-plan.ps1 -Action validate` — must exit 0. Fix what it names; do not talk past it.
+1. `work-plan.ps1 -Action validate` — must exit 0. Fix what it names; do not talk past it. On a Tier L plan pass `-Summary`: the full output carries every legacy warning, about 15k characters on #5959. It is written to `[Console]::Out`, so it can be neither captured nor redirected and lands in context on every call.
 2. Commit **inside the submodule**, plan only:
    `git -C .claude add plans/<key>` then `git -C .claude commit -F <msg-file>`.
    Message shape: `plan(<key>): <one-line intent>` plus 2–3 lines on approach, critic verdict, and the authorized surface.
@@ -254,7 +254,7 @@ The distinction that matters: **"does not write the fix unprompted" is not "refu
 3. **At Tier L, re-dispatch the critic on the delta** when the amendment widens `P6` or adds an area, and append the verdict to `P12`. A whole-plan re-critique for a one-row amendment is waste; skipping it entirely is how prose added after the single critic pass ships unattacked.
    **When the delta adds or re-resolves a `U-n` that establishes a mechanism, the delta is wider than the rows you touched.** Grep the plan for every earlier `P5` decision, `A-n` and `P3` freeze clause that rests on the same premise. Name each in the `A-n`'s `re-derives:` line and in the critic's dispatch scope, and re-probe each one the mechanism could falsify. A delta critique otherwise attacks the new rows while the old decisions keep the refuted premise. (#5943: U-21 measured that a `CAST` to the inferred `(22,9)` rounds a computed value's real scale, and A-7 fixed D-6's pin. A-3's identical pin and the `P3` freeze of the widening rules kept the premise for another round, and became that round's major.)
 4. **When the amendment adds or changes an `E-n` / `TO-n` under `Tests/`, embed step 4's conventions for those paths** (`testing.md` → *Test layout* and its neighbours) exactly as authoring does. Step 4 runs once, so a convention that landed after approval otherwise never reaches the amendments; when one did, sweep the branch's new test code against it in the same amendment. (#6008: *Test layout* landed two days after approval, and ten review nits came from amendment-added tests written without it.) Record it in the `A-n` as a `conventions:` line naming the embedded sections and the swept `git diff <base>... -- Tests/`; `-Action validate` fails an amendment with test edit-points and no such line (#5943 round 5: the step existed and was not run). **Sweep with [`test-diff-sweep.ps1`](../../scripts/test-diff-sweep.ps1)** `-Repo <worktree>` (add `-IncludeWorkingTree` before the tests are committed) and cite its counts — one-line chains, and narrowed provider sets with the line above each — rather than listing the tests you remember touching: a hand-listed sweep missed `Round25` on #5943 (round 6, NIT018) after the embed itself had run. **The amendment-time sweep sees only the tests that exist yet — re-run it on the implemented tree before the commit and record its counts in `G-01`.** And spell any assertion a `TO-n` quotes one call per line, because the implementer copies it verbatim. (#5943 round 7, NIT021: TO-26 wrote `ToSqlQuery().Sql.ShouldNotContain(…)` on one line, the code copied it, and the sweep had already run.)
-5. Re-run `-Action validate`.
+5. Re-run `-Action validate` (`-Summary` on Tier L).
 
 ## Mode: postmortem
 
