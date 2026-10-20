@@ -229,7 +229,7 @@ function Invoke-Init {
 # ---------------------------------------------------------------- validate
 
 function Invoke-Validate {
-    param([string] $PlanKey)
+    param([string] $PlanKey, [string] $RepoRoot)
 
     $planPath = Get-PlanPath -PlanKey $PlanKey
     $lines    = Read-PlanLines -Path $planPath
@@ -337,14 +337,27 @@ function Invoke-Validate {
     # not be asked for a proof mode. Emphasis markers are tolerated on both the
     # id and the mode -- `- **TO-1** ... proof: **red-green**` is valid, and
     # rejecting it produces a diagnostic that reads as a missing declaration.
+    # Amendment dates, for rules that apply only to amendments from a cutoff on.
+    $amendDates = @{}
+    $p11ForDates = Get-Block -Blocks $blocks -Id 'P11'
+    if ($null -ne $p11ForDates) {
+        foreach ($l in $p11ForDates.lines) {
+            if ($l -match '^-\s+(?:\*\*)?(A-\d+)\b[^(\n]*\((\d{4}-\d{2}-\d{2})') { $amendDates[$Matches[1]] = $Matches[2] }
+        }
+    }
+
     foreach ($row in (Get-BlockRows -Block $p8)) {
         if ($row -notmatch '^-\s*[*_]{0,2}TO-\d+') { continue }
         if ($row -notmatch 'proof:\s*[*_]{0,2}\s*(red.{0,3}green|control|characterization)') {
             $errors += "P8 : row declares no proof mode (red-green | control | characterization) -- $row"
         }
         # work-plan.md -> P8: an unscoped obligation defaults to SQLite and the types its author thought of.
+        # An amendment's obligation is the one a review round then finds red on an unrun provider (#5959 rounds
+        # 4 and 7), so for amendments from 2026-10-21 the scope is required.
         if ($row -notmatch 'providers:') {
-            $warnings += "P8 : row names no providers: scope -- $row"
+            $msg = "P8 : row names no providers: scope -- $row"
+            $byAmendment = [regex]::Matches($row, '\bA-\d+\b') | Where-Object { $amendDates[$_.Value] -ge '2026-10-21' }
+            if ($byAmendment) { $errors += $msg } else { $warnings += $msg }
         }
     }
 
@@ -360,6 +373,13 @@ function Invoke-Validate {
         }
         if ($row -notmatch '(pass|fail|n/a|skipped|blocked)') {
             $errors += "P9 : gate carries no result -- $row"
+        }
+        # A run left to CI has not passed yet, and the CI run that settles it is usually the next review's
+        # (#5959 round 7: all three blockers sat in a G-01 written "pass, ... deferred to CI").
+        if ($row -match '^-\s*[*_]{0,2}G-01\b[^:]*:\s*[*_]{0,2}pass\b' -and $row -match '(?i)\bdeferred\b|\bleft to CI\b') {
+            $msg = "P9 : G-01 claims a pass but defers part of it to CI -- write 'blocked - CI <run>' until the run is read -- $row"
+            $rowDate = [regex]::Match($row, '\b(\d{4}-\d{2}-\d{2})\b')
+            if ($Done -and $rowDate.Success -and $rowDate.Groups[1].Value -ge '2026-10-21') { $errors += $msg } else { $warnings += $msg }
         }
         # A skipped/blocked gate must name what is therefore unverified. Test the
         # text *after* the result word — the gate id's own colon would otherwise
@@ -548,6 +568,29 @@ function Invoke-Validate {
     if ($null -eq $verdict -and $planTier -ne 'S') {
         $msg = 'P12 : no critic verdict recorded (holds | weak | refuted | waived-by-user: <reason>)'
         if ($planTier -eq 'L') { $errors += $msg } else { $warnings += $msg }
+    }
+
+    # Edit-point commits after the last critic-reviewed commit. A critic objection folded in after the verdict is
+    # design no critic attacked, and it gets no A-n of its own (#5959 round 7: all four code findings sat in two
+    # such fold-ins). Implementation commits look the same to git, so this lists them for the reader rather than
+    # failing; work-plan.md -> P12 says how to record each one.
+    if ($null -ne $p12 -and -not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        $reviewedSha = $null
+        foreach ($l in $p12.lines) {
+            foreach ($m in [regex]::Matches($l, '`([0-9a-f]{7,40})`')) { $reviewedSha = $m.Groups[1].Value }
+        }
+        $p6ForPaths = Get-Block -Blocks $blocks -Id 'P6'
+        $paths = @()
+        if ($null -ne $p6ForPaths) {
+            $paths = @($p6ForPaths.lines | ForEach-Object { [regex]::Matches($_, '`((?:Source|Tests)/[^`:\s]+)') | ForEach-Object { $_.Groups[1].Value } } | Sort-Object -Unique)
+        }
+        if ($null -ne $reviewedSha -and $paths.Count -gt 0) {
+            $r = Invoke-Process -FilePath 'git' -ArgumentList (@('-C', $RepoRoot, 'log', '--format=%h', "$reviewedSha..$Head", '--') + $paths)
+            if ($r.ok -and -not [string]::IsNullOrWhiteSpace($r.stdout)) {
+                $after = @($r.stdout -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() })
+                $warnings += "P12 : $($after.Count) edit-point commit(s) after the last critic-reviewed commit $reviewedSha ($($after -join ', ')) -- a fold-in of a critic objection needs a delta round; implementation of an approved A-n needs none"
+            }
+        }
     }
 
     $ok = ($errors.Count -eq 0)
@@ -817,7 +860,7 @@ $planKey  = Resolve-Key -Explicit $Key -RepoRoot $repoRoot
 
 switch ($Action) {
     'init'      { Invoke-Init      -PlanKey $planKey -RepoRoot $repoRoot }
-    'validate'  { Invoke-Validate  -PlanKey $planKey }
+    'validate'  { Invoke-Validate  -PlanKey $planKey -RepoRoot $repoRoot }
     'gates'     { Invoke-Gates     -PlanKey $planKey }
     'reconcile'  { Invoke-Reconcile  -PlanKey $planKey -RepoRoot $repoRoot }
     'gap-report' { Invoke-GapReport  -PlanKey $planKey }

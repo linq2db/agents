@@ -480,6 +480,8 @@ emission was deleted and everything became translated SQL, the pins had no remai
 the one provider whose emitted SQL the change actually altered and the only one gaining a version gate, was not in
 any of them. *"as we moved from native to translated sql - those should execute all providers as [DataSources]"*.)
 
+**A new `[DataSources]` test inherits its siblings' measured gates.** When a sibling test of the same mechanism already gates or excludes a provider for a measured failure (`#5998` Access ODBC sub-seconds, `#6062` SqlCe decimal scale), that failure is known, so the new test carries it from the start — or runs the provider and shows it does not apply. And a query moved or widened off one provider is checked against master's tests for **each capability-gated clause it contains** — a window frame, a `LAG` default, a `Decimal` width — not only for the function it is named after. (#5959 round 7: three round-6 tests widened to `[DataSources]` failed on Access ODBC, Firebird 3 — a `ROWS` frame master already pins in `WindowFunctionsTests.LastValue` — and SqlCe, each gated on a sibling.)
+
 **State the reason at the attribute.** A narrowed set — an exclusion in `[DataSources(...)]`, or an `[IncludeDataSources(...)]` that is not a single-provider translator test — carries a `//` line directly above the test (or in its leading comment) naming why each provider is in or out: the measured failure, or the provider-conditional mechanism the test exists for. A test comment that implies a wider set than the attribute runs is the same defect in reverse — a reader widens it and gets a red leg.
 
 ```csharp
