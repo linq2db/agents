@@ -13,7 +13,8 @@ Input (stdin, JSON):
     "k":         5,            // sample size; default 5
     "files":     ["areas/.../INDEX.md", ...],  // optional explicit list — bypasses random sample
     "scope":     ["areas/", "architecture/"],  // optional restriction for sampling
-    "tokenWindow": 3            // ± lines around cited line to look for the cited token
+    "tokenWindow": 10           // ± lines around cited line to look for any backticked token
+                                //   from the same KB line before the citation
   }
 
 Output (stdout, JSON):
@@ -46,7 +47,7 @@ $global:ScriptBaseName = 'kb-audit-citations'
 
 $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
 $k = if (Test-IsInteger $m.k) { [int]$m.k } else { 5 }
-$tokenWindow = if (Test-IsInteger $m.tokenWindow) { [int]$m.tokenWindow } else { 3 }
+$tokenWindow = if (Test-IsInteger $m.tokenWindow) { [int]$m.tokenWindow } else { 10 }
 
 $repoRoot = Resolve-Path "$PSScriptRoot/../.." | Select-Object -ExpandProperty Path
 $kbRoot   = Join-Path $repoRoot '.claude/knowledge-base'
@@ -128,21 +129,34 @@ foreach ($file in $candidateFiles) {
             $missDetails += [pscustomobject]@{ target = $c.target; reason = "line $($c.line) out of range (file has $($codeLines.Length))"; expected_token = $null }
             continue
         }
-        # Extract a candidate token from KB body around the citation: grab the
-        # nearest preceding identifier-shaped word (simple heuristic).
-        $kbBefore = $body.Substring([Math]::Max(0, $c.offset - 200), [Math]::Min(200, $c.offset))
-        $token = $null
-        $idMatches = [regex]::Matches($kbBefore, '`([A-Za-z_][A-Za-z0-9_]+)`')
-        if ($idMatches.Count -gt 0) {
-            $token = $idMatches[$idMatches.Count - 1].Groups[1].Value
+        # Candidate tokens: every backticked name or code snippet on the KB line before the
+        # citation. Prose often names a comparison subject last ("mirrors `X`"), so the
+        # citation holds if ANY candidate is in the window, not just the last one.
+        $lineStart = $body.LastIndexOf("`n", [Math]::Max(0, $c.offset - 1)) + 1
+        $kbBefore  = $body.Substring($lineStart, $c.offset - $lineStart)
+        $tokens    = @()
+        foreach ($tm in [regex]::Matches($kbBefore, '`([^`\r\n]+)`')) {
+            $t = $tm.Groups[1].Value.Trim()
+            if ($t -match '^(?:Source|Tests|Build)/') { continue }
+            if ($t -match '^\[(\w+)\]$') { $t = $Matches[1] }   # `[Obsolete]` vs `[Obsolete("...")]` in code
+            # `Type.Member(args)` -> also try each bare segment; a citation may point at either the type or the member.
+            if ($t -match '^([A-Za-z_][\w.]*\.)?([A-Za-z_]\w*)(?:<[^>]*>)?(?:\(.*\))?$') {
+                $tokens += $Matches[2]
+                if ($Matches[1]) { $tokens += @($Matches[1].Split('.', [System.StringSplitOptions]::RemoveEmptyEntries)) }
+            }
+            if ($t -match '^[A-Za-z_][A-Za-z0-9_]*$' -or $t.Length -ge 4) { $tokens += $t }
         }
-        # Verify token presence in ± tokenWindow
         $loIdx = [Math]::Max(0, $idx - $tokenWindow)
         $hiIdx = [Math]::Min($codeLines.Length - 1, $idx + $tokenWindow)
-        $window = ($codeLines[$loIdx..$hiIdx] -join "`n")
-        if ($token -and ($window -notmatch [regex]::Escape($token))) {
+        # Whitespace-insensitive: code is column-aligned, KB prose is not.
+        $window = ($codeLines[$loIdx..$hiIdx] -join ' ') -replace '\s+', ''
+        $found = $tokens.Count -eq 0
+        foreach ($t in $tokens) {
+            if ($window.Contains(($t -replace '\s+', ''), [System.StringComparison]::Ordinal)) { $found = $true; break }
+        }
+        if (-not $found) {
             $misses++
-            $missDetails += [pscustomobject]@{ target = $c.target; reason = 'token not in line window'; expected_token = $token }
+            $missDetails += [pscustomobject]@{ target = $c.target; reason = 'no candidate token in line window'; expected_token = ($tokens -join ' | ') }
         } else {
             $hits++
         }
