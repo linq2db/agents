@@ -156,7 +156,7 @@ if ($From -or $AuditSummary) {
             path           = if ($first) { $first.path } else { $null }
             line           = if ($first) { if ($null -ne $first.line) { $first.line } else { $first.original_line } } else { $null }
             outdated       = [bool]($first -and $null -eq $first.line)
-            findingIds     = if ($first) { Get-FindingIds $first.body } else { @() }
+            findingIds     = @(if ($first) { Get-FindingIds $first.body })
             replies        = $replies.Count
             lastReplyBy    = if ($replies.Count -gt 0) { $replies[-1].user } else { $null }
             excerpt        = if ($first) { Get-Excerpt $first.body } else { $null }
@@ -177,7 +177,7 @@ if ($From -or $AuditSummary) {
             submittedAt = Format-When $r.submitted_at
             commitId    = Get-Short $r.commit_id
             bodyChars   = ([string]$r.body).Length
-            findingIds  = Get-FindingIds $r.body
+            findingIds  = @(Get-FindingIds $r.body)
             threads     = $opened
         }
     }
@@ -234,7 +234,7 @@ if ($From -or $AuditSummary) {
         threads            = $threads
         otherReviewBodies  = @($otherBodies)
         issueCommentAuthors = $authors
-        ownIssueComments   = @($ownIssue | ForEach-Object { [ordered]@{ id = $_.id; findingIds = Get-FindingIds $_.body; excerpt = Get-Excerpt $_.body } })
+        ownIssueComments   = @($ownIssue | ForEach-Object { [ordered]@{ id = $_.id; findingIds = @(Get-FindingIds $_.body); excerpt = Get-Excerpt $_.body } })
     })
     return
 }

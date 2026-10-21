@@ -66,9 +66,11 @@ Usage
 
 Output: JSON on stdout by default (one object per deduped case), plus the full row set at
 <WriteDir>/ci-test-verdicts.json. `-Format table` prints a grouped human summary instead.
+Each case carries `fixture`, the declaring type from the test's own stack frame (empty when the
+log has no frame, e.g. a gate that holds), because the case line names only the method.
 
 Deduping: a leg that retries prints the same case once per attempt, and a case appears in every
-leg that ran it. Rows are deduped on test+args+provider+verdict+actual, so a count here is a
+leg that ran it. Rows are deduped on fixture+test+args+provider+verdict+actual, so a count here is a
 count of distinct outcomes, not of executions.
 
 A provider can appear under two verdicts at once — read before narrowing a gate
@@ -248,8 +250,19 @@ foreach ($d in $Dir) {
 
             if ($outcome -eq 'skipped' -and $kind -eq 'failure') { continue }   # an ordinary NUnit skip
 
+            # The case line names only the method, so `Test1` from two fixtures reads as one site. The declaring
+            # fixture is on the test's own stack frame, `at Tests.<...>.<Fixture>.<method>(`, below the message.
+            $fixture = ''
+            $frameRx = "\bat\s+(Tests\.[\w.+]+)\.$([regex]::Escape($testName))\("
+            for ($j = $i + 1; $j -lt [Math]::Min($i + 200, $lines.Length); $j++) {
+                $candidate = Clear-Decoration $lines[$j]
+                if ($candidate.Trim() -match '^(?:failed|skipped|passed)\s+\w+\(') { break }
+                if ($candidate -match $frameRx) { $fixture = $Matches[1]; break }
+            }
+
             $rows.Add([pscustomobject]@{
                 verdict      = $kind
+                fixture      = $fixture
                 test         = $testName
                 args         = $args_
                 provider     = $provider
@@ -266,6 +279,7 @@ foreach ($d in $Dir) {
 
             $rows.Add([pscustomobject]@{
                 verdict      = 'host-failure'
+                fixture      = ''
                 test         = '(test host)'
                 args         = ''
                 provider     = ''
@@ -285,6 +299,7 @@ foreach ($d in $Dir) {
 
                 $rows.Add([pscustomobject]@{
                     verdict      = 'host-failure'
+                    fixture      = ''
                     test         = '(test host)'
                     args         = ''
                     provider     = ''
@@ -299,7 +314,7 @@ foreach ($d in $Dir) {
     }
 }
 
-$deduped = $rows | Sort-Object test, args, provider, verdict, actual -Unique
+$deduped = $rows | Sort-Object fixture, test, args, provider, verdict, actual -Unique
 if ($Verdict) { $deduped = $deduped | Where-Object { $Verdict -contains $_.verdict } }
 
 $jsonPath = Join-Path $WriteDir 'ci-test-verdicts.json'
@@ -310,12 +325,14 @@ if ($Format -eq 'json') {
     return
 }
 
-"cases: $($deduped.Count)   sites: $(($deduped | Group-Object test).Count)   written: $jsonPath"
+$siteKey = { if ($_.fixture) { "$($_.fixture).$($_.test)" } else { $_.test } }
+
+"cases: $($deduped.Count)   sites: $(($deduped | Group-Object $siteKey).Count)   written: $jsonPath"
 ''
 foreach ($verdictGroup in $deduped | Group-Object verdict | Sort-Object Name) {
     "=== $($verdictGroup.Name)  [$($verdictGroup.Count)]"
 
-    foreach ($site in $verdictGroup.Group | Group-Object test | Sort-Object Name) {
+    foreach ($site in $verdictGroup.Group | Group-Object $siteKey | Sort-Object Name) {
         $providers = ($site.Group.provider | Sort-Object -Unique)
         "  {0} ({1} provider configs)" -f $site.Name, $providers.Count
         "      providers: " + ($providers -join ', ')
