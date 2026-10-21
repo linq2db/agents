@@ -3,11 +3,11 @@ area: GLOBAL
 kind: decisions
 sources: [gh-prs, history-decisions]
 confidence: medium
-last_verified: 2026-05-08
-last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
-# GLOBAL — Decisions
+# GLOBAL -- Decisions
 
 ## Recorded decisions
 
@@ -49,11 +49,11 @@ last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
 
 ## Decision-flavored PRs
 
-- [#4981 Move AsyncExtensions to separate namespace (LinqToDB.Async)](https://github.com/linq2db/linq2db/pull/4981) — [merged] Fix #3503
-- [#4920 Update TempTable comment](https://github.com/linq2db/linq2db/pull/4920) — [merged] Clarifying comment that says `TmpTable` uses real tables.
-- [#4251 Update dependencies and fix analyzers](https://github.com/linq2db/linq2db/pull/4251) — [merged] - update dependencies
-- [#3942 Resubmit https://github.com/linq2db/linq2db/pull/3933](https://github.com/linq2db/linq2db/pull/3942) — [merged] - introduce explicit breaking changes to fluent configuration API
-- [#3870 Fix inconsistencies in MappingSchema-based attributes handling](https://github.com/linq2db/linq2db/pull/3870) — [merged] Fix #3825
-- [#3514 Better Contains/In translation when CompareNullsAsValues is false](https://github.com/linq2db/linq2db/pull/3514) — [merged] This is a rework of #2949 for release 4.0.
-- [#3267 Performance optimizations (round 3)](https://github.com/linq2db/linq2db/pull/3267) — [closed] As this PR starting to get minor breaking changes and compromise decisions (to avoid big breaking changes) we probably will pick only non-breaking changes with good impact to v3 and remaining changes will go to v4.
-
+- [#5942 Add .NET 11 support, drop .NET 8 and 9](https://github.com/linq2db/linq2db/pull/5942) -- [open, draft] Support-matrix change: supported set becomes net462, netstandard2.0, net10.0, net11.0; pins an RC SDK, not for merge before .NET 11 RTM.
+- [#4981 Move AsyncExtensions to separate namespace (LinqToDB.Async)](https://github.com/linq2db/linq2db/pull/4981) -- [merged] Fix #3503
+- [#4920 Update TempTable comment](https://github.com/linq2db/linq2db/pull/4920) -- [merged] Clarifying comment that says `TmpTable` uses real tables.
+- [#4251 Update dependencies and fix analyzers](https://github.com/linq2db/linq2db/pull/4251) -- [merged] - update dependencies
+- [#3942 Resubmit https://github.com/linq2db/linq2db/pull/3933](https://github.com/linq2db/linq2db/pull/3942) -- [merged] - introduce explicit breaking changes to fluent configuration API
+- [#3870 Fix inconsistencies in MappingSchema-based attributes handling](https://github.com/linq2db/linq2db/pull/3870) -- [merged] Fix #3825
+- [#3514 Better Contains/In translation when CompareNullsAsValues is false](https://github.com/linq2db/linq2db/pull/3514) -- [merged] This is a rework of #2949 for release 4.0.
+- [#3267 Performance optimizations (round 3)](https://github.com/linq2db/linq2db/pull/3267) -- [closed] As this PR starting to get minor breaking changes and compromise decisions (to avoid big breaking changes) we probably will pick only non-breaking changes with good impact to v3 and remaining changes will go to v4.

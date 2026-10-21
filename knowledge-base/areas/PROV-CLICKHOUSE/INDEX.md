@@ -3,8 +3,8 @@ area: PROV-CLICKHOUSE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 10/10
 coverage_tier_2: 13/13
 ---
@@ -134,6 +134,7 @@ Key rewrites:
 - **Type casts** -- `ClickHouseConvertFunctions` dictionary maps each `DataType` to its ClickHouse `toXxx` function name (37 entries); `TRY_CONVERT` pseudofunction maps to the `toXxxOrNull` variant. For `Decimal*` and `DateTime64` the scale/precision parameter is appended as a second argument.
 - **TRIM for FixedString->String** -- wraps in `TRIM(TRAILING '\x00' FROM ...)`.
 - **Interval nulls** -- skip the CAST wrapping for `NULL` literals of interval types (ClickHouse does not support `NULL` literals in interval contexts) (`ClickHouseSqlExpressionConvertVisitor.cs:462`).
+- **Default date values** -- `ConvertDefaultValue(SqlDefaultValueExpression)` override delegates to the base `RaiseDefaultDate(expression, LeastDate(dataType))` and falls back to `base.ConvertDefaultValue` when it returns `null`. The private static `LeastDate(DataType)` returns 1970-01-01 for `Date`/`DateTime` (the ClickHouse minimum for those types) and 1900-01-01 for everything else, because the mapping schema writes a date mapped to any other type as `Date32` / `DateTime64` (from 1900-01-01) or refuses it (`ClickHouseSqlExpressionConvertVisitor.cs:334-344`).
 
 ### Mapping schema (`ClickHouseMappingSchema`)
 
@@ -141,7 +142,7 @@ Key rewrites:
 
 - **`OctonicaMappingSchema`** -- adds `byte[]`->`Guid` and `DateTimeOffset`->`DateTime` (UTC extraction) conversions for Octonica wire-format quirks.
 - **`ClientMappingSchema`** -- adds `ClickHouseDecimal`->SQL converter for the `ClickHouse.Driver` 256-bit decimal type; incorporates the `DriverDecimalType` mapping schema emitted by the adapter.
-- **`MySqlMappingSchema`** -- adds `string`->many numeric converters to handle ClickHouse's habit of returning `"nan"` strings for float NaN via the MySQL protocol (ClickHouse issue #39297) (`ClickHouseMappingSchema.cs:906`).
+- **`MySqlMappingSchema`** -- adds `string`->many numeric converters to handle ClickHouse's habit of returning `"nan"` strings for float NaN via the MySQL protocol (ClickHouse issue #39297) (`ClickHouseMappingSchema.cs:906`). The `StringToFloat` / `StringToDouble` helpers map `"-inf"` / `"inf"` / `"nan"` to the `FloatingPointHelper` constants (`SingleNegativeInfinity`, `DoublePositiveInfinity`, `SingleNaN`, ...) instead of the `float.` / `double.` BCL fields, and otherwise `Parse` with `CultureInfo.InvariantCulture` (`ClickHouseMappingSchema.cs:952-968`).
 
 Default scalar mappings of note:
 - `DateTime` / `DateTimeOffset` -> `DateTime64(7)` (precision 7).
@@ -216,7 +217,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 | `ClickHouseMySqlDataProvider` | same | Concrete for MySqlConnector |
 | `ClickHouseSqlBuilder` | `Internal/.../ClickHouseSqlBuilder.cs` | SQL text generation; owns `ConcatStyle=Function` / `ConcatFunctionName="concat"`; `WindowFunctionRespectNullsRequired` gates RESPECT NULLS to FIRST_VALUE/LAST_VALUE/NTH_VALUE; `BuildJoinType` GLOBAL + strictness hints |
 | `ClickHouseSqlOptimizer` | `Internal/.../ClickHouseSqlOptimizer.cs` | Statement rewrite; owns DisableParameters and FixCteAliases |
-| `ClickHouseSqlExpressionConvertVisitor` | `Internal/.../ClickHouseSqlExpressionConvertVisitor.cs` | Expression-level rewrites; LIKE, bitwise, casts, aggregate suffixes; `intDiv` truncating divide, nanosecond interval difference/shift lowering, NTILE ORDER BY requirement |
+| `ClickHouseSqlExpressionConvertVisitor` | `Internal/.../ClickHouseSqlExpressionConvertVisitor.cs` | Expression-level rewrites; LIKE, bitwise, casts, aggregate suffixes; `intDiv` truncating divide, nanosecond interval difference/shift lowering, NTILE ORDER BY requirement, `ConvertDefaultValue` default-date minimum (`LeastDate`) |
 | `ClickHouseMappingSchema` | `Internal/.../ClickHouseMappingSchema.cs` | Type mappings, literal generators, three driver-specific sub-schemas |
 | `ClickHouseProviderAdapter` | `Internal/.../ClickHouseProviderAdapter.cs` | ADO.NET type wrapping; contains `OctonicaWrappers` and `DriverWrappers` |
 | `ClickHouseProviderDetector` | `Internal/.../ClickHouseProviderDetector.cs` | Auto-detection by name/file probe |
@@ -257,7 +258,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 
 | File | Notes |
 |---|---|
-| `Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` | Bitwise/decimal/LIKE/cast/aggregate rewrites; string concat rewrite removed (PR #5504); `intDiv` truncating divide, interval difference/shift lowering, NTILE ORDER BY (PRs #5750, #5817) |
+| `Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` | Bitwise/decimal/LIKE/cast/aggregate rewrites; string concat rewrite removed (PR #5504); `intDiv` truncating divide, interval difference/shift lowering, NTILE ORDER BY (PRs #5750, #5817); `ConvertDefaultValue` -> `RaiseDefaultDate` with `LeastDate` |
 | `Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` | Date, math, string, Guid LINQ member translations; TrimStart/TrimEnd added (PR #5515); string.Join withoutSeparator (PR #5504); IsNullOrWhiteSpace via replaceRegexpAll; NewGuid7 -> generateUUIDv7(); nested ClickHouseWindowFunctionsMemberTranslator; nested ClickHouseAggregateFunctionsMemberTranslator (PR #5725) |
 | `Internal/DataProvider/ClickHouse/ClickHouseSchemaProvider.cs` | system.tables / system.columns queries |
 | `Internal/DataProvider/ClickHouse/ClickHouseSpecificQueryable.cs` | Thin wrapper implementing `IClickHouseSpecificQueryable<T>` |
@@ -353,5 +354,9 @@ Read (this run -- delta, sha 05150894e):
 - `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs` -- PR #5555: dedicated `ALL`-prefix branch removed from `BuildJoinType`; PR #5723: `BuildStep` save/restore removed from `BuildTypedExpression`
 - `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` -- PR #5750: `TruncateDivide` (`intDiv`), `CanLowerIntervalDifference`/`CanLowerIntervalShift`, `ElapsedTicks`, `LowerTemporalArithmetic`, `%` precedence carried; PR #5817: `IsWindowOrderByRequired` true for `NTILE`
 - `Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` -- PR #5725: nested `ClickHouseAggregateFunctionsMemberTranslator` with `IsMinMaxOverBooleanSupported = true`
+
+Read (this run -- delta, sha 89b5ce162):
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseMappingSchema.cs` -- MySql sub-schema `StringToFloat`/`StringToDouble` now return `FloatingPointHelper.*` NaN/infinity constants instead of `float.`/`double.` BCL fields; no behavioral change
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` -- added `using System`, static `LeastDate(DataType)` and `ConvertDefaultValue` override calling `RaiseDefaultDate` (1970-01-01 for Date/DateTime, else 1900-01-01)
 
 </details>

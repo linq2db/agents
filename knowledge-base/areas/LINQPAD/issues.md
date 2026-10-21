@@ -3,8 +3,8 @@ area: LINQPAD
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: low
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # LINQPAD -- GitHub themes
@@ -19,6 +19,7 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - **Packaging and version regressions** -- The "Fix linqpad packaging" regression was fixed in PR #5421 (merged 2026-03-13). An earlier FileNotFoundException on the 6.0.0 driver when creating a connection was closed as #5242.
 - **Connection dialog layout** -- Fixed-width dropdowns were clipped in the connection dialog. Fixed in PR #5579 (merged 2026-06-03).
 - **Driver repository migration** -- The driver moved into the main repository (PR #5104, merged 2025-08-20; post-release issue #5102 closed 2025-12-06).
+- **Build race in the LINQPad Pack project** -- The LinqToDB.LINQPad Pack project built the driver chain twice, so the Build and pack job failed intermittently with locked or missing obj files (MC2000, CS2001, CS2012). Fixed by PR #6030 (merged 2026-10-11).
 
 ## Active discussions
 No active discussions in this area.
@@ -27,12 +28,13 @@ No active discussions in this area.
 - Open issues: 2 (#5235, #5253)
 - Closed issues: 8 (#846, #1383, #2216, #2534, #5102, #5242, #5497, #5768)
 - Open PRs: 0
-- Total PRs: 6 (#5104, #5247, #5421, #5571, #5579, #5786)
+- Total PRs: 8 (#3803, #5104, #5247, #5421, #5571, #5579, #5786, #6030)
 - Discussions: 0
-- Last fetched: 2026-10-10 (index data through 2026-10-09)
+- Last fetched: 2026-10-21 (incremental refresh at 89b5ce162)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 16 (10 issues + 6 PRs + 0 discussions), matched on area LINQPAD, the "area: linqpad" label, or a LINQPad title
-- Themes extracted: 6 (2 open, 4 resolved)
+- Index entries scanned: 18 (10 issues + 8 PRs + 0 discussions), matched on area LINQPAD, the "area: linqpad" label, or a LINQPad title
+- Themes extracted: 8 (2 open, 6 resolved)
+- Merge notes: PR #6030 added from the refresh fetch; PR #3803 (closed, area SCAFFOLD, LINQPad title) was in the index but missing from the prior stats
 </details>

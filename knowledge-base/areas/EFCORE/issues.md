@@ -3,8 +3,8 @@ area: EFCORE
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # EFCORE -- GitHub themes
@@ -37,7 +37,7 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **Many-to-many navigation translation** -- EF Core skip navigations backed by a hidden join entity failed with "could not be converted to SQL" (#5585, closed). Fixed by PR #5588 (merged 2026-06-09).
 
-- **EF Core value converters** -- Converter handling in parameters, set operations and server-side writes. Closed: #5177 (nullable struct converters), #5388 (ValueConverter ignored for constant values), #5427 (BulkCopy writing Guid.Empty instead of NULL). Regressions #5975 and #5976 (closed 2026-10-09) are addressed by PR #5978, now on master.
+- **EF Core value converters** -- Converter handling in parameters, set operations and server-side writes. Closed: #5177 (nullable struct converters), #5388 (ValueConverter ignored for constant values), #5427 (BulkCopy writing Guid.Empty instead of NULL). Regressions #5975 (DML with EF Core DateTime converters) and #5976 (Concat/Union NotEqual operator error), both closed 2026-10-09, are fixed by PR #5978 (merged 2026-10-09).
 
 - **Runtime and package compatibility** -- MissingMethodException and transaction-state errors after framework or EF Core package changes. Closed: #5184 (.NET 10), #5224 (CreateTempTableAsync), #5225 (CreateLinqToDBConnection with an active transaction and no dialect).
 
@@ -67,7 +67,7 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - Open PRs: 0
 - Total PRs: 34
 - Discussions: 10 (2 open)
-- Last fetched: 2026-10-09 (index horizon)
+- Last fetched: 2026-10-21 (index horizon)
 
 <details><summary>Coverage</summary>
 

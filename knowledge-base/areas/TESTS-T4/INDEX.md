@@ -3,10 +3,10 @@ area: TESTS-T4
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 0/0
-coverage_tier_2: 62/2375
+coverage_tier_2: 71/2375
 ---
 
 # TESTS-T4
@@ -73,9 +73,11 @@ Each provider directory contains ~10--45 `.cs` files. **DuckDB baseline dirs con
 
 `CLI.ttinclude` defines `duckdbCN` as `$"Data Source={databasesPath}TestData.duckdb"`. The `All.tt` template invokes DuckDB without the `extraOptionsWithoutTypes` carve-out (unlike MariaDB/MySql which strip `--prefer-provider-types`).
 
+**SQL Server stored-procedure return value (delta, SHA 89b5ce162).** In the `All/` SQL Server family (`All/SqlServer`, `All/SqlServer2025`, `All/Azure`, `All/AzureMI`; `All/SqlServerNorthwind` too, with a smaller diff) the scaffolded procedure wrappers in `TestDataDB.cs` and `TestSchemaSchema.cs` changed shape: the implicit `@return` parameter is now declared `Direction = ParameterDirection.ReturnValue` (was `ParameterDirection.Output`), and the `...Async` overloads no longer take an `int @return` argument (e.g. `AddIssue792RecordAsync(this TestDataDB dataConnection, CancellationToken cancellationToken = default)`, `TestProcedureAsync` in `TestSchemaSchema.cs`); the sync overloads keep `out int @return`. The change is mechanical and identical across the four full SQL Server variants (144 lines in each `TestDataDB.cs`, 6 in each `TestSchemaSchema.cs`), so it traces to a scaffolder/SQL Server provider change, not to a schema change. No `.tt` driver changed.
+
 ## Files (Tier 1 / Tier 2)
 
-No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this delta's YDB baseline set**) break down approximately as: `Cli/<mode>/<provider>/*.cs` generated baselines (~2207), `Cli/*.tt`+`.generated.cs`+`CLI.ttinclude`+`scaffold.tt` (~15), `Default/*` (~34), `Databases/*` (~40), `Models/*` (~11), `WPF/*` (~3), project/compat/ttinclude (~5), `Tests.T4.Nugets/Templates/*` (~32), `Tests.T4.Nugets/Projects/*.csproj` (~17).
+No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from the YDB baseline set**) break down approximately as: `Cli/<mode>/<provider>/*.cs` generated baselines (~2207), `Cli/*.tt`+`.generated.cs`+`CLI.ttinclude`+`scaffold.tt` (~15), `Default/*` (~34), `Databases/*` (~40), `Models/*` (~11), `WPF/*` (~3), project/compat/ttinclude (~5), `Tests.T4.Nugets/Templates/*` (~32), `Tests.T4.Nugets/Projects/*.csproj` (~17).
 
 ## Inbound / outbound dependencies
 
@@ -83,7 +85,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 - `Source/LinqToDB.Templates/` (T4-TEMPLATES) -- `Default/`, `Databases/`, `Models/`, `WPF/`, `Tests.T4.Nugets/Templates/` all include from `$(LinqToDBT4TemplatesPath)`.
 - `Source/LinqToDB.CLI/` (CLI) -- `Cli/<mode>/<provider>/` baselines are the expected output of `dotnet linq2db scaffold`.
 - `Source/LinqToDB.Scaffold/Scaffold/` (SCAFFOLD) -- `ScaffoldInterceptors`, `ScaffoldOptions`, `Scaffolder`.
-- Every PROV-* indirectly. **DuckDB provider addition (PR #5451) triggered all five CLI-mode baseline sets; this delta's YDB provider addition triggered the same five (`All/`, `Default/`, `Fluent/`, `NoMetadata/`, `T4/`).**
+- Every PROV-* indirectly. **DuckDB provider addition (PR #5451) triggered all five CLI-mode baseline sets; the YDB provider addition triggered the same five (`All/`, `Default/`, `Fluent/`, `NoMetadata/`, `T4/`).** The SQL Server `ReturnValue` regeneration (SHA 89b5ce162) depends on the SQL Server schema provider / procedure scaffolding path.
 
 **Inbound:** No other test project imports from this area.
 
@@ -93,10 +95,11 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 - `NewCliFeatures/` covers only SQLite.
 - `Tests.T4.Nugets/` is a separate isolated solution pinned to a locally built NuGet version (`6.3.0-local.2`); must be rebuilt against locally packed NuGet artifacts each time the version advances.
 - `Cli/CLI.ttinclude:RunCliTool` has a hard-coded 60-second timeout and silently ignores non-zero exit codes (error-reporting lines commented out at `CLI.ttinclude:69,83`).
-- **DuckDB and (this delta) YDB CLI runs in `All.tt` do not use the `extraOptionsWithoutTypes` carve-out** (no type-name conflict for either provider).
-- **Resolved (this delta):** `T4/DuckDB/` and `T4/Ydb/` both contain only a single `TestDataDB.cs`. Confirmed via a direct read of `T4/Ydb/TestDataDB.cs` that the file holds the context class, every entity `partial class`, and a shared `ExtensionMethods` class together -- the T4 code path's normal all-in-one-file output (legacy pre-CLI T4-template layout), not a partial regen. The earlier "needs investigation" framing is closed.
-- **Open question (this delta):** `PROV-YDB`'s `INDEX.md` records `YdbDataProvider.GetSchemaProvider()` as not implemented, yet this delta's new `Cli/*/Ydb/` baselines imply `dotnet linq2db scaffold --provider Ydb` successfully retrieved live schema across all 5 CLI modes. Not resolved here -- would need a `PROV-YDB` source read, out of this area's scope. See companion `AUDIT-NOTE`.
+- **DuckDB and YDB CLI runs in `All.tt` do not use the `extraOptionsWithoutTypes` carve-out** (no type-name conflict for either provider).
+- **Resolved:** `T4/DuckDB/` and `T4/Ydb/` both contain only a single `TestDataDB.cs`. Confirmed via a direct read of `T4/Ydb/TestDataDB.cs` that the file holds the context class, every entity `partial class`, and a shared `ExtensionMethods` class together -- the T4 code path's normal all-in-one-file output (legacy pre-CLI T4-template layout), not a partial regen. The earlier "needs investigation" framing is closed.
+- **Open question:** `PROV-YDB`'s `INDEX.md` records `YdbDataProvider.GetSchemaProvider()` as not implemented, yet the `Cli/*/Ydb/` baselines imply `dotnet linq2db scaffold --provider Ydb` successfully retrieved live schema across all 5 CLI modes. Not resolved here -- would need a `PROV-YDB` source read, out of this area's scope. See companion `AUDIT-NOTE`.
 - `Tests.T4.Nugets/Templates/Informix.tt` sets `GenerateSchemaAsType = true`; the main `Tests.T4/Default/Informix.tt` and `Databases/Informix.tt` do not -- an intentional divergence or an oversight.
+- Only the `All/` SQL Server baselines were regenerated for the `ReturnValue` change in the delta range (the diff range touches no `Default/`, `Fluent/`, `NoMetadata/` SQL Server files); if those modes also emit procedures, they may be stale or simply lack the `@return` parameter -- not verified.
 
 ## See also
 
@@ -109,8 +112,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 <details><summary>Coverage</summary>
 
 - Tier 1: 0/0 (no Tier-1 files designated)
-- Tier 2: 62/2375 (2.6%) -- ~2313 deferred files are near-identical generated baselines
-- Tier 3: 0
+- Tier 2: 71/2375 (3.0%) -- ~2304 deferred files are near-identical generated baselines
 
 **Read (prior run -- SHA 4a478ff14):**
 - `Tests/Tests.T4/Cli/CLI.ttinclude` -- `duckdbCN` addition
@@ -128,7 +130,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 - `Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata}/DuckDB/` -- 20 files each confirmed; `All/DuckDB/AllType.cs` sampled (`IEquatable<AllType>`, full type annotations)
 - `Tests/Tests.T4/Cli/T4/DuckDB/` -- 1 file only (`TestDataDB.cs`); T4 mode emits context-only baseline for DuckDB
 
-**Read (this run -- delta, SHA 36ee4f82f):**
+**Read (prior run -- delta, SHA 36ee4f82f):**
 - `Tests/Tests.T4/Cli/All.tt` -- confirmed new `RunCliTool("Ydb", "YDB", ...)` line (25th, last provider before Azure/AzureMI); full `extraOptions`, no type-conflict carve-out
 - `Tests/Tests.T4/Cli/Default.tt` -- new `RunCliTool("Ydb", "YDB", ...)` line, no extraOptions (out-of-the-box mode)
 - `Tests/Tests.T4/Cli/Fluent.tt` -- new `RunCliTool("Ydb", "YDB", ...)` line, `--metadata fluent` extraOptions
@@ -141,8 +143,16 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from this de
 - `Tests/Tests.T4/Cli/T4/Ydb/TestDataDB.cs` -- sampled: single-file T4-legacy layout (context + all 13 entities + shared `ExtensionMethods`); resolves the DuckDB "context-only vs partial regen" open question
 
 
-**Read (this run -- delta, SHA 05150894e):**
+**Read (prior run -- delta, SHA 05150894e):**
 - `Tests/Tests.T4.Nugets/Directory.Packages.props` -- `Npgsql` 10.0.2 -> 10.0.3
 - `Tests/Tests.T4/Databases/Model.cs` -- empty `TestDataDB` partial converted to `public partial class TestDataDB;`
 - `Tests/Tests.T4/Shared.ttinclude` -- `PreLoadSQLite_BaseDirectory` now the `$(LinqToDBT4SharedTools)` path itself (no `sds` subfolder), comment updated
+
+**Read (this run -- delta, SHA 89b5ce162):**
+- `Tests/Tests.T4/Cli/All/SqlServer/TestDataDB.cs` -- diff read in full: every procedure `@return` param `Direction` Output -> ReturnValue; `...Async` overloads drop the `int @return` argument
+- `Tests/Tests.T4/Cli/All/SqlServer/TestSchemaSchema.cs` -- same change (`TestProcedure` / `TestProcedureAsync`)
+- `Tests/Tests.T4/Cli/All/SqlServer2025/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (diffstat identical to SqlServer: 144 / 6 lines)
+- `Tests/Tests.T4/Cli/All/Azure/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (144 / 6 lines)
+- `Tests/Tests.T4/Cli/All/AzureMI/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (144 / 6 lines)
+- `Tests/Tests.T4/Cli/All/SqlServerNorthwind/TestDataDB.cs` -- same regeneration, 42 changed lines (diffstat only, not read line by line)
 </details>

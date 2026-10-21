@@ -3,10 +3,10 @@ area: TESTS-LINQ
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 4/4
-coverage_tier_2: 700/700
+coverage_tier_2: 703/703
 ---
 
 # TESTS-LINQ
@@ -383,6 +383,39 @@ Three new tests: DecFloatSpecialToFloatingPoint (DECFLOAT +Infinity/-Infinity/Na
 
 Roughly 190 modified entries -- Linq/ (about 85, including the WindowFunctionsTests.* partials, EagerLoading*, DateTime*, String*, SubQuery, Join, Where, Tph, PreferClientCalculation), Update/ (about 30, incl. Merge/Upsert/Entity DML), UserTests/ (about 40), DataProvider/ and DataProvider/Types/ (about 20), Mapping/, Data/, Extensions/, Scaffold/, SchemaProvider/, Tools/, Reflection/, Samples/, Microsoft/, OrmBattle/ -- are listed in the DEFERRED-COVERAGE fence. Their individual contents are unverified, so treat specific assertion claims about them in earlier sections as potentially stale.
 
+## Delta since prior run (sha 05150894e -> 89b5ce162) -- FormattableString raw-SQL args, missed-LEFT-JOIN client calculation, test-progress/run-counter infrastructure
+
+31 changed files (3 added, 28 modified). The three added files bring the Tier-2 set to 703.
+
+### New files
+
+- `Common/FormattableStringHelperTests.cs` -- plain unit fixture (no TestBase, no providers). Covers the FormattableString/format helpers behind `FromSql`/`Sql.Expr`: `TransformExpressionIndexes`, `ConvertFormatToConcatenation_Items/Alignment/NoItems`, `ParseFormatItems` (+ alignment and invalid-format cases), `TrySplit`, `CreateExpression_RoundTrip`, `AreEqual_ComputeHashCode` (uses a `DerivedDataParameter : DataParameter` double) and the `PrepareRawSqlArguments_*` family (unreferenced value dropped, DataParameter-wrapped args, compiled-query args, out-of-range item ignored, keep-unreferenced, no format items, invalid format). Pairs with the FromSqlTests additions below.
+- `Infrastructure/TestRunCounterTests.cs` -- `[TestFixture] TestRunCounterTests : TestBase`. Tests: `CountsOnlyTestsThatRunTheAction`, `UnresolvableDispatcherYieldsNull`, `ResolvesRootWorkItemOnlyForItsOwnTest`, `NUnitDispatchersExposeTopLevelWorkItem`. Nested dummy fixtures (Runnable/Ignored/Explicit/InIgnored/InExplicit/ExplicitInExplicit) pin how the run counter derives the filtered-run total for the progress heartbeat (PR #6098). Production owner is TESTS-INFRA.
+- `Mapping/SpecialFloatingPointValueTests.cs` -- `SpecialFloatingPointValueTests : TestBase`. `DoubleLiterals`/`FloatLiterals` (parameterized by provider with NaN/+Inf/-Inf/finite literal strings) and `ClickHouseMySqlStringToDouble/Float`. Validates SQL literal emission of non-finite floating-point values per provider.
+
+### Raw-SQL / FormattableString argument handling (issue #6000, PR #6007, PR #6008)
+
+- `Linq/FromSqlTests.cs` (+982 lines). Issue #6000 group (mostly `[IncludeDataSources(TestProvName.AllSQLite)]`): nested `FromSqlScalar`/`FromSql` where the format string, interpolated argument, captured `FormattableString`/`RawSqlString`, argument type or argument-array length changes between executions, several under `[QueryCacheTest]`. Compiled-query variants (`FromSql_Compiled_*`): argument is a parameter, `FormattableString`/`RawSqlString` argument, argument array incl. null, captured array reassigned, equal arguments bind the current value, `BuildsOnce`. `FromSql_ArgumentsOutOfFormatOrder` runs on `[DataSources]` with `[Values] repeated`. A local `LastParameterInterceptor : CommandInterceptor` captures the last sent parameter.
+- PR #6008 group: `UnreferencedArgumentIsNotSent`, `UnreferencedExprArgumentIsNotSent`, `UnreferencedCompiledArgumentIsNotSent` (arguments not referenced by the format are dropped from the command, with Access/SapHana/Informix excluded from the broad run), `ArgumentReferencedByNameIsSent`, `ArgumentReferencedByAlternateNameIsSent` (PostgreSQL, MySQL), `ArgumentReferencedByPositionIsSent`, `PlainArgumentReferencedByPositionIsSent`, constant FormattableString cases.
+- PR #6007 group: `NestedScalar_InToExists_SqlExpressionArgument` / `_NullableSqlExpressionArgument` (Access).
+- `Linq/SelectScalarTests.cs`: `FunctionWithAlignment` (`string.Format` with a `{0,5}` alignment item evaluates server-side in a select but throws `LinqToDBException` in a predicate) and `FunctionWithInvalidFormat` (`FormatException` in select, `LinqToDBException` in where) -- PR #6008, SQLite.
+- `Update/UpdateTests.cs`: `TestSetValueExprWithAlignment` (`Set(x => $"{x.Value,30} = {str}")`, Access and SQL Server 2008+).
+### Missed LEFT JOIN row read as the reader does (PR #5983, issue #6024)
+
+- `Linq/PreferClientCalculationTests.cs` (+3185 lines, mostly new). New entities (`StringCalcEntity`, `MissedJoinEntity`, `PartialJoinEntity`, `KeyedEntity`/`KeyedChildEntity`, `CalculatedDto`, `CountedEntity`, `TranslatedMemberEntity`, `MissedDivisorEntity`). Tests run with `[Values] bool preferClient`: interpolation/concat projections (`InterpolationTwoHolesProjection`, `InterpolationManyHolesProjection`, `InterpolationNonStringHoleProjection`, `InterpolationFormatSpecifierProjection`, `BinaryAddConcatProjection`, `InterpolationOverMissedLeftJoin`), `CorrelatedSubqueryOverMissedLeftJoinFiltersByNull`, `CalculationOverMissedLeftJoinReadsDefault`, `TranslatedMemberOverMissedLeftJoinReadsDefault`, `GroupJoinOverMissedRowReadsDefault`, `PassThrough*OverMissedLeftJoin*`. The contrast set `*OverMissedLeftJoinKeepsNull` (divisor, decimal divisor, interval ratio, date shift, date-from-parts, DateOnly-from-parts, ServerSideOnly function argument) pins where the server-side null must survive instead of being defaulted. Provider-narrowed variants: Informix (date shift), Sybase (from-parts), ClickHouse (decimal divisor), SQL Server (ServerSideOnly).
+- `Linq/AllAnyTests.cs` (+127): `Issue6024_RootAnyOwnIsNotNull`, `Issue6024_RootAllOwnIsNotNull`, `Issue6024_CorrelatedAnyOwnIsNotNull`, `Issue6024_CorrelatedAnyNestedOwnIsNotNull` and siblings -- Any/All with an own `!= null` predicate. Correlated forms carry `[ThrowsRequiresCorrelatedSubquery(simple: true)]` and use `AssertQuery`.
+- Small edits (stat only, not read test-by-test): `Linq/SelectTests.cs`, `Linq/SubQueryTests.cs`, `Linq/StringConcatTests.cs`, `Linq/StringJoinTests.cs`, `Linq/ConvertExpressionTests.cs`, `Linq/IssueTests.cs`, `Linq/AsyncTests.cs`, `Linq/SqlExtensionsTests.cs` (+323 lines), `UserTests/Issue2478Tests.cs`, `Issue3001Tests.cs`, `Issue3043Tests.cs`, `Issue4336Tests.cs`, `Issue5256Tests.cs`, `Update/CreateTempTableTests.cs`, `Update/MergeTests.Issues.cs`.
+
+### Other additions
+
+- `Linq/ValueConversionTests.cs`: `SetOperationOverColumnsSharingAConverterClass` (issue #6052) -- two tables whose columns name the same `BlankPaddedCharConverter : ValueConverter<char?, char>` class must still Union (locals `SharedConverterRowA/B`).
+- `Linq/FSharpTests.cs`: `LoadSingleWithStaticLet`, `RecordProjectionWithStaticLet`, `UpdateWithStaticLet` (SQLite) -- drive new helpers in the F# test project (`FSharp.WhereTest`, `FSharp.Issue5598`).
+- `Linq/RemoteContextTests.cs`: `SignalRTestContextClientStopsAtDispose`, `SignalRTestContextReusesConnectionAfterCleanDispose`, `SignalRTestContextDiscardsConnectionAfterFailedCall` -- the SignalR `TestSignalRDataContext` leases a pooled `HubConnection`: a client handed out throws `ObjectDisposedException` after dispose, a cleanly disposed lease returns the connection to the pool, a lease that saw a failed call discards it.
+- `Scaffold/SchemaProviderTests.cs`: `SqlServerProcedureReturnValue` (issue #1897) -- `EnableSqlServerReturnValue` makes `LegacySchemaProvider` report a `ScalarResult` named `@return` with no parameters, and the scaffold model a `ParameterDirection.ReturnValue`.
+- `Infrastructure/ActiveIssueTests.cs`: `AppliesTo_RequiresBaselines_GovernsOnlyRunsThatWriteThem`, `SelectGoverning_BaselinesScopedBeatsBlanket` -- new `ActiveIssueAttribute.RequiresBaselines` flag: the gate applies only on runs with baselines enabled, and a baselines-scoped attribute outranks a blanket one only then.
+- `Infrastructure/TestProgressStateTests.cs`: `DoneLatchesWhenCompletedReachesTotal` renamed `DoneWaitsForTheRootSuiteWhenCompletedReachesTotal` -- reaching the total no longer finishes the run (teardowns still run) until `MarkDone()`. New `SetTotalAssignsAndCarriesUpperBound` (`SetTotal(n, isUpperBound)`, an exact count replaces an upper bound).
+- `Create/CreateData.cs`: new `EnsureMySqlDatabase(context)` runs before the MySql script (`CREATE DATABASE IF NOT EXISTS`) via raw ADO on an explicit MySql 5.7 provider (MySqlData or MySqlConnector), because MySql.sql drops the database named by its own connection and an interrupted run would otherwise fail every later open. It avoids resolving the configured provider on purpose (that would cache the MariaDB detection fallback).
+- `TestsInitialization.cs` (Tier 1, diff re-read): new `PurgeDB2ConnectionPool()` called first in `TestAssemblyTeardown()`. It reflects on `IBM.Data.Db2.DB2ConnPool.InternalOperation1` (the driver pool purge) and logs `[db2] connection pool purged`. Failure is logged, never thrown. Rationale: pooled IBM connections alive at process exit race the driver exit handler against its pool timer (SIGSEGV, exit 139) -- PR #6073.
 ## Naming patterns
 
 - **<Feature>Tests.cs** -- primary fixture style in Linq/, Exceptions/, Update/, Data/, Mapping/, Extensions/. One class per file; class name matches file name.
@@ -1088,6 +1121,8 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - **(delta 2026-10-09)** About 190 modified fixtures in this delta were not read. The earlier claims in this file about their contents are from prior runs and may be stale.
 - **(delta 2026-10-09)** Linq/ConcurrencyRefreshTests.cs, Linq/IntervalTranslationTests.*.cs (6 of 7 partials), Mapping/DurationMappingTests.cs and DataProvider/ProviderSpecificReaderValueTests.cs were only partially read, so test-by-test claims about them are not verified.
 - **(coverage-fill 2026-10-10)** Extensions/ClickHouseTests.generated.cs and Extensions/SqlServerTests.generated.cs are T4 output of the sibling .tt files. Edit the .tt, never the .generated.cs. Data/MiniProfilerTests.cs is about 1900 lines and mixes many drivers in one fixture, so provider-specific failures there are easy to misattribute.
+- **(delta 2026-10-21)** The Coverage block below still prints Tier 2 630/692 sampled from an older run. Frontmatter `coverage_tier_2` (703/703) is the authoritative figure. `Linq/SqlExtensionsTests.cs`, `Linq/SelectTests.cs` and the small UserTests edits in this delta were checked by stat only.
+- **(delta 2026-10-21)** Infrastructure/TestRunCounterTests.cs and the TestProgressStateTests changes pin TESTS-INFRA heartbeat behavior. Earlier claims about `DoneLatchesWhenCompletedReachesTotal` semantics are superseded.
 ## See also
 
 - [TESTS-INFRA INDEX](../TESTS-INFRA/INDEX.md) -- TestBase, TestConfiguration, shared infrastructure.
@@ -1148,6 +1183,22 @@ Read (coverage-fill, 2026-10-10):
 - Tests/Linq/Extensions/TableIDTests.cs -- read in full (structure, test inventory, production area) -- see Coverage-fill findings
 - Tests/Linq/Infrastructure/DataOptionsTests.cs -- read in full (structure, test inventory, production area) -- see Coverage-fill findings
 
+Read (this run -- delta, 2026-10-21):
+- Tests/Linq/TestsInitialization.cs -- Tier 1, diff read: PurgeDB2ConnectionPool at teardown
+- Tests/Linq/Common/FormattableStringHelperTests.cs -- new, method list read
+- Tests/Linq/Infrastructure/TestRunCounterTests.cs -- new, method list read
+- Tests/Linq/Mapping/SpecialFloatingPointValueTests.cs -- new, method list read
+- Tests/Linq/Create/CreateData.cs -- diff read: EnsureMySqlDatabase
+- Tests/Linq/Infrastructure/ActiveIssueTests.cs -- diff read: RequiresBaselines tests
+- Tests/Linq/Infrastructure/TestProgressStateTests.cs -- diff read: MarkDone / SetTotal
+- Tests/Linq/Linq/FromSqlTests.cs -- diff read: issue 6000 / PR 6007 / PR 6008 groups
+- Tests/Linq/Linq/PreferClientCalculationTests.cs -- diff read: missed LEFT JOIN tests
+- Tests/Linq/Linq/AllAnyTests.cs -- diff read: Issue6024 tests
+- Tests/Linq/Linq/SelectScalarTests.cs, ValueConversionTests.cs, FSharpTests.cs, RemoteContextTests.cs -- diff read
+- Tests/Linq/Scaffold/SchemaProviderTests.cs, Tests/Linq/Update/UpdateTests.cs -- diff read
+- Tests/Linq/Linq/AsyncTests.cs, ConvertExpressionTests.cs, IssueTests.cs, SelectTests.cs, SqlExtensionsTests.cs, StringConcatTests.cs, StringJoinTests.cs, SubQueryTests.cs -- stat only, small edits
+- Tests/Linq/Update/CreateTempTableTests.cs, MergeTests.Issues.cs, Tests/Linq/UserTests/Issue2478Tests.cs, Issue3001Tests.cs, Issue3043Tests.cs, Issue4336Tests.cs, Issue5256Tests.cs -- stat only, small edits
+- Counts: 3 added files raise coverage_tier_2 from 700/700 to 703/703. Tier 1 unchanged at 4/4.
 Read (this run -- delta, 2026-10-09):
 - Tests/Linq/TestsInitialization.cs -- Tier 1, re-read in full: ResourceLaneDispatcher, query-cache cap, in-memory SQLite/DuckDB and Access keep-alives
 - Tests/Linq/Tests.csproj -- diff read: ClickHouse T4 pair, QueryValueFormatter source link

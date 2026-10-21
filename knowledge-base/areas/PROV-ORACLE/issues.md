@@ -3,8 +3,8 @@ area: PROV-ORACLE
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-ORACLE -- GitHub themes
@@ -15,12 +15,13 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - **Stored procedure and collection parameters** -- Passing collections or PL/SQL-side values as parameters is still unsupported. Open: #1605 (array parameters in stored procedures, needs tests), #1645 (table value parameters for stored procedures), #3740 (PL/SQL function returning boolean with input parameters; PR linked).
 - **Dialects, version targeting and identity DDL** -- Dialect selection per Oracle version and native identity DDL. Open: #1879 (Oracle 12+ dialect), #5425 (Oracle23SqlBuilder with updated flags), #1010 (GUID as identity column). Open PRs: #4683 (more Oracle dialects), #5773 (native Oracle 12 identity DDL).
 - **Functions, analytic and CTE support** -- Oracle-specific function and window/CTE gaps. Open: #1882 (Translate function), #2863 (analytic functions in GROUP BY queries), #3015 (UPDATE CTE support across providers, Oracle included), #4224 (LISTAGG / StringAggregate extension).
-- **Boolean and date/time translation** -- Oracle has no boolean column type and its date arithmetic differs from other providers. Open: PR #3754 (add Oracle boolean type support), #5797 (DateTimeOffset difference measured on the local reading instead of the instant; Oracle and SQLite Classic).
+- **Boolean and date/time translation** -- Oracle has no boolean column type and its date arithmetic differs from other providers. Open: PR #3754 (add Oracle boolean type support), #5797 (DateTimeOffset difference measured on the local reading instead of the instant; Oracle and SQLite Classic), draft PR #5892 (fixes #5797 and #3766; measures the DateTimeOffset difference on instants on Oracle and SQLite Classic).
 - **Row locking, temp tables and large-list filtering** -- Query hints and temp-table strategy for Oracle. Open: #5706 (FOR UPDATE row-locking hint API; PR #5811 closed with a reference to it), #5601 (prefer private temporary tables over global temporary tables for large-list filters). Discussion #5702 asks about FOR UPDATE.
 - **Regressions and CI** -- Upgrade regressions and Oracle CI parity. Open: #5360 (Oracle errors since upgrade to V6.2 from 5.x, needs tests), #5888 (pin NUnit parallelism so GitHub Actions Oracle legs match Azure).
 
 ## Resolved themes
 
+- **Column-subquery validator over-rejects on Oracle** -- The Oracle query validator rejected valid column-position subqueries. #5413 (subquery in UPDATE, v6 regression) was fixed through PR #5500, which stops falling through to EXISTS when the validator over-rejects column-position scalar subqueries. #6024 (Oracle 11 rejects IS NOT NULL on a column subquery's own table as a parent reference) was fixed by PR #6027 (closed 2026-10-12, merged): source tracking in the query validator no longer treats a column subquery's own table as a parent, and correlation depth is counted through aggregates.
 - **Analytic and boolean ORDER BY translation** -- Bad boolean translation in OVER (ORDER BY) was closed on 2026-09-09 as #2842. No closing PR was located in the index. Earlier boolean ORDER BY fix for databases without a boolean type: PR #2891.
 - **Bulk copy SQL length limit** -- Issue #5825 requested a higher limit. PR #5827 and PR #5828 (closed 2026-09-09) raised it to 384KB and made it configurable.
 - **Date differences** -- PR #5987 (closed 2026-10-09) fixes date differences regressed in 6.5.0 and translates date shifts on Oracle, SQLite, Firebird and YDB.
@@ -41,14 +42,14 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 ## Stats
 
 - Open issues: 19
-- Closed issues: 141
-- Open PRs: 3
-- Total PRs: 109
+- Closed issues: 142
+- Open PRs: 4
+- Total PRs: 111
 - Discussions: 9
-- Last fetched: 2026-10-10 (index high-water mark 2026-10-09)
+- Last fetched: 2026-10-21 (index high-water mark 2026-10-13)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 278 (160 issues + 109 PRs + 9 discussions)
-- Themes extracted: 15
+- Index entries scanned: 281 (161 issues + 111 PRs + 9 discussions)
+- Themes extracted: 16
 </details>

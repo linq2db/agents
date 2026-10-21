@@ -3,8 +3,8 @@ area: REMOTE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 25/25
 coverage_tier_2: 6/6
 ---
@@ -129,7 +129,7 @@ All six csproj files now reference `LinqToDB.csproj` with `PrivateAssets="conten
 
 ## Known issues / debt
 
-- **`WcfLinqServiceClient.RemoteClientTag` Cyrillic typo** (`WcfLinqServiceClient.cs:57`): `"Wсf"` contains a Cyrillic `с` (U+0441). No functional impact but breaks equality vs Latin `"Wcf"`.
+- **`WcfLinqServiceClient.RemoteClientTag` Cyrillic typo -- fixed**: the `ILinqService.RemoteClientTag` initializer (`WcfLinqServiceClient.cs:57`) used to contain a Cyrillic letter (U+0441) in place of Latin `c`, breaking equality vs Latin `"Wcf"`. It is now the ASCII `"Wcf"`.
 - **WCF cancellation is best-effort only** -- `ThrowIfCancellationRequested()` before each call, cannot cancel in-flight WCF calls.
 - **`SignalRLinqServiceClient.DisposeAsync` is a no-op** (`SignalRLinqServiceClient.cs:61`), lifetime is managed by `SignalRDataContext` (which disposes a raw `HubConnection` it was given) or DI.
 - **SignalR server has no `ServiceConfigurationExtensions`** -- no `AddLinqToDBHub` analogue to `AddLinqToDBController` (inconsistency with HTTP).
@@ -167,4 +167,7 @@ Read (this run -- delta):
 - `Source/LinqToDB.Remote.SignalR.Client/SignalRLinqServiceClient.cs` -- `DisposeAsync` no-op documented by comment.
 - `Source/LinqToDB.Remote.SignalR.Client/PublicAPI.Shipped.txt` -- adds `Dispose`, `OwnsClient` overrides.
 - `Source/LinqToDB.Remote.HttpClient.Client/LinqToDB.Remote.HttpClient.Client.csproj`, `HttpClient.Server`, `SignalR.Client`, `SignalR.Server`, `Wcf` csproj -- `PrivateAssets="contentfiles;build"` on core `ProjectReference`.
+
+Read (this run -- delta):
+- `Source/LinqToDB.Remote.Wcf/WcfLinqServiceClient.cs` -- `RemoteClientTag` initializer changed from a Cyrillic-letter spelling of `Wcf` to ASCII `Wcf` (line 57). No API surface change.
 </details>

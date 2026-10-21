@@ -47130,26 +47130,6 @@
   },
   {
     "linked_files": [],
-    "area": "CLI",
-    "body_excerpt": "Hi, \n\nhear that linq2db can generate F# records, is it true? (Also i see some FSharp namespaces in code files). Where can i read about it? \n\nThanks)",
-    "summary": "Hi,",
-    "title": "[T4 template] F# generation recods. ",
-    "id": 1553,
-    "is_pr": false,
-    "user": "Trigun27",
-    "labels": [
-      "area: T4",
-      "area: fsharp",
-      "area: scaffold"
-    ],
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/1553",
-    "created_at": "2019-01-23T08:59:00Z",
-    "state": "open",
-    "updated_at": "2026-06-14T20:01:33Z"
-  },
-  {
-    "linked_files": [],
     "area": "SQL-PROVIDER",
     "body_excerpt": "Tasks:\n- [ ] design API\n- [ ] Check what databases support it\n\nDocumentation:\n- SQL Server: https://docs.microsoft.com/en-us/sql/t-sql/queries/from-transact-sql?view=sql-server-2017\n- ORacle 10g: https://docs.oracle.com/cd/B28359_01/server.111/b28313/sqlmodel.htm#g1042989\n- Oracle 11g+: https://www.oracle.com/technetwork/articles/sql/11g-pivot-097235.html\n- PostgreSQL: https://www.postgresql.org/docs/9.2/tablefunc.html\n- MariaDB: https://mariadb.com/kb/en/library/connect-pivot-table-type/\n- Acce…",
     "summary": "Tasks:",
@@ -50864,25 +50844,6 @@
     "closed_at": null
   },
   {
-    "area": "GLOBAL",
-    "id": 4199,
-    "updated_at": "2026-06-15T16:40:37Z",
-    "summary": "### Describe your issue",
-    "created_at": "2023-07-10T17:01:32Z",
-    "title": "Property X is not defined for interface type Y",
-    "linked_files": [],
-    "body_excerpt": "### Describe your issue\n\nThe exception is thrown when interface type is converted to a concrete type in the Select statement and then Where statement is applied to a result.\n\n```\nException message: Property '<property name>' is not defined for type '<interface name>' (Parameter 'property')\nStack trace:\n   at System.Linq.Expressions.Expression.Property(Expression expression, PropertyInfo property)\n   at LinqToDB.Expressions.TransformVisitor`1.Transform(Expression expr)\n   at LinqToDB.Expressions.…",
-    "url": "https://github.com/linq2db/linq2db/issues/4199",
-    "labels": [
-      "area: linq",
-      "status: has-tests"
-    ],
-    "state": "open",
-    "is_pr": false,
-    "user": "sksk571",
-    "closed_at": null
-  },
-  {
     "area": "PROV-CLICKHOUSE",
     "id": 4206,
     "updated_at": "2026-06-15T16:40:40Z",
@@ -51577,25 +51538,6 @@
     "body_excerpt": "              I would also be very interested in this feature. I tried to make a sample use case below. If you have any questions, let me know: \n\nThe idea is to have a user defined database-structure. The user can define which tables exists and which columns the table has at runtime. So my model has to be as flexible as well.\n(I know I could use basic DataTables for that regard, but this flexible model is just a part of the application and the rest uses linq2db with normal models. It would be ni…",
     "summary": "I would also be very interested in this feature. I tried to make a sample use case below. If you have any questions, let me know:",
     "updated_at": "2026-06-15T16:42:07Z"
-  },
-  {
-    "is_pr": false,
-    "linked_files": null,
-    "id": 4773,
-    "closed_at": null,
-    "title": "Another issue with casting to interface and SQL generation",
-    "user": "shameleo",
-    "created_at": "2025-01-10T11:09:17Z",
-    "url": "https://github.com/linq2db/linq2db/issues/4773",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: mapping"
-    ],
-    "body_excerpt": "### Describe your issue\nException during SQL generation. Requires using Interfaces, inheritance and casting to interface at the same time\n\n\n### Steps to reproduce\n**Used entities:**\n```c#\npublic class Contract\n{\n    public int Id { get; set; }\n}\n\npublic interface IClient\n{\n    int Id { get; set; }\n    int ContractId { get; set; }\n    Contract Contract { get; set; }\n}\npublic class ClientBase\n{\n    public int Id { get; set; }\n    public int ContractId { get; set; }\n\n    [Association(ThisKey = name…",
-    "summary": "### Describe your issue",
-    "updated_at": "2026-06-15T16:42:12Z"
   },
   {
     "is_pr": false,
@@ -54109,22 +54051,6 @@
     "body_excerpt": "### Description\n\n### Environment\n- Linq2DB4iSeries: 6.2.1 (also present in 6.3.0 -- `DB2iSeriesDbTypes.cs` unchanged since the v6.0.0 upgrade)\n- linq2db: 6.2.1\n- Connection type: ODBC\n- .NET: 8.0\n\n### Summary\n\n`DB2iSeriesDbTypes.UpCastDbDataTypeToFit` overwrites the configured `[Column(DataType, Length)]` metadata of a parameter with the runtime *value's own length* for `string` and `byte[]`, instead of only enlarging the type when the configured length is insufficient. This produces a different ..."
   },
   {
-    "id": 5787,
-    "title": "Aggregate with an untranslatable selector inside a projection fails with \"There is no method 'AggregateExecute'\"",
-    "state": "open",
-    "area": "GLOBAL",
-    "labels": [],
-    "user": "sdanyliv",
-    "created_at": "2026-08-15T15:36:46Z",
-    "updated_at": "2026-08-29T16:04:44Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5787",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "An aggregate whose selector cannot be translated to SQL reports an internal error about a missing method instead of the ordinary \"could not be converted to SQL\", when the aggregate sits inside a projection. The query is sent to the server first -- the aggregate is dropped from...",
-    "body_excerpt": "An aggregate whose selector cannot be translated to SQL reports an internal error about a missing method instead of the ordinary \"could not be converted to SQL\", when the aggregate sits inside a projection.\n\nThe query is sent to the server first -- the aggregate is dropped from the SQL entirely -- and the failure happens afterwards, while materializing the result.\n\nProvider-independent: reproduced on SQLite, Access, Informix and SQL Server 2014-minus. No interval/`TimeSpan` code is involved; `Date..."
-  },
-  {
     "id": 5830,
     "title": "Documentation Improvement: Improve Docs around Setting EF Core Provider specific options",
     "state": "closed",
@@ -54344,25 +54270,6 @@
     ],
     "summary": "Background: Back when we set up [Oracle's Bulk copy `_maxSqlLength`](https://github.com/linq2db/linq2db/blob/a180e8c068351b38432a544625695aeedc0fea24/Source/LinqToDB/Internal/DataProvider/Oracle/OracleBulkCopy.cs#L31) in #2975 , the Oracle Max SQL Limit around 65K was set base...",
     "body_excerpt": "### Description\n\nBackground:\n\nBack when we set up [Oracle's Bulk copy `_maxSqlLength`](https://github.com/linq2db/linq2db/blob/a180e8c068351b38432a544625695aeedc0fea24/Source/LinqToDB/Internal/DataProvider/Oracle/OracleBulkCopy.cs#L31) in #2975 , the Oracle Max SQL Limit around 65K was set based on the rules for Oracle 8 that I found, which had a fairly low limit.\n\nToday, we don't support Oracle 8 anymore, 11 is the minimum supported version. To the best of my knowledge any reasonable default fo..."
-  },
-  {
-    "id": 5857,
-    "title": "Sql.Expr<T>(FormattableString) is rebuilt on every execution -- the registered FormattableString is compared by reference",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: performance"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-09-02T21:08:08Z",
-    "updated_at": "2026-09-02T21:08:29Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5857",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "`Sql.Expr<T>(FormattableString)` with an interpolation whose values are all client-evaluable is registered for by-value query-cache comparison, but the registered `FormattableString` is compared by reference. A fresh instance is produced on every evaluation, so the comparison ...",
-    "body_excerpt": "### Summary\n\n`Sql.Expr<T>(FormattableString)` with an interpolation whose values are all client-evaluable is registered for by-value query-cache comparison, but the registered `FormattableString` is compared by reference. A fresh instance is produced on every evaluation, so the comparison never matches and the query is rebuilt on every execution.\n\n### Background\n\n`FormattableString` is an abstract class implementing only `IFormattable` -- it overrides neither `Equals` nor `GetHashCode`, and does ..."
   },
   {
     "id": 3266,
@@ -55318,25 +55225,6 @@
     "body_excerpt": "## Summary\n\nWith `LinqOptions.PreferClientCalculation` enabled, bool-returning members in a projection behave inconsistently: some move client-side as the option promises, one stays fully in SQL, and one splits. The inconsistency is not documented and does not follow from anything visible at the call site -- two members registered in the *same* optional scope behave differently purely because one returns `bool`.\n\n## Measured\n\nAll six cases below were run in one pass on SQLite with the option enab..."
   },
   {
-    "id": 5923,
-    "title": "PreferClientCalculation: Sql.ToNullable over a binary expression returns a value instead of NULL for a missed LEFT JOIN",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: C# semantics"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-09-14T11:15:30Z",
-    "updated_at": "2026-09-14T15:17:48Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5923",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "With `LinqOptions.PreferClientCalculation` enabled, `Sql.ToNullable(...)` over a binary expression on a left-joined column silently returns a computed value instead of `null` when the join misses. The nullability widener is defeated, and the query returns wrong data with no er...",
-    "body_excerpt": "## Summary\n\nWith `LinqOptions.PreferClientCalculation` enabled, `Sql.ToNullable(...)` over a **binary expression** on a left-joined column silently returns a computed value instead of `null` when the join misses. The nullability widener is defeated, and the query returns wrong data with no error.\n\nPresent in 6.5.0 as shipped.\n\n## Repro\n\n```csharp\nusing var db    = GetDataContext(context, o => o.UsePreferClientCalculation(true));\nusing var table = db.CreateLocalTable(Seed);   // 3 rows, Value1 = ..."
-  },
-  {
     "id": 5927,
     "title": "string.CompareOrdinal and ordinal string.Compare map onto culture-sensitive CompareTo",
     "state": "open",
@@ -55406,25 +55294,6 @@
     "linked_files": null,
     "summary": "With `LinqOptions.PreferClientCalculation` enabled, a calculation moved to the client reads a NULL column of a non-nullable CLR type as `default(T)` and computes a real value from it, where the server-side translation propagates NULL. Over a missed `LeftJoin` the two paths the...",
     "body_excerpt": "### Summary\n\nWith `LinqOptions.PreferClientCalculation` enabled, a calculation moved to the client reads a NULL column of a non-nullable CLR type as `default(T)` and computes a real value from it, where the server-side translation propagates NULL. Over a missed `LeftJoin` the two paths therefore disagree, and for several members the client answer is a plausible value rather than an obviously wrong one. Every affected member is kept mandatory in #5926 rather than being declared optional.\n\n### Bac..."
-  },
-  {
-    "id": 5932,
-    "title": "Missed LeftJoin: non-nullable member is default(T) when read, NULL inside SQL calculations",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: C# semantics"
-    ],
-    "user": "sdanyliv",
-    "created_at": "2026-09-15T20:26:41Z",
-    "updated_at": "2026-09-15T20:27:37Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5932",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "For a `LeftJoin` row with no match, a non-nullable value-typed member such as `int Value1` materializes as `default(T)`, but a calculation over it that is translated to SQL sees NULL. The same projected row can report `j.Value1` as `0`, `j.Value1.ToString()` as `\"0\"`, and `j.V...",
-    "body_excerpt": "### Summary\n\nFor a `LeftJoin` row with no match, a non-nullable value-typed member such as `int Value1` materializes as `default(T)`, but a calculation over it that is translated to SQL sees NULL. The same projected row can report `j.Value1` as `0`, `j.Value1.ToString()` as `\"0\"`, and `j.Value1 + 1` as `0`.\n\n### Current behavior\n\nSQLite, one table row, a join condition that never matches, `LinqOptions.PreferClientCalculation` at its default (off):\n\n```csharp\nfrom e in table\nfrom j in table.LeftJ..."
   },
   {
     "id": 5933,
@@ -55597,25 +55466,6 @@
     "body_excerpt": "### Summary\n\n`string.Join` over a filtered grouping emits `STRING_AGG(...) FILTER (WHERE ...)` on PostgreSQL 9.2\nand 9.3, which those versions cannot parse. This is the same defect as #5948, on a second emitter that\n#5948's fix structurally cannot reach.\n\n### Background\n\nlinq2db models the aggregate `FILTER` clause as a provider capability,\n`AggregateFunctionsMemberTranslatorBase.IsFilterSupported`. #5949 tiers that capability at 9.5 for\nPostgreSQL, which covers `Sum`, `Count`, `Min`, `Max` and ..."
   },
   {
-    "id": 5953,
-    "title": "Sql.Property: a name from a lambda parameter fails with an undiagnosed exception",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: extensions"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-09-21T14:29:39Z",
-    "updated_at": "2026-09-21T14:29:46Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5953",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "`Sql.Property`'s name argument has to be evaluable with no enclosing lambda parameter in scope. A captured local works; a name computed from a lambda parameter fails with `InvalidOperationException: variable 'id' of type 'System.Int32' referenced from scope '', but it is not d...",
-    "body_excerpt": "### Summary\n\n`Sql.Property`'s name argument has to be evaluable with no enclosing lambda parameter in scope. A\ncaptured local works; a name computed from a lambda parameter fails with\n`InvalidOperationException: variable 'id' of type 'System.Int32' referenced from scope '', but it is\nnot defined`, which names neither `Sql.Property` nor the shape that is unsupported. The same\nrestriction blocks the natural spelling for \"apply this predicate to each entry of a runtime-sized\nset\", which then has no..."
-  },
-  {
     "id": 4735,
     "title": "System.InvalidCastException: Unable to cast object of type 'Microsoft.Data.ProviderBase.DbConnectionClosedConnecting' to type 'Microsoft.Data.SqlClient.SqlInternalConnectionTds",
     "state": "closed",
@@ -55691,26 +55541,6 @@
     ],
     "summary": "`QueryHelper.GetDbDataType` returns the mapping-schema default for a `SqlExtendedFunction` rather than the `DbDataType` the node was built with. `SqlFunction`, which represents the same thing, returns its declared type verbatim -- so two nodes for the same expression answer th...",
     "body_excerpt": "### Summary\n\n`QueryHelper.GetDbDataType` returns the mapping-schema default for a `SqlExtendedFunction` rather than the `DbDataType` the node was built with. `SqlFunction`, which represents the same thing, returns its declared type verbatim -- so two nodes for the same expression answer the type question differently.\n\n### Current behavior\n\n`Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs:697` -- `GetDbDataTypeImpl` matches `SqlParameterizedExpressionBase { Type: var t } => t` at `:719`, which cov..."
-  },
-  {
-    "id": 5964,
-    "title": "Test progress heartbeat: report the filtered test count as total under --filter",
-    "state": "open",
-    "area": "GLOBAL",
-    "labels": [
-      "area: tests"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-09-23T14:26:45Z",
-    "updated_at": "2026-09-23T14:26:54Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5964",
-    "is_pr": false,
-    "linked_files": [
-      "Tests/Base/TestProgressReporter.cs"
-    ],
-    "summary": "Under `--filter`, the `--test-progress` heartbeat reports the discovered test count as `total`, not the number of tests the filter selects. `total`, the percentage and `etaSec` are therefore wrong by orders of magnitude on every filtered run, which is the common local case. Cu...",
-    "body_excerpt": "### Summary\n\nUnder `--filter`, the `--test-progress` heartbeat reports the discovered test count as `total`, not the number of tests the filter selects. `total`, the percentage and `etaSec` are therefore wrong by orders of magnitude on every filtered run, which is the common local case.\n\n### Current behavior\n\n- `Tests/Base/TestProgressReporter.cs:72-74`: on the root suite, `TestProgressTracker.OnBefore` calls `_state.SetTotal(test.TestCaseCount)`. The comment there acknowledges it: *\"under a --f..."
   },
   {
     "id": 5965,
@@ -55916,22 +55746,6 @@
     "body_excerpt": "With `d = 0.1234`, `t.Select(r => d + (double)r.Id)` renders `@d + \"r\".\"Id\"` on DB2 and returns 1: the C# cast to `double` is dropped, and DB2 types the parameter from the integer column. With the column on the left, `(double)r.Id + d` keeps `CAST(\"r\".\"Id\" AS Float)` and returns 1.1234. SAP HANA generates the same SQL (`? + \"r\".\"Id\"`). It reproduces on `master` with no dates involved. `Sql.ConvertTo<double>.From(r.Id)` is a workaround.\n\nExpected: an explicit numeric widening survives translation..."
   },
   {
-    "id": 5997,
-    "title": "Date/time literal compared with a coarser column loses its sub-second part",
-    "state": "open",
-    "area": "GLOBAL",
-    "labels": [],
-    "user": "MaceWindu",
-    "created_at": "2026-10-03T19:53:19Z",
-    "updated_at": "2026-10-03T20:01:01Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/5997",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "A date/time literal compared with a column declared with a coarser date/time type is narrowed to the column's type, which drops its sub-second (or time) part and changes the comparison's answer without an error. Repro (ClickHouse, 6.5.x) cs [Table] class ProbeRow { [PrimaryKey...",
-    "body_excerpt": "A date/time literal compared with a column declared with a coarser date/time type is narrowed to the column's type, which drops its sub-second (or time) part and changes the comparison's answer without an error.\n\n## Repro (ClickHouse, 6.5.x)\n\n```cs\n[Table]\nclass ProbeRow\n{\n\t[PrimaryKey]                           public int      Id { get; set; }\n\t[Column(DataType = DataType.DateTime)] public DateTime Dt { get; set; }\n}\n\nstatic readonly DateTime Boundary = new(2026, 6, 1, 10, 0, 0, 500);\n\n// one r..."
-  },
-  {
     "id": 5955,
     "title": "ClickHouse datetime function regression in 6.5.0",
     "state": "open",
@@ -56077,24 +55891,6 @@
     "linked_files": null,
     "summary": "When `BulkCopyOptions.BulkCopyTimeout` is not set and `Configuration.Data.BulkCopyUseConnectionCommandTimeout` is `false` (the default), the XML doc says the bulk copy runs with an infinite timeout. No provider actually requests one. Each leaves its native bulk-copy timeout un...",
     "body_excerpt": "### Summary\n\nWhen `BulkCopyOptions.BulkCopyTimeout` is not set and `Configuration.Data.BulkCopyUseConnectionCommandTimeout` is `false` (the default), the XML doc says the bulk copy runs with an infinite timeout. No provider actually requests one. Each leaves its native bulk-copy timeout untouched, so the driver default applies: 30 seconds for `SqlBulkCopy`, and the connection's `Command Timeout` (30 seconds by default) for PostgreSQL.\n\n### Background\n\n- `SqlBulkCopy.BulkCopyTimeout`: \"The defaul..."
-  },
-  {
-    "id": 6000,
-    "title": "Bug: Query cache reuses stale SQL when FromSqlScalar is nested inside an IN expression",
-    "state": "open",
-    "area": "EXPR-TRANS",
-    "labels": [
-      "status: needs-tests"
-    ],
-    "user": "denisatedams",
-    "created_at": "2026-10-08T08:07:26Z",
-    "updated_at": "2026-10-08T14:21:21Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/6000",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "When FromSqlScalar<T>() is used inside an In() expression, LINQ2DB appears to reuse the SQL from the first execution even when the FormattableString SQL text changes. Interestingly, calling FromSqlScalar<T>() directly works correctly. The problem only appears when it is nested...",
-    "body_excerpt": "### Description\n\nWhen FromSqlScalar<T>() is used inside an In() expression, LINQ2DB appears to reuse the SQL from the first execution even when the FormattableString SQL text changes.\n\nInterestingly, calling FromSqlScalar<T>() directly works correctly. The problem only appears when it is nested inside an outer LINQ query.\n\n### Reproduction Steps\n\nThe following example uses an existing mapped table with an integer Id column.\n```\npublic static async Task TestNestedFromSqlScalarCacheAsync(Dc dc)\n{\n..."
   },
   {
     "id": 5988,
@@ -56246,5 +56042,1159 @@
     "linked_files": null,
     "summary": "When using EF Core Value Converters on DateTime entity properties and Concat/Union operators in Linq the following exception is being thrown: `The operands for operator 'NotEqual' do not match the parameters of method 'op_Inequality'.` Here is an example of a code that throws ...",
     "body_excerpt": "### Description\n\nWhen using EF Core Value Converters on DateTime entity properties and Concat/Union operators in Linq the following exception is being thrown:\n`The operands for operator 'NotEqual' do not match the parameters of method 'op_Inequality'.`\n\nHere is an example of a code that throws such exception:\n```\nvar query = from t2 in context.TableTwo\n            join t1 in context.TableOne on t2.TableOneId equals t1.Id into t1j\n            from t1 in t1j.DefaultIfEmpty()\n            select new..."
+  },
+  {
+    "id": 6012,
+    "title": "Firebird: a cancelled async operation can poison a pooled connection, and the next user of it hangs forever",
+    "state": "open",
+    "area": "PROV-FIREBIRD",
+    "labels": [],
+    "user": "igor-tkachev",
+    "created_at": "2026-10-09T22:45:36Z",
+    "updated_at": "2026-10-09T22:45:47Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6012",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "After an async operation on Firebird is called with a token that is already cancelled (or is cancelled between two steps, e.g. inside `CreateTempTableAsync`), a later, unrelated operation on another `DataConnection` can hang forever in `NetworkStream.Read` -- no timeout, nothi...",
+    "body_excerpt": "### Symptoms\n\nAfter an async operation on Firebird is called with a token that is already cancelled (or is cancelled between two\nsteps, e.g. inside `CreateTempTableAsync`), a later, unrelated operation on another `DataConnection` can hang forever\nin `NetworkStream.Read` -- no timeout, nothing running on the server side. Before that, the original `DataConnection`\nthrows an unexpected `NullReferenceException` from `FbCommand` on its next statement (easy to miss when the code\naround it swallows erro..."
+  },
+  {
+    "id": 6019,
+    "title": "DB2: recursive CTE anchor double-casts a DateTime literal (CAST(CAST('...' AS TIMESTAMP(6)) AS timestamp))",
+    "state": "open",
+    "area": "PROV-DB2",
+    "labels": [
+      "area: sql",
+      "provider: db2"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-10T21:08:57Z",
+    "updated_at": "2026-10-10T21:09:09Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6019",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A DB2 recursive CTE anchor wraps a `DateTime` literal in a second cast to the same type, producing `CAST(CAST('...' AS TIMESTAMP(6)) AS timestamp)`. The result is unaffected; the SQL is just longer than it needs to be. `CteTests.SelectQueryTest` with `inlineParams: true` on DB...",
+    "body_excerpt": "### Summary\n\nA DB2 recursive CTE anchor wraps a `DateTime` literal in a second cast to the same type, producing `CAST(CAST('...' AS TIMESTAMP(6)) AS timestamp)`. The result is unaffected; the SQL is just longer than it needs to be.\n\n### Current behavior\n\n`CteTests.SelectQueryTest` with `inlineParams: true` on DB2 (baseline `DB2/Tests/Linq/CteTests/Tests.Linq.CteTests.SelectQueryTest(DB2,True).sql`, from #5959's baselines branch):\n\n```sql\nWITH \"x\" (\"Counter\", \"Date_1\")\nAS\n(\n\tSELECT\n\t\tCAST(1 AS Int)..."
+  },
+  {
+    "id": 6021,
+    "title": "Scaffold: code-generation test harness (predefined schema ? generate ? compile ? execute) for C# and F#",
+    "state": "open",
+    "area": "SCAFFOLD",
+    "labels": [
+      "area: tests",
+      "area: scaffold"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T00:51:25Z",
+    "updated_at": "2026-10-11T00:51:32Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6021",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "The scaffolder's generated code is only checked by compiling committed golden output, which CI never regenerates. A test harness that feeds a predefined schema to the generator, compiles the generated code and executes it would give CI coverage of code-generation features inde...",
+    "body_excerpt": "### Summary\n\nThe scaffolder's generated code is only checked by compiling committed golden output, which CI never regenerates. A test harness that feeds a predefined schema to the generator, compiles the generated code and executes it would give CI coverage of code-generation features independent of what the test database schemas happen to contain.\n\n### Current behavior\n\n- C# CLI baselines (`Tests/Tests.T4/Cli/**`) are regenerated manually (T4 `RunCliTool()` templates / `release-test-cli-scaffol..."
+  },
+  {
+    "id": 6022,
+    "title": "Identifier quoting: remove \"already quoted\" passthroughs and escape embedded quote characters on every provider",
+    "state": "open",
+    "area": "SQL-PROVIDER",
+    "labels": [
+      "area: sql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T02:14:19Z",
+    "updated_at": "2026-10-11T02:14:26Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6022",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Identifier names reach generated SQL without being reliably quoted. Seven providers pass a name through verbatim when it already starts with their opening quote character, and nine wrap a name in quotes without escaping an embedded closing quote. With APIs that take identifier...",
+    "body_excerpt": "### Summary\n\nIdentifier names reach generated SQL without being reliably quoted. Seven providers pass a name through verbatim when it already starts with their opening quote character, and nine wrap a name in quotes without escaping an embedded closing quote. With APIs that take identifier names as runtime strings this is an SQL-injection vector, not just a malformed-SQL bug.\n\n### Background\n\nMapping metadata (`[Column(\"...\")]`, fluent mapping) is author-controlled, so the risk there is low. The..."
+  },
+  {
+    "id": 5953,
+    "title": "Sql.Property: a name from a lambda parameter fails with an undiagnosed exception",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: extensions"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-09-21T14:29:39Z",
+    "updated_at": "2026-10-11T21:24:53Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/5953",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`Sql.Property`'s name argument has to be evaluable with no enclosing lambda parameter in scope. A captured local works; a name computed from a lambda parameter fails with `InvalidOperationException: variable 'id' of type 'System.Int32' referenced from scope '', but it is not d...",
+    "body_excerpt": "### Summary\n\n`Sql.Property`'s name argument has to be evaluable with no enclosing lambda parameter in scope. A\ncaptured local works; a name computed from a lambda parameter fails with\n`InvalidOperationException: variable 'id' of type 'System.Int32' referenced from scope '', but it is\nnot defined`, which names neither `Sql.Property` nor the shape that is unsupported. The same\nrestriction blocks the natural spelling for \"apply this predicate to each entry of a runtime-sized\nset\", which then has no..."
+  },
+  {
+    "id": 6028,
+    "title": "SQLite.MS: grouped MAX(CASE ... THEN string ELSE NULL END) throws String -> Byte[] on the second (cached) execution",
+    "state": "open",
+    "area": "PROV-SQLITE",
+    "labels": [
+      "provider: sqlite"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T17:09:09Z",
+    "updated_at": "2026-10-11T22:34:16Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6028",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A grouped query whose column is `MAX(CASE WHEN ... THEN <string> ELSE NULL END)` reads correctly on its first execution on `SQLite.MS` (Microsoft.Data.Sqlite) and throws on the second, when the query comes from the query cache:",
+    "body_excerpt": "A grouped query whose column is `MAX(CASE WHEN ... THEN <string> ELSE NULL END)` reads correctly on its first execution on `SQLite.MS` (Microsoft.Data.Sqlite) and throws on the second, when the query comes from the query cache:\n\n```\nLinqToDB.Common.LinqToDBConvertException : Mapping of column 'MAX(CASE\n\t\tWHEN [e].[TheKey] = 20 THEN [rub].[IdeRub]\n\t\tELSE NULL\n\tEND)' value failed, see inner exception for details\n  ----> System.InvalidCastException : Unable to cast object of type 'System.String' to t..."
+  },
+  {
+    "id": 6031,
+    "title": "SQLite.MS: DateTimeOffset columns are read through GetDateTime -- offset lost, MaxValue throws",
+    "state": "open",
+    "area": "PROV-SQLITE",
+    "labels": [
+      "provider: sqlite",
+      "area: types"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T23:28:15Z",
+    "updated_at": "2026-10-11T23:28:26Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6031",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On `Microsoft.Data.Sqlite`, a `DateTimeOffset` column is materialized through `SqliteDataReader.GetDateTime`, which parses the stored text with `DateTime.Parse`. The offset is therefore lost on read, and `DateTimeOffset.MaxValue` cannot be read back at all on a machine east of...",
+    "body_excerpt": "### Summary\n\nOn `Microsoft.Data.Sqlite`, a `DateTimeOffset` column is materialized through `SqliteDataReader.GetDateTime`, which\nparses the stored text with `DateTime.Parse`. The offset is therefore lost on read, and `DateTimeOffset.MaxValue`\ncannot be read back at all on a machine east of UTC.\n\n### Current behavior\n\nThe SQLite provider registers no `DateTimeOffset` reader -- `SQLiteMappingSchema.cs:31` only has a value-to-SQL\nconverter -- so the column goes through the generic `DateTime` path:\n\n-..."
+  },
+  {
+    "id": 6032,
+    "title": "Access: uncorrelated TOP 1 ... ORDER BY column subquery with a nested correlated subquery returns per-row wrong values",
+    "state": "open",
+    "area": "PROV-ACCESS",
+    "labels": [
+      "area: sql",
+      "provider: access"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T23:28:35Z",
+    "updated_at": "2026-10-11T23:28:45Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6032",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On Access (ACE, both OLE DB and ODBC), a projection containing an **uncorrelated** `TOP 1 ... ORDER BY` column subquery, whose own select list is a scalar subquery correlated to it, returns different values for different outer rows. The query succeeds and the results are silen...",
+    "body_excerpt": "### Summary\n\nOn Access (ACE, both OLE DB and ODBC), a projection containing an **uncorrelated** `TOP 1 ... ORDER BY` column subquery, whose own select list is a scalar subquery correlated to it, returns different values for different outer rows. The query succeeds and the results are silently wrong.\n\n### Current behavior\n\nMeasured on master `f3f31790f`, net10.0, with the standard test data, on `Access.Ace.OleDb` and `Access.Ace.Odbc`:\n\n```csharp\nfrom p in db.Parent\norderby p.ParentID\nselect new\n{\n..."
+  },
+  {
+    "id": 1553,
+    "title": "[T4 template] F# generation recods. ",
+    "state": "open",
+    "area": "T4-TEMPLATES",
+    "labels": [
+      "area: T4",
+      "area: fsharp",
+      "area: scaffold"
+    ],
+    "user": "Trigun27",
+    "created_at": "2019-01-23T08:59:00Z",
+    "updated_at": "2026-10-12T10:15:28Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/1553",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Hi, hear that linq2db can generate F# records, is it true? (Also i see some FSharp namespaces in code files). Where can i read about it? Thanks)",
+    "body_excerpt": "Hi, \n\nhear that linq2db can generate F# records, is it true? (Also i see some FSharp namespaces in code files). Where can i read about it? \n\nThanks)"
+  },
+  {
+    "id": 6034,
+    "title": "Decorrelate apply joins over set operations",
+    "state": "open",
+    "area": "SQL-AST",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-12T10:36:58Z",
+    "updated_at": "2026-10-12T10:37:05Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6034",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "An apply join whose source is a set operation is never decorrelated, so it always needs `LATERAL` / `APPLY` -- even when every branch is correlated by a plain equality that could move into the join condition. `SelectQueryOptimizerVisitor.OptimizeApplyJoin` already turns a corr...",
+    "body_excerpt": "An apply join whose source is a set operation is never decorrelated, so it always needs `LATERAL` / `APPLY` -- even when every branch is correlated by a plain equality that could move into the join condition.\n\n`SelectQueryOptimizerVisitor.OptimizeApplyJoin` already turns a correlated apply into a regular join by moving correlated `WHERE` predicates into `ON`. With set operators the outer reference sits in each branch's `WHERE`, so the `IsDependsOnOuterSources(sql, whereToIgnore)` check still sees..."
+  },
+  {
+    "id": 6035,
+    "title": "`ArgumentException: must be reducible node` for a correlated `Select(anonymous).Distinct().Count(predicate)` inside a projection",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [],
+    "user": "igor-tkachev",
+    "created_at": "2026-10-12T15:15:50Z",
+    "updated_at": "2026-10-12T15:15:59Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6035",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A query that projects a correlated sub-query of the form `Select(x => new { ... }).Distinct().Count(...)` fails at result-mapper compilation with `System.ArgumentException: must be reducible node`. The exception comes from `LambdaExpression.Compile()` in `Compilation.CompileEx...",
+    "body_excerpt": "## Description\n\nA query that projects a correlated sub-query of the form `Select(x => new { ... }).Distinct().Count(...)` fails at result-mapper compilation with `System.ArgumentException: must be reducible node`. The exception comes from `LambdaExpression.Compile()` in `Compilation.CompileExpression`: the mapper lambda still contains an unresolved `ContextRefExpression`, so the expression compiler tries to visit its children and throws.\n\nThe failure is not specific to `Count` with a predicate. ..."
+  },
+  {
+    "id": 6024,
+    "title": "Oracle 11: query validator rejects IS NOT NULL on a column subquery's own table as a parent reference",
+    "state": "closed",
+    "area": "PROV-ORACLE",
+    "labels": [
+      "provider: oracle"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T12:21:08Z",
+    "updated_at": "2026-10-12T20:31:40Z",
+    "closed_at": "2026-10-12T20:31:40Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6024",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On Oracle 11, the query validator rejects a query before any SQL is sent if a column-position subquery puts `IS NOT NULL` on **its own** table. The error is `LinqToDBException: The LINQ expression could not be converted to SQL`, with details `Column expression should not conta...",
+    "body_excerpt": "### Description\n\nOn Oracle 11, the query validator rejects a query before any SQL is sent if a column-position subquery puts `IS NOT NULL` on **its own** table. The error is `LinqToDBException: The LINQ expression could not be converted to SQL`, with details `Column expression should not contain parent's IS NOT NULL condition.` (`ErrorHelper.Oracle.Error_ColumnSubqueryShouldNotContainParentIsNotNull`). The predicate has no reference to a parent query.\n\nMinimal repro:\n\n```csharp\ndb.GetTable<T>()...."
+  },
+  {
+    "id": 6023,
+    "title": "Sybase: empty field name throws IndexOutOfRangeException in SqlBuilder.Convert",
+    "state": "open",
+    "area": "PROV-SYBASE",
+    "labels": [
+      "area: sql",
+      "provider: sybase"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-11T02:15:20Z",
+    "updated_at": "2026-10-12T22:30:15Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6023",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs"
+    ],
+    "summary": "`SybaseSqlBuilder.Convert` checks the builder's own `Name` instead of the identifier `value` before reading `value[0]`, so an empty field name throws `IndexOutOfRangeException` instead of being quoted. `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs:210`: `Na...",
+    "body_excerpt": "### Summary\n\n`SybaseSqlBuilder.Convert` checks the builder's own `Name` instead of the identifier `value` before reading `value[0]`, so an empty field name throws `IndexOutOfRangeException` instead of being quoted.\n\n### Current behavior\n\n`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs:210`:\n\n```cs\nif (convertType == ConvertType.NameToQueryField && Name.Length > 0 && value[0] == '#')\n\treturn sb.Append(value);\n```\n\n`Name` is the builder's provider name (`BasicSqlBuilder.Name`, e...."
+  },
+  {
+    "id": 6040,
+    "title": "Explicitly named DataParameter is renamed when a generated parameter claims its name first",
+    "state": "open",
+    "area": "SQL-PROVIDER",
+    "labels": [
+      "area: sql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-13T21:30:34Z",
+    "updated_at": "2026-10-13T21:30:47Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6040",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A `DataParameter` with an explicit name, referenced by that name in raw SQL text, can be renamed during SQL generation when another parameter claims the same name first. The literal `@name` in the text then binds the other parameter's value, and the query silently returns wron...",
+    "body_excerpt": "### Summary\n\nA `DataParameter` with an explicit name, referenced by that name in raw SQL text, can be renamed during SQL generation when another parameter claims the same name first. The literal `@name` in the text then binds the other parameter's value, and the query silently returns wrong results.\n\n### Current behavior\n\nRepro (SQLite.MS, `Person` test table):\n\n```cs\ndb.FromSql<Person>(\n    \"SELECT * FROM Person WHERE PersonID = {0} AND FirstName = @p\",\n    1, new DataParameter(\"p\", \"John\"))\n  ..."
+  },
+  {
+    "id": 6041,
+    "title": "YDB: Math.Floor / Ceiling / Truncate over a Decimal lose precision through Double",
+    "state": "open",
+    "area": "PROV-YDB",
+    "labels": [
+      "area: sql",
+      "provider: ydb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-14T01:51:54Z",
+    "updated_at": "2026-10-14T01:52:04Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6041",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs"
+    ],
+    "summary": "On YDB, `Math.Floor`, `Math.Ceiling` and `Math.Truncate` over a `decimal` value are computed through `Double`, which carries 15-17 significant digits. Values with more digits come back with the wrong integer, with no error. - `Source/LinqToDB/Internal/DataProvider/Ydb/YdbSqlEx...",
+    "body_excerpt": "### Summary\n\nOn YDB, `Math.Floor`, `Math.Ceiling` and `Math.Truncate` over a `decimal` value are computed through `Double`, which carries 15-17 significant digits. Values with more digits come back with the wrong integer, with no error.\n\n### Current behavior\n\n- `Source/LinqToDB/Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs:257-269`: `Math::Floor` / `Math::Ceil` / `Math::Trunc` are Double-only UDFs, so a Decimal argument is cast to `Double`, the function applied, and the result cast..."
+  },
+  {
+    "id": 6044,
+    "title": "Attribute-built SQL (Sql.Ext, [Sql.Expression], [Sql.Function]) reports the mapping schema's default type, not the value's",
+    "state": "open",
+    "area": "PROV-CLICKHOUSE",
+    "labels": [
+      "area: types",
+      "provider: clickhouse"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-14T22:13:48Z",
+    "updated_at": "2026-10-14T22:14:02Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6044",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "SQL built from the function attributes is typed with the mapping schema's default for the member's CLR return type, whatever the SQL actually returns. A provider that decides on the operand's type is then told the wrong thing: on ClickHouse, an analytic `MAX` over a whole-seco...",
+    "body_excerpt": "### Summary\n\nSQL built from the function attributes is typed with the mapping schema's default for the member's CLR return type, whatever the SQL actually returns. A provider that decides on the operand's type is then told the wrong thing: on ClickHouse, an analytic `MAX` over a whole-second `DateTime` column is reported as `DateTime64(7)`, the coercion to `DateTime64` is skipped, and the server refuses the query.\n\n### Current behavior\n\nEach attribute builder takes the node's type from the mappi..."
+  },
+  {
+    "id": 6045,
+    "title": "CompiledQuery: raw SQL format or arguments captured from the closure reuse the first build",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: compiled-query"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T00:03:48Z",
+    "updated_at": "2026-10-15T00:03:56Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6045",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/CompiledQuery.cs"
+    ],
+    "summary": "A compiled query reuses its first build when a raw SQL format or argument captured from the compiled lambda's closure changes between calls. Later calls run the first call's SQL text, or throw `InvalidCastException` when an argument's type changes. The compiled-table cache key...",
+    "body_excerpt": "### Summary\n\nA compiled query reuses its first build when a raw SQL format or argument captured from the compiled lambda's closure changes between calls. Later calls run the first call's SQL text, or throw `InvalidCastException` when an argument's type changes.\n\n### Current behavior\n\nThe compiled-table cache key covers only compiled-query arguments:\n\n- `Source/LinqToDB/CompiledQuery.cs:95` -- `CollectDependentArgumentIndexes` records the `ps[i]` slots read by `[SqlQueryDependent]` arguments, and ..."
+  },
+  {
+    "id": 6046,
+    "title": "PreferClientCalculation off: a missed LEFT JOIN row's value is calculated over NULL in eager-load and CTE projections",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T00:05:36Z",
+    "updated_at": "2026-10-15T00:06:47Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6046",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "With `LinqOptions.PreferClientCalculation` off, a projection that calculates with a NOT NULL column of a LEFT JOIN row that did not match still computes over SQL NULL in two shapes: an eager-loaded collection's projection that uses the parent's joined row, and a calculation ov...",
+    "body_excerpt": "### Summary\n\nWith `LinqOptions.PreferClientCalculation` off, a projection that calculates with a NOT NULL column of a LEFT JOIN row that did not match still computes over SQL NULL in two shapes: an eager-loaded collection's projection that uses the parent's joined row, and a calculation over a CTE field fed by such a column. The option-on arm, and the same queries without eager load or `AsCte()`, answer what C# answers over a default row.\n\n### Background\n\n#5983 makes SQL read such a column as `C..."
+  },
+  {
+    "id": 6047,
+    "title": "Access: GroupBy(...).Select(g => aggregate).Contains(value) puts the aggregate in WHERE",
+    "state": "open",
+    "area": "PROV-ACCESS",
+    "labels": [
+      "provider: access"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T11:23:02Z",
+    "updated_at": "2026-10-15T11:23:10Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6047",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On Access (Ace OleDb), `t.GroupBy(r => r.Id).Select(g => g.Max(r => r.Value)).Contains(x)` generates which the server rejects with `Cannot have aggregate function in WHERE clause`. The aggregate should be filtered in `HAVING` (or the grouped query wrapped as a subquery). Repro...",
+    "body_excerpt": "On Access (Ace OleDb), `t.GroupBy(r => r.Id).Select(g => g.Max(r => r.Value)).Contains(x)` generates\n\n```sql\nSELECT\n\tCOUNT(*) > 0\nFROM\n\t[CoarseDateShapesRow] [g_1]\nWHERE\n\tMAX([g_1].[Value]) = @value\nGROUP BY\n\t[g_1].[Id]\n```\n\nwhich the server rejects with `Cannot have aggregate function in WHERE clause`. The aggregate should be filtered in `HAVING` (or the grouped query wrapped as a subquery).\n\nReproduced on master `ae22a0ac6` with both a parameter and a literal operand. Found while reviewing #59..."
+  },
+  {
+    "id": 6049,
+    "title": "MySQL: CAST to a date/time type drops fractional seconds (AS DATETIME ignores precision)",
+    "state": "open",
+    "area": "PROV-MYSQL",
+    "labels": [
+      "provider: mysql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T12:53:40Z",
+    "updated_at": "2026-10-15T12:53:51Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6049",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`MySqlSqlBuilder.BuildDataTypeFromDataType` writes `DATETIME` for `DataType.DateTime` / `DateTime2` / `SmallDateTime` / `DateTimeOffset` in a CAST, ignoring `Precision`, although MySQL supports `CAST(x AS DATETIME(fsp))` and the CREATE TABLE path of the same method already emi...",
+    "body_excerpt": "`MySqlSqlBuilder.BuildDataTypeFromDataType` writes `DATETIME` for `DataType.DateTime` / `DateTime2` / `SmallDateTime` / `DateTimeOffset` in a CAST, ignoring `Precision`, although MySQL supports `CAST(x AS DATETIME(fsp))` and the CREATE TABLE path of the same method already emits `DATETIME(p)`.\n\nA sub-second literal in a set operation:\n\n```cs\nt.GroupBy(r => r.Id)\n\t.Select(g => g.Max(r => r.Value))   // [Column(DataType = DataType.DateTime)]\n\t.Concat(t.Select(r => new DateTime(2026, 6, 1, 10, 0, 0..."
+  },
+  {
+    "id": 6050,
+    "title": "Sybase: UNION of a date column with a datetime value truncates the datetime to a date",
+    "state": "open",
+    "area": "PROV-SYBASE",
+    "labels": [
+      "provider: sybase"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T14:28:51Z",
+    "updated_at": "2026-10-15T14:28:58Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6050",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On Sybase ASE, a UNION of a `date` column with a `datetime` value returns the `datetime` branch truncated to midnight, with no error: The server types the UNION column as `date`, so the time part is silently dropped. linq2db could cast the `date` branch to `datetime` when ...",
+    "body_excerpt": "On Sybase ASE, a UNION of a `date` column with a `datetime` value returns the `datetime` branch truncated to midnight, with no error:\n\n```cs\nt.GroupBy(r => r.Id)\n\t.Select(g => g.Max(r => r.Day))   // [Column(DataType = DataType.Date)]\n\t.Concat(t.Select(r => new DateTime(2026, 6, 1, 10, 0, 0)))\n\t.ToArray();\n// second row comes back as 2026-06-01 00:00:00\n```\n\nThe server types the UNION column as `date`, so the time part is silently dropped. linq2db could cast the `date` branch to `datetime` when ..."
+  },
+  {
+    "id": 6055,
+    "title": "Remote context: SqlBinaryExpression / SqlUnaryExpression lose their DbDataType in LinqServiceSerializer",
+    "state": "open",
+    "area": "REMOTE",
+    "labels": [
+      "area: sql",
+      "area: remote-context"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T19:21:50Z",
+    "updated_at": "2026-10-15T19:21:59Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6055",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/Remote/LinqServiceSerializer.cs"
+    ],
+    "summary": "`LinqServiceSerializer` serializes `SqlBinaryExpression` and `SqlUnaryExpression` with only their CLR type, so the node's `DbDataType` (DataType, DbType, Length, Precision, Scale) is lost on the LinqService path. The server then optimizes a differently-typed AST than the direc...",
+    "body_excerpt": "### Summary\n\n`LinqServiceSerializer` serializes `SqlBinaryExpression` and `SqlUnaryExpression` with only their CLR type, so the node's `DbDataType` (DataType, DbType, Length, Precision, Scale) is lost on the LinqService path. The server then optimizes a differently-typed AST than the direct path, producing different and sometimes invalid SQL.\n\n### Current behavior\n\n- `Source/LinqToDB/Internal/Remote/LinqServiceSerializer.cs:1038` / `:1051` -- write `elem.SystemType` only.\n- `LinqServiceSerializer..."
+  },
+  {
+    "id": 6042,
+    "title": "QueryCache.ToStopwatchTicks stack overflow on latest .net framework 4.8.1",
+    "state": "closed",
+    "area": "GLOBAL",
+    "labels": [
+      "resolution: external"
+    ],
+    "user": "denisatedams",
+    "created_at": "2026-10-14T12:55:02Z",
+    "updated_at": "2026-10-15T20:16:25Z",
+    "closed_at": "2026-10-15T18:18:10Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6042",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "QueryCache.ToStopwatchTicks produces stack overflow on latest .net framework 4.8.1 produces stack overflow:",
+    "body_excerpt": "### Description\n\nQueryCache.ToStopwatchTicks produces stack overflow on latest .net framework 4.8.1\n\n\n\n### Reproduction Steps\n\n```\nif (dc.Entity.Any(i => i.Id == Id && i.Enabled == true))\n```\nproduces stack overflow:\n```\n> System.Linq.Queryable.Any(...)\n          -> LinqToDB.Internal.Linq.ExpressionQuery<T>.Execute<Boolean>\n            -> LinqToDB.Internal.Linq.Query<T>.GetQuery(...)\n              -> LinqToDB.Internal.Linq.QueryCache..cctor()\n                -> LinqToDB.Internal.Linq.QueryCache...."
+  },
+  {
+    "id": 6056,
+    "title": "Typed SqlBinaryExpression loses its DbDataType when a visitor rebuilds it, dropping a narrowing cast",
+    "state": "open",
+    "area": "SQL-AST",
+    "labels": [
+      "area: sql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T22:16:37Z",
+    "updated_at": "2026-10-15T22:16:46Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6056",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs"
+    ],
+    "summary": "When a `SqlBinaryExpression` built with an explicit `DbDataType` (e.g. `Decimal(10,2)`) is rebuilt by a Transform-mode visitor because one of its operands changed, the rebuilt node carries only the CLR type. Type inference then answers the mapping-schema default, and a non-man...",
+    "body_excerpt": "### Summary\n\nWhen a `SqlBinaryExpression` built with an explicit `DbDataType` (e.g. `Decimal(10,2)`) is rebuilt by a Transform-mode visitor because one of its operands changed, the rebuilt node carries only the CLR type. Type inference then answers the mapping-schema default, and a non-mandatory narrowing cast over the expression is folded away -- on the direct path as well as the remote one.\n\n### Current behavior\n\n- `Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:3060-3065` -- ..."
+  },
+  {
+    "id": 6059,
+    "title": "[SqlQueryDependent] values that are Equals-equal but render differently share a query cache entry",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: compiled-query",
+      "area: extensions"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-16T00:07:03Z",
+    "updated_at": "2026-10-16T00:07:09Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6059",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`[SqlQueryDependent]` values are compared with `Equals` by both the query cache and the compiled-query key. Values that are `Equals`-equal but render to different SQL text therefore share one cache entry. Examples are decimal scale (`1.0m` / `1.00m`), one instant at two `DateT...",
+    "body_excerpt": "### Summary\n\n`[SqlQueryDependent]` values are compared with `Equals` by both the query cache and the compiled-query key. Values that are `Equals`-equal but render to different SQL text therefore share one cache entry. Examples are decimal scale (`1.0m` / `1.00m`), one instant at two `DateTimeOffset` offsets, and `DateTime`s that differ only in `Kind`. A `[Sql.Extension]` builder that writes the value's text into the SQL then replays the SQL of the first execution.\n\n### Current behavior\n\n- `Sourc..."
+  },
+  {
+    "id": 6000,
+    "title": "Bug: Query cache reuses stale SQL when FromSqlScalar is nested inside an IN expression",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "status: needs-tests"
+    ],
+    "user": "denisatedams",
+    "created_at": "2026-10-08T08:07:26Z",
+    "updated_at": "2026-10-16T11:07:12Z",
+    "closed_at": "2026-10-16T11:07:12Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6000",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "When FromSqlScalar<T>() is used inside an In() expression, LINQ2DB appears to reuse the SQL from the first execution even when the FormattableString SQL text changes. Interestingly, calling FromSqlScalar<T>() directly works correctly. The problem only appears when it is nested...",
+    "body_excerpt": "### Description\n\nWhen FromSqlScalar<T>() is used inside an In() expression, LINQ2DB appears to reuse the SQL from the first execution even when the FormattableString SQL text changes.\n\nInterestingly, calling FromSqlScalar<T>() directly works correctly. The problem only appears when it is nested inside an outer LINQ query.\n\n### Reproduction Steps\n\nThe following example uses an existing mapped table with an integer Id column.\n```\npublic static async Task TestNestedFromSqlScalarCacheAsync(Dc dc)\n{\n..."
+  },
+  {
+    "id": 5857,
+    "title": "Sql.Expr<T>(FormattableString) is rebuilt on every execution -- the registered FormattableString is compared by reference",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: performance"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-09-02T21:08:08Z",
+    "updated_at": "2026-10-16T11:07:12Z",
+    "closed_at": "2026-10-16T11:07:12Z",
+    "url": "https://github.com/linq2db/linq2db/issues/5857",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`Sql.Expr<T>(FormattableString)` with an interpolation whose values are all client-evaluable is registered for by-value query-cache comparison, but the registered `FormattableString` is compared by reference. A fresh instance is produced on every evaluation, so the comparison ...",
+    "body_excerpt": "### Summary\n\n`Sql.Expr<T>(FormattableString)` with an interpolation whose values are all client-evaluable is registered for by-value query-cache comparison, but the registered `FormattableString` is compared by reference. A fresh instance is produced on every evaluation, so the comparison never matches and the query is rebuilt on every execution.\n\n### Background\n\n`FormattableString` is an abstract class implementing only `IFormattable` -- it overrides neither `Equals` nor `GetHashCode`, and does ..."
+  },
+  {
+    "id": 6052,
+    "title": "Regression 6.5.0",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "status: needs-tests"
+    ],
+    "user": "jetonpeche",
+    "created_at": "2026-10-15T14:45:16Z",
+    "updated_at": "2026-10-16T19:34:08Z",
+    "closed_at": "2026-10-16T19:34:08Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6052",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "After upgrading from `linq2db` 6.3.0 to 6.5.0, performing a `.Union()` between two subqueries with projections containing columns with value converters (e.g. custom mappings, booleans, dates) throws an `ArgumentException: Argument types do not match`. The issue originates from...",
+    "body_excerpt": "### Description\n\n\n### Description\n\nAfter upgrading from `linq2db` 6.3.0 to 6.5.0, performing a `.Union()` between two subqueries with projections containing columns with value converters (e.g. custom mappings, booleans, dates) throws an `ArgumentException: Argument types do not match`.\n\nThe issue originates from `SequenceHelper.Canonicalize` attempting to compare `IValueConverter` instances via `Expression.Condition`.\n\n### Isolated Culprit: Custom ValueConverter<char?, char>\n\nThe failure occurs ..."
+  },
+  {
+    "id": 5787,
+    "title": "Aggregate with an untranslatable selector inside a projection fails with \"There is no method 'AggregateExecute'\"",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [],
+    "user": "sdanyliv",
+    "created_at": "2026-08-15T15:36:46Z",
+    "updated_at": "2026-10-17T13:57:16Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/5787",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "An aggregate whose selector cannot be translated to SQL reports an internal error about a missing method instead of the ordinary \"could not be converted to SQL\", when the aggregate sits inside a projection. The query is sent to the server first -- the aggregate is dropped from...",
+    "body_excerpt": "An aggregate whose selector cannot be translated to SQL reports an internal error about a missing method instead of the ordinary \"could not be converted to SQL\", when the aggregate sits inside a projection.\n\nThe query is sent to the server first -- the aggregate is dropped from the SQL entirely -- and the failure happens afterwards, while materializing the result.\n\nProvider-independent: reproduced on SQLite, Access, Informix and SQL Server 2014-minus. No interval/`TimeSpan` code is involved; `Date..."
+  },
+  {
+    "id": 6062,
+    "title": "SqlCe: bind decimal values as parameters so a finer value does not match a coarser one",
+    "state": "open",
+    "area": "PROV-SQLCE",
+    "labels": [
+      "area: sql",
+      "provider: sqlce"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-17T14:53:48Z",
+    "updated_at": "2026-10-17T14:53:53Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6062",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "SQL CE compares a decimal literal at the scale of the other operand, so `1.004` matches a `decimal(18,2)` value of `1.00`. A parameter compares exactly. linq2db writes constants and captured `IN`-list values as literals on SqlCe, so these predicates answer true where every oth...",
+    "body_excerpt": "### Summary\n\nSQL CE compares a decimal literal at the scale of the other operand, so `1.004` matches a `decimal(18,2)` value of `1.00`. A parameter compares exactly. linq2db writes constants and captured `IN`-list values as literals on SqlCe, so these predicates answer true where every other provider answers false.\n\n### Background\n\nMeasured on a `decimal(18,2)` row holding `1.00`, master `e05b3cc4f`, net10.0:\n\n| predicate | SqlCe | SQL Server 2022 |\n|---|---|---|\n| `Dec = 1.004` (raw SQL, and `x..."
+  },
+  {
+    "id": 6063,
+    "title": "YDB: a decimal mapped with Precision but no Scale is written through a Decimal(P, 0) parameter",
+    "state": "open",
+    "area": "PROV-YDB",
+    "labels": [
+      "area: mapping",
+      "provider: ydb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-17T17:14:22Z",
+    "updated_at": "2026-10-17T17:14:48Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6063",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/Ydb/YdbDataProvider.cs"
+    ],
+    "summary": "On YDB, a `decimal` mapped with `Precision` but without `Scale` (`[Column(Precision = 30)] decimal`) is written through a parameter typed `Decimal(30, 0)`, so any value with a fractional part fails on a parameterized write, while the column itself is created as `Decimal(30, 9)...",
+    "body_excerpt": "### Summary\n\nOn YDB, a `decimal` mapped with `Precision` but without `Scale` (`[Column(Precision = 30)] decimal`) is written through a parameter typed `Decimal(30, 0)`, so any value with a fractional part fails on a parameterized write, while the column itself is created as `Decimal(30, 9)`.\n\n### Current behavior\n\n- `Source/LinqToDB/Internal/DataProvider/Ydb/YdbDataProvider.cs:446-455` -- `SetParameterType` copies `Precision` and `Scale` to the `DbParameter` only when each is non-null, so a `Scal..."
+  },
+  {
+    "id": 6065,
+    "title": "DB2: a nullable equality ORed with another condition evaluates to UNKNOWN when compared as a value",
+    "state": "open",
+    "area": "PROV-DB2",
+    "labels": [
+      "area: sql",
+      "provider: db2"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-18T14:39:32Z",
+    "updated_at": "2026-10-18T14:39:41Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6065",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Under `CompareNulls.LikeClr`, `e.Flag == (e.Id == e.Item || e.Id == 5)` (`Id int`, `Item int?`, `Flag bool`) renders `WHERE (\"e\".\"Flag\") = (\"e\".\"Id\" = \"e\".\"Item\" AND \"e\".\"Item\" IS NOT NULL OR \"e\".\"Id\" = 5)`. For the row `{ Id = 1, Item = null, Flag = false }` the right-hand si...",
+    "body_excerpt": "Under `CompareNulls.LikeClr`, `e.Flag == (e.Id == e.Item || e.Id == 5)` (`Id int`, `Item int?`, `Flag bool`) renders\n`WHERE (\"e\".\"Flag\") = (\"e\".\"Id\" = \"e\".\"Item\" AND \"e\".\"Item\" IS NOT NULL OR \"e\".\"Id\" = 5)`.\nFor the row `{ Id = 1, Item = null, Flag = false }` the right-hand side is `(UNKNOWN AND FALSE) OR FALSE` = FALSE, so the row should match. DB2 LUW evaluates the comparison as UNKNOWN and drops it. The projected form (`CASE WHEN (...) = (...) THEN 1 ELSE 0 END`) returns `false` where C# returns ..."
+  },
+  {
+    "id": 6066,
+    "title": "A nullable inline-array Contains converted to a string returns NULL where C# returns \"False\"",
+    "state": "open",
+    "area": "SQL-PROVIDER",
+    "labels": [
+      "area: sql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-18T14:47:39Z",
+    "updated_at": "2026-10-18T14:47:54Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6066",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`table.Select(e => e.Id + \":\" + new int?[] { e.Item, 5 }.Contains(e.Id))` (`Id int`, `Item int?`) renders the membership raw inside the conversion. On SQLite: `CAST([e].[Id] AS NVarChar(11)) || ':' || CAST([e].[Id] IN ([e].[Item], 5) AS NVarChar(1))` For `{ Id = 1, Item = null...",
+    "body_excerpt": "`table.Select(e => e.Id + \":\" + new int?[] { e.Item, 5 }.Contains(e.Id))` (`Id int`, `Item int?`) renders the membership raw inside the conversion. On SQLite:\n`CAST([e].[Id] AS NVarChar(11)) || ':' || CAST([e].[Id] IN ([e].[Item], 5) AS NVarChar(1))`\nFor `{ Id = 1, Item = null }` the `IN` is UNKNOWN, so the cast and the whole concatenation are NULL and the row reads `\"\"`, where C# reads `\"1:False\"`. DB2 (`Char(\"e\".\"Id\" IN (\"e\".\"Item\", 5))`) behaves the same. A bare projection (`CASE WHEN ... THEN ..."
+  },
+  {
+    "id": 6051,
+    "title": "x86 .NET Framework: JIT faults in provider code using NaN/Infinity constants when the host unmasks FP exceptions",
+    "state": "closed",
+    "area": "COMPAT",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-15T14:42:06Z",
+    "updated_at": "2026-10-19T10:52:48Z",
+    "closed_at": "2026-10-19T10:52:48Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6051",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Follow-up to #6042. When a native host unmasks the floating-point overflow, divide-by-zero and invalid-operation exceptions (C++Builder and Delphi do this by default) and calls into linq2db from an **x86** .NET Framework process, the JIT faults while compiling methods that wor...",
+    "body_excerpt": "Follow-up to #6042.\n\nWhen a native host unmasks the floating-point overflow, divide-by-zero and invalid-operation exceptions (C++Builder and Delphi do this by default) and calls into linq2db from an **x86** .NET Framework process, the JIT faults while compiling methods that work with `double` special values. The fault surfaces as `SEHException` or `STATUS_FLOAT_MULTIPLE_TRAPS` (0xC00002B5), and on .NET Framework 4.8.1 build 4.8.09221 as a stack overflow inside `clrjit.dll`. x64 is not affected.\n..."
+  },
+  {
+    "id": 6068,
+    "title": "\"Coalesce used with type that cannot be null\" when a struct built in an inner projection is referenced twice",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [],
+    "user": "Demivan",
+    "created_at": "2026-10-19T12:28:36Z",
+    "updated_at": "2026-10-19T12:28:36Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6068",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "When an inner projection (chained `Select`, `Concat`/`Union`, subquery) constructs a value-type object (struct) and the outer projection references that member two or more times, query building throws `InvalidOperationException: Coalesce used with type that cannot be null`. `F...",
+    "body_excerpt": "### Description\n\nWhen an inner projection (chained `Select`, `Concat`/`Union`, subquery) constructs a value-type object (struct) and the outer projection references that member two or more times, query building throws `InvalidOperationException: Coalesce used with type that cannot be null`.\n\n`FinalizeExpressionVisitor.VisitSqlGenericConstructorExpression` memoizes a constructor it sees more than once as `variable = variable ?? constructed`, with `variable` typed as the constructed type. For a no..."
+  },
+  {
+    "id": 6067,
+    "title": "'Contains' can't be converted to SQL in .net 10",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "status: needs-tests"
+    ],
+    "user": "denisatedams",
+    "created_at": "2026-10-19T06:34:43Z",
+    "updated_at": "2026-10-19T12:29:26Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6067",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "'Contains' can't be converted to SQL in .net 10 Exception thrown: 'LinqToDB.LinqToDBException' in linq2db.dll The LINQ expression could not be converted to...",
+    "body_excerpt": "### Description\n\n'Contains' can't be converted to SQL in .net 10\n\n### Reproduction Steps\n\n```\n        using var dc1 = new Dc();\n\n        var ids = new[] { 1, 2, 3 };\n        using var table = dc1.CreateTempTable(ids.Select(i => new { Id = i }));\n\n        var items = table\n          .Where(i => ids.Contains(i.Id))\n          .Select(i => i.Id)\n          .ToList();\n```\n\n### Exception details\n\nException thrown: 'LinqToDB.LinqToDBException' in linq2db.dll\nThe LINQ expression could not be converted to..."
+  },
+  {
+    "id": 6070,
+    "title": "A narrowing numeric conversion followed by a widening back is dropped before SQL is built",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: types"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T13:57:20Z",
+    "updated_at": "2026-10-19T13:57:32Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6070",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A C# narrowing numeric conversion -- `(int)x` over a `double` -- is dropped in several places before or while SQL is built, when it is followed by a conversion back to the operand's type or compared with a value of that type. The query then computes with the untruncated value ...",
+    "body_excerpt": "### Summary\n\nA C# narrowing numeric conversion -- `(int)x` over a `double` -- is dropped in several places before or while SQL is built, when it is followed by a conversion back to the operand's type or compared with a value of that type. The query then computes with the untruncated value and returns a silently wrong result.\n\n### Current behavior\n\nMeasured on SQLite.MS (master `e05b3cc4f`), table `{ int Id; double F; double G }` with one row `F = 1.25, G = 1.75`:\n\n| C# | SQL | Result | Expected |\n..."
+  },
+  {
+    "id": 6071,
+    "title": "Text ? date/time casts are wrong on SQLite and Informix and return no rows on YDB",
+    "state": "open",
+    "area": "PROV-SQLITE",
+    "labels": [
+      "provider: sqlite",
+      "provider: informix",
+      "provider: ydb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T20:35:12Z",
+    "updated_at": "2026-10-19T20:35:30Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6071",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A cast of text back to a date/time type is wrong on SQLite and Informix, and gives no rows on YDB. Until #5943 the optimizer folded `CAST(CAST(x AS <text>) AS <x's type>)` back to `x` whatever the inner cast was. That hid these paths for the one shape the corpus exercises: `Da...",
+    "body_excerpt": "A cast of text back to a date/time type is wrong on SQLite and Informix, and gives no rows on YDB. Until #5943 the optimizer folded `CAST(CAST(x AS <text>) AS <x's type>)` back to `x` whatever the inner cast was. That hid these paths for the one shape the corpus exercises: `DateTime.Parse(Sql.ConvertTo<string>.From(x))` (`DateTimeFunctionsTests.Parse1`, `DateOnlyFunctionTests.Parse2`). #5943 keeps folding that round trip, but the paths are still reached by any text ? date cast the fold does not ..."
+  },
+  {
+    "id": 6075,
+    "title": "netstandard2.0 build doesn't translate string.TrimStart()/TrimEnd() no-arg and char overloads on modern runtimes",
+    "state": "open",
+    "area": "COMPAT",
+    "labels": [
+      "area: linq",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T22:19:54Z",
+    "updated_at": "2026-10-19T22:20:25Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6075",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On a modern runtime that loads linq2db's **netstandard2.0** asset, `string.TrimStart()` / `TrimEnd()` without arguments, or with a single `char`, are not translated: This source also compiles on .NET Framework. There it binds to `TrimStart(params char[])`, which every build tr...",
+    "body_excerpt": "### Description\n\nOn a modern runtime that loads linq2db's **netstandard2.0** asset, `string.TrimStart()` / `TrimEnd()` without arguments, or with a single `char`, are not translated:\n\n```\nLinqToDB.LinqToDBException : The LINQ expression 'pp.Name.TrimStart()' could not be converted to SQL.\n```\n\nThis source also compiles on .NET Framework. There it binds to `TrimStart(params char[])`, which every build translates. Compiled for net8+, the same source binds to the `TrimStart()` / `TrimStart(char)` o..."
+  },
+  {
+    "id": 6076,
+    "title": "SAP HANA: netstandard2.0 build doesn't find the .NET 8 HANA client (Sap.Data.Hana.Net.v8.0)",
+    "state": "open",
+    "area": "PROV-SAPHANA",
+    "labels": [
+      "provider: sap-hana",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T22:20:07Z",
+    "updated_at": "2026-10-19T22:20:36Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6076",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs"
+    ],
+    "summary": "The **netstandard2.0** build of linq2db probes only `Sap.Data.Hana.Core.v2.1` for the native SAP HANA client. The net8+ build probes `Sap.Data.Hana.Net.v8.0`, `Sap.Data.Hana.Net.v6.0` and then `Sap.Data.Hana.Core.v2.1` (`Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaPro...",
+    "body_excerpt": "### Description\n\nThe **netstandard2.0** build of linq2db probes only `Sap.Data.Hana.Core.v2.1` for the native SAP HANA client. The net8+ build probes `Sap.Data.Hana.Net.v8.0`, `Sap.Data.Hana.Net.v6.0` and then `Sap.Data.Hana.Core.v2.1` (`Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs:31-37`). An app on a modern runtime that loads the ns2.0 asset with a current HANA client fails:\n\n```\nSystem.InvalidOperationException : Cannot load assembly by name(s) Sap.Data.Hana.Core.v2..."
+  },
+  {
+    "id": 6077,
+    "title": "PostgreSQL: netstandard2.0 build can't read Npgsql 10 date/time/daterange into DateTime/TimeSpan/NpgsqlRange<DateTime>",
+    "state": "open",
+    "area": "PROV-POSTGRES",
+    "labels": [
+      "provider: postgresql",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T22:20:15Z",
+    "updated_at": "2026-10-19T22:20:47Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6077",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Npgsql 10 returns `DateOnly` for `date`, `TimeOnly` for `time` and `NpgsqlRange<DateOnly>` for `daterange`. The net8+ build of linq2db converts those to the classic `DateTime` / `TimeSpan` / `NpgsqlRange<DateTime>` property types. That conversion lives under `SUPPORTS_DATEONLY...",
+    "body_excerpt": "### Description\n\nNpgsql 10 returns `DateOnly` for `date`, `TimeOnly` for `time` and `NpgsqlRange<DateOnly>` for `daterange`. The net8+ build of linq2db converts those to the classic `DateTime` / `TimeSpan` / `NpgsqlRange<DateTime>` property types. That conversion lives under `SUPPORTS_DATEONLY` (`PostgreSQLDataProvider.cs:88-93`, `PostgreSQLMappingSchema.cs:75-82`), so the **netstandard2.0** build has none of it. An app on a modern runtime that loads the ns2.0 asset fails on a plain `DateTime` p..."
+  },
+  {
+    "id": 6078,
+    "title": "SQL Server: a datetime literal beside MAX / COALESCE of a datetime column is written as datetime2 and misses a read-back value",
+    "state": "open",
+    "area": "PROV-SQLSERVER",
+    "labels": [
+      "provider: mssql"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T23:41:25Z",
+    "updated_at": "2026-10-19T23:41:34Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6078",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On SQL Server, a `DateTime` literal compared with a value **computed** from a `datetime` column (`MAX`, `COALESCE`) is written as `DATETIME2FROMPARTS(...)`. A value stored in, and read back from, that column then fails to match. The same literal compared with the **column itse...",
+    "body_excerpt": "### Summary\n\nOn SQL Server, a `DateTime` literal compared with a value **computed** from a `datetime` column (`MAX`, `COALESCE`) is written as `DATETIME2FROMPARTS(...)`. A value stored in, and read back from, that column then fails to match. The same literal compared with the **column itself** is written as `DATETIMEFROMPARTS(...)` and matches.\n\n### Repro\n\n```csharp\nsealed class Row\n{\n\t[PrimaryKey]                           public int       Id { get; set; }\n\t[Column(DataType = DataType.DateTime)..."
+  },
+  {
+    "id": 6079,
+    "title": "Inline IN list values are typed through SUM and type-changing casts, narrowing a literal the operand does not hold",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: types"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T23:43:19Z",
+    "updated_at": "2026-10-19T23:43:28Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6079",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "An **inline** `IN` list value is typed from the operand's column descriptor through the *read* path, `QueryHelper.GetColumnDescriptor`. That path sees through `SUM` and through a cast that changes the database type, so the value is narrowed to a column type that does not descr...",
+    "body_excerpt": "### Summary\n\nAn **inline** `IN` list value is typed from the operand's column descriptor through the *read* path, `QueryHelper.GetColumnDescriptor`. That path sees through `SUM` and through a cast that changes the database type, so the value is narrowed to a column type that does not describe the operand:\n\n- `ExpressionBuildVisitor.ConvertInPredicate` (`UsingColumnDescriptorBeside(QueryHelper.GetColumnDescriptor(expr), expr)`)\n- `ContainsBuilder`\n\n`==` uses `GetColumnDescriptorForTyping`, which ..."
+  },
+  {
+    "id": 6080,
+    "title": "A provider's refusal inside a projection filtered through AsSubQuery() loses its reason: only \"could not be converted to SQL\" is reported",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T23:45:26Z",
+    "updated_at": "2026-10-19T23:45:36Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6080",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "When a provider refuses a construct inside a projection that is then filtered through `AsSubQuery()`, the specific reason is lost. The exception says only that the *comparison* \"could not be converted to SQL\". The same construct in a plain projection reports the provider's rea...",
+    "body_excerpt": "### Summary\n\nWhen a provider refuses a construct inside a projection that is then filtered through `AsSubQuery()`, the specific reason is lost. The exception says only that the *comparison* \"could not be converted to SQL\". The same construct in a plain projection reports the provider's reason under `Additional details`.\n\n### Repro (YDB, which does not support LAG's default argument)\n\n```csharp\nvar windowed = t\n\t.Select(r => new { Lag = Sql.Window.Lag(r.D, 1, r.D, w => w.OrderBy(r.Id)) })\n\t.AsSub..."
+  },
+  {
+    "id": 6081,
+    "title": "SQLite, ClickHouse: a date column IN a list of datetime columns misses a match that == finds",
+    "state": "open",
+    "area": "PROV-SQLITE",
+    "labels": [
+      "provider: sqlite",
+      "area: types",
+      "provider: clickhouse"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T23:49:15Z",
+    "updated_at": "2026-10-19T23:49:30Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6081",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On SQLite and ClickHouse, a stored date column `IN` a list of datetime columns misses a match that `==` finds.",
+    "body_excerpt": "### Summary\n\nOn SQLite and ClickHouse, a stored date column `IN` a list of datetime columns misses a match that `==` finds.\n\n### Repro\n\n```csharp\nsealed class Row\n{\n\t[PrimaryKey]                           public int      Id        { get; set; }\n\t[Column(DataType = DataType.Date)]     public DateTime OpenedOn  { get; set; }\n\t[Column(DataType = DataType.DateTime)] public DateTime CreatedOn { get; set; }\n\t[Column(DataType = DataType.DateTime)] public DateTime UpdatedOn { get; set; }\n}\n\n// OpenedOn ..."
+  },
+  {
+    "id": 5997,
+    "title": "Date/time literal compared with a coarser column loses its sub-second part",
+    "state": "open",
+    "area": "GLOBAL",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-03T19:53:19Z",
+    "updated_at": "2026-10-19T23:51:43Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/5997",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A date/time literal compared with a column declared with a coarser date/time type is narrowed to the column's type, which drops its sub-second (or time) part and changes the comparison's answer without an error.",
+    "body_excerpt": "A date/time literal compared with a column declared with a coarser date/time type is narrowed to the column's type, which drops its sub-second (or time) part and changes the comparison's answer without an error.\n\n## Repro (ClickHouse, 6.5.x)\n\n```cs\n[Table]\nclass ProbeRow\n{\n\t[PrimaryKey]                           public int      Id { get; set; }\n\t[Column(DataType = DataType.DateTime)] public DateTime Dt { get; set; }\n}\n\nstatic readonly DateTime Boundary = new(2026, 6, 1, 10, 0, 0, 500);\n\n// one r..."
+  },
+  {
+    "id": 6084,
+    "title": "DuckDB: netstandard2.0 build can't read TIMETZ into TimeSpan on modern runtimes",
+    "state": "open",
+    "area": "PROV-DUCKDB",
+    "labels": [
+      "area: compatibility",
+      "provider: duckdb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:45:08Z",
+    "updated_at": "2026-10-20T01:45:21Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6084",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs"
+    ],
+    "summary": "On a modern runtime that loads linq2db's **netstandard2.0** asset, DuckDB's `TIMETZ` ? `TimeSpan` reader is missing. It is registered only under `SUPPORTS_DATEONLY` (`Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs:79-80`), although both types exist on every...",
+    "body_excerpt": "### Description\n\nOn a modern runtime that loads linq2db's **netstandard2.0** asset, DuckDB's `TIMETZ` ? `TimeSpan` reader is missing. It is registered only under `SUPPORTS_DATEONLY` (`Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs:79-80`), although both types exist on every TFM:\n\n```\nLinqToDB.Common.LinqToDBConvertException : Cannot convert value '1/1/0001 12:00:00 AM +00:00: System.DateTimeOffset' to type 'System.TimeSpan'\n  ----> System.InvalidCastException : Object must im..."
+  },
+  {
+    "id": 6085,
+    "title": "MySQL: netstandard2.0 build can't read VECTOR into float[] with MySqlConnector on modern runtimes",
+    "state": "open",
+    "area": "PROV-MYSQL",
+    "labels": [
+      "provider: mysql",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:45:12Z",
+    "updated_at": "2026-10-20T01:45:24Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6085",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Internal/DataProvider/MySql/MySqlMappingSchema.cs"
+    ],
+    "summary": "On a modern runtime that loads linq2db's **netstandard2.0** asset, reading a MySQL `VECTOR` column into a `float[]` property fails with MySqlConnector. The driver returns `ReadOnlyMemory<float>`, and the conversion back to `float[]` is registered only under `#if` (`Source/Linq...",
+    "body_excerpt": "### Description\n\nOn a modern runtime that loads linq2db's **netstandard2.0** asset, reading a MySQL `VECTOR` column into a `float[]` property fails with MySqlConnector. The driver returns `ReadOnlyMemory<float>`, and the conversion back to `float[]` is registered only under `#if` (`Source/LinqToDB/Internal/DataProvider/MySql/MySqlMappingSchema.cs:42-44`):\n\n```\nLinqToDB.Common.LinqToDBConvertException : Cannot convert value 'System.ReadOnlyMemory<Single>[2]: System.ReadOnlyMemory`1[System.Single]..."
+  },
+  {
+    "id": 6086,
+    "title": "ClickHouse.Driver: parameterised insert fails with unbound p1 on the netstandard2.0 build",
+    "state": "open",
+    "area": "PROV-CLICKHOUSE",
+    "labels": [
+      "provider: clickhouse",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:45:16Z",
+    "updated_at": "2026-10-20T01:45:27Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6086",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On a modern runtime that loads linq2db's **netstandard2.0** asset, `ClickHouseTypeTests.TestDateType` fails with **ClickHouse.Driver** on a parameterised insert. On net10.0 it passes: The preceding literal inser...",
+    "body_excerpt": "### Description\n\nOn a modern runtime that loads linq2db's **netstandard2.0** asset, `ClickHouseTypeTests.TestDateType` fails with **ClickHouse.Driver** on a parameterised insert. On net10.0 it passes:\n\n```\nClickHouse.Driver.ClickHouseServerException : Code: 47. DB::Exception: Unknown expression identifier `p1` in scope p1: While executing WaitForAsyncInsert. (UNKNOWN_IDENTIFIER)\n  Query: INSERT INTO `TypeTable``2` ( Id, Column, ColumnNullable ) VALUES (1,p1,NULL)\n```\n\nThe preceding literal inser..."
+  },
+  {
+    "id": 6087,
+    "title": "PreferClientCalculation: math functions over a missed LEFT JOIN row throw \"Nullable object must have a value\"",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:47:02Z",
+    "updated_at": "2026-10-20T01:47:02Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6087",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "With `LinqOptions.PreferClientCalculation` on, a math function over a column of a LEFT JOIN row that did not match throws `InvalidOperationException: Nullable object must have a value`: Measured on SQLite.Classic and SQL Server 2022 (master `e05b3cc4f` and the #5983 branch), `...",
+    "body_excerpt": "With `LinqOptions.PreferClientCalculation` on, a math function over a column of a LEFT JOIN row that did not match throws `InvalidOperationException: Nullable object must have a value`:\n\n```cs\nfrom e in t\nfrom j in t.LeftJoin(j => j.Id == e.Id + 1000)   // matches no row\nselect Math.Sqrt(j.Dbl)\n```\n\nMeasured on SQLite.Classic and SQL Server 2022 (master `e05b3cc4f` and the #5983 branch), `j.Dbl` a non-nullable `double`:\n\n| Shape | Option off | Option on, master | Option on, #5983 |\n|---|---|---|..."
+  },
+  {
+    "id": 6088,
+    "title": "Sybase: new DateTime / Sql.MakeDateTime over NULL parts raises \"conversion of VARCHAR value '--'\"",
+    "state": "open",
+    "area": "PROV-SYBASE",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:47:07Z",
+    "updated_at": "2026-10-20T01:47:07Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6088",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On Sybase ASE, a date built from parts that are NULL raises instead of answering NULL: Measured on Sybase.Managed (direct and LinqService), both `PreferClientCalculation` arms, on master `e05b3cc4f`:",
+    "body_excerpt": "On Sybase ASE, a date built from parts that are NULL raises instead of answering NULL:\n\n```cs\nfrom e in t\nfrom j in t.LeftJoin(j => j.Id == e.Id + 1000)   // matches no row\nselect new\n{\n    Constructed = new DateTime(j.Value1, j.Value1, j.Value1),\n    Made        = Sql.MakeDateTime(j.Value1, j.Value1, j.Value1),\n}\n```\n\nMeasured on Sybase.Managed (direct and LinqService), both `PreferClientCalculation` arms, on master `e05b3cc4f`:\n\n```\nAdoNetCore.AseClient.AseException: Syntax error during explic..."
+  },
+  {
+    "id": 6089,
+    "title": "ClickHouse: decimal division by a missed LEFT JOIN row raises \"Decimal convert overflow\"",
+    "state": "open",
+    "area": "PROV-CLICKHOUSE",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T01:47:11Z",
+    "updated_at": "2026-10-20T01:47:11Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6089",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "On ClickHouse, a decimal division whose divisor comes from a LEFT JOIN row that did not match raises: Measured on ClickHouse.Driver (direct and LinqService) with `PreferClientCalculation` off, on master `e05b3cc4f`:",
+    "body_excerpt": "On ClickHouse, a decimal division whose divisor comes from a LEFT JOIN row that did not match raises:\n\n```cs\nfrom e in t\nfrom j in t.LeftJoin(j => j.Id == e.Id + 1000)   // matches no row\nselect e.Dec / j.Dec                              // decimal columns\n```\n\nMeasured on ClickHouse.Driver (direct and LinqService) with `PreferClientCalculation` off, on master `e05b3cc4f`:\n\n```\nClickHouse.Driver.ClickHouseServerException: Code: 407. DB::Exception: Decimal convert overflow.\nCannot convert infinit..."
+  },
+  {
+    "id": 6093,
+    "title": "Nullable struct from an inner projection: .Value.<member> and .HasValue are not translated to SQL",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T12:46:30Z",
+    "updated_at": "2026-10-20T12:46:49Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6093",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "When an inner projection builds a struct lifted to `Nullable<T>`, `(T?)new T(...)`, the outer query cannot use the struct's members through `.Value`, nor `.HasValue`, in SQL. Query building fails with \"could not be converted to SQL\".",
+    "body_excerpt": "### Summary\n\nWhen an inner projection builds a struct lifted to `Nullable<T>`, `(T?)new T(...)`, the outer query cannot use the struct's members through `.Value`, nor `.HasValue`, in SQL. Query building fails with \"could not be converted to SQL\".\n\n### Current behavior\n\n```cs\nreadonly record struct ParentPoint(int Id, int? Value);\n\ndb.Parent\n\t.Select(p => new { p.ParentID, Info = (ParentPoint?)new ParentPoint(p.ParentID, p.Value1) })\n\t.Where(m => m.Info!.Value.Id > 2)\n\t.Select(m => new { m.Parent..."
+  },
+  {
+    "id": 6094,
+    "title": "Union/Concat of a lifted struct with a (T?)null branch throws NullReferenceException on read",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: set"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-20T12:46:39Z",
+    "updated_at": "2026-10-20T12:46:55Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6094",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "A set operation where one branch projects `(T?)new T(...)` and the other projects `(T?)null` for the same member builds a query without a marker column for the null branch. Reading the rows then throws `NullReferenceException`.",
+    "body_excerpt": "### Summary\n\nA set operation where one branch projects `(T?)new T(...)` and the other projects `(T?)null` for the same member builds a query without a marker column for the null branch. Reading the rows then throws `NullReferenceException`.\n\n### Current behavior\n\n```cs\nreadonly record struct ParentPoint(int Id, int? Value);\n\ndb.Parent.Where(p => p.ParentID < 4)\n\t.Select(p => new { p.ParentID, Info = (ParentPoint?)new ParentPoint(p.ParentID, p.Value1) })\n\t.Concat(db.Parent.Where(p => p.ParentID >..."
+  },
+  {
+    "id": 6072,
+    "title": "Integer Sql.Degrees overloads keep the fraction in SQL where the engine's DEGREES returns a float",
+    "state": "open",
+    "area": "PROV-SQLITE",
+    "labels": [
+      "area: linq",
+      "provider: sqlite",
+      "provider: duckdb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T20:36:23Z",
+    "updated_at": "2026-10-20T15:10:18Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6072",
+    "is_pr": false,
+    "linked_files": [
+      "Source/LinqToDB/Sql/Sql.cs"
+    ],
+    "summary": "The integer overloads of `Sql.Degrees` (`short?`, `int?`, `long?`, ...; `Source/LinqToDB/Sql/Sql.cs:1064-1068`) return an integer client-side -- `(int?)(value.Value * 180 / Math.PI)` -- but on most providers they translate to the engine's `DEGREES` function as a plain `[Functi...",
+    "body_excerpt": "The integer overloads of `Sql.Degrees` (`short?`, `int?`, `long?`, ...; `Source/LinqToDB/Sql/Sql.cs:1064-1068`) return an integer client-side -- `(int?)(value.Value * 180 / Math.PI)` -- but on most providers they translate to the engine's `DEGREES` function as a plain `[Function]`. Where that function returns a floating value for an integer argument, the SQL result keeps its fraction, and a comparison in SQL sees it.\n\n```cs\nfrom r in t\nwhere Sql.Degrees((int)r.M) == 57   // M = 1.5m: (int)M = 1, Deg..."
+  },
+  {
+    "id": 6090,
+    "title": "ArgumentException \"Property is not defined for type Nullable<T>\" when a nullable struct built in an inner projection is read",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [],
+    "user": "Demivan",
+    "created_at": "2026-10-20T09:45:42Z",
+    "updated_at": "2026-10-20T19:47:42Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6090",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "When an inner projection (chained `Select`, `Concat`, `Distinct`, `OrderBy().Take()`, a `LEFT JOIN` subquery with `DefaultIfEmpty`, a scalar subquery with `FirstOrDefault`) constructs a struct lifted to `Nullable<T>`, `(T?)new T(...)`, and the outer query reads that member, qu...",
+    "body_excerpt": "### Description\n\nWhen an inner projection (chained `Select`, `Concat`, `Distinct`, `OrderBy().Take()`, a `LEFT JOIN` subquery with `DefaultIfEmpty`, a scalar subquery with `FirstOrDefault`) constructs a struct lifted to `Nullable<T>`, `(T?)new T(...)`, and the outer query reads that member, query building throws `ArgumentException: Property 'Int32 Id' is not defined for type 'System.Nullable`1[T]'`. Reading it once is enough.\n\n`SequenceHelper.CorrectTrackingPath` reaches the constructor through ..."
+  },
+  {
+    "id": 6064,
+    "title": "IN list beside an aggregate over a decimal column writes captured values at the schema's default scale",
+    "state": "open",
+    "area": "PROV-CLICKHOUSE",
+    "labels": [
+      "area: sql",
+      "provider: clickhouse",
+      "provider: ydb"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-17T21:58:47Z",
+    "updated_at": "2026-10-21T11:35:16Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6064",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "`capturedList.Contains(g.Max(r => r.Value))` over a column finer than the mapping schema's default decimal type writes the list values with `MappingSchema.GetDbDataType(typeof(decimal))` (`BasicSqlBuilder.GetInListValueType` / `InValues`, `YdbSqlBuilder.BuildInListPredicate`),...",
+    "body_excerpt": "`capturedList.Contains(g.Max(r => r.Value))` over a column finer than the mapping schema's default decimal type writes the list values with `MappingSchema.GetDbDataType(typeof(decimal))` (`BasicSqlBuilder.GetInListValueType` / `InValues`, `YdbSqlBuilder.BuildInListPredicate`), not with the value's or the column's facets.\n\n```csharp\nsealed class FineDecimalRow\n{\n\t[PrimaryKey] public int Id { get; set; }\n\n\t[Column(Configuration = ProviderName.ClickHouse, DataType = DataType.Decimal128, Precision =..."
+  },
+  {
+    "id": 4773,
+    "title": "Another issue with casting to interface and SQL generation",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: mapping"
+    ],
+    "user": "shameleo",
+    "created_at": "2025-01-10T11:09:17Z",
+    "updated_at": "2026-10-21T12:26:22Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/4773",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "Exception during SQL generation. Requires using Interfaces, inheritance and casting to interface at the same time **Used entities:**",
+    "body_excerpt": "### Describe your issue\nException during SQL generation. Requires using Interfaces, inheritance and casting to interface at the same time\n\n\n### Steps to reproduce\n**Used entities:**\n```c#\npublic class Contract\n{\n    public int Id { get; set; }\n}\n\npublic interface IClient\n{\n    int Id { get; set; }\n    int ContractId { get; set; }\n    Contract Contract { get; set; }\n}\npublic class ClientBase\n{\n    public int Id { get; set; }\n    public int ContractId { get; set; }\n\n    [Association(ThisKey = name..."
+  },
+  {
+    "id": 4199,
+    "title": "Property X is not defined for interface type Y",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "status: has-tests"
+    ],
+    "user": "sksk571",
+    "created_at": "2023-07-10T17:01:32Z",
+    "updated_at": "2026-10-21T13:09:56Z",
+    "closed_at": "2026-10-21T13:09:24Z",
+    "url": "https://github.com/linq2db/linq2db/issues/4199",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "The exception is thrown when interface type is converted to a concrete type in the Select statement and then Where statement is applied to a result.",
+    "body_excerpt": "### Describe your issue\n\nThe exception is thrown when interface type is converted to a concrete type in the Select statement and then Where statement is applied to a result.\n\n```\nException message: Property '<property name>' is not defined for type '<interface name>' (Parameter 'property')\nStack trace:\n   at System.Linq.Expressions.Expression.Property(Expression expression, PropertyInfo property)\n   at LinqToDB.Expressions.TransformVisitor`1.Transform(Expression expr)\n   at LinqToDB.Expressions...."
+  },
+  {
+    "id": 5964,
+    "title": "Test progress heartbeat: report the filtered test count as total under --filter",
+    "state": "closed",
+    "area": "TESTS-INFRA",
+    "labels": [
+      "area: tests"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-09-23T14:26:45Z",
+    "updated_at": "2026-10-21T18:30:37Z",
+    "closed_at": "2026-10-21T18:30:37Z",
+    "url": "https://github.com/linq2db/linq2db/issues/5964",
+    "is_pr": false,
+    "linked_files": [
+      "Tests/Base/TestProgressReporter.cs"
+    ],
+    "summary": "Under `--filter`, the `--test-progress` heartbeat reports the discovered test count as `total`, not the number of tests the filter selects. `total`, the percentage and `etaSec` are therefore wrong by orders of magnitude on every filtered run, which is the common local case. - ...",
+    "body_excerpt": "### Summary\n\nUnder `--filter`, the `--test-progress` heartbeat reports the discovered test count as `total`, not the number of tests the filter selects. `total`, the percentage and `etaSec` are therefore wrong by orders of magnitude on every filtered run, which is the common local case.\n\n### Current behavior\n\n- `Tests/Base/TestProgressReporter.cs:72-74`: on the root suite, `TestProgressTracker.OnBefore` calls `_state.SetTotal(test.TestCaseCount)`. The comment there acknowledges it: *\"under a --f..."
+  },
+  {
+    "id": 5932,
+    "title": "Missed LeftJoin: non-nullable member is default(T) when read, NULL inside SQL calculations",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: C# semantics"
+    ],
+    "user": "sdanyliv",
+    "created_at": "2026-09-15T20:26:41Z",
+    "updated_at": "2026-10-21T19:48:03Z",
+    "closed_at": "2026-10-21T19:48:03Z",
+    "url": "https://github.com/linq2db/linq2db/issues/5932",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "For a `LeftJoin` row with no match, a non-nullable value-typed member such as `int Value1` materializes as `default(T)`, but a calculation over it that is translated to SQL sees NULL. The same projected row can report `j.Value1` as `0`, `j.Value1.ToString()` as `\"0\"`, and `j.V...",
+    "body_excerpt": "### Summary\n\nFor a `LeftJoin` row with no match, a non-nullable value-typed member such as `int Value1` materializes as `default(T)`, but a calculation over it that is translated to SQL sees NULL. The same projected row can report `j.Value1` as `0`, `j.Value1.ToString()` as `\"0\"`, and `j.Value1 + 1` as `0`.\n\n### Current behavior\n\nSQLite, one table row, a join condition that never matches, `LinqOptions.PreferClientCalculation` at its default (off):\n\n```csharp\nfrom e in table\nfrom j in table.LeftJ..."
+  },
+  {
+    "id": 5923,
+    "title": "PreferClientCalculation: Sql.ToNullable over a binary expression returns a value instead of NULL for a missed LEFT JOIN",
+    "state": "closed",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: C# semantics"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-09-14T11:15:30Z",
+    "updated_at": "2026-10-21T19:48:04Z",
+    "closed_at": "2026-10-21T19:48:04Z",
+    "url": "https://github.com/linq2db/linq2db/issues/5923",
+    "is_pr": false,
+    "linked_files": null,
+    "summary": "With `LinqOptions.PreferClientCalculation` enabled, `Sql.ToNullable(...)` over a **binary expression** on a left-joined column silently returns a computed value instead of `null` when the join misses. The nullability widener is defeated, and the query returns wrong data with n...",
+    "body_excerpt": "## Summary\n\nWith `LinqOptions.PreferClientCalculation` enabled, `Sql.ToNullable(...)` over a **binary expression** on a left-joined column silently returns a computed value instead of `null` when the join misses. The nullability widener is defeated, and the query returns wrong data with no error.\n\nPresent in 6.5.0 as shipped.\n\n## Repro\n\n```csharp\nusing var db    = GetDataContext(context, o => o.UsePreferClientCalculation(true));\nusing var table = db.CreateLocalTable(Seed);   // 3 rows, Value1 = ..."
   }
 ]

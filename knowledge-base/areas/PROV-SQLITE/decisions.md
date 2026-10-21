@@ -3,11 +3,11 @@ area: PROV-SQLITE
 kind: decisions
 sources: [gh-prs, history-decisions]
 confidence: medium
-last_verified: 2026-05-08
-last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
-# PROV-SQLITE — Decisions
+# PROV-SQLITE -- Decisions
 
 ## Recorded decisions
 
@@ -15,7 +15,7 @@ last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
 
 ## Decision-flavored PRs
 
-- No decision-flavored PRs found in this area.
+- No decision-flavored PRs found in this area. Watch item: open PR #5931 changes DateTimeOffset arithmetic semantics and adds an opt-in invariant-parameters mode. It has no labels and no ## Decision section in the fetched excerpt, so it does not meet the criteria yet; re-check when it merges.
 
 ## See also (GLOBAL decisions)
 
@@ -24,4 +24,5 @@ last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
 - [Add SAP HANA provider](../../history/decisions/2014-saphana-provider.md)
 - [New Merge API (PR #686)](../../history/decisions/2017-new-merge-api.md)
 - [Project reorganization](../../history/decisions/2017-project-reorganization.md)
-
+- [Nulls ordering across providers](../../history/decisions/2026-nulls-ordering.md) -- SQLite sorts NULLs first ascending; the decision covers the cross-provider null-ordering API.
+- [Fluent upsert entity API](../../history/decisions/2026-fluent-upsert-entity-api.md) -- phase 1 is SQLite-only (native ON CONFLICT emission).

@@ -3,8 +3,8 @@ area: PROV-DB2
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: medium
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-DB2 -- GitHub themes
@@ -15,7 +15,9 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **DB2 numeric and floating-point semantics** -- Floating-point results on DB2 diverge from other providers. #5897 reports `RATIO_TO_REPORT` returning `Infinity` on a zero partition sum where other providers return NULL. #5994 reports a `double` parameter added to an integer column losing its fraction because the C# cast is dropped and DB2 types the parameter from the column; the same expression with the column on the left keeps `CAST(... AS Float)`. The special-value mapping work in #5663 (resolved below) is the adjacent fix.
 
-- **DB2 DateTime difference read back as TIME** -- #5989 (tagged PROV-ACCESS, but the same defect affects DB2 and Firebird) reports that a projected difference of two local `DateTime` values is returned as TIME: Access fails and DB2 truncates the value. Area ownership is still with PROV-ACCESS; the DB2 symptom is cross-referenced here until reclassified.
+- **DB2 date/time typing and casts** -- #5989 (tagged PROV-ACCESS, but the same defect affects DB2 and Firebird) reports that a projected difference of two local `DateTime` values is returned as TIME: Access fails and DB2 truncates the value. Area ownership is still with PROV-ACCESS; the DB2 symptom is cross-referenced here until reclassified. #6019 (open, labelled `provider: db2`) reports that a recursive CTE anchor wraps a `DateTime` literal in a second cast to the same type, `CAST(CAST('...' AS TIMESTAMP(6)) AS timestamp)`. The result is unaffected; the SQL is longer than it needs to be.
+
+- **DB2 NULL semantics in value comparisons** -- A nullable equality or IN predicate used as a value, not as a WHERE filter, can evaluate to UNKNOWN where C# evaluates to a bool. #6065 (open, PROV-DB2) reports `e.Flag == (e.Id == e.Item || e.Id == 5)` with `Item` as `int?`: DB2 LUW evaluates the right-hand side as UNKNOWN for a row with `Item` NULL and drops the row that C# keeps. #6066 (area tag sql; DB2 symptom cross-referenced here until reclassified) reports the same class for a nullable inline-array `Contains` converted to a string: on DB2 the membership is UNKNOWN and the concatenated string comes back NULL where C# returns a string ending in `False`. Only two items; kept as one theme because both are one defect class (UNKNOWN propagated into a projected value).
 
 ## Resolved themes
 
@@ -31,20 +33,22 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **IBM DB2 provider packaging and versions** -- Provider-assembly and package work over time: #3470 (IBM.Data.DB2 assembly load in the model generator, resolved external), #3478 and #3481 (support for the copy-paste IBM DB2 provider builds and updated dependencies), #5247 (LINQPad: enable DB2 iSeries).
 
+- **DB2 test-host exit crash at teardown** -- An intermittent DB2 test leg went red after the suite had printed its pass summary: the test host exited with code 139 (SIGSEGV) at process exit, per a core dump of a local reproduction, from the IBM client's exit handler. Test-only fix in PR #6073 (merged 2026-10-21), which purges the IBM DB2 connection pool at assembly teardown. No product change.
+
 ## Active discussions
 
 - [DB2 testing and licensing](https://github.com/linq2db/linq2db/discussions/5127) -- [Q&A] Asks how the maintainers obtained IBM support for DB2 regression testing; open since 2025-09.
 
 ## Stats
-- Open issues: 3
+- Open issues: 5
 - Closed issues: 25
 - Open PRs: 0
-- Total PRs: 26
+- Total PRs: 27
 - Discussions: 2
-- Last fetched: 2026-10-10
+- Last fetched: 2026-10-21
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 56 (28 issues + 26 PRs + 2 discussions)
-- Themes extracted: 9 (3 open, 6 resolved)
+- Index entries scanned: 59 (30 issues + 27 PRs + 2 discussions)
+- Themes extracted: 11 (4 open, 7 resolved)
 </details>

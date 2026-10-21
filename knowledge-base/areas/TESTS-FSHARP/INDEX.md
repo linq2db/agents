@@ -3,8 +3,8 @@ area: TESTS-FSHARP
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 0/0
 coverage_tier_2: 23/23
 ---
@@ -42,12 +42,15 @@ Fixed to `net8.0`. References `LinqToDB.EntityFrameworkCore.EF8.csproj`, `LinqTo
 - `PersonWithOptions` -- uses `string option` fields; requires `MappingSchema.Initialize()` to register option converters before use.
 - `PersonConflictingNamesRecord` / `NameConflictingNamesRecord` -- deliberately conflicting case-only field names (`id`, `Id`, `iD`) to test F# record constructor parameter matching.
 - `Child` / `Parent` -- simple two-field records reused across join tests.
+- `PersonWithStaticLet` -- non-`[<CLIMutable>]` record on table `Person` carrying a `static let` binding (`unknownName`) plus `static member UnknownName`. F# gives `static let` bindings `CompilationMapping` sequence numbers ahead of the record fields, so it guards that `FSharpEntityBindingInterceptor`/constructor matching does not mis-order record fields when static state is present. Used by `WhereTest.LoadSingleWithStaticLet` and `WhereTest.RecordProjectionWithStaticLet`.
+
+**`Tests/FSharp/WhereTest.fs`** (delta additions) -- `LoadSingleWithStaticLet` (`First(fun p -> p.ID = 1)` over `PersonWithStaticLet`, asserts John/Pupkin materializes) and `RecordProjectionWithStaticLet` (query-expression `select { PersonWithStaticLet.ID = ... }` projection from `Person` followed by a `where`/`exactlyOne` over the projection), both verifying record materialization and projection are unaffected by a `static let` in the record type.
 
 **`Tests/FSharp/MappingSchema.fs`** -- `Initialize()` function that adds `string option` scalar type and a `SetConvertExpression` for `Option<_>`. Must be called before any `PersonWithOptions` test.
 
 **`Tests/FSharp/Issue4132.fs`** -- `Issue4132Table` record (`Id`/`Number`/`Text`), `Issue4132Test1`/`Issue4132Test2` covering `table.Insert(fun () -> {...})` and `table.Update(predicate, setter)` F# lambda syntax. `Issue4132Table` is now also reused by `Issue5598.fs`.
 
-**`Tests/FSharp/Issue5598.fs`** -- `setClauseOf` (string helper isolating the SET-clause text before `WHERE`) plus `UpdateSetsOnlyChangedColumn`, `UpdateSetsOnlyChangedColumnAsync`, `UpdateSetsOnlyChangedColumnNoPredicate`, `UpdateNoOpExcludesPrimaryKey` -- regression functions proving an F# record-copy `{ row with Text = v }` Update emits SET for only the changed column, never the PK or untouched columns, across predicate/no-predicate/async/no-op-copy shapes. Reuses `Issue4132Table` from `Issue4132.fs`.
+**`Tests/FSharp/Issue5598.fs`** -- `setClauseOf` (string helper isolating the SET-clause text before `WHERE`) plus `UpdateSetsOnlyChangedColumn`, `UpdateSetsOnlyChangedColumnAsync`, `UpdateSetsOnlyChangedColumnNoPredicate`, `UpdateNoOpExcludesPrimaryKey` -- regression functions proving an F# record-copy `{ row with Text = v }` Update emits SET for only the changed column, never the PK or untouched columns, across predicate/no-predicate/async/no-op-copy shapes. Reuses `Issue4132Table` from `Issue4132.fs`. Also defines `StaticLetTable` (`[<Table>]` record with `Id`/`Number`/`Text`/`Note` columns plus a `static let defaultNote`/`static member DefaultNote`, same `CompilationMapping` sequence-number trap as `PersonWithStaticLet`) and `UpdateWithStaticLet`, which runs the record-copy `{ row with StaticLetTable.Text = "after" }` Update and asserts the SET clause contains only `[Text]` (not `[Number]`, `[Note]`, `[Id]`) and that `Note` and `Number` are preserved on read-back. The module now also `open`s `LinqToDB.Mapping` for the attributes.
 
 **`Tests/FSharp/Issue4646.fs`** -- `OptionRow` record (`[<Table("Issue4646Table", IsColumnAttributeRequired = false)>]`, `int option`/`string option` columns) and `TestOptionRoundtrip`, asserting `None` reads back as `None` (not `Some 0`) using only `UseFSharp()`'s automatic option mapping, no manual `MappingSchema.Initialize()`. Distinct from `Tests/EntityFrameworkCore.FSharp/FSharpContext.fs`'s `Issue4646Table` `DbSet` -- same physical table name, different project/connection, no runtime interaction, but worth noting for anyone searching the KB by table name.
 
@@ -79,7 +82,7 @@ Fixed to `net8.0`. References `LinqToDB.EntityFrameworkCore.EF8.csproj`, `LinqTo
 | `Issue4646.fs` | #4646 / #195 | F# `option` column round-trip via `UseFSharp()` automatic mapping, no manual `MappingSchema.Initialize()` |
 | `Issue4851.fs` | #4851 | `(new DataOptions()).UseFSharp()` compiles without error (smoke) |
 | `Issue5428.fs` | #5428 | `UseFSharp()` + NodaTime `LocalDate` + PostgreSQL `DateInterval`, CTE + window `Lead` |
-| `Issue5598.fs` | #5598 | Record-copy `{ row with X = v }` Update emits SET only for the changed column, not the whole row |
+| `Issue5598.fs` | #5598 | Record-copy `{ row with X = v }` Update emits SET only for the changed column, not the whole row (also for a record carrying `static let`) |
 | `OptionMappingPrecedence.fs` | #195 (follow-up) | Automatic option-column schema does not override an explicit fluent `DataType` |
 | `OptionTypes.fs` | #195 | `Nullable<_> option`, `voption`, `decimal option`, complex-element and custom-scalar option edge cases |
 | `OptionQueryTests.fs` | (no issue id) | SQL translation of option/voption members (`IsSome`/`IsNone`/`Value`, FSharp.Core module functions) in predicates and projections |
@@ -185,6 +188,13 @@ Read (this run -- delta):
 - `Tests/FSharp/OptionQueryTests.fs` -- new module; SQL translation of option/voption members and FSharp.Core module functions in predicates and projections, `IsSomeProjection` returning the captured SQL, and `ParameterOperandIsRefused` for parameter operands.
 - `Tests/FSharp/Issue1813.fs` -- grew from 7 to 11 numbered tests (Test8 interface-typed captured local, Test9 `Nullable<int>` range variable, Test10 string range variable, Test11 three chained groupJoins), added `encodeJoins`/`key`/`keyT` helpers replacing positional asserts, added gated `Issue5794Test` / `Issue5790Test` and the un-gated `Issue5790RefusalTest`.
 - `Tests/FSharp/Tests.FSharp.fsproj` -- compile list now ends `... OptionTypes.fs`, `OptionQueryTests.fs`, `DuQueryTests.fs`; no new package/project references.
+
+Updated Tier-2 total (this run): 23/23. No skips.
+
+Read (this run -- delta):
+- `Tests/FSharp/Issue5598.fs` -- added `open LinqToDB.Mapping`, new `StaticLetTable` record (`static let defaultNote` + `static member DefaultNote`) and `UpdateWithStaticLet`: record-copy Update on a type with static state still emits SET for only the changed column.
+- `Tests/FSharp/Models.fs` -- new `PersonWithStaticLet` record (table `Person`, `static let unknownName`) placed between `PersonWithOptions` and `PersonCLIMutable`.
+- `Tests/FSharp/WhereTest.fs` -- new `LoadSingleWithStaticLet` and `RecordProjectionWithStaticLet` functions exercising `PersonWithStaticLet` materialization and query-expression record projection.
 
 Updated Tier-2 total (this run): 23/23. No skips.
 </details>

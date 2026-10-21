@@ -3,23 +3,23 @@ area: PROV-CLICKHOUSE
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: medium
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-CLICKHOUSE -- GitHub themes
 
 ## Open themes
-
 - **Correlated subqueries** -- ClickHouse cannot run correlated subqueries, and linq2db's detection is still incomplete. #5590 (open) tracks the generic "could not be converted to SQL" and wrong-SQL cases for YDB and ClickHouse. The expression-position rejection landed in #5574 (merged 2026-06-04) and the join-hint work in #5555 (merged 2026-07-08). Gap remains for complex nested cases.
-- **Type system gaps** -- Array, JSON, tuple and decimal/date type mapping is not covered. #4898 (Array columns) and #4972 ("Unknown type: JSON") remain open; users work around via GetTypeMapping. #5171 (tuples in IN, tagged LINQ) and #5789 (Contains over a decimal column matches rows for a truncated probe value) are open. #5914 (DateTimeOffset writes a different day to Date/Date32 than to DateTime/DateTime64) is open.
-- **Date and time translations (6.4 / 6.5 cycle)** -- Date translations emit SQL that contradicts the declared type, or call DateTime64-only functions on Date values. #5955 (datetime function regression in 6.5.0) is open; fix PR #5959 (open) coerces date operands to DateTime64 before toUnixTimestamp64Milli and toUnixTimestamp64Nano. #5961 (three date translations declare a type that contradicts the emitted SQL) is open.
-- **Octonica client vs newer ClickHouse servers** -- Octonica.ClickHouseClient breaks on server releases. ClickHouse 26.8.2.7 killed the native TCP session mid-run: #5845 dropped Octonica from the CI job, #5846 (draft, diagnostic) isolated it, and #5860 re-enabled it behind a server-side setting. #5962 fixed the CI leg on ClickHouse 26.9. Recurring: a server bump can break the Octonica leg again.
+- **Type system gaps** -- Array, JSON, tuple and decimal/date type mapping is not covered. #4898 (Array columns) and #4972 ("Unknown type: JSON") remain open; users work around via GetTypeMapping. #5171 (tuples in IN, tagged LINQ) and #5789 (Contains over a decimal column matches rows for a truncated probe value) are open. #5914 (DateTimeOffset writes a different day to Date/Date32 than to DateTime/DateTime64) is open. #6044 (attribute-built SQL from Sql.Ext, [Sql.Expression] and [Sql.Function] takes the mapping schema default type instead of the value's type; on ClickHouse an analytic MAX over a whole-second DateTime is typed DateTime64(7), so the DateTime64 coercion is skipped and the server refuses the query) is open.
+- **Date and time translations (6.4 / 6.5 cycle)** -- Date translations emit SQL that contradicts the declared type, or call DateTime64-only functions on Date values. #5955 (datetime function regression in 6.5.0) is open; fix PR #5959 (open) coerces date operands to DateTime64 before toUnixTimestamp64Milli and toUnixTimestamp64Nano. #5961 (three date translations declare a type that contradicts the emitted SQL) is open. The same narrowing pattern shows in literal comparisons: #5997 (a DateTime literal compared with a coarser DateTime column loses its sub-second part on ClickHouse, open) and #6081 (a date column IN a list of datetime columns misses a match that == finds on SQLite and ClickHouse, open; indexed under PROV-SQLITE).
+- **Decimal typing and arithmetic** -- Decimal values take their type from a default rather than from the value or the column. #6064 (an IN list beside an aggregate over a decimal column is written at the mapping schema default scale, not the column's facets; ClickHouse and YDB, open), #5789 (Contains over a decimal column matches rows for a truncated probe value, open) and #6089 (decimal division whose divisor is a missed LEFT JOIN row raises "Decimal convert overflow" on ClickHouse.Driver, open) share one cause family.
+- **Octonica client vs newer ClickHouse servers** -- Octonica.ClickHouseClient breaks on server releases. ClickHouse 26.8.2.7 killed the native TCP session mid-run: #5845 dropped Octonica from the CI job, #5846 (closed, diagnostic) isolated it, and #5860 re-enabled it behind a server-side setting. #5962 fixed the CI leg on ClickHouse 26.9. Recurring: a server bump can break the Octonica leg again.
 - **Schema and DDL** -- CREATE TABLE ignores some linq2db settings and engine choice. #4206 (CreateTable does not respect WithTableExpression) is open. Discussion #4441 (schema provider access levels) is open. Discussion #4402 (CREATE TABLE always in-memory, needs MergeTree engine) is closed.
 - **Lightweight DELETE** -- ClickHouse supports DELETE FROM for lightweight deletions, but linq2db uses ALTER TABLE DELETE. #4725 requests native syntax support (open).
+- **netstandard2.0 asset on modern runtimes** -- A parameterised insert through ClickHouse.Driver fails on the netstandard2.0 build with an unbound parameter (#6086, open) and passes on net10.0. Other providers' netstandard2.0 reports are tracked under their own areas.
 
 ## Resolved themes
-
 - **Octonica client library** -- The Octonica.ClickHouseClient NuGet package (v3.1.8) was incompatible with linq2db (broken in #5460, CI disabled). Updated to v4.1.4 and CI re-enabled in #5608 (merged 2026-06-12).
 - **ClickHouse.Driver rename and v1.0 support** -- ClickHouse.Client was renamed to ClickHouse.Driver (#5071, merged 2025-08-11). Driver update #5227 and v1.0 provider support #5401 merged 2026-01-06 and 2026-03-06.
 - **IN/NOT IN null handling** -- Non-correlated NOT IN / IN emulation was not null-safe for providers without correlated-subquery support (ClickHouse, YDB). Fixed in #5582 (merged 2026-06-04).
@@ -31,22 +31,20 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - **Remote context column attributes** -- On a remote context the server ignored configuration-scoped column attributes (#5966, closed 2026-10-09). The index links no fix PR.
 
 ## Active discussions
-
 - [Wrap s3Cluster ClickHouse function calls](https://github.com/linq2db/linq2db/discussions/5668) -- [Q&A] TableFunction wrapper for ClickHouse s3Cluster remote table function calls; users need to call native s3Cluster() within INSERT INTO .. SELECT.
 - [Force * in insert into select](https://github.com/linq2db/linq2db/discussions/5671) -- [Q&A] INSERT INTO .. SELECT from s3Cluster generates explicit columns instead of * (ClickHouse requires * for certain remote sources).
 - [Schema Provider -- Access levels](https://github.com/linq2db/linq2db/discussions/4441) -- [General] Determining which system tables/databases need permission grants to make schema provider work.
 
 ## Stats
-
-- Open issues: 9
+- Open issues: 13
 - Closed issues: 14
 - Open PRs: 1
 - Total PRs: 33 (1 open, 32 closed)
 - Discussions: 4 (3 open, 1 closed)
-- Last fetched: 2026-10-09 (index data through this date)
+- Last fetched: 2026-10-21 (index data through 2026-10-21T20:10:53Z)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 60 (23 issues + 33 PRs + 4 discussions)
-- Themes extracted: 15 (6 open + 9 resolved)
+- Index entries scanned: 64 (27 issues + 33 PRs + 4 discussions); plus 2 issues tagged to other areas (#5997 GLOBAL, #6081 PROV-SQLITE) included by content
+- Themes extracted: 17 (8 open + 9 resolved)
 </details>

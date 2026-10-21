@@ -3,14 +3,15 @@ area: PROV-SQLCE
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-SQLCE -- GitHub themes
 
 ## Open themes
 - **BulkCopy exceptions** -- Four open issues report distinct exceptions when bulk-inserting into SQL Server Compact 4.0: ntext field null handling (#4436), large string overflow into ntext (#4581), Expression evaluation overflow (#4438), and StackOverflowException on large batches (#4574). Single-row inserts work correctly, suggesting the issue is in the bulk-copy path or ntext-specific logic.
+- **Decimal literal vs parameter scale** -- SQL CE compares a decimal literal at the scale of the other operand, so `1.004` matches a `decimal(18,2)` value of `1.00`, while a parameter compares exactly. linq2db writes constants and captured IN-list values as literals on SqlCe, so these predicates answer true where other providers answer false. Single open item so far (#6062, filed 2026-10-17).
 - **Case-sensitive search** -- Incorrect test configuration meant SQLCE case-sensitive-search test never ran; #3444 tracks the regression (related to #2952).
 - **CommitMode context option** -- Request to expose CommitMode as a context option for SQL Server Compact (#4686), pending decision on implementation approach. Related closed question #4684 (tagged PROV-SQLSERVER) reports SqlCeTransaction.Commit(CommitMode.Immediate) not committing immediately.
 - **Redistributed binaries and packaging** -- SQL Server Compact binaries are hand-copied into Redist/SqlCe rather than restored from the Microsoft.SqlServer.Compact NuGet package (#5861, open, filed 2026-09-03). Related closed issue #5535 (tagged PROV-SAPHANA) reports dotnet pack NU5019 failures for the HintPath-referenced System.Data.SqlServerCe.dll.
@@ -27,15 +28,15 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 (None currently open)
 
 ## Stats
-- Open issues: 7
+- Open issues: 8
 - Closed issues: 5
 - Open PRs: 0
 - Total PRs: 3
 - Discussions: 0 (1 closed)
-- Last fetched: 2026-10-10 (index data through 2026-10-09)
+- Last fetched: 2026-10-21 (index data through 2026-10-21)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 16 (7 open issues + 5 closed issues + 3 PRs + 1 closed discussion)
-- Themes extracted: 10 (4 open + 6 resolved)
+- Index entries scanned: 17 (8 open issues + 5 closed issues + 3 PRs + 1 closed discussion)
+- Themes extracted: 11 (5 open + 6 resolved)
 </details>

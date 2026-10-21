@@ -3,15 +3,15 @@ area: PROV-SAPHANA
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: medium
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-SAPHANA -- GitHub themes
 
 ## Open themes
 
-- **Client assembly loading and NuGet packaging of the HANA provider** -- the provider still ships hand-copied SAP binaries under `Redist/SapHana`. #5862 proposes restoring the .NET-side binaries from SAP's `Sap.Data.Hana.Net.v6.0/v8.0/v10.0` packages (the .NET Framework v4.5 assembly stays separate). Same family as the closed load/GAC and client-version work (#239, #629, #1157, #4887) and the NU5019 HintPath packaging failure (#5535, closed). Open: #5862.
+- **Client assembly loading and NuGet packaging of the HANA provider** -- the provider still ships hand-copied SAP binaries under `Redist/SapHana`. #5862 proposes restoring the .NET-side binaries from SAP's `Sap.Data.Hana.Net.v6.0/v8.0/v10.0` packages (the .NET Framework v4.5 assembly stays separate). Same family as the closed load/GAC and client-version work (#239, #629, #1157, #4887) and the NU5019 HintPath packaging failure (#5535, closed). New: #6076 reports that the netstandard2.0 build probes only `Sap.Data.Hana.Core.v2.1` and misses the net8+ `Sap.Data.Hana.Net.v8.0` / `v6.0` names. Fix PR #6083 (draft, open) adopts the net8+ probe list on every non-.NET Framework build. Open: #5862, #6076, PR #6083.
 - **KeyedQuery detail-side Take/Skip on HANA** -- eager-load detail queries with Take/Skip emit a `LATERAL` correlated to a literal key set, which HANA rejects ("non-field expression with LATERAL"). Open: #5940. Related open cross-provider item: #3015 (CTE support across providers, PROV-ORACLE in the index, labelled `provider: sap-hana`). Earlier APPLY/LATERAL enablement is under Resolved themes.
 - **Array column types** -- HANA array columns are not mapped (`Cannot convert value 'System.Byte[]' to type 'System.String[]'`). Open: #3302 (index tags it GLOBAL; labels `provider: sap-hana`, `status: has-pr`) and PR #3303 "[SAP HANA] Arrays Support" (open, PROV-SAPHANA). Original question: discussion #3301 (closed, GLOBAL). Two items only, below the three-item cluster threshold; kept because both are open.
 - **Stored procedure name escaping** -- #1740 "Linq To DB should escape procedure name (new API needed)" (open; index tags it GLOBAL; labels `provider: sap-hana`, `area: extensions`). Singleton; kept because it is open and provider-labelled.
@@ -31,15 +31,15 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 ## Stats
 
-- Open issues: 2 (#5862, #5940)
+- Open issues: 3 (#5862, #5940, #6076)
 - Closed issues: 13
-- Open PRs: 1 (#3303)
-- Total PRs: 16
+- Open PRs: 2 (#3303, #6083)
+- Total PRs: 17
 - Discussions: 1 (#4270, closed)
-- Last fetched: 2026-10-09 (index data through 2026-10-09)
+- Last fetched: 2026-10-21 (incremental refresh; index data through 2026-10-20)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 43 (21 issues + 20 PRs + 2 discussions), of which PROV-SAPHANA-tagged: 15 issues + 16 PRs + 1 discussion; the rest are HANA-titled or `provider: sap-hana`-labelled items tagged to other areas.
+- PROV-SAPHANA-tagged index entries: 16 issues + 17 PRs + 1 discussion (incremental merge: #6076 and PR #6083 added; no prior citation dropped)
 - Themes extracted: 9 (4 open + 5 resolved)
 </details>

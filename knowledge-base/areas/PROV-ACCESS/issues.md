@@ -3,8 +3,8 @@ area: PROV-ACCESS
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-ACCESS -- GitHub themes
@@ -13,6 +13,8 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **Schema generation and model quality** -- T4 scaffold and schema-read issues affecting MS Access models. Context class names embed full file paths instead of derived names (#3191); association names default to random GUIDs instead of derived back-reference names (#2331); schema build error on Refresh in LINQPad with the ACE provider (#5235).
 - **Driver fidelity: ODBC and Jet OLE DB value handling** -- Access drivers handle some values differently from the core path. ODBC throws OverflowException for long parameters above int.MaxValue (#5748); ODBC drops the sub-second part of DateTime values in both directions while OLE DB keeps it (#5998); a projected difference of two local DateTime values is read back as TIME, which Access over ODBC fails on (#5989); Jet OLE DB returns an undecodable NUMERIC buffer for AVG over a DECIMAL column (#5954).
+- **ACE SQL shape limits: aggregates and correlated subqueries** -- ACE either rejects or silently mis-evaluates query shapes the core path generates. An uncorrelated `TOP 1 ... ORDER BY` column subquery whose select list is a correlated scalar subquery returns different values per outer row with no error, on both OLE DB and ODBC (#6032). A grouped aggregate compared with `Contains` is rendered in WHERE, which the server rejects with "Cannot have aggregate function in WHERE clause"; the aggregate belongs in HAVING or a wrapped subquery (#6047). Related resolved shape: Single() rendered as TOP 2 (#2557).
+- **Managed Access transport via LibRed (in flight)** -- LibRed, a managed cross-platform Jet/ACE engine and ADO.NET provider, as a third Access transport that needs no Microsoft driver install. #5956 adds the LibRed provider on top of #5942 (.NET 11 support) and #5944 (C# 15 and runtime async); it is not for merge before .NET 11 RTM. #5969 (child of #5956) lifts the Access dialect for LibRed: every dialect exclusion named TestProvName.AllAccess, which includes LibRed, so none of the tests exercising its extended SQL ran on it. Both are drafts.
 
 ## Resolved themes
 
@@ -25,8 +27,8 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - **T4 template and scaffolding** -- Model generation failures (#1164), VS2022 64-bit T4 support, exclude-schemas option regression (#3709), context and scaffold questions (#3626).
 - **Type mapping** -- Long Integer field mapping (should be long, not int #289), boolean type mapping (#409), long text column type (#4003), custom type conversions.
 - **Date-difference translation on Access** -- A member of a nullable date difference read through Nullable of TimeSpan .Value was not translated (#5988, closed 2026-10-09; no closing PR is linked in the index).
-- **Test-suite Access ODBC connection handling** -- Access ODBC test connection strings tuned for Threads and MaxBufferSize (#5700), and one ODBC connection held open for the whole test run (#5747). Both closed.
-- **Cross-area changes tagged PROV-ACCESS** -- Engine-level PRs the index tags PROV-ACCESS but that are not Access-specific: #5468, #5482, #5501, #5619, #5639, #5645 (all closed).
+- **Test-suite Access ODBC connection handling** -- Access ODBC test connection strings tuned for Threads and MaxBufferSize (#5700), and one ODBC connection held open for the whole test run (#5747). Both closed. The x86 Access MDB test leg was split per provider (#6005, merged 2026-10-10) after OutOfMemoryException in one 32-bit process.
+- **Cross-area changes tagged PROV-ACCESS** -- Engine-level PRs the index tags PROV-ACCESS but that are not Access-specific: #5468, #5482, #5501, #5619, #5639, #5645 (all closed). #5493 (Duplicate parameter optimization) closed unmerged 2026-10-17; the index now tags it CORE.
 
 ## Active discussions
 
@@ -34,15 +36,15 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 ## Stats
 
-- Open issues: 7 (#2331, #3191, #5235, #5748, #5954, #5989, #5998)
+- Open issues: 9 (#2331, #3191, #5235, #5748, #5954, #5989, #5998, #6032, #6047)
 - Closed issues: 23
-- Open PRs: 1 (#5493, tagged PROV-ACCESS by the index; labelled area: sql)
-- Total PRs: 14
+- Open PRs: 2 (#5956, #5969; both draft, LibRed track)
+- Total PRs: 15
 - Discussions: 4 (all closed)
-- Last fetched: 2026-10-10 (index items through 2026-10-09)
+- Last fetched: 2026-10-21 (issues cursor 2026-10-21T19:48:04Z, PRs cursor 2026-10-21T20:10:53Z)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 48 (30 issues + 14 PRs + 4 discussions)
-- Themes extracted: 2 (open) + 11 (resolved)
+- Index entries scanned: 51 (32 issues + 15 PRs + 4 discussions)
+- Themes extracted: 4 (open) + 11 (resolved)
 </details>

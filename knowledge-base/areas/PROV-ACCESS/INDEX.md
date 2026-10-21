@@ -3,8 +3,8 @@ area: PROV-ACCESS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 16/16
 ---
@@ -55,7 +55,7 @@ All four are `sealed` primary-constructor classes in `AccessDataProvider.cs:22-2
 | `AccessOleDbSqlBuilder` | `...AccessOleDbSqlBuilder.cs` | Concrete OLE DB builder; passes through to base, adds `GetProviderTypeName` via OLE DB type enum |
 | `AccessODBCSqlBuilder` | `...AccessODBCSqlBuilder.cs` | Concrete ODBC builder; overrides `Convert` to emit `?` placeholders; forces GUID values to parameters |
 | `AccessSqlOptimizer` | `...AccessSqlOptimizer.cs` | Statement rewriter: multi-table query correction, inner-join normalization, EXISTS/IN rewrite, parameter wrapping |
-| `AccessSqlExpressionConvertVisitor` | `...AccessSqlExpressionConvertVisitor.cs` | Expression-level rewrites: function names, COALESCE->IIF chain, LIKE escaping, bitwise ops, type casts; `SupportsNullIf = false`; interval-part lowering through `DateDiff`/`DateAdd` (second resolution, no tick counts, interval shifts refused), `Fix`-based `TruncateDivide` |
+| `AccessSqlExpressionConvertVisitor` | `...AccessSqlExpressionConvertVisitor.cs` | Expression-level rewrites: function names, COALESCE->IIF chain, LIKE escaping, bitwise ops, type casts; `SupportsNullIf = false`; interval-part lowering through `DateDiff`/`DateAdd` (second resolution, no tick counts, interval shifts refused), `Fix`-based `TruncateDivide`; `ConvertDefaultValue` raises default dates to the Access floor (0100-01-01) |
 | `AccessMappingSchema` | `...AccessMappingSchema.cs` | Type mappings; date literals as `#yyyy-MM-dd#`; string concatenation via `+`; decimal/float as `AnsiString`; string->numeric and string->bool parsers scoped to `ConversionType.FromDatabase` |
 | `AccessProviderAdapter` | `...AccessProviderAdapter.cs` | Thin wrapper unifying OleDb/ODBC adapter instances; exposes `GetOleDbSchemaTable` for schema introspection |
 | `AccessProviderDetector` | `...AccessProviderDetector.cs` | Auto-detect from connection string tokens, `ProviderName`, config string, or fallback to file probing |
@@ -131,7 +131,7 @@ SQL comments stripped entirely -- `BuildSqlComment` returns without appending. `
 `BuildUpdateClause` builds `FROM` clause then rewrites prefix to `UPDATE` (Access uses `UPDATE t ... FROM t ...` style). `AccessSqlBuilderBase.cs:133-139`.
 
 ### Bitwise operations
-`&` -> `BAND`, `|` -> `BOR`, bitwise NOT `~x` -> `-1 - x`. `AccessSqlExpressionConvertVisitor.cs:525-528`, `:478-484`.
+`&` -> `BAND`, `|` -> `BOR`, bitwise NOT `~x` -> `-1 - x`. `AccessSqlExpressionConvertVisitor.cs:531-534`, `:484-490`.
 
 ### Function remapping (`AccessSqlExpressionConvertVisitor`)
 | linq2db pseudo | Access |
@@ -142,11 +142,13 @@ SQL comments stripped entirely -- `BuildSqlComment` returns without appending. `
 | `CharIndex(p,s)` | `InStr(1, s, p, 1)` |
 | `%` modulo | `MOD` |
 
-(`ConvertSqlFunction` `:454-476`, `ConvertSqlBinaryExpression` `:521-530`.)
+(`ConvertSqlFunction` `:460-482`, `ConvertSqlBinaryExpression` `:527-536`.)
 
 ### Type casts (`ConvertConversion`)
-`CStr`, `CBool`, `CDate`, `DateValue`, `TimeValue` -- all wrapped in `IIF(x IS NOT NULL, CFunc(x), NULL)` to preserve nullability. `AccessSqlExpressionConvertVisitor.cs:486-519`.
+`CStr`, `CBool`, `CDate`, `DateValue`, `TimeValue` -- all wrapped in `IIF(x IS NOT NULL, CFunc(x), NULL)` to preserve nullability. `AccessSqlExpressionConvertVisitor.cs:492-525`.
 
+### Default date floor (`ConvertDefaultValue`)
+`ConvertDefaultValue` (`AccessSqlExpressionConvertVisitor.cs:455-458`) calls the shared `RaiseDefaultDate(expression, new DateTime(100, 1, 1))` helper (`SqlExpressionConvertVisitor.cs:2071`), then falls back to `base.ConvertDefaultValue`. Reason (source comment): Access dates start at 0100-01-01 and the engine reads `#0001-01-01#` back as year 2001, so a `default(DateTime)` written into a typed column would not round-trip. `DateTime`, `DateTimeOffset` (offset zero) and `DateOnly` defaults earlier than the floor are raised to it. Same helper is used by SqlCe (1753-01-01), SQL Server, Sybase, YDB and ClickHouse; tracked under the #5999 TODO (move defaults into the mapping schema).
 ### COALESCE -> IIF rewrite
 `ConvertCoalesce` in `AccessSqlExpressionConvertVisitor` first calls `RemoveNullValues` to strip NULL-literal operands before folding to nested `IIF` chains -- prevents `Coalesce(x, NULL)` from generating `IIF(x IS NULL, NULL, x)` (issue #5531). `AccessSqlExpressionConvertVisitor.cs:420-452`.
 
@@ -386,5 +388,9 @@ Read (this run -- delta):
 - `Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs` -- large addition: second-resolution interval lowering (`FinestDateUnit`, `IntervalResolution`, `CanLowerIntervalPart`, `ElapsedTicks` = null, `CanMeasureDifferenceInTicks` = false, `CanLowerIntervalShift` = false, `LowerTemporalArithmetic` = null, `TruncateDivide` via `Fix`, `ShiftDate`, `CountDateBoundaries`, null-guarded `LowerIntervalPart`); LIKE, search-string, coalesce, function, conversion and binary rewrites unchanged in behavior with shifted line numbers.
 - `Internal/DataProvider/Access/AccessOleDbSchemaProvider.cs` -- re-read in full: `ExecuteOnNewConnection` skips when a transaction is active or the connection is external; `GetProcedureSchemaExecutesProcedure = true`; identity flag now at line 139, AV comment at 53-55; no change to the OLE DB / ODBC divergence matrix.
 - `Internal/DataProvider/Access/Translation/AccessMemberTranslator.cs` -- no behavioral change; line numbers shifted by about -2 from the date section onward and citations refreshed; `isEven` literal `2` issue (item 8) still present, now at line 237.
+
+Read (this run -- delta sha 89b5ce162):
+- `Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs` -- new `ConvertDefaultValue` override (lines 455-458) raising default dates to 0100-01-01 via `RaiseDefaultDate`; all later citations (`ConvertSqlFunction`, `ConvertConversion`, `ConvertSqlBinaryExpression`, bitwise) shifted by +6 lines and refreshed. No other change.
+- `Internal/SqlProvider/SqlExpressionConvertVisitor.cs` (cross-area, helper only) -- `RaiseDefaultDate` at line 2071.
 
 </details>

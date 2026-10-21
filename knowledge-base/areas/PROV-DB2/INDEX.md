@@ -3,8 +3,8 @@ area: PROV-DB2
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 11/11
 ---
@@ -58,7 +58,7 @@ Single assembly family from IBM. `DB2ProviderAdapter` loads:
 - .NET Framework: `IBM.Data.DB2` (namespace `IBM.Data.DB2`)
 - .NET Core/5+: `IBM.Data.Db2` (namespace `IBM.Data.Db2`); falls back to `IBM.Data.DB2.Core` (namespace `IBM.Data.DB2.Core`) for older installs
 
-`Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:22`
+`Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:23`
 
 The adapter wraps `DB2Connection.eServerType` (type `DB2ServerTypes`) for server-family detection. `DB2_390 -> zOS`; all others -> LUW.
 
@@ -152,7 +152,7 @@ DB2 ignores parameter type information in SELECT column positions. `DB2SqlOptimi
 - z/OS `DateTimeOffset` literal format: `yyyy-MM-dd-HH.mm.ss.ffffffzzz` (precision-aware, timezone offset suffix), handled by `DB2zOSMappingSchema.ConvertDateTimeOffsetToSql`. `Source/LinqToDB/Internal/DataProvider/DB2/DB2MappingSchema.cs:279`
 - Binary literal: `BX'hexstring'`
 - `sbyte`/`byte` parameters promoted to `Int16` in `SetParameter`. `Source/LinqToDB/Internal/DataProvider/DB2/DB2DataProvider.cs:151`
-- `DECFLOAT` (`DB2DecimalFloatType`) can hold IEEE special values (`Infinity`/`-Infinity`/`NaN`/`sNaN`) that the default decimal reader (`GetDecimal`) cannot convert. `DB2DataProvider` registers a `ReaderExpressions` entry keyed on `DataTypeName == "DECFLOAT"` that reads the raw `DB2DecimalFloat` via `GetDB2DecimalFloatReaderMethod`; `DB2ProviderAdapter.RegisterDecimalFloatConverters` then converts `DB2DecimalFloat.ToString()` per target CLR type -- double/float keep the special value, decimal/integral targets get `default`/`null`. See issue #5663. `Source/LinqToDB/Internal/DataProvider/DB2/DB2DataProvider.cs:87`, `Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:155`
+- `DECFLOAT` (`DB2DecimalFloatType`) can hold IEEE special values (`Infinity`/`-Infinity`/`NaN`/`sNaN`) that the default decimal reader (`GetDecimal`) cannot convert. `DB2DataProvider` registers a `ReaderExpressions` entry keyed on `DataTypeName == "DECFLOAT"` that reads the raw `DB2DecimalFloat` via `GetDB2DecimalFloatReaderMethod`; `DB2ProviderAdapter.RegisterDecimalFloatConverters` then converts `DB2DecimalFloat.ToString()` per target CLR type (`sNaN` maps to the shared `FloatingPointHelper.DoubleNaN` / `SingleNaN` constants from `LinqToDB.Internal.Common`) -- double/float keep the special value, decimal/integral targets get `default`/`null`. See issue #5663. `Source/LinqToDB/Internal/DataProvider/DB2/DB2DataProvider.cs:87`, `Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:156`
 
 ### Member translations
 - Date parts: `EXTRACT(part FROM ...)` for Year/Month/Day/Hour/Minute/Second; `To_Number(To_Char(..., 'Q'))` for Quarter; `Microsecond/1000` for Millisecond
@@ -243,7 +243,7 @@ DB2 ignores parameter type information in SELECT column positions. `DB2SqlOptimi
 | `DataProvider/DB2/DB2Version.cs` | Server-family enum |
 | `DataProvider/DB2/DB2Options.cs` | Provider options record |
 | `DataProvider/DB2/DB2IdentifierQuoteMode.cs` | Identifier quoting enum |
-| `Internal/DataProvider/DB2/DB2ProviderAdapter.cs` | ADO.NET dynamic adapter; DECFLOAT special-value converters (issue #5663) |
+| `Internal/DataProvider/DB2/DB2ProviderAdapter.cs` | ADO.NET dynamic adapter; DECFLOAT special-value converters (issue #5663), `sNaN` via shared `FloatingPointHelper` NaN constants |
 | `Internal/DataProvider/DB2/DB2ProviderDetector.cs` | Auto-detection via `eServerType` |
 | `Internal/DataProvider/DB2/DB2MappingSchema.cs` | Type mapping + literal converters |
 | `Internal/DataProvider/DB2/DB2BulkCopy.cs` | Bulk copy orchestration |
@@ -282,7 +282,7 @@ DB2 ignores parameter type information in SELECT column positions. `DB2SqlOptimi
 2. **Async bulk copy is sync under the hood** -- `ProviderSpecificCopyAsync` drains `IAsyncEnumerable` into a synchronous enumerator before calling `WriteToServer`. IBM's `DB2BulkCopy` does not expose an async `WriteToServerAsync`. `Source/LinqToDB/Internal/DataProvider/DB2/DB2BulkCopy.cs:80`
 3. **FK column matching in LUW schema provider** -- `GetForeignKeys` resolves column names by string-prefix matching on the space-separated `FK_COLNAMES`/`PK_COLNAMES` from `SYSCAT.REFERENCES`, ordered by longest-name-first. This heuristic can mis-match if column names are substrings of each other.
 4. **`BuildParameter` TODO -- resolved.** The former Firebird-copy `BuildParameter` override was replaced by the shared `ParameterCast*` hooks (`ParameterCastResolvesUndefinedType`, `ParameterCastMaxLength`, `GetParameterCastType`). `Source/LinqToDB/Internal/DataProvider/DB2/DB2SqlBuilderBase.cs:474`
-5. **`DB2DateTimeType` optional** -- adapter loads `DB2DateTime` as optional (comment: "not sure if still actual"). `Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:254`
+5. **`DB2DateTimeType` optional** -- adapter loads `DB2DateTime` as optional (comment: "not sure if still actual"). `Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs:255`
 6. **`DB2TimeSpanType` optional obsolete** -- loaded with `obsolete: true`; recent IBM providers include it as an `[Obsolete]` stub. Not mapped in `DB2DataProvider`.
 7. **`MaxColumnCount = 1012` unvalidated** -- caps how wide a `CteUnion` eager-loading carrier projection can grow before falling back to `KeyedQuery`. The value is a not-yet-validated guess for DB2's per-SELECT column limit; verify against the target edition's documented limit before relying on it. `Source/LinqToDB/Internal/DataProvider/DB2/DB2DataProvider.cs:47`
 
@@ -329,5 +329,9 @@ Read (this run -- delta, SHA 05150894):
 - Source/LinqToDB/Internal/DataProvider/DB2/DB2SqlBuilderBase.cs -- removed `BuildParameter` override; added `ParameterCastResolvesUndefinedType`, `ParameterCastMaxLength = 32672`, `GetParameterCastType` hooks; Known issue 4 resolved
 - Source/LinqToDB/Internal/DataProvider/DB2/DB2SqlExpressionConvertVisitor.cs -- added interval-difference lowering (`CanLowerIntervalDifference`, `IntervalResolution`, `ElapsedTicks`), `IsIntegerOperand` for `%`, `IsWindowOrderByRequired`
 - Source/LinqToDB/Internal/DataProvider/DB2/Translation/DB2MemberTranslator.cs -- `DB2WindowFunctionsMemberTranslator.IsPercentileDiscBooleanOrderBySupported = false`
+
+
+Read (this run -- delta, SHA 89b5ce16):
+- Source/LinqToDB/Internal/DataProvider/DB2/DB2ProviderAdapter.cs -- added `using LinqToDB.Internal.Common`, `DecimalFloatConverters.ToDouble`/`ToSingle` (and nullable variants) now return `FloatingPointHelper.DoubleNaN`/`SingleNaN` for `sNaN` instead of `double.NaN`/`float.NaN`, behavior unchanged, downstream citations shifted +1 line
 
 </details>

@@ -3,8 +3,8 @@ area: PROV-DUCKDB
 kind: decisions
 sources: [gh-prs, gh-issues, history-decisions]
 confidence: medium
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-DUCKDB -- Decisions
@@ -24,12 +24,15 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 ## Open items without a recorded decision
 
 - [#5977](https://github.com/linq2db/linq2db/issues/5977) -- DuckDB `Sql.CurrentTimestamp` in a conditional shifts a `DateTime` parameter by the session UTC offset. Open, no decision recorded yet.
+- [#6084](https://github.com/linq2db/linq2db/issues/6084) -- DuckDB `TIMETZ` to `TimeSpan` reader is missing on the netstandard2.0 asset (registered only under `SUPPORTS_DATEONLY`). Open, no decision recorded yet.
 
 ## Cross-area DuckDB items (not counted in this area)
 
 - [#5698](https://github.com/linq2db/linq2db/pull/5698) -- in-memory DuckDB and SQLite test databases (PROV-SQLITE).
+- [#5710](https://github.com/linq2db/linq2db/pull/5710) -- DuckDB in-memory preload for local / filtered runs (PROV-SQLSERVER tag; merged 2026-07-13).
 - [#5630](https://github.com/linq2db/linq2db/pull/5630) -- PostgreSQL / DuckDB DISTINCT ON via DistinctBy.
 - [#5965](https://github.com/linq2db/linq2db/issues/5965) -- sub-day date functions on the DuckDB server clock (SQL-AST).
+- [#6072](https://github.com/linq2db/linq2db/issues/6072) -- integer `Sql.Degrees` overloads keep the fraction on DuckDB and SQLite (PROV-SQLITE tag).
 
 ## See also (GLOBAL decisions)
 

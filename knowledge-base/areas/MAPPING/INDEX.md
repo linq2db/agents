@@ -3,8 +3,8 @@ area: MAPPING
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 3/3
 coverage_tier_2: 46/46
 ---
@@ -42,6 +42,7 @@ coverage_tier_2: 46/46
 | `DefaultValue` (static) / `DefaultValue<T>` | Per-type default-value table substituted for `null` reads; seeded for primitives, populated lazily for enums via `GetMapValues` | `DefaultValue.cs` |
 | `IGenericInfoProvider` | Extensibility point for adding generic-type conversions (e.g. `IEnumerable<T> -> ImmutableList<T>`); registered with `MappingSchema.SetGenericConvertProvider(typeof(MyProvider<>))` | `IGenericInfoProvider.cs` |
 | `IToSqlConverter` | Marker interface for objects that know how to render themselves to `ISqlExpression` directly | `IToSqlConverter.cs` |
+| `SqlQueryDependentAttribute` | Base for per-parameter cache-compare overrides on custom SQL function parameters. `ObjectsEqual` compares `RawSqlString` by format, `FormattableString` by format + arguments (via `FormattableStringHelper.AreEqual`, recursing through `ObjectsEqual`), and sequences element-wise | `SqlQueryDependentAttribute.cs` |
 | `SqlQueryDependentParamsAttribute` | **Deprecated (v7 removal).** Subclass of `SqlQueryDependentAttribute` applied to parameters of custom SQL function methods; forces per-parameter client-side expression evaluation before SQL generation. Superseded by the default structural cache-compare path. | `SqlQueryDependentParamsAttribute.cs` |
 
 ## Files (Tier 1 / Tier 2)
@@ -190,6 +191,7 @@ Dispatch in `TryConvertImpl` (`ValueToSqlConverter.cs:188-239`) is fast-path: fo
 - Touching `EntityDescriptor.Init`? The two-pass member-then-type ordering is load-bearing.
 - Adding a keyed query filter? Use `EntityMappingBuilder<T>.HasQueryFilter(filterKey, ...)`; passing `filter: null`/`filterFunc: null` removes (tombstones) a previously-registered key. The empty string is the default (anonymous) slot mirrored by `EntityDescriptor.QueryFilterLambda` / `QueryFilterFunc`.
 - Touching TPH sibling-column writes? `ColumnDescriptor.AddValueSibling` / `GetProviderValue`'s declaring-type-widening logic assume the two paths never combine on one physical column (`ColumnDescriptor.cs:825-831`) -- verify that invariant still holds before changing either.
+- Custom `SqlQueryDependentAttribute` subclass? `ObjectsEqual` already handles `RawSqlString`, `FormattableString` (format + args compared recursively, `Internal.Common.FormattableStringHelper`) and `IEnumerable` -- override only for other types.
 - Storing a `TimeSpan` as an integral duration? Declare `[Duration(DurationUnit.X)]` (or `HasDuration`); do not also add a `[ValueConverter]`. Adding a unit means extending `DurationUnit` and the `SqlIntervalUnits` ratio table.
 
 <details><summary>Coverage</summary>
@@ -224,5 +226,8 @@ Read (this run -- delta):
 - `Source/LinqToDB/Mapping/IsQueryableAttribute.cs` (M) -- body-less class declaration (`: Attribute;`); no behaviour change.
 - `Source/LinqToDB/Mapping/MappingSchema.cs` (M) -- `GetMapValues` enum-field filter switched to `HasFlag`; no behaviour change.
 - `Source/LinqToDB/Mapping/PropertyMappingBuilder.cs` (M) -- new `HasDuration(DurationUnit)` fluent method adding a `DurationAttribute`.
+
+Read (this run -- delta):
+- `Source/LinqToDB/Mapping/SqlQueryDependentAttribute.cs` (M) -- `ObjectsEqual` gains a `FormattableString` branch (`FormattableStringHelper.AreEqual(fs1, fs2, ObjectsEqual)`, new `using LinqToDB.Internal.Common`) so interpolated-string arguments compare by format and arguments in expression-tree cache comparison. XML doc updated.
 
 </details>

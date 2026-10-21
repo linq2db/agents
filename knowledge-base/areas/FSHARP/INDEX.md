@@ -3,8 +3,8 @@ area: FSHARP
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 8/8
 coverage_tier_2: 0/0
 ---
@@ -21,13 +21,13 @@ Optional NuGet package (`linq2db.FSharp`, assembly `linq2db.FSharp`) that adds F
 
 ### `FSharpEntityBindingInterceptor`
 
-`FSharpEntityBindingInterceptor.fs:18` -- inherits `EntityBindingInterceptor` (`Source/LinqToDB/Internal/Interceptors/EntityBindingInterceptor.cs`) and implements `IEntityBindingInterceptor`. Exposes a singleton via `Instance`.
+`FSharpEntityBindingInterceptor.fs:20` -- inherits `EntityBindingInterceptor` (`Source/LinqToDB/Internal/Interceptors/EntityBindingInterceptor.cs`) and implements `IEntityBindingInterceptor`. Exposes a singleton via `Instance`.
 
-**Record detection** (`isRecord`, line 29): returns `true` when the type carries `CompilationMappingAttribute` with `SourceConstructFlags.RecordType` and does **not** carry `[<CLIMutable>]`. CLIMutable records have property setters and need no special handling.
+**Record detection** (`isRecord`, line 31): returns `true` when the type carries `CompilationMappingAttribute` with `SourceConstructFlags.RecordType` and does **not** carry `[<CLIMutable>]`. CLIMutable records have property setters and need no special handling.
 
-**Member-to-constructor mapping** (`TryMapMembersToConstructor`, line 37): walks `TypeAccessor.Members`, finds each member's `CompilationMappingAttribute` where `SourceConstructFlags = Field`, and builds a `Dictionary<int, MemberAccessor>` keyed by `SequenceNumber` (i.e., positional index in the F# record declaration). Result is cached in a `ConcurrentDictionary<Type, ...>`.
+**Member-to-constructor mapping** (`TryMapMembersToConstructor`, line 39): enumerates `FSharpType.GetRecordFields` (public and non-public) and builds a `Dictionary<int, MemberAccessor>` keyed by the field's index in declaration order, resolving each member via `typeAccessor.GetMemberByName` (`FSharpEntityBindingInterceptor.fs:47-54`). Keying by index rather than `CompilationMappingAttribute.SequenceNumber` is deliberate: static `let` bindings in a record type also consume sequence numbers, so the attribute value can diverge from the constructor argument position. Result is cached in a `ConcurrentDictionary<Type, ...>`.
 
-**`ConvertConstructorExpression`** (line 55): intercepts `SqlGenericConstructorExpression` at two points in the pipeline:
+**`ConvertConstructorExpression`** (line 58): intercepts `SqlGenericConstructorExpression` at two points in the pipeline:
 
 - `CreateType.New` -- the `Parameters` list is positional; for each position `i`, if `map` has entry `i`, the parameter is re-tagged with the concrete `MemberInfo` so downstream SQL generation can match column -> constructor arg by position. Handles linq2db-generated `new T(args...)` calls.
 - `CreateType.Full` -- the expression has named `Assignments`. The interceptor locates the single constructor with `parameters.Length >= map.Count`, allocates an `Expression[]` of that length, fills each slot by looking up the assignment by `MemberInfo`, substitutes `DefaultValue`/`MappingSchema.GetDefaultValue` for any missing slot, builds `Expression.New(ctor, arguments)`, and wraps it in `Expression.MemberInit`. Remaining (non-positional) assignments are added as `MemberBinding`s. The result is wrapped in a new `SqlGenericConstructorExpression`.
@@ -159,4 +159,8 @@ Read (this run -- delta):
 - `Source/LinqToDB.FSharp/readme.md` (M) -- documents option member translation and single-case union mapping incl. struct-union NULL behavior.
 
 coverage_tier_1 increased from 6/6 to 8/8 (2 new Tier-1 files: `FSharpMemberTranslator.fs`, `FSharpSingleCaseUnionSupport.fs`). `FSharpEntityBindingInterceptor.fs` not in this delta; its prior full read stands.
+Read (this run -- delta):
+- `Source/LinqToDB.FSharp/FSharpEntityBindingInterceptor.fs` (M) -- `TryMapMembersToConstructor` now maps constructor positions via `FSharpType.GetRecordFields` declaration index (new `open Microsoft.FSharp.Reflection`) instead of `CompilationMappingAttribute.SequenceNumber`, because static `let` bindings take sequence numbers and shifted positions. Line anchors in the body refreshed (type :20, `isRecord` :31, `TryMapMembersToConstructor` :39, `ConvertConstructorExpression` :58).
+
+coverage_tier_1 unchanged at 8/8 (file already Tier 1, re-read in full this run).
 </details>

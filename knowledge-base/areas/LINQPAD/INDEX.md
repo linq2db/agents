@@ -3,10 +3,10 @@ area: LINQPAD
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 15/15
-coverage_tier_2: 48/51
+coverage_tier_2: 50/51
 ---
 
 # LINQPAD
@@ -40,8 +40,8 @@ Because a client assembly loads when a method referencing its types is JIT-compi
 
 ### Schema generation (`Drivers/DynamicSchemaGenerator.cs`, `Drivers/StaticSchemaGenerator.cs`, `Drivers/Scaffold/`)
 
-- **`DynamicSchemaGenerator.GetModel`**: bridges `ConnectionSettings` to the SCAFFOLD library. Constructs a `ScaffoldOptions`, creates a `Scaffolder`, runs `LoadDataModel -> GenerateCodeModel -> GenerateSourceCode`. Injects `DataModelAugmentor` to add the three-parameter `LINQPadDataConnection` constructor to the generated context class.
-- **`ModelProviderInterceptor`**: implements `ScaffoldInterceptors`. Accumulates the full logical model in `AfterSourceCodeGenerated`, then converts it to an `ExplorerItem` tree in `GetTree()`.
+- **`DynamicSchemaGenerator.GetModel`**: bridges `ConnectionSettings` to the SCAFFOLD library. Constructs a `ScaffoldOptions`, creates a `Scaffolder`, runs `LoadDataModel -> GenerateCodeModel -> GenerateSourceCode`. Injects `DataModelAugmentor` to add the three-parameter `LINQPadDataConnection` constructor to the generated context class. `GetOptions` now sets `options.Schema.EnableSqlServerReturnValue = settings.Scaffold.SqlServerReturnValue` (`DynamicSchemaGenerator.cs:43`) instead of the previous hardcoded `false` guarded by a "generation bug in current scaffolder" TODO.
+- **`ModelProviderInterceptor`**: implements `ScaffoldInterceptors`. Accumulates the full logical model in `AfterSourceCodeGenerated`, then converts it to an `ExplorerItem` tree in `GetTree()`. `GetParameterNameEscaped` now renders `ParameterDirection.Out` parameters as `out var <name>` (was `out <name>`) in procedure call snippets, so the trailing SQL Server return-value `out` parameter can be pasted into a query without a prior declaration (`ModelProviderInterceptor.cs:412`).
 - **`DataModelAugmentor`**: `ConvertCodeModelVisitor` subclass. Identifies the generated `DataContext` class, injects a public `(string provider, string? assemblyPath, string connectionString)` constructor.
 - **`StaticSchemaGenerator.GetSchema`**: reflects the custom context type's `IQueryable<T>` properties and reads `[Table]`/`[Column]`/`[Association]` attributes.
 
@@ -56,7 +56,7 @@ Because a client assembly loads when a method referencing its types is JIT-compi
 `Platform` (`Platform.cs`, new): `internal static` host-OS checks (`IsWindows`, `IsMacOS`); folds to constants on net472 (Windows only), `System.OperatingSystem` on net8.0-windows. Replaces direct `OperatingSystem.IsWindows()` calls in providers.
 
 15 concrete provider classes:
-- `SqlServerProvider`: on net8.0-windows overrides `GetDataProvider` to hardcode `Microsoft.Data.SqlClient`. On non-NETFRAMEWORK the spatial-types assembly is no longer referenced statically: `GetAdditionalReferences` lazily loads `Microsoft.SqlServer.Types.dll` via `DataContextDriver.LoadAssemblySafely`, logging (and not caching) failures.
+- `SqlServerProvider`: on net8.0-windows overrides `GetDataProvider` to hardcode `Microsoft.Data.SqlClient`. On non-NETFRAMEWORK the spatial-types assembly is no longer referenced statically: `GetAdditionalReferences` lazily loads `Microsoft.SqlServer.Types.dll` via `DataContextDriver.LoadAssemblySafely`, logging (and not caching) failures. SQL Server is the only database for which the Scaffold tab exposes the `SqlServerReturnValue` option (see Configuration / WPF UI).
 - `AccessProvider`: `AutomaticProviderSelection = true`; `SupportsSecondaryConnection = true`; `IsPlatformSupported => Platform.IsWindows` (OLE DB / Access ODBC unavailable elsewhere).
 - `SqlCeProvider`: `IsPlatformSupported => Platform.IsWindows` (native engine).
 - **`DuckDBProvider`**: net8.0-windows only (`#if !NETFRAMEWORK`). Single `ProviderInfo` entry (`ProviderName.DuckDB`, display name `"DuckDB"`, `IsDefault = true`). Overrides `GetProviderFactory` to return `DuckDBClientFactory.Instance`; `GetLastSchemaUpdate` returns `null`; `ClearAllPools` is a no-op.
@@ -70,6 +70,8 @@ Because a client assembly loads when a method referencing its types is JIT-compi
 
 **`ConnectionSettings`**: root settings object, serialized as JSON inside LINQPad's `IConnectionInfo.DriverData`. Contains `ConnectionOptions`, `SchemaOptions`, `ScaffoldOptions`, `LinqToDbOptions`, `StaticContextOptions`. `Save` now restores the plain `SecondaryConnectionString` in a `finally` after encrypting it (the dialog saves before testing and again on OK, encrypting the live value twice corrupted it). `StaticContextOptions.Database` (new, `string?`) names the database a static context uses, only to limit which clients are provisioned.
 
+`ScaffoldOptions.SqlServerReturnValue` (new, `bool`, default `false`): when true, SQL Server stored-procedure methods get a trailing `out` parameter carrying the procedure return code. Wired to `options.Schema.EnableSqlServerReturnValue` in `DynamicSchemaGenerator.GetOptions`. The legacy-settings migration (`ConnectionSettings.cs:~289`) sets it to `isNew`, i.e. enabled for new connections only and left off for migrated ones, because enabling it changes procedure method signatures and would break existing queries.
+
 `ConnectionOptions.ProviderPath` is computed: dispatches to `ProviderPathx86` or `ProviderPathx64` based on `IntPtr.Size`.
 
 **`AppConfig`**: `ILinqToDBSettings` implementation. Parses `appsettings.json` or `app.config` XML.
@@ -77,6 +79,8 @@ Because a client assembly loads when a method referencing its types is JIT-compi
 ### WPF UI (`UI/`)
 
 Dialog hosted as `SettingsDialog` (XAML `Window`). `DataContext` is `SettingsModel`, which aggregates seven sub-models. `ModelBase` provides a pattern for raised-per-property static `PropertyChangedEventArgs` instances.
+
+**`ScaffoldModel` / `ScaffoldTab`** (`UI/Model/ScaffoldModel.cs`, `UI/Settings/ScaffoldTab.xaml`): besides the existing ClickHouse-only `ClickHouseUseStrings` checkbox, a new `SqlServerReturnValue` checkbox ("[SQL Server] Expose procedure return value") is bound to `Settings.Scaffold.SqlServerReturnValue` and gated by a new `SqlServerVisibility` (visible when `Settings.Connection.Database` equals `ProviderName.SqlServer`). `UpdateClickHouseVisibility` was renamed `UpdateDatabaseVisibility` and now refreshes both visibilities; `SettingsDialog.DynamicConnection_PropertyChanged` calls it when `DynamicConnection.Database` changes. The tooltip warns that enabling it changes procedure signatures.
 
 **`Notification`** (`UI/Notification.cs`): all driver errors are written to `linq2db.LINQPad.log` (`LogFileName`) through `DataContextDriver.WriteToLog` (`Log`, never throws). Message boxes are shown only when `CanShowMessageBox`: always on net472, and on net8.0-windows when on Windows or inside a connection dialog (thread-static `_connectionDialogScope` set by `BeginConnectionDialog`/`EndConnectionDialog`). Reason: on macOS LINQPad renders driver WPF through Avalonia XPF only during `ShowConnectionDialog`, touching `MessageBox` elsewhere fails to load `PresentationFramework`. The unowned `MessageBox.Show` lives in a separate non-inlined `ShowError`. API: `Error(Exception, context, title)`, `Error(string, title)`, `Error(Window, string|Exception, title)`, `FormatMessages(Exception)` (all inner messages), `Warning`, `YesNo`, `Info`. `Source/LinqToDB.LINQPad/BannedSymbols.txt` (new) bans `System.Windows.MessageBox` elsewhere (RS0030 suppressed per use in `Notification`).
 
@@ -94,8 +98,8 @@ Dialog hosted as `SettingsDialog` (XAML `Window`). `DataContext` is `SettingsMod
 
 Two project files govern the area:
 
-- **`LinqToDB.LINQPad.csproj`** (`Microsoft.NET.Sdk.WindowsDesktop`): the WPF driver assembly, TFMs `net472` + `net8.0-windows7.0`. `UseWPF=true`, `IsPackable=false`. The `.lpx` is generated only for net472 by `PostBuild2` (now also copies `SQLitePCLRaw.lib.e_sqlite3` natives for win-x86/win-x64 only, removes `win-arm64`, drops `THIRD-PARTY-NOTICES.txt` into the output, then calls `Pack.cmd` unless `GenerateLpxArtifacts=false`). Page Update items for all nine XAML files are declared here. `Microsoft.CodeAnalysis.CSharp` is plain on net472 and uses `VersionOverride` of `RoslynLinqPadVersion` on non-net472 (host in-box `System.Collections.Immutable`/`System.Reflection.Metadata` win, floor 8.0.0); `System.Collections.Immutable` is pinned to `Net8LatestForNuget` (NU1605 suppressed, #5768). `Microsoft.SqlServer.Types` is referenced only on net472 so the .NET build never binds it at compile time. Non-net472 `GenerateNuGetPackageVersions` target (BeforeTargets=BeforeCompile) emits `NuGetPackageVersions.g.cs` (internal class, one const per client package, generated from central `PackageVersion` entries, errors if any id expands to an empty string). The net8.0 branch of a central version must be bumped alongside net10.0 entries for DB2 packages. PublicAPI baselines are removed, `BannedSymbols.txt` is registered as an `AdditionalFiles` item.
-- **`LinqToDB.LINQPad.Pack.csproj`** (`Microsoft.NET.Sdk`): packaging-only, single TFM `net8.0`. Does NOT recompile the driver. References `LinqToDB.LINQPad.csproj` with `ReferenceOutputAssembly=false` for build ordering, then pulls the `net8.0-windows7.0` driver assembly into `lib/net8.0/` via the `_AddLinqPadDriverToPackage` MSBuild target (calls `GetTargetPath` on the sibling). Motivation: LINQPad on macOS/Linux rejected a `net8.0-windows7.0`-only package ("No compatible assemblies found", issue #5497); packing under plain `net8.0` restores the pre-#5279 layout. `EnableDefaultItems=false`, `IncludeBuildOutput=false`. Package dependencies are now only `LinqToDB.Scaffold`, `LINQPad.Reference`, `Microsoft.CodeAnalysis.CSharp` (`RoslynLinqPadVersion`) and conditional `linq2db4iSeries`; all database client `PackageReference`s (including `DuckDB.NET.Data.Full` and `Ydb.Sdk`) and the `SQLite.Runtime.props` import were removed. The Description element (line 40) now lists DuckDB and YDB.
+- **`LinqToDB.LINQPad.csproj`** (`Microsoft.NET.Sdk.WindowsDesktop`): the WPF driver assembly, TFMs `net472` + `net8.0-windows7.0`. `UseWPF=true`, `IsPackable=false`. The `.lpx` is generated only for net472 by `PostBuild2` (now also copies `SQLitePCLRaw.lib.e_sqlite3` natives for win-x86/win-x64 only, removes `win-arm64`, drops `THIRD-PARTY-NOTICES.txt` into the output, then calls `Pack.cmd` unless `GenerateLpxArtifacts=false`). `GenerateLpxArtifacts` defaults to `true` and is now documented as a `-p:GenerateLpxArtifacts=false` opt-out for building the driver assembly without 7-Zip / `Pack.cmd` (comment reworded, behavior unchanged). Page Update items for all nine XAML files are declared here. `Microsoft.CodeAnalysis.CSharp` is plain on net472 and uses `VersionOverride` of `RoslynLinqPadVersion` on non-net472 (host in-box `System.Collections.Immutable`/`System.Reflection.Metadata` win, floor 8.0.0); `System.Collections.Immutable` is pinned to `Net8LatestForNuget` (NU1605 suppressed, #5768). `Microsoft.SqlServer.Types` is referenced only on net472 so the .NET build never binds it at compile time. Non-net472 `GenerateNuGetPackageVersions` target (BeforeTargets=BeforeCompile) emits `NuGetPackageVersions.g.cs` (internal class, one const per client package, generated from central `PackageVersion` entries, errors if any id expands to an empty string). The net8.0 branch of a central version must be bumped alongside net10.0 entries for DB2 packages. PublicAPI baselines are removed, `BannedSymbols.txt` is registered as an `AdditionalFiles` item.
+- **`LinqToDB.LINQPad.Pack.csproj`** (`Microsoft.NET.Sdk`): packaging-only, single TFM `net8.0`. Does NOT recompile the driver. References `LinqToDB.LINQPad.csproj` with `ReferenceOutputAssembly=false` for build ordering, then pulls the `net8.0-windows7.0` driver assembly into `lib/net8.0/` via the `_AddLinqPadDriverToPackage` MSBuild target (calls `GetTargetPath` on the sibling). The `ProjectReference` and the `GetTargetPath` call no longer pass `GenerateLpxArtifacts=false` (the `AdditionalProperties` / `Properties` entry was dropped): extra global properties made MSBuild build a second instance of the driver and its references in parallel with the solution's own, into the same obj directories. Only `SetTargetFramework=net8.0-windows7.0` remains. Because `.lpx` generation is net472-only, the net8.0-windows7.0 build never ran it anyway. Motivation for the split: LINQPad on macOS/Linux rejected a `net8.0-windows7.0`-only package ("No compatible assemblies found", issue #5497); packing under plain `net8.0` restores the pre-#5279 layout. `EnableDefaultItems=false`, `IncludeBuildOutput=false`. Package dependencies are now only `LinqToDB.Scaffold`, `LINQPad.Reference`, `Microsoft.CodeAnalysis.CSharp` (`RoslynLinqPadVersion`) and conditional `linq2db4iSeries`; all database client `PackageReference`s (including `DuckDB.NET.Data.Full` and `Ydb.Sdk`) and the `SQLite.Runtime.props` import were removed. The Description element (line 40) now lists DuckDB and YDB.
 
 ## Key types
 
@@ -114,13 +118,14 @@ Two project files govern the area:
 | `Platform` | `Platform.cs` | Host OS checks (`IsWindows`, `IsMacOS`) |
 | `NuGetPackageVersions` | generated `NuGetPackageVersions.g.cs` | Client package versions from central package management |
 | `Notification` | `UI/Notification.cs` | Logging + guarded message boxes |
-| `ConnectionSettings` | `Configuration/ConnectionSettings.cs` | Root settings DTO |
+| `ConnectionSettings` | `Configuration/ConnectionSettings.cs` | Root settings DTO (incl. `ScaffoldOptions.SqlServerReturnValue`) |
 | `AppConfig` | `Configuration/AppConfig.cs` | `ILinqToDBSettings` for static contexts |
 | `DynamicSchemaGenerator` | `Drivers/DynamicSchemaGenerator.cs` | SCAFFOLD bridge |
 | `StaticSchemaGenerator` | `Drivers/StaticSchemaGenerator.cs` | Reflection-based schema tree |
 | `ModelProviderInterceptor` | `Drivers/Scaffold/ModelProviderInterceptor.cs` | `ScaffoldInterceptors` impl |
 | `DataModelAugmentor` | `Drivers/Scaffold/DataModelAugmentor.cs` | `ConvertCodeModelVisitor` |
 | `SettingsModel` | `UI/Model/SettingsModel.cs` | Root ViewModel |
+| `ScaffoldModel` | `UI/Model/ScaffoldModel.cs` | Scaffold-tab ViewModel, per-database option visibility |
 | `AboutModel` | `UI/Model/AboutModel.cs` | About-tab ViewModel, runtime version read |
 | `ValueFormatter` | `Drivers/ValueFormatter.cs` | Provider-specific type rendering |
 | `PasswordManager` | `Drivers/PasswordManager.cs` | Resolves `{pm:...}` tokens |
@@ -130,19 +135,19 @@ Two project files govern the area:
 
 **Tier 1 (canonical anchors) -- 15 files:** Drivers (Dynamic/Static/DriverHelper), LINQPadDataConnection, IDatabaseProvider, DatabaseProviderBase, DatabaseProviders, ProviderInfo, ConnectionSettings, AppConfig, DynamicSchemaGenerator, StaticSchemaGenerator, Scaffold/ModelProviderInterceptor, Scaffold/DataModelAugmentor, csproj.
 
-**Tier 2 -- visited 48 of 51 files:**
-- Concrete providers (15 files, `YdbProvider.cs` added in an earlier delta): all sampled, Access, SqlServer, DuckDB, YDB, PostgreSQL read in full. This delta also read diffs of ClickHouse, DB2, Firebird, Informix, MySql, Oracle, SQLite, SapHana, SqlCe, Sybase.
-- UI Models (12 files): sample read in full, pattern confirmed. `DynamicConnectionModel`, `StaticConnectionModel` read this delta.
-- UI Settings code-behind (11 files): `SettingsDialog.xaml.cs`, `StaticConnectionTab.xaml(.cs)` read.
+**Tier 2 -- visited 50 of 51 files:**
+- Concrete providers (15 files, `YdbProvider.cs` added in an earlier delta): all sampled, Access, SqlServer, DuckDB, YDB, PostgreSQL read in full. An earlier delta also read diffs of ClickHouse, DB2, Firebird, Informix, MySql, Oracle, SQLite, SapHana, SqlCe, Sybase.
+- UI Models (12 files): sample read in full, pattern confirmed. `DynamicConnectionModel`, `StaticConnectionModel` read in an earlier delta, `ScaffoldModel.cs` read this delta.
+- UI Settings code-behind (11 files): `SettingsDialog.xaml.cs`, `StaticConnectionTab.xaml(.cs)` read, `ScaffoldTab.xaml` read this delta.
 - Compat (3 files): `IReadOnlySet.cs` read, others structurally implied.
 - Other: `CSharpUtils.cs`, `ValueFormatter.cs`, `PasswordManager.cs`, `Notification.cs`, `LinqToDBLinqPadException.cs`, `GlobalSuppressions.cs`, `Configuration/CustomSerializers/IReadOnlySetConverter.cs`, `Platform.cs` (new), `BannedSymbols.txt` (new), `README.md`, `Nuget/Pack.cmd`.
 
 ## Inbound / outbound dependencies
 
 **Outbound:**
-- [SCAFFOLD](../SCAFFOLD/INDEX.md) -- `LinqToDB.Scaffold` project reference.
+- [SCAFFOLD](../SCAFFOLD/INDEX.md) -- `LinqToDB.Scaffold` project reference. `ScaffoldOptions.Schema.EnableSqlServerReturnValue` is now driven from the LINQPad `SqlServerReturnValue` setting.
 - [CORE](../CORE/INDEX.md) -- `DataConnection`, `DataOptions`, `IDataContext`.
-- All [PROV-*](../PROV-SQLSERVER/INDEX.md) -- each `IDatabaseProvider` impl delegates to `DataConnection.GetDataProvider` or `<X>Tools.GetDataProvider`.
+- All [PROV-*](../PROV-SQLSERVER/INDEX.md) -- each `IDatabaseProvider` impl delegates to `DataConnection.GetDataProvider` or `XTools.GetDataProvider`.
 - `LINQPad.Reference` NuGet -- `DynamicDataContextDriver`, etc.
 - `Microsoft.CodeAnalysis.CSharp` NuGet -- Roslyn compilation.
 - Database client NuGets (`DuckDB.NET.Data.Full`, `Ydb.Sdk`, `Npgsql`, `MySqlConnector`, ...) -- on net8.0-windows these are compile-time references of `LinqToDB.LINQPad.csproj` only. They are NOT dependencies of the NuGet package (`LinqToDB.LINQPad.Pack.csproj`) and are declared per connection through `IDatabaseProvider.GetNuGetPackages` / `DataContextDriver.OverrideDriverDependencies`. The net472 `.lpx` still bundles every client.
@@ -151,7 +156,7 @@ Two project files govern the area:
 
 ## Known issues / debt
 
-- `DynamicSchemaGenerator.cs:44` -- `// TODO: disabled due to generation bug in current scaffolder` (`options.Schema.EnableSqlServerReturnValue = false` commented).
+- Resolved in this delta: the `DynamicSchemaGenerator.cs` "TODO: disabled due to generation bug in current scaffolder" for `EnableSqlServerReturnValue` is gone. The option is now user-controlled (`SqlServerReturnValue`, default off for migrated connections, on for new ones). Residual: enabling it changes procedure method signatures, so existing queries calling procedures must be updated (stated in the checkbox tooltip).
 - `CSharpUtils.cs` -- `// TODO: move to linq2db.Tools`, keyword list duplicates `CSharpCodeGenerator.KeyWords`.
 - `SYSLIB1045` suppressed in `PasswordManager.cs` on net472.
 - `SYSLIB0044` (`AssemblyName.CodeBase` obsolete) suppressed in `DynamicLinqToDBDriver.cs:175`.
@@ -160,11 +165,12 @@ Two project files govern the area:
 - IBM DB2 on net472 requires a PostBuild trick.
 - `DuckDBProvider.GetLastSchemaUpdate` always returns `null` -- schema change detection not implemented for DuckDB.
 - `YdbProvider.GetLastSchemaUpdate` always returns `null` -- same unimplemented schema-change-detection limitation as DuckDB.
-- Resolved in this delta: the `LinqToDB.LINQPad.Pack.csproj` Description now lists DuckDB and YDB.
+- Resolved in an earlier delta: the `LinqToDB.LINQPad.Pack.csproj` Description now lists DuckDB and YDB.
 - Fragility: any code referencing a client type from a body reachable without that client being provisioned (shared method bodies, static fields, static ctors) fails at JIT time. The codebase relies on non-inlined method isolation by convention only. `System.Windows.MessageBox` is guarded by `BannedSymbols.txt` for the same reason (macOS XPF).
 - A static context without `StaticContextOptions.Database` downloads every client (all platform-supported providers).
 - `NuGetPackageVersions` for DB2 resolves to the net8.0 branch of central package versions, so bumping only the net10.0 entry never reaches the driver.
 - The LINQPad 5 `.lpx` redistributes all third-party clients, license notices are generated into `THIRD-PARTY-NOTICES.txt`.
+- Build hazard (documented in `LinqToDB.LINQPad.Pack.csproj`): adding global properties to the `ProjectReference` / `MSBuild` task targeting `LinqToDB.LINQPad.csproj` makes MSBuild build a duplicate driver instance in parallel into the same obj directories.
 
 ## See also
 
@@ -175,7 +181,7 @@ Two project files govern the area:
 <details><summary>Coverage</summary>
 
 - Tier 1: 15/15 done
-- Tier 2: 48/51 done (94.1%)
+- Tier 2: 50/51 done (98.0%)
 - Tier 3 (skipped, logged): 6
 
 **Delta read (prior run -- PR #5451 DuckDB additions):**
@@ -197,7 +203,7 @@ Two project files govern the area:
 **Read (this run -- delta, sha 36ee4f82):**
 - `Source/LinqToDB.LINQPad/DatabaseProviders/DatabaseProviders.cs` -- registers new `YdbProvider` unconditionally inside `#if !NETFRAMEWORK` (outside the 64-bit guard, line 37), alongside `DuckDBProvider`.
 - `Source/LinqToDB.LINQPad/DatabaseProviders/PostgreSQLProvider.cs` -- added `ProviderName.PostgreSQL19` (`"PostgreSQL 19 Dialect"`) to the dialect-detection `ProviderInfo` list (now eight entries, line 20).
-- `Source/LinqToDB.LINQPad/DatabaseProviders/YdbProvider.cs` -- new file; `DatabaseProviderBase` subclass for YDB, `#if !NETFRAMEWORK`-gated, mirrors `DuckDBProvider`'s shape (`GetProviderFactory` -> `YdbProviderFactory.Instance`, `GetLastSchemaUpdate` -> `null`, `ClearAllPools` -> `YdbConnection.ClearAllPools().GetAwaiter().GetResult()`).
+- `Source/LinqToDB.LINQPad/DatabaseProviders/YdbProvider.cs` -- new file; `DatabaseProviderBase` subclass for YDB, `#if !NETFRAMEWORK`-gated, mirrors the shape of `DuckDBProvider` (`GetProviderFactory` -> `YdbProviderFactory.Instance`, `GetLastSchemaUpdate` -> `null`, `ClearAllPools` -> `YdbConnection.ClearAllPools().GetAwaiter().GetResult()`).
 - `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj` -- added `PackageReference Include="Ydb.Sdk"` to the net8.0 dependency group (line 79); `<Description>` (line 40) not updated, still omits DuckDB and now also YDB.
 - `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj` -- added `PackageReference Include="Ydb.Sdk"` to the non-net472 `<ItemGroup>` (line 69), alongside existing `DuckDB.NET.Data.Full`.
 
@@ -220,5 +226,15 @@ Two project files govern the area:
 - `README.md` -- LINQPad 8+/macOS, database client download, licensing, troubleshooting sections.
 - `LinqToDBLinqPadException.cs` -- class body simplified to primary-constructor-only form.
 - `UI/Model/DynamicConnectionModel.cs`, `UI/Model/StaticConnectionModel.cs`, `UI/Notification.cs`, `UI/Settings/SettingsDialog.xaml.cs`, `UI/Settings/StaticConnectionTab.xaml`, `UI/Settings/StaticConnectionTab.xaml.cs` -- platform-filtered database list, static Database combo, logging-aware Notification, tolerant context type loading.
+
+**Read (this run -- delta, sha 89b5ce16):**
+- `Source/LinqToDB.LINQPad/Configuration/ConnectionSettings.cs` -- new `ScaffoldOptions.SqlServerReturnValue` property; legacy-settings migration sets it to `isNew` (new connections only, to not break existing queries).
+- `Source/LinqToDB.LINQPad/Drivers/DynamicSchemaGenerator.cs` -- `EnableSqlServerReturnValue` now taken from `settings.Scaffold.SqlServerReturnValue` instead of hardcoded `false` (scaffolder-bug TODO removed).
+- `Source/LinqToDB.LINQPad/Drivers/Scaffold/ModelProviderInterceptor.cs` -- `GetParameterNameEscaped` emits `out var <name>` for `Out` parameters.
+- `Source/LinqToDB.LINQPad/UI/Model/ScaffoldModel.cs` -- `SqlServerReturnValue` property, `SqlServerVisibility`, `UpdateClickHouseVisibility` renamed `UpdateDatabaseVisibility`.
+- `Source/LinqToDB.LINQPad/UI/Settings/ScaffoldTab.xaml` -- new "[SQL Server] Expose procedure return value" checkbox bound to `SqlServerReturnValue`/`SqlServerVisibility`.
+- `Source/LinqToDB.LINQPad/UI/Settings/SettingsDialog.xaml.cs` -- call site renamed to `UpdateDatabaseVisibility`.
+- `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj` -- dropped `GenerateLpxArtifacts=false` from the `ProjectReference` `AdditionalProperties` and the `GetTargetPath` `MSBuild` task properties (extra global properties caused a duplicate parallel driver build into the same obj dirs).
+- `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj` -- comment-only change on the `GenerateLpxArtifacts` property (documents the `-p:GenerateLpxArtifacts=false` opt-out, net472-only .lpx).
 
 </details>

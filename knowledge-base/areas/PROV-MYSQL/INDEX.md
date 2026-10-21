@@ -3,8 +3,8 @@ area: PROV-MYSQL
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 21/21
 ---
@@ -164,6 +164,7 @@ MySqlSqlExpressionConvertVisitor (Source/LinqToDB/Internal/DataProvider/MySql/My
 - ConvertConversion: suppresses CAST when converting decimal->float/double (avoids precision loss via intermediate cast).
 - ConvertSqlBinaryExpression: adjusts | bitwise OR precedence (MySQL gives | lower priority than &); flattens string-concatenation + chains into multi-argument Concat(...) calls.
 - ConvertSearchStringPredicate: case-insensitive Contains translates to LOCATE(search, data) > 0; case-sensitive adds COLLATE utf8_bin to the data expression.
+- ConvertDefaultValue(SqlDefaultValueExpression) (delta 89b5ce162): when the default value is a DateTimeOffset, returns a SqlValue typed as DateTime (expression.Type.WithSystemType(typeof(DateTime))) holding dateTimeOffset.DateTime, otherwise defers to base. Code comment: MySQL 8 writes a DateTimeOffset as a literal with an offset, which the server reads in the session time zone -- dropping the offset yields a plain DateTime literal.
 - ConvertSqlFunction: maps LENGTH pseudo-function to CHAR_LENGTH.
 - WrapColumnExpression: wraps uint, ulong, long, double, decimal values and parameters in mandatory CAST nodes for set operations.
 
@@ -432,5 +433,10 @@ Read (this run -- delta):
 - Internal/DataProvider/MySql/MySqlDataProvider.cs (M): sealed subclass declarations changed to body-less form; constructor picks MariaDBSqlOptimizer for MySqlVersion.MariaDB10, MySqlSqlOptimizer otherwise.
 - Internal/DataProvider/MySql/MySqlProviderAdapter.cs (M): syntactic only (MySqlTransaction wrapper class made body-less); no behavior change.
 - Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs (M): added TruncateDivide (DIV), CanLowerIntervalDifference/ElapsedTicks (TimestampDiff at Microsecond, scaled to ticks), CanLowerIntervalShift/LowerTemporalArithmetic (Date_Add/Date_Sub with INTERVAL n Microsecond via truncating divide).
+
+Delta run 2026-10-21 (SHA 89b5ce162): one modified file. MySqlSqlExpressionConvertVisitor gained a ConvertDefaultValue override that strips the offset from DateTimeOffset defaults. Diff taken against prior last_verified_sha (05150894e).
+
+Read (this run -- delta):
+- Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs (M): added ConvertDefaultValue override -- DateTimeOffset default value becomes a DateTime-typed SqlValue (offset dropped, .DateTime used) so MySQL 8 does not interpret an offset-bearing literal in the session time zone. All other overrides unchanged.
 
 </details>

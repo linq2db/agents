@@ -3,8 +3,8 @@ area: PROV-SQLSERVER
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-SQLSERVER -- GitHub themes
@@ -25,7 +25,7 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **Recursive CTE type stability** -- #2451 reports type-mismatch errors when recursive CTE branches emit different precisions (NVARCHAR(50) vs NVARCHAR(MAX)). The related silent column drop (#5457) was fixed by #5680 and is listed under Resolved.
 
-- **Type handling (string length, conversions)** -- #4177 (open PR, fixes #4138) maps string.Length for SQL CE and MSSQL. #5810 (open) reports that SqlFn.Convert emits another call's target type when call shapes match.
+- **Type handling (string length, conversions)** -- #4177 (open PR, fixes #4138) maps string.Length for SQL CE and MSSQL. #5810 (open) reports that SqlFn.Convert emits another call's target type when call shapes match. #6078 (open, filed 2026-10-19) is a date-literal case: a DateTime literal compared with a value computed from a datetime column (MAX, COALESCE) is written as DATETIME2FROMPARTS, so a row stored and read back through that column misses the match, while the column itself is written as DATETIMEFROMPARTS and matches.
 
 - **Test infrastructure** -- #5730 asks to replace the legacy dotMorten SQL Server types test dependency. #5887 reports the ParameterReuse cost test as flaky on netfx legs and missing [QueryCacheTest]. Only two items, below the three-item threshold; listed because both are open and tagged to this area.
 
@@ -39,20 +39,24 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 
 - **Query simplification regressions** -- #5529 (closed 2026-06-01): SqlServer no longer simplifies LEN(...) - 1 <> 0 and (col + literal) IS NULL in WhereTests. #5777 (closed 2026-10-09): SQL Server before 2016 elapsed-time reach through the shared decomposition; no closing PR recorded in the index.
 
+- **Procedure return value scaffolding** -- #6026 (PR, merged 2026-10-12, refs #4718) maps the SQL Server procedure return value as ReturnValue instead of Output when --mssql-enable-return-value-parameter is set. The Output mapping had made every generated procedure wrapper fail with "too many arguments" (pre-existing since #3098).
+
+- **Windows test-leg image pulls** -- #6011 (PR, merged 2026-10-10) restores the Docker Hub login before setup on the Azure Windows SQL Server legs, after anonymous win-mssql-* pulls hit the Docker Hub rate limit (build 23999).
+
 ## Active discussions
 - [SQL Server: Create a temp table with IGNORE_DUP_KEY = ON](https://github.com/linq2db/linq2db/discussions/4953) -- [Q-and-A] asks whether a temp table can silently ignore duplicate-key rows instead of raising a PK violation.
 
 ## Stats
-- Open issues: 18
+- Open issues: 19
 - Closed issues: 179
 - Open PRs: 1
 - Total PRs: 97
 - Discussions: 17 (1 open)
-- Last fetched: 2026-10-09
+- Last fetched: 2026-10-21
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 311 (197 issues + 97 PRs + 17 discussions)
-- Themes extracted: 9 open + 4 resolved
+- Index entries scanned: 312 (198 issues + 97 PRs + 17 discussions)
+- Themes extracted: 9 open + 6 resolved
 
 </details>

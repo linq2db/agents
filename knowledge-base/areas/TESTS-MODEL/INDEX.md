@@ -3,15 +3,15 @@ area: TESTS-MODEL
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 4/4
-coverage_tier_2: 22/22
+coverage_tier_2: 23/23
 ---
 
 # TESTS-MODEL
 
-Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test project. Contains entity definitions, `ITestDataContext`, concrete `DataConnection` subclasses, and transport-specific remote data contexts. No test logic lives here -- only the schema model.
+Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test project. Contains entity definitions, `ITestDataContext`, concrete `DataConnection` subclasses, and transport-specific remote data contexts. No test logic lives here -- only the schema model (the remote contexts now also carry client-side connection pooling, see below).
 
 ## Subsystems
 
@@ -31,7 +31,7 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 - `TestDataCustomConnection` -- wraps `TestDataConnection` via composition, implementing `IDataContext` manually, used to test non-`DataConnection` code paths. It now also explicitly implements `IInfrastructure<IServiceProvider>` and `IInterceptable<IEntityServiceInterceptor>`, forwarding `Instance` / `Interceptor` (get and set) to the wrapped `Connection`, so the service provider and entity-service interception work through the wrapper.
 - Four remote contexts (see below).
 
-**Remote data contexts** -- Each subclasses the transport base class and implements `ITestDataContext` by delegating `GetTable<T>()`. `GetParentByID` throws `NotImplementedException` on all remote contexts (table functions are not supported over remote transports).
+**Remote data contexts** -- Each subclasses the transport base class and implements `ITestDataContext` by delegating `GetTable<T>()`. `GetParentByID` throws `NotImplementedException` on all remote contexts (table functions are not supported over remote transports). All four now share client resources across contexts instead of opening a connection per context, to avoid socket exhaustion / TIME_WAIT buildup in long remote test runs:
 
 | Class | Base | TFM |
 |---|---|---|
@@ -39,6 +39,12 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 | `TestHttpContextDataContext` | `HttpClientDataContext` | `!NETFRAMEWORK` |
 | `TestSignalRDataContext` | `SignalRDataContext` | all |
 | `TestWcfDataContext` | `WcfDataContext` | `NETFRAMEWORK` only |
+
+- `RemoteHost.Loopback` (`Remote/RemoteHost.cs`) -- new `const string` `"127.0.0.1"`: the address every remote test host binds to and every client connects to. Avoids `localhost` resolving to `::1` first (slow/unrouted IPv6 loopback, notably WSL + Docker) and matches the IPv4-only free-port probe. `TestWcfDataContext` now builds its endpoint as `net.tcp://{RemoteHost.Loopback}:{port}/LinqOverWcf` instead of `localhost`.
+- `TestGrpcDataContext` -- a single `static readonly HttpClient _httpClient` (handler with `DangerousAcceptAnyServerCertificateValidator`, `MA0039` suppressed) is passed via `GrpcChannelOptions.HttpClient` to every context. Previously one `HttpClient` per context was created and never disposed, since `GrpcChannel` does not dispose a caller-supplied client (handler + HTTP/2 connection lived until finalization). The `CA2000` suppression was dropped.
+- `TestHttpContextDataContext` -- converted from a primary-constructor class to an explicit constructor. One static `HttpClient` (no `BaseAddress`) is shared by all contexts so requests reuse pooled connections rather than leaving each in TIME_WAIT. Because test hosts listen on different ports, the base class is given the absolute URI `new Uri(baseAddress, "remote/linq2db").AbsoluteUri` and each context sends absolute request URIs to its own host. Uses the `HttpClientDataContext(HttpClient, string, optionBuilder)` overload.
+- `TestSignalRDataContext` -- the largest change. Constructor now takes `string hubUrl` instead of a `HubConnection`. A static per-URL pool (`_idleConnections`, `Dictionary<string, Stack<PooledHubConnection>>` guarded by `Lock`, `MaxIdleConnectionsPerUrl = 32`) holds started hub connections. Each context leases one connection through a private `Lease` (an `ILinqService` wrapper): contexts alive simultaneously get separate connections because the test hub runs one invocation per connection at a time. `Lease.RunAsync` counts running calls, marks the lease `_interrupted` on any exception/cancellation, and refuses calls after `Return()` (`ObjectDisposedException`). On `Dispose` / `DisposeAsync` the lease is returned (`Lease.Return`): the connection goes back to the pool only if no call is running and none failed or was cancelled (the hub keeps running a cancelled invocation), otherwise it is disposed. `RentConnection` discards dropped idle connections. `PooledHubConnection` wraps `HubConnection` + `SignalRLinqServiceClient`, tracks `Closed`, and reports `IsConnected` (`!_closed`, plus `State == Connected` off `NETFRAMEWORK`; net462 has no `State`, so a just-dropped connection may be handed out and only the test using it fails). Public surface: `LeasedClient` (the `ILinqService`, stops working after dispose) and `HubConnection`; `GetClient()` is overridden to return the lease. `MA0215` is suppressed around the awaited `DisposeAsync` (Task on net462, ValueTask on net8.0+).
+- `TestWcfDataContext` -- the `NetTcpBinding` is built once (`CreateBinding`, `ReaderQuotas.MaxStringContentLength = 1000000` now set there) and `GetClient()` is overridden to return a `SharedFactoryLinqServiceClient`. A static per-endpoint `ChannelFactory<IWcfLinqService>` cache (`_channelFactories`, keyed by endpoint URI, faulted/closed factories aborted and replaced) replaces the library-side new-`ChannelFactory`-per-query behaviour, so TCP connections stay pooled and a query only opens/closes a channel. The inner client implements `ILinqService` + `IDisposable`, checks cancellation up front (the WCF contract has no token), and on dispose closes the channel (abort when faulted or on `CommunicationException` / `TimeoutException`). Its `RemoteClientTag` is `"Wcf"`.
 
 **Provider-specific entities** -- Static container classes with inner types covering sequence / identity patterns unique to each provider:
 - `FirebirdSpecific.SequenceTest` -- `[SequenceName("SequenceTestSeq")]` + column-name workaround (`Value_` avoids FB reserved word).
@@ -60,8 +66,11 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 | `ParentInheritanceBase` | `ParentChild.cs:413` | Abstract root of `Parent`-table inheritance, null-code + value-code + default mappings |
 | `InheritanceParentBase` | `InheritanceParentChild.cs:14` | Root of `InheritanceParent` table hierarchy, `TInheritance` interface |
 | `NorthwindDB` | `NorthwindDB.cs` | `DataConnection` for Northwind, includes `FreeTextTable<>` and `WithUpdateLock<T>` helpers |
-| `TestGrpcDataContext` | `Remote/Grpc/TestGrpcDataContext.cs` | gRPC remote context, skips cert validation for local test servers |
-| `TestWcfDataContext` | `Remote/WCF/TestWcfDataContext.cs` | WCF remote context (`net462` only), `NetTcpBinding` with extended timeouts |
+| `RemoteHost` | `Remote/RemoteHost.cs` | Static holder of `Loopback = "127.0.0.1"`, the shared bind/connect address for remote test hosts and clients |
+| `TestGrpcDataContext` | `Remote/Grpc/TestGrpcDataContext.cs` | gRPC remote context, skips cert validation for local test servers, one shared static `HttpClient` |
+| `TestHttpContextDataContext` | `Remote/HttpContext/TestHttpContextDataContext.cs` | HTTP remote context, one shared static `HttpClient`, absolute per-host request URIs |
+| `TestSignalRDataContext` | `Remote/SignalR/TestSignalRDataContext.cs` | SignalR remote context with per-URL hub-connection pool and `Lease` wrapper (constructed from `hubUrl`) |
+| `TestWcfDataContext` | `Remote/WCF/TestWcfDataContext.cs` | WCF remote context (`net462` only), `NetTcpBinding` with extended timeouts, shared per-endpoint `ChannelFactory` |
 
 ## Files (Tier 1 / Tier 2)
 
@@ -74,9 +83,9 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 | `Person.cs` | Core entity, exercises `[Column(Configuration)]`, `[Association]`, `IPerson` |
 | `Tests.Model.csproj` | Project references reveal all remote transport dependencies |
 
-**Tier 2** (all read, 22/22):
+**Tier 2** (all read, 23/23):
 
-`Patient.cs`, `Doctor.cs`, `ParentChild.cs`, `InheritanceParentChild.cs`, `Northwind.cs`, `NorthwindDB.cs`, `LinqDataTypes.cs`, `ComplexPerson.cs`, `FullName.cs`, `Gender.cs`, `TypeValue.cs`, `TestIdentity.cs`, `IPerson.cs`, `Interfaces.cs`, `Extensions.cs`, `FirebirdSpecific.cs`, `OracleSpecific.cs`, `PostgreSQLSpecific.cs`, `TestDataCustomConnection.cs`, `Remote/Grpc/TestGrpcDataContext.cs`, `Remote/HttpContext/TestHttpContextDataContext.cs`, `Remote/SignalR/TestSignalRDataContext.cs`, `Remote/WCF/TestWcfDataContext.cs`
+`Patient.cs`, `Doctor.cs`, `ParentChild.cs`, `InheritanceParentChild.cs`, `Northwind.cs`, `NorthwindDB.cs`, `LinqDataTypes.cs`, `ComplexPerson.cs`, `FullName.cs`, `Gender.cs`, `TypeValue.cs`, `TestIdentity.cs`, `IPerson.cs`, `Interfaces.cs`, `Extensions.cs`, `FirebirdSpecific.cs`, `OracleSpecific.cs`, `PostgreSQLSpecific.cs`, `TestDataCustomConnection.cs`, `Remote/RemoteHost.cs`, `Remote/Grpc/TestGrpcDataContext.cs`, `Remote/HttpContext/TestHttpContextDataContext.cs`, `Remote/SignalR/TestSignalRDataContext.cs`, `Remote/WCF/TestWcfDataContext.cs`
 
 ## Inbound / outbound dependencies
 
@@ -84,10 +93,11 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 - `LinqToDB` (core) -- `IDataContext`, `DataConnection`, `ITable<T>`, `DataOptions`, `MappingSchema`, `Sql.*` attributes
 - `LinqToDB.Internal.Infrastructure` / `LinqToDB.Internal.Interceptors` -- `IInfrastructure<T>`, `IInterceptable<IEntityServiceInterceptor>` (used by `TestDataCustomConnection`)
 - `LinqToDB.Mapping` -- `[Table]`, `[Column]`, `[PrimaryKey]`, `[Identity]`, `[Association]`, `[InheritanceMapping]`, `[SequenceName]`, `[MapValue]`, `[NotColumn]`, `[Nullable]`, `[NotNull]`
-- `LinqToDB.Remote.SignalR` / `LinqToDB.Remote.SignalR.Client` -- `SignalRDataContext`
+- `LinqToDB.Remote` -- `ILinqService`, `LinqServiceInfo` (implemented/wrapped by the SignalR `Lease` and the WCF `SharedFactoryLinqServiceClient`)
+- `LinqToDB.Remote.SignalR` / `LinqToDB.Remote.SignalR.Client` -- `SignalRDataContext`, `SignalRLinqServiceClient`
 - `LinqToDB.Remote.Grpc` -- `GrpcDataContext` (`!NETFRAMEWORK`)
 - `LinqToDB.Remote.HttpClient.Client` -- `HttpClientDataContext` (`!NETFRAMEWORK`)
-- `LinqToDB.Remote.Wcf` -- `WcfDataContext` (`NETFRAMEWORK`)
+- `LinqToDB.Remote.Wcf` -- `WcfDataContext`, `IWcfLinqService` (`NETFRAMEWORK`)
 - `LinqToDB.Scaffold` -- referenced in csproj, `TestDataConnection` uses `SystemSchemaModel` from `LinqToDB.Tools`
 - `LinqToDB.DataProvider.SqlServer` -- `SqlServerExtensions.FreeTextTable` in `NorthwindDB`
 
@@ -96,13 +106,14 @@ Shared POCO / mapping library (`linq2db.Model` assembly) consumed by every test 
 - TESTS-LINQ (`Tests/Tests.Linq`) -- every fixture queries through `ITestDataContext` / `TestDataConnection`
 - TESTS-EFCORE -- some fixtures use `NorthwindDB` for Northwind tests
 - TESTS-VB -- imports `Tests.Model` for VB LINQ tests
-- All remote transport test areas (REMOTE-*) -- construct `Test<X>DataContext` from `Remote/` subfolder
+- All remote transport test areas (REMOTE-*) -- construct `Test<X>DataContext` from `Remote/` subfolder. Callers must now pass a hub URL (not a `HubConnection`) to `TestSignalRDataContext`, and use `RemoteHost.Loopback` for remote host binding/connection.
 
 ## Known issues / debt
 
 - `TestDataCustomConnection` partially stubs `IDataContext` -- `UseOptions`, `UseMappingSchema`, `AddMappingSchema`, `SetMappingSchema` are no-ops (return `null` / do nothing). This means tests using `TestDataCustomConnection` cannot exercise per-scope mapping overrides.
 - `TestWcfDataContext` and `FirebirdSpecific` are `NETFRAMEWORK`-only, the rest of the remote contexts are `!NETFRAMEWORK`. There is no `net462`-compatible HTTP remote context variant.
 - `GetParentByID` on all four remote contexts throws `NotImplementedException` -- table-valued function tests implicitly require `TestDataConnection` and will silently skip on remote test runs unless the fixture guards on context type.
+- Remote contexts now hold process-wide static state (shared `HttpClient`s, SignalR connection pool, WCF `ChannelFactory` cache) that is never torn down explicitly. Fine for test processes. A SignalR connection used by a cancelled/failed call is discarded rather than reused, and on net462 `PooledHubConnection.IsConnected` cannot see a dropped-but-not-yet-`Closed` connection (`TestSignalRDataContext.cs`).
 
 ## See also
 
@@ -119,7 +130,7 @@ Tier 1 (4/4 read):
 - `Person.cs` -- read in full
 - `Tests.Model.csproj` -- read in full
 
-Tier 2 (22/22 read):
+Tier 2 (23/23 read):
 - `Patient.cs` -- read in full
 - `Doctor.cs` -- read in full
 - `ParentChild.cs` -- read in full (includes Parent, Parent1-5, Child, GrandChild, GrandChild1, ParentInheritanceBase*1-4, Functions/FunctionsExtensions/FunctionsOld)
@@ -143,6 +154,7 @@ Tier 2 (22/22 read):
 - `Remote/HttpContext/TestHttpContextDataContext.cs` -- read in full
 - `Remote/SignalR/TestSignalRDataContext.cs` -- read in full
 - `Remote/WCF/TestWcfDataContext.cs` -- read in full
+- `Remote/RemoteHost.cs` -- read in full (added in delta 2026-10-21)
 
 Tier 3: none
 
@@ -155,4 +167,11 @@ Read (this run -- delta, 2026-10-09):
 - `Tests/Model/Northwind.cs` -- `ActiveProduct` converted to body-less class declaration, no mapping change.
 - `Tests/Model/ParentChild.cs` -- `ParentInheritanceNull` converted to body-less class declaration, no mapping change.
 - `Tests/Model/TestDataCustomConnection.cs` -- now implements `IInfrastructure<IServiceProvider>` and `IInterceptable<IEntityServiceInterceptor>` by forwarding to the wrapped `TestDataConnection`.
+
+Read (this run -- delta, 2026-10-21):
+- `Tests/Model/Remote/RemoteHost.cs` -- new; `RemoteHost.Loopback = "127.0.0.1"` shared bind/connect address.
+- `Tests/Model/Remote/Grpc/TestGrpcDataContext.cs` -- per-context `HttpClient` replaced by one static shared client (no per-context undisposed handler).
+- `Tests/Model/Remote/HttpContext/TestHttpContextDataContext.cs` -- primary ctor replaced by explicit ctor, shared static `HttpClient`, absolute URI `baseAddress + "remote/linq2db"`.
+- `Tests/Model/Remote/SignalR/TestSignalRDataContext.cs` -- ctor takes `hubUrl`, per-URL static hub-connection pool with `Lease` / `PooledHubConnection`, `GetClient()` override, `LeasedClient` / `HubConnection` properties, lease returned on dispose.
+- `Tests/Model/Remote/WCF/TestWcfDataContext.cs` -- shared `NetTcpBinding`, static per-endpoint `ChannelFactory` cache, `GetClient()` returns `SharedFactoryLinqServiceClient`, endpoint host switched from `localhost` to `RemoteHost.Loopback`.
 </details>

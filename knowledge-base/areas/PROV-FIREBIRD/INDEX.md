@@ -3,8 +3,8 @@ area: PROV-FIREBIRD
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 13/13
 ---
@@ -286,7 +286,7 @@ LockedMappingSchema("Firebird") -- FirebirdMappingSchema (base, shared)
 - `decimal` -> `Decimal(18, 10)`.
 - `ulong` -> `Decimal(20, 0)`.
 - Non-ASCII / special-char strings encoded as `_utf8 x'...'` hex literals when `IsLiteralEncodingSupported = true` (`FirebirdMappingSchema.cs:156-166`).
-- Floating-point special values (NaN, +/-Infinity): encoded as `LOG(...)` expressions (Firebird lacks literal infinity support; `FirebirdMappingSchema.cs:56-79`).
+- Floating-point special values (NaN, +/-Infinity): encoded as `LOG(...)` expressions (Firebird lacks literal infinity support; `FirebirdMappingSchema.cs:56-79`). Infinity checks go through `FloatingPointHelper.IsNegativeInfinity` / `IsPositiveInfinity` instead of `float`/`double` static members (no change in emitted SQL).
 - Guid stored as `CHAR(16) CHARACTER SET OCTETS` (binary); byte-order reversal applied on little-endian platforms (`FirebirdMappingSchema.cs:108-119`).
 - `BigInteger` -> `INT128`.
 - `bool` -> `BOOLEAN` (v3+); v25 uses `CHAR(1)` with `'1'`/`'0'` representation via `Firebird25MappingSchemaBase`.
@@ -458,5 +458,8 @@ Read (this run -- delta, 05150894e):
 - `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdProviderAdapter.cs` -- `ClearPool` / `ClearPoolByConnectionString` actions + `FbConnection.ClearPool` wrapper stubs; wrapper classes reduced to `;` bodies
 - `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.cs` -- `BuildParameter` override replaced by `GetParameterCastType` => `GetValueBasedParameterCastType`; resolves prior Known issues #3 and #4
 - `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlExpressionConvertVisitor.cs` -- interval lowering: `CanLowerIntervalDifference`, `CanLowerIntervalShift`, `ElapsedTicks`, `LowerTemporalArithmetic`, `IntervalResolution => Millisecond` (v2.5 default)
+
+Read (this run -- delta, 89b5ce162):
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdMappingSchema.cs` -- float/double infinity detection switched from `float.IsNegativeInfinity`/`IsPositiveInfinity` (and `double` equivalents) to `FloatingPointHelper.IsNegativeInfinity`/`IsPositiveInfinity`, NaN path and emitted `LOG(...)` SQL unchanged
 
 </details>

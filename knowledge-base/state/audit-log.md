@@ -2820,3 +2820,50 @@ reason: delta contradicted prior claims, updated in place: (1) Pomelo-based MySQ
 - coverage: queue drained (INTERNAL-API 157, TESTS-LINQ 263, CLI 16, ANALYZERS 5); TESTS-LINQ batches 4-7 were re-visits at saturated 700/700
 - removed 18 stub area dirs not in registry (BOOLEAN, CAST, EF3/31/8/9/10, FETCH, IDENTITY, INTERVAL, LIMIT, MAX, NETFRAMEWORK, OFFSET, RETURNING, ROWNUM, SERIAL, SERIAL8)
 
+## 2026-10-21T20:36:49Z — agent audit notes
+- reason: Subsystem 28 PreferClientCalculation gained InsideTranslation and InsideNullableCast gates, documented in new Subsystem 41. No prior claim contradicted.
+
+## 2026-10-21T20:38:04Z — agent audit notes
+- area: LINQPAD
+reason: ModelProviderInterceptor out-parameter snippet changed from "out name" to "out var name"; existing "TODO: disabled due to generation bug" known-issue bullet replaced by a resolved note (EnableSqlServerReturnValue now user-controlled).
+
+## 2026-10-21T20:41:15Z — agent audit notes
+- area: TESTS-INFRA. Contradiction fixed in place: INDEX previously stated TestProgressState marks the run done when completed >= total. Current source removed that fallback (only MarkDone at root-suite teardown ends the run) and SetTotal now assigns instead of taking the max. Also: Tests/Tests.FpuJit/** and Tests/Base/TestRunCounter.cs counted as new Tier-2 files (89/89 -> 92/92).
+
+## 2026-10-21T20:43:21Z — agent audit notes
+- No new items. Delta scanned 43 changed C# files (PublicAPI.Unshipped.txt skipped, not a code file). New files FloatingPointHelper, FormattableStringHelper, SqlQueryDependentFormatAttribute, SqlDefaultValueExpression: no pattern hits.
+Out-of-area observation (owned by SQL-AST, DI-3300): QueryElementType.cs:140 is a new TODO of the same signature (SqlDefaultValueExpression appended); DI-3300 files[] lists only lines 116..133. Other detectors own further line shifts: QueryHelper (1086->1087, 2332->2302), QueryElementVisitor (3122->3124), BasicSqlBuilder (3716->3730), SqlExpressionConvertVisitor (2043->2064). ExpressionBuildVisitor TODO at old line 1139 no longer present (EXPR-TRANS entry).
+
+## 2026-10-21T20:43:38Z — agent audit notes
+- reason: "Coverage block text Tier 2 630/692 sampled in TESTS-LINQ/INDEX.md is stale versus frontmatter 700/700 (now 703/703), left verbatim per delta rules. Also TestProgressStateTests no longer has DoneLatchesWhenCompletedReachesTotal (renamed, semantics changed)."
+
+## 2026-10-21T20:45:32Z — agent audit notes
+- DuckDBMappingSchema.cs: the only public members are the sealed class and its ctor, both in the LinqToDB.Internal namespace without XML docs. The doc-gap pattern says "public API method"; internal-namespace types were not treated as public API, so nothing was emitted. Consider clarifying in kb-issue-categories.md whether Internal.* namespaces are excluded from doc-gap.
+
+## 2026-10-21T20:51:33Z — agent audit notes
+- DI-0187/0188/0190/0249 were marked fixed in a prior refresh but the TODO comments are still present in the working tree (lines 622, 2714, 1533, 339); reopened. DI-0179 (BasicSqlBuilder:4046) stays fixed, the surviving TODO at 3730 is tracked by DI-3351. DI-0188 mapped to the Overlaps "TODO:: retest" by position; the original text was not verified.
+
+## 2026-10-21T20:52:15Z — agent audit notes
+- DI-1225 (SelectTests Issue4199) and DI-1451 (FSharpTests Issue1813) no longer have ActiveIssue gates in the current files (confirmed by Grep). Both are status triaged (user-driven), so the detector did not flip them. They are candidates for fixed on user review.
+
+## 2026-10-21T20:52:28Z — agent audit notes
+- DI-0673 and DI-3300 overlap on QueryElementType.cs (same TODO family, lines 116-140). DI-0760 and DI-3301 duplicate the HasOutputItems TODO at QueryElementVisitor.cs:1441. DI-0673 files trimmed to 116/120 as the rest are held by DI-3300. NullabilityContext.cs, SqlDefaultValueExpression.cs, SqlQueryValidatorVisitor.cs: no catalog pattern fired. Open GH 5960 links QueryHelper.cs but concerns GetDbDataType, not a TODO, so not cross-linked.
+
+## 2026-10-21T20:53:36Z — agent audit notes
+- GLOBAL (no provider label, area label, title keyword or clear body area): #6042 QueryCache.ToStopwatchTicks stack overflow on .NET Framework 4.8.1 (closed, resolution: external, no labels); #5997 date/time literal vs coarser column (no labels, provider-independent body). Reclassify by label if wanted.
+
+## 2026-10-21T20:59:49Z — agent audit notes
+- PR #5640 (Migrate LinqToDB.Identity into the monorepo): no kb-areas.md row covers Source/LinqToDB.Identity. Classified as GLOBAL. Reclassify when a registry area exists or a label is added.
+
+## 2026-10-21T21:13:09Z — kb-refresh
+- code: 151 files across 30 areas re-scanned (05150894 -> 89b5ce16); 30 architect + 30 detector envelopes applied
+- code: kb-areas.md TESTS-INFRA now includes Tests/Tests.FpuJit/** (user-approved); unmatched: .github/copilot-instructions.md, Directory.Packages.props, Examples/Remote/SignalR/SignalRServer/SignalRServer.csproj, Tests/Directory.Build.props
+- detected-issues: new DI-4601, DI-4701, DI-5201, DI-5301; DI-0187/0188/0190/0249 reopened (verified still present against source; prior run wrongly marked fixed)
+- detected-issues: first LINQ detector envelope rejected (flipped 5 still-present TODOs to fixed); re-run applied as no-op
+- coverage: deferred queue empty, skipped
+- commits: 28 new (2026.md merged, 2 decisions)
+- issues: 63 updated, prs: 65, discussions: 0
+- themes: 33 areas regenerated, 0 citations dropped
+- wiki: 0/0/0
+- audit: 5 sampled, 0 demoted (all 5 sampled files had 0 citations)
+

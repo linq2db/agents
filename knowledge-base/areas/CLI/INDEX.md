@@ -3,8 +3,8 @@ area: CLI
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 14/14
 coverage_tier_2: 95/96
 ---
@@ -13,7 +13,7 @@ coverage_tier_2: 95/96
 
 `dotnet-linq2db` -- the scaffolding dotnet tool. Invoked as `dotnet linq2db <command>` or `dotnet-linq2db <command>`. Ships as the `linq2db.cli` NuGet package (package type: `DotnetTool`). Targets `net8.0`, `net9.0`, `net10.0`. Besides scaffolding it is now also an agent-facing database tool: read-only `query`, write-capable `execute`, `schema` inspection, a credential-profile store, and an STDIO MCP server (`mcp`) that exposes the same machinery as model-controlled tools (published to the MCP Registry as `io.github.linq2db/linq2db.cli`, `server.json`). The CLI is covered by its own test project, `Tests/LinqToDB.CLI` (see [Test coverage](#test-coverage-testslinqtodbcli)).
 
-Assembly name is `dotnet-linq2db` (set by `<AssemblyName>` in `LinqToDB.CLI.csproj:5`). The project uses `PackAsTool=true` with `ToolPackageRuntimeIdentifiers` in the csproj SDK-pack pipeline (a .NET 10 SDK feature). This replaces the prior approach of a custom `.nuspec` file and a `MultiArchPublish` MSBuild target. `dotnet pack` now produces a thin pointer package plus one sub-package per RID; `dotnet tool install -g linq2db.cli` selects the sub-package matching the SDK architecture. RIDs covered: `win-x64`, `win-x86`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64` (`LinqToDB.CLI.csproj:18,35`). Installation requires .NET 10 SDK; runtime requires .NET 8+. The csproj also packs a generated `THIRD-PARTY-NOTICES.linq2db.cli.txt` twice (package root + `CopyToPublishDirectory` so it lands in the tool payload) and suppresses `NU5118` for the RID-less pointer package (`LinqToDB.CLI.csproj:57`, SDK 10.0.400 collision workaround). `Microsoft.CodeAnalysis.PublicApiAnalyzers` is removed from the project (`LinqToDB.CLI.csproj:87`) and `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt` were deleted: the tool assembly is not a referenceable library API, even though `CliController`, `ICliEnvironment`, `QueryExecutionExecutor`, `ReadOnlySqlGuard`, `ExternalProviderLoader`, `WindowsImpersonation`, `SecretConsoleReader` and `LinqToDBHost` remain `public` (consumed by tests).
+Assembly name is `dotnet-linq2db` (set by `<AssemblyName>` in `LinqToDB.CLI.csproj:5`). The project uses `PackAsTool=true` with `ToolPackageRuntimeIdentifiers` in the csproj SDK-pack pipeline (a .NET 10 SDK feature). This replaces the prior approach of a custom `.nuspec` file and a `MultiArchPublish` MSBuild target. `dotnet pack` now produces a thin pointer package plus one sub-package per RID; `dotnet tool install -g linq2db.cli` selects the sub-package matching the SDK architecture. RIDs covered: `win-x64`, `win-x86`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64` (`LinqToDB.CLI.csproj:18,35`). Installation requires .NET 10 SDK; runtime requires .NET 8+. The csproj also packs a generated `THIRD-PARTY-NOTICES.linq2db.cli.txt` twice (package root + `CopyToPublishDirectory` so it lands in the tool payload) and suppresses `NU5118` for the RID-less pointer package (`LinqToDB.CLI.csproj:57`, SDK 10.0.400 collision workaround). `Microsoft.CodeAnalysis.PublicApiAnalyzers` is removed from the project (`LinqToDB.CLI.csproj:87`) and `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt` were deleted: the tool assembly is not a referenceable library API, even though `CliController`, `ICliEnvironment`, `QueryExecutionExecutor`, `ReadOnlySqlGuard`, `ExternalProviderLoader`, `WindowsImpersonation`, `SecretConsoleReader` and `LinqToDBHost` remain `public` (consumed by tests). The bundled-providers item group also carries a direct `System.Security.Cryptography.Pkcs` `PackageReference` (`LinqToDB.CLI.csproj:119`) whose only purpose is to override a vulnerable transitive version: the tool bundles its dependencies, so consumers cannot pin a fixed version themselves.
 
 ## Subsystems
 
@@ -182,6 +182,7 @@ Invariants these tests pin: exit codes (`-1` invalid arguments, `0` success), st
 - **ModelContextProtocol**, **Microsoft.Extensions.Hosting**, **Microsoft.Extensions.Logging.Console** -- `mcp` server host.
 - **Microsoft.SqlServer.TransactSql.ScriptDom** -- SQL Server read-only guard; **Microsoft.SqlServer.Types** -- SqlGeometry/SqlGeography/SqlHierarchyId value formatting.
 - All provider ADO.NET packages bundled in the tool (SQLite, SqlClient, Firebird, MySqlConnector, Oracle.ManagedDataAccess.Core, Npgsql, AdoNetCore.AseClient, ODBC, OleDb, ClickHouse.Driver, Octonica.ClickHouseClient, DuckDB.NET.Data.Full, Ydb.Sdk) -- except IBM DB2/Informix and SAP HANA (too large); DB2/Informix load via `--provider-location`.
+- **System.Security.Cryptography.Pkcs** -- direct reference added only to lift a transitive vulnerable package (version is central, in `Directory.Packages.props`).
 - Windows native: `advapi32` (`LogonUser`, Credential Manager), DPAPI.
 
 **Inbound:** standalone tool; no other source project references `LinqToDB.CLI`. The one project reference is `Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj` (assembly `linq2db.CLI.Tests`), which also runs the built `dotnet-linq2db.dll` out-of-process. External consumers: MCP clients through the MCP Registry entry (`server.json`), agents through `dotnet linq2db skill`, and `.github/workflows/publish-mcp.yml`.
@@ -284,5 +285,8 @@ Invariants these tests pin: exit codes (`-1` invalid arguments, `0` success), st
 - `Commands/QueryExecution/QueryValueFormatter.cs` -- provider formatters, `QueryActualFieldType`, bounded UTF-8 writer.
 - `Commands/QueryExecution/SqlGuardResult.cs` -- public result type with internal factory members.
 - `Commands/QueryExecution/WindowsImpersonationMode.cs` -- public enum of Win32 logon-type codes (8/2/3/9).
+
+**Read (this run -- delta, sha 89b5ce162, 1 changed entry):**
+- `LinqToDB.CLI.csproj` -- added `<PackageReference Include="System.Security.Cryptography.Pkcs" />` at the end of the bundled-providers item group (`LinqToDB.CLI.csproj:119`), with an XML comment "transitive vulnerable packages: the tool bundles its dependencies, so consumers can't pin them". No other csproj change (packaging, RIDs, resources untouched).
 
 </details>

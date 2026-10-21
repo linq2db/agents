@@ -3,8 +3,8 @@ area: PROV-POSTGRES
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
 # PROV-POSTGRES -- GitHub themes
@@ -18,7 +18,7 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - **DML output & InsertWithOutput** -- Users seek UpdateWithOutput-style semantics on INSERT. Discussion #5679 proposes an INSERT-in-CTE strategy with a materialization trade-off, #3912 asks for the same shape, and #5717 generalizes DML RETURNING as a composable source; draft PR #5982 delivers phase 1 for PostgreSQL. Invalid RETURNING output for UpdateWithOutput (DELETED leakage, discussion #4996) remains open. Citations: #5679, #3912, #5717, #4996, #4824, PR #5982.
 - **Date/time zone & NodaTime mapping** -- DateTimeOffset components resolve in the session time zone instead of the value offset (#5751). EF Core with Npgsql UseNodaTime fails on value-converted DateTime columns (#5981). DateOnly array columns do not map (#3929). Citations: #5751, #5981, #3929.
 - **Dialect gating for older PostgreSQL servers** -- Features newer than the target server are emitted: filtered aggregates emit FILTER on 9.2/9.3 (#5948), and string.Join over a filtered grouping emits the same clause through STRING_AGG (#5952). Open PR #5949 gates FILTER on the 9.5 dialect tier. Citations: #5948, #5952, PR #5949.
-- **Npgsql driver integration & connection/transaction state** -- Prepared transactions are disabled in EF Core with Npgsql 8+ (#4877), NpgsqlDataSource integration gaps (AutoDetect server version, passwordless connections) remain (#5248), and a SET CONSTRAINTS statement issued after BeginTransaction misbehaves (#5461). Citations: #4877, #5248, #5461.
+- **Npgsql driver integration & connection/transaction state** -- Prepared transactions are disabled in EF Core with Npgsql 8+ (#4877), NpgsqlDataSource integration gaps (AutoDetect server version, passwordless connections) remain (#5248), and a SET CONSTRAINTS statement issued after BeginTransaction misbehaves (#5461). Npgsql 10 returns DateOnly, TimeOnly and NpgsqlRange<DateOnly> for date, time and daterange, and the netstandard2.0 build lacks the conversion back to DateTime, TimeSpan and NpgsqlRange<DateTime>; the fix is in draft PR #6092 (#6077). Citations: #4877, #5248, #5461, #6077, PR #6092.
 - **FTS & PostgreSQL extensions** -- Full-text search translation and other PostgreSQL-specific extensions remain unimplemented. Citations: #1811.
 
 ## Resolved themes
@@ -37,15 +37,15 @@ last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
 - [PostgreSQL custom db type mapping problem](https://github.com/linq2db/linq2db/discussions/4863) -- [General] Reading a pgvector column fails with "Reading as System.Object is not supported".
 
 ## Stats
-- Open issues: 42
+- Open issues: 43
 - Closed issues: 203
-- Open PRs: 4
-- Total PRs: 98
+- Open PRs: 5
+- Total PRs: 99
 - Discussions: 31
-- Last fetched: 2026-10-09
+- Last fetched: 2026-10-21
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 374 (245 issues + 98 PRs + 31 discussions)
+- Index entries scanned: 376 (246 issues + 99 PRs + 31 discussions)
 - Themes extracted: 9
 </details>

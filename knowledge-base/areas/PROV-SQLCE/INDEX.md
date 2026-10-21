@@ -3,8 +3,8 @@ area: PROV-SQLCE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 10/10
 ---
@@ -25,7 +25,7 @@ SQL Server Compact Edition (SQL CE 4.0) is a single-version, single-driver, file
 | `SqlCeBulkCopy` | `Internal/DataProvider/SqlCe/SqlCeBulkCopy.cs` | `BasicBulkCopy` override; single-strategy (`MultipleRows` only via `MultipleRowsCopy2`), with `SET IDENTITY_INSERT ON/OFF` guard |
 | `SqlCeSchemaProvider` | `Internal/DataProvider/SqlCe/SqlCeSchemaProvider.cs` | `SchemaProviderBase` override; queries `INFORMATION_SCHEMA` views directly via `GetSchema()` and raw SQL; no stored-proc introspection |
 | `SqlCeDmlService` | `Internal/DataProvider/SqlCe/SqlCeDmlService.cs` | `DmlServiceBase` override; detects `DB_E_NOTABLE` (0x80040E37) for table-not-found via HResult or message fallback |
-| `SqlCeSqlExpressionConvertVisitor` | `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | `SqlExpressionConvertVisitor` override; handles `%` modulo cast, `LEN` LENGTH workaround, case-sensitive string predicates via `Convert(VARBINARY,...)`, datetime conversions, BIGINT-typed `TruncateDivide`/`TruncateRemainder`, date shift (`DateAdd`) and interval-difference lowering (`DateDiff`) |
+| `SqlCeSqlExpressionConvertVisitor` | `Internal/DataProvider/SqlCe/SqlCeSqlExpressionConvertVisitor.cs` | `SqlExpressionConvertVisitor` override; handles `%` modulo cast, `LEN` LENGTH workaround, case-sensitive string predicates via `Convert(VARBINARY,...)`, datetime conversions, BIGINT-typed `TruncateDivide`/`TruncateRemainder`, date shift (`DateAdd`) and interval-difference lowering (`DateDiff`), `ConvertDefaultValue` default-date override (1753-01-01) |
 | `SqlCeMemberTranslator` | `Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs` | `ProviderMemberTranslatorDefault` override; assembles date/math/string/guid/aggregate/window sub-translators; includes `Now`/`ServerNow`/`ZonedNow` and date-truncation overrides (PR #5467, #5517); `NewID()` non-pure function; `IsNullOrWhiteSpace` chained-REPLACE emulation |
 | `SqlCeTools` | `DataProvider/SqlCe/SqlCeTools.cs` | Public static entry point; `GetDataProvider()`, `CreateDataConnection()`, `CreateDatabase()` (via `SqlCeEngine`), `DropDatabase()`, provider detection |
 | `SqlCeOptions` | `DataProvider/SqlCe/SqlCeOptions.cs` | `DataProviderOptions<SqlCeOptions>` record; `BulkCopyType` (default `MultipleRows`), `InlineFunctionParameters` (SQL CE 3.0 workaround) |
@@ -75,6 +75,7 @@ A `SqlDecimal` -> `decimal` workaround (`ConvertToDecimal`, `SqlCeProviderAdapte
 - DateTime conversions: time-only extraction via `CAST(CONVERT(NChar, {0}, 114) as DateTime)`, date truncation via `CAST(Floor(Cast({0} as Float)) as DateTime)` (`SqlCeSqlExpressionConvertVisitor.cs:154-217`).
 - **Integer division/remainder by constant** (delta sha `05150894e`): `TruncateDivide` / `TruncateRemainder` overrides emit `Factory.Div` / `Factory.Mod` typed `long` with the divisor wrapped in an explicit `CAST(... AS BIGINT)` (`TypedDivisor`). CE types a literal beyond the `INT` range as `NUMERIC`, and `%` rejects numeric ("Modulo is not supported on real, float, money, and numeric data types").
 - **Interval/date arithmetic** (delta sha `05150894e`): `CanLowerIntervalDifference => true`, `FinestDateUnit => Millisecond`, `IntervalResolution => Millisecond` (a component asked below a millisecond is declined at build time so the member falls to client-side .NET evaluation, same limit as SQLite -- CE `datetime` counts in 3.33 ms steps, so answering zero would be wrong). `ShiftDate` emits `DateAdd(<part>, amount, date)` and `CountDateBoundaries` emits `CAST(DateDiff(<part>, start, end) AS BIGINT)` for units Day/Hour/Minute/Second/Millisecond (`DatePartName`; other units return `null` = unsupported). CE `DATEDIFF` is 32-bit (no wide form), so a total in milliseconds overflows beyond about 24 days and CE raises an overflow error rather than wrapping; whole-unit counts keep every other unit small.
+- **Default date value** (delta sha `89b5ce162`): `ConvertDefaultValue(SqlDefaultValueExpression)` override returns `RaiseDefaultDate(expression, new DateTime(1753, 1, 1)) ?? base.ConvertDefaultValue(expression)` (`SqlCeSqlExpressionConvertVisitor.cs:162-166`). Every CE date type is written as `datetime`, whose minimum is 1753-01-01, so a `default(DateTime)`-style default is raised to that floor instead of `0001-01-01`.
 
 ### Mapping schema
 
@@ -236,5 +237,8 @@ Read (this run -- delta sha `36ee4f82f`):
 Read (this run -- delta sha `05150894e`):
 - `SqlCeSqlBuilder.cs` -- `CanSkipRootAliases` override (always `false` with a SelectQuery) replaced by `RequiresUniqueRootColumnNames => true`; aliases forced only on root column-name collisions (#5657)
 - `SqlCeSqlExpressionConvertVisitor.cs` -- added `TruncateDivide`/`TruncateRemainder` (BIGINT-typed divisor), `CanLowerIntervalDifference`/`FinestDateUnit`/`IntervalResolution` (Millisecond), `ShiftDate` (`DateAdd`), `CountDateBoundaries` (`DateDiff` cast to BIGINT), `IsRemainderable` (stored `DataType` considered for `%` int-cast)
+
+Read (this run -- delta sha `89b5ce162`):
+- `SqlCeSqlExpressionConvertVisitor.cs` -- added `ConvertDefaultValue` override: default date values raised to 1753-01-01 via `RaiseDefaultDate` (CE datetime minimum)
 
 </details>

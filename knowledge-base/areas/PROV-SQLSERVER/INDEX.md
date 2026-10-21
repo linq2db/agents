@@ -3,8 +3,8 @@ area: PROV-SQLSERVER
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 11/11
 coverage_tier_2: 49/49
 ---
@@ -150,6 +150,7 @@ All optimizer versions route through `SqlServerSqlOptimizer.CorrectSqlServerUpda
 - New in this delta -- date/interval arithmetic lowering (date-difference regression fix, PR #5987). The visitor now supplies the provider hooks of the base interval/temporal lowering: `FinestDateUnit` (`Nanosecond` on >=v2008, `Millisecond` on v2005 where `DATEADD` has no nanosecond part), `IntervalResolution` (`Tick` on >=v2008, `Millisecond` on v2005), `CanLowerIntervalDifference = true`, `ShiftDate` (`DateAdd(part, CAST(amount AS INT), date)` -- amount cast down because DATEADD takes 32-bit), `CountDateBoundaries` (`DateDiff_Big` on >=v2016, otherwise 32-bit `DateDiff` cast to `BIGINT`), and `DatePartName` (unit -> T-SQL part name). Pre-2016 with a nanosecond finest unit, `ElapsedTicks` is overridden to split the elapsed time into days, then seconds, then nanoseconds so every 32-bit `DATEDIFF` count stays in range (the anchor is widened to `datetime2` first). `LowerTemporalArithmetic` widens the temporal operand via `AsDateTime2`/`Widened` (to `datetime2` on >=v2008, `datetime` on v2005) with a mandatory cast, because `DATEADD` rejects nanoseconds on `date`/`smalldatetime`/`datetime`. `datetimeoffset` values are never widened (offset would be lost). (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs:14--197`)
 - New in this delta: the float `%` rewrite in `ConvertSqlBinaryExpression` now passes `Precedence.Multiplicative` explicitly to the new `SqlBinaryExpression`, so the renderer no longer parenthesises it.
 - New in this delta: `IsWindowOrderByRequired(SqlExtendedFunction)` override returns true for any frame clause, order-dependent ranking/neighbour functions, and `NTILE`/`FIRST_VALUE`/`LAST_VALUE` -- SQL Server rejects these without `ORDER BY` in `OVER` (unframed aggregates such as `SUM(x) OVER ()` stay exempt).
+- New in this delta: `ConvertDefaultValue(SqlDefaultValueExpression)` override (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs:379--390`) -- lowers a `default(DateTime)`-style value through a new private `LeastDate(DbDataType)` helper (`:392--407`) that returns the least representable date of the column type: `smalldatetime` -> 1900-01-01, `datetime` -> 1753-01-01, text types (`Char`/`VarChar`/`Text`/`NChar`/`NVarChar`/`NText`) -> `null` (written as string), `date`/`datetime2` and `DateTimeOffset`-typed values -> `null` on >=v2008 (they hold 0001-01-01), and everything else (including all types on v2005) -> 1753-01-01. A non-null least date is passed to the base `RaiseDefaultDate` so the default is raised to a value the type can store. Afterwards, a `DateTimeOffset` result for a type with a least date, or for `Date`/`DateTime2`, is re-emitted as a `DateTime` `SqlValue` from `dateTimeOffset.DateTime`, because the mapping-schema converters write a `DateTimeOffset` through `LocalDateTime`, which moves with the time zone even when clamped.
 
 `SqlServer2025SqlExpressionConvertVisitor` -- new class (added in this delta). Extends `SqlServer2012SqlExpressionConvertVisitor`. Overrides `ConcatRequiresExplicitStringCast` to return `false` (`Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServer2025SqlExpressionConvertVisitor.cs:15`): SQL Server 2025's `||` operator auto-coerces non-string operands, so explicit `CAST` on concat arguments is not needed.
 
@@ -395,5 +396,8 @@ Read (this run -- delta):
 - Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSchemaProvider.cs -- temporal_type filter made NULL-safe
 - Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlBuilder.cs -- Json rendering for JsonDbType parameter type
 - Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs -- date/interval lowering hooks (ShiftDate, CountDateBoundaries, ElapsedTicks, LowerTemporalArithmetic), float % precedence, IsWindowOrderByRequired
+
+Read (this run -- delta):
+- Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerSqlExpressionConvertVisitor.cs -- new ConvertDefaultValue override plus LeastDate helper: per-type least-date clamping of default date values (smalldatetime 1900, datetime 1753, date/datetime2/datetimeoffset unclamped on >=2008), DateTimeOffset re-emitted as DateTime to avoid time-zone drift
 
 </details>

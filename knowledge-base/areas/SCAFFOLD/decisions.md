@@ -3,11 +3,11 @@ area: SCAFFOLD
 kind: decisions
 sources: [gh-prs, history-decisions]
 confidence: medium
-last_verified: 2026-05-08
-last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 ---
 
-# SCAFFOLD — Decisions
+# SCAFFOLD -- Decisions
 
 ## Recorded decisions
 
@@ -24,4 +24,3 @@ last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
 - [Add SAP HANA provider](../../history/decisions/2014-saphana-provider.md)
 - [New Merge API (PR #686)](../../history/decisions/2017-new-merge-api.md)
 - [Project reorganization](../../history/decisions/2017-project-reorganization.md)
-

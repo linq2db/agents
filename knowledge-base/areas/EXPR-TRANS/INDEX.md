@@ -3,8 +3,8 @@ area: EXPR-TRANS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 68/68
 coverage_tier_2: 86/86
 ---
@@ -219,6 +219,17 @@ Public translation-layer files (outside area globs, integrated here for complete
 
 40. **Compiled-query argument handling in `ExposeExpressionVisitor`.** `HandleSqlDependentParameters` materializes a `SqlQueryDependentAttribute` argument that reads the compiled query own argument array when `_parameterValues` is set, recording the used slots (`RecordMaterializedArgumentSlots`); `ExpressionBuilder.ExposeExpression(..., out int[] materializedArgumentSlots)` is the new overload reporting them so the caller can add them to its cache key. `TryConvertIQueryable` resolves the compiled root context out of `ps[i]` into `SqlQueryRootExpression` and, for a non-builtin queryable user method it cannot otherwise expand, calls `ExpandOverSource`. `Cleanup` now nulls `_materializedArgumentSlots` and `_parameterValues`.
 
+41. **Read-as-the-reader-reads for projection calculations (delta 89b5ce162, #5983 and related).** A calculation over a non-nullable value-type member of a LEFT-JOINed (unmatched) row now yields the same result in SQL as the client reader does (`default(T)`), instead of propagating NULL.
+    - New `BuildFlags` bits (`BuildFlags.cs`): `ValueOfProjection` (set while a value of the query's projection is built, cleared where the build turns to query structure), `InsideTranslation` (set while a member translator translates its own arguments -- the node is already claimed, so `PreferClientCalculation` must not leave an argument client-side) and `InsideNullableCast` (set for the operand of a conversion to a nullable type and of `Sql.ToNullable`/`Sql.AsNullable` -- the conversion asks for the NULL). `ExpressionBuildVisitor.BuildReadsAsTheReader` is true only for `ValueOfProjection` without `InsideNullableCast`/`ForSetProjection` in Sql/Expression purpose. `PreferClientCalculation` additionally bails on `InsideTranslation` / `InsideNullableCast` (Subsystem 28).
+    - Scope entry/exit: `BuildQuery<T>` builds the projection with `buildFlags: ValueOfProjection` (`ExpressionBuilder.cs:295`) and `ExpressionBuilder.QueryBuilder` `TranslateExpression` adds it to the `ForceDefaultIfEmpty` build. Everything that is query structure leaves the scope through `ExpressionBuilder.UsingOutsideProjectionValue()` (`TryBuildSequence`, `ResolveOrderByItems`, `GroupByBuilder` key/body builds, `UpdateBuilder` setter values, `BuildSearchCondition`, null/path/constructor comparisons) so predicates, keys, ORDER BY and SET values keep SQL NULL semantics.
+    - Mechanism: `ExpressionBuildVisitor.ReadAsTheReaderReads(written, placeholder)` (public via `ExpressionBuilder.ReadAsTheReaderReads`) walks the operand SQL through fields/columns, non-nullable `SqlCastExpression`, and `SqlConditionExpression` / `SqlCaseExpression` result positions, and wraps a column that can be NULL only because its row may be unmatched in `COALESCE(col, default)` (`SqlCoalesceExpression` + `SqlDefaultValueExpression`). `IsReadAsDefault` excludes nullable/reference/enum/`char` types, non-scalar types, columns with a `ValueConverter` or `DurationUnit`, and columns whose nullability is declared (`CanBeNullAsDeclared`, which looks through UNION branches). `ReadsAsTheReaderReads` requires the operand as written to be a non-nullable scalar value type. `ReadAsTheReaderReadsNested` is the variant for consumers that build from an operand not yet moved to their own query (it runs `UpdateNesting` first).
+    - Applied at: unary operators (not `UnaryPlus`, and the bool predicate path), `HandleBinaryMath` (with `IsOperandOutsideDefaultDomain` keeping NULL for a divisor/modulo right operand, the date moved by a shift and year/month/day of a date built from parts), `HandleBinaryLogical`, comparisons (after `RestoreCompare`, using the operands as written so `(T?)x` is not mistaken for `x`, skipped for null comparisons), `HandleStringFormat` arguments, IN-list item building, `ContainsBuilder` (`ContainsContext` remembers `_testExpression`/`_testPlaceholder` and re-reads the tested value in `MakeExpression` when a projection calculates with the membership), `ExpressionBuilder.Aggregation.TranslateExpression` plain-mode items, member-translator operands (`TranslationContext.Translate`, with the member passed through `Init(..., member)`), and extension arguments (`ConvertExtension`: arguments are "operands" unless the attribute is a set function -- `Sql.ExtensionAttribute`/`IsAggregate`/`IsWindowFunction` -- or server-side-only, and not a pass-through: `IsIdentityTemplate`, `PseudoFunctions.REMOVE_CONVERT`, `Sql.NoConvert`). `IsSetFunctionCall` keeps raw NULLs for calls taking a sequence or lambda (a `params` inline array or a `string` method argument is a value list, not a set).
+    - Caching: `ExprCacheKey` and `ColumnCacheKey` gained `ReadsAsTheReader` / `CarriesDefault` components so a value-of-projection build never shares an entry with a predicate/key build of the same path. `TryGetBuiltAcrossTheReader` lets one side reuse the other side's entry when the rule cannot have changed it (`ReachesReadAsDefault` / `CarriesDefault` via the new `ReadAsDefaultVisitor`, using `SqlQuery.Visitors`). `_madeDefault` and `_decidedColumns` (columns made of a default, by identity) are copied in `Clone(CloningContext)`. `MakeColumn` does not add a defaulted column to a select list that defines structure (`DefinesStructure`: DISTINCT, DISTINCT ON, GROUP BY, set operators).
+    - `ToReadExpression` (`ExpressionBuilder.QueryBuilder.cs`) reads through the compiler's widening-cast shape `Convert<T?>(Convert<T>(placeholder))` (numeric conversion with no method, or the type's own operator for `decimal`) so a NULL column is lifted rather than first turned into `default(T)`.
+    - Inline-array handling: `ExpressionBuildVisitor.UnwrapInlineArray` strips `Queryable.AsQueryable`/`Enumerable.AsEnumerable` wrappers off a `NewArrayInit`. `ContainsBuilder.CanBuildMethod` now declines an inline-array source (it is an IN list or client calculation, as the C# 14 span `Contains` bound on .NET 8+ is), `HandleSubquery` returns false for a wrapped inline array under `BuildPurpose.Expression`, and the IN-list builder uses the unwrapped array when it holds row values.
+    - Raw SQL format handling moved: `TableBuilder.PrepareRawSqlArguments` was deleted and `BuildRawSqlTable` calls `FormattableStringHelper.PrepareRawSqlArguments(formatArg, SqlProviderFlags.IsParameterOrderDependent, ...)` (`LinqToDB.Internal.Common`). `ExposeExpressionVisitor` now rewrites the `RawSqlString` overloads `FromSql(sql, params)` / `Sql.Expr(sql, params)` (`Methods.LinqToDB.FromSqlRaw`, `SqlExt.ExprRaw`) into their `FormattableString` forms (`ConvertRawSqlString`), and `HandleSqlDependentParameters` routes `SqlQueryDependentFormatAttribute` arguments through `PrepareFormattableString`: only the format is evaluated into the cache key, arguments stay expressions and become parameters. On the compiled-query path argument values are read from the argument expression rather than baked (null-handling and keyed-source rules are in the method comments).
+    - Dead code removed: `SequenceHelper.RemapToNewPath` / `RemapToNewPathSimple` and `ExpressionBuilder.RemapToNewPath` (unused, #6096).
+
 ## Interactions
 
 - **Driven by [`LINQ`](../LINQ/INDEX.md):** `Query<T>.GetQuery` / `ExpressionQuery` create an `ExpressionBuilder` and call `Build<T>` once per cache miss.
@@ -267,6 +278,10 @@ Public translation-layer files (outside area globs, integrated here for complete
 - `ExpandOverSource` (Subsystem 40) only runs on the compiled-query path; the ordinary path still leaves an unknown user `IsQueryable` method in the tree for the builder to report.
 - `AggregationRoot` build purpose keeps the unconditional member-drop on root type change while `Table` is now conditional (the `VisitMember` comment in `ExpressionBuildVisitor.cs` states no test exercises a type change there).
 
+- The read-as-the-reader rule (Subsystem 41) is decided per operand from SQL shape: converter-mapped, duration-typed, `char` and enum columns are excluded and keep SQL NULL, so a calculation over those on an unmatched row still yields NULL where the client would see `default(T)`.
+- `ExprCacheKey`/`ColumnCacheKey` now carry the `ReadsAsTheReader`/`CarriesDefault` bits: any new cache keyed by a built path in `ExpressionBuildVisitor` that omits them can serve a defaulted column to a predicate (or the reverse).
+- A missed `UsingOutsideProjectionValue()` on a new structure-building path silently turns a WHERE/ORDER BY operand into `COALESCE(col, default)`.
+
 ## See also
 
 - [`SQL-AST`](../SQL-AST/INDEX.md) -- output target of every builder.
@@ -312,6 +327,8 @@ Public translation-layer files (outside area globs, integrated here for complete
 - Window-function translation surface: `WindowFunctionsMemberTranslator` (`Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:16`).
 - OrderBy capture/isolation: `ExpressionBuilder.RegisterOrderBy` / `IsolateOrderBy` / `ResolveOrderByItems` (`ExpressionBuilder.cs:162,213,179`).
 - Off-by-one fix (8+-member composite keys): `ExpressionBuilder.GenerateKeyExpression` (`ExpressionBuilder.EagerLoad.cs:93`).
+- Read-as-the-reader-reads rule: `ExpressionBuildVisitor.ReadAsTheReaderReads` / `IsReadAsDefault`, scope bits in `BuildFlags.cs` (`ValueOfProjection`, `InsideTranslation`, `InsideNullableCast`), scope exit `ExpressionBuilder.UsingOutsideProjectionValue`.
+- Raw-SQL format rewrite: `ExposeExpressionVisitor.ConvertRawSqlString` / `PrepareFormattableString`, `FormattableStringHelper.PrepareRawSqlArguments` (used by `TableBuilder.BuildRawSqlTable`).
 
 <details><summary>Coverage</summary>
 
@@ -473,6 +490,19 @@ Read (this run -- delta sha 05150894e, 35 changed files, diffs read in full agai
 - `Source/LinqToDB/Internal/Linq/Builder/Visitors/ExposeExpressionVisitor.cs` -- compiled-query argument materialization/root resolution/ExpandOverSource; TimeSpan.TotalX DateDiff rewrite removed
 - `Source/LinqToDB/Linq/Translation/TranslationProviderFlags.cs` -- five interval capability properties + 7-arg constructor
 - `Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs` -- boolean FIRST/LAST_VALUE and percentile ORDER BY guards; argumentDomain on window aggregates
+Read (this run -- delta sha 89b5ce162, 12 changed files, diffs read in full against 05150894e, all modified):
+- `Source/LinqToDB/Internal/Linq/Builder/BuildFlags.cs` -- new flag bits `InsideTranslation`, `InsideNullableCast`, `ValueOfProjection`
+- `Source/LinqToDB/Internal/Linq/Builder/ContainsBuilder.cs` -- inline NewArrayInit source declined, ContainsContext re-reads the tested value as the reader reads it
+- `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs` -- read-as-the-reader-reads rule (ReadAsTheReaderReads, IsReadAsDefault, CanBeNullAsDeclared), flag-aware PreferClientCalculation, cache-key components, UnwrapInlineArray, IsSetFunctionCall, ConvertExtension operand handling, TranslationContext member passthrough
+- `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.Aggregation.cs` -- plain-mode aggregation items read as the reader reads
+- `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.Generation.cs` -- unused RemapToNewPath removed
+- `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.QueryBuilder.cs` -- ValueOfProjection on TranslateExpression build, ToReadExpression widening-cast lift shape
+- `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.cs` -- UsingOutsideProjectionValue / ReadAsTheReaderReads facade, scope set in BuildQuery and cleared in TryBuildSequence / ResolveOrderByItems
+- `Source/LinqToDB/Internal/Linq/Builder/GroupByBuilder.cs` -- key and body builds outside the projection-value scope
+- `Source/LinqToDB/Internal/Linq/Builder/SequenceHelper.cs` -- RemapToNewPath / RemapToNewPathSimple removed (about 375 lines)
+- `Source/LinqToDB/Internal/Linq/Builder/TableBuilder.RawSqlContext.cs` -- PrepareRawSqlArguments moved to FormattableStringHelper
+- `Source/LinqToDB/Internal/Linq/Builder/UpdateBuilder.cs` -- setter values built outside the projection-value scope
+- `Source/LinqToDB/Internal/Linq/Builder/Visitors/ExposeExpressionVisitor.cs` -- RawSqlString to FormattableString rewrite, format-only cache keys for SqlQueryDependentFormatAttribute
 
 - Tier 3 (skipped, logged): 0
 </details>

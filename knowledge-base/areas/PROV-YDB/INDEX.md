@@ -3,8 +3,8 @@ area: PROV-YDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 15/15
 coverage_tier_2: 8/8
 ---
@@ -137,6 +137,8 @@ The rewrite itself now lives in a dedicated visitor, `YdbScalarSubQueryToCteVisi
 - **Interval-difference and temporal-shift lowering (PR #5987).** `CanLowerIntervalDifference => true` with an `ElapsedTicks(SqlIntervalDifferenceExpression)` override: the two temporals are subtracted into a typed `Interval`, cast to `Int64` (microseconds, YDB's finest resolution) and multiplied up to ticks. The subtraction must carry the `Interval` type or the cast reads as an `Int64`->`Int64` no-op and is pruned.
 - `CanLowerIntervalShift => true` with a `LowerTemporalArithmetic(SqlTemporalArithmeticExpression)` override: the tick count (negated when `IsSubtract`) is divided to microseconds, wrapped in `DateTime::IntervalFromMicroseconds`, and added natively to the temporal. A `DateTime`-typed operand is first cast to `Timestamp` (`DataType.DateTime2`), or `Timestamp64` when `IsWide` / `IsWideDateType` detects `Date32`/`DateTime64`/`Timestamp64` (including a `DbType` string starting with those names, and chained shifts via recursion into the inner `SqlTemporalArithmeticExpression`). The sum is cast back to its own type because YQL's `+` result is optional; the builder unwraps that cast where the value cannot be null. This bypasses the `FinestDateUnit` path and the `DateTime::ShiftYears/ShiftMonths` member-translator route for these engine-lowered shifts.
 
+- **Default-date lowering (ConvertDefaultValue).** Override of ConvertDefaultValue(SqlDefaultValueExpression): a default date is lowered narrow (from 1970-01-01, via RaiseDefaultDate) for every mapped type except the wide Date32 and, for a DateTime/DateTimeOffset value only, DateTime64/Timestamp64 (these hold 0001-01-01) -- those fall through to ase.ConvertDefaultValue. For DataType.DateTz a resulting DateTimeOffset constant is re-typed to DateTime and emitted as its .DateTime, because the mapping schema writes a DateTimeOffset for DateTz through LocalDateTime, which would move with the time zone.
+
 ### Member translator (`YdbMemberTranslator`)
 
 `YdbMemberTranslator` (`Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs:15`) extends `ProviderMemberTranslatorDefault`.
@@ -222,6 +224,8 @@ Type literal formats:
 `AddScalarType` registrations: `DateTimeOffset` -- `DateTime2`, `TimeSpan` -- `Interval`, `MemoryStream` -- `VarBinary`.
 
 The provider-specific decimal wire encoding in `YdbProviderAdapter.MakeDecimalFromString` constructs a `YdbValue` from a 128-bit integer (via `Int128` on net8+ or `BigInteger` on earlier targets) built from `Ydb.DecimalType` + `Ydb.Value` protos.
+
+Float/Double infinity literals (BuildFloatLiteral/BuildDoubleLiteral) now test via FloatingPointHelper.IsPositiveInfinity/IsNegativeInfinity instead of the BCL loat./double. methods -- behaviour unchanged (Float('inf'), Float('-inf'), Double('inf'), Double('-inf')).
 
 ### Options
 
@@ -401,4 +405,7 @@ The provider-specific decimal wire encoding in `YdbProviderAdapter.MakeDecimalFr
 - `Internal/DataProvider/Ydb/YdbSqlBuilder.cs` -- `BuildOrderByClause` DISTINCT/GROUP BY alias lookup now via `AliasesContext.GetColumnAlias`.
 - `Internal/DataProvider/Ydb/YdbProviderAdapter.cs` -- cosmetic only: empty `IDriver` / `DescribeTableSettings` wrapper types converted to semicolon bodies.
 - `Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs` -- BOM-only change (no behavioural change).
+**Read (this run -- delta sha 89b5ce162):**
+- `Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs` -- added `ConvertDefaultValue` override (narrow default-date lowering from 1970-01-01 except Date32 / wide DateTime64+Timestamp64 for DateTime/DateTimeOffset values, DateTz DateTimeOffset constants re-typed to DateTime).
+- `Internal/DataProvider/Ydb/YdbMappingSchema.cs` -- float/double infinity literal checks switched to `FloatingPointHelper.IsPositiveInfinity`/`IsNegativeInfinity` (no behavioural change).
 </details>

@@ -3,8 +3,8 @@ area: SCAFFOLD
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 14/14
 coverage_tier_2: 268/268
 ---
@@ -37,7 +37,7 @@ The three-phase public entry point lives in `Scaffolder` (`Source/LinqToDB.Scaff
 - `DataModelLoader.Generic.cs` -- `ProcessObjectName()` strips default schema/database. `GetOrAddAdditionalSchema()` lazily creates `AdditionalSchemaModel` wrapper.
 
 ### `Schema/` -- DB schema discovery contracts and adapters (33 files)
-`ISchemaProvider` primary contract. `ITypeMappingProvider` for type mapping. `LegacySchemaProvider` adapter over the legacy `IDataProvider.GetSchemaProvider().GetSchema()` API (its `ParseCallable` consistency checks for `IsLoaded` / `ResultTable` on scalar/aggregate functions were rewritten as the equivalent `proc.IsFunction && !proc.IsTableFunction` -- logic-neutral De Morgan simplification). `MergedAccessSchemaProvider` for multi-file Access (uses OLE DB as primary source, patches `COUNTER` column nullability + identity from ODBC). `AggregateTypeMappingsProvider` chains multiple `ITypeMappingProvider` instances (first non-null wins).
+`ISchemaProvider` primary contract. `ITypeMappingProvider` for type mapping. `LegacySchemaProvider` adapter over the legacy `IDataProvider.GetSchemaProvider().GetSchema()` API (its `ParseCallable` consistency checks for `IsLoaded` / `ResultTable` on scalar/aggregate functions were rewritten as the equivalent `proc.IsFunction && !proc.IsTableFunction` -- logic-neutral De Morgan simplification). SQL Server `RETURN` value (issue #1897, `EnableSqlServerReturnValue`) is now surfaced as the procedure result: when `_isSqlServer && !proc.IsFunction && _options.EnableSqlServerReturnValue && result is VoidResult`, `ParseCallable` replaces the void result with `new ScalarResult("@return", type, false)` (INT mapped to `WellKnownTypes.System.Int32`) instead of appending an `@return` `ParameterDirection.Output` parameter. Procedures that already have a non-void result are left untouched. `MergedAccessSchemaProvider` for multi-file Access (uses OLE DB as primary source, patches `COUNTER` column nullability + identity from ODBC). `AggregateTypeMappingsProvider` chains multiple `ITypeMappingProvider` instances (first non-null wins).
 
 **Common DTOs (`Schema/Common/`):** `DatabaseType` `(string? Name, int? Length, int? Precision, int? Scale)`, `TypeMapping` `(IType CLRType, DataType? DataType)`, `Sequence` `(SqlObjectName? Name)` -- sequence load not yet implemented (TODO).
 
@@ -185,6 +185,7 @@ Concrete generics: `MemberBase`, `MemberGroup<T>`, `Attribute<T>`, `Class<T>`, `
 - **F# and VB.NET not implemented** (`LanguageProviders.cs:9`, issue #1553). `CSharpLanguageProvider` is the only `ILanguageProvider`.
 - **Logger not yet wired.** `DataModelLoader.MapType:215` and `LegacySchemaProvider.ParseColumn` fall back to `Console.Error.WriteLine`.
 - **PostgreSQL legacy API bug workaround** in `LegacySchemaProvider.ParseSchema:94`.
+- **SQL Server `@return` is a result, not a parameter** (`LegacySchemaProvider.ParseCallable`, delta): generated stored-procedure wrappers for void SQL Server procedures now return the `RETURN` code via a `ScalarResult` rather than exposing an output parameter. Affects scaffold output shape when `EnableSqlServerReturnValue` is on.
 - **MySQL schema type-conflict swallowed** in `LegacySchemaProvider.RegisterType`.
 - **`ModelGeneration/` legacy layer retained.** 45 files not wired through `Scaffolder`. `NotifyDataErrorInfo.cs` has WPF dependency baked into generated body.
 - **`ISchemaProvider` lacks async overloads** (`ISchemaProvider.cs:6`).
@@ -240,4 +241,7 @@ Read (this run -- delta):
 - `Scaffold/Options/ScaffoldOptions.cs` -- T4 preset sets the new option to `false`.
 - `Scaffold/SqlServerDecimalOverflow.cs` (new) -- `ExceedsClrLimits` shared boundary (precision >= 29 or scale > 28).
 - `Schema/LegacySchemaProvider.cs` -- `ParseCallable` guard conditions simplified, logic-neutral.
+
+Read (this run -- delta):
+- `Schema/LegacySchemaProvider.cs` -- SQL Server `RETURN` value handling changed: `@return` output `Parameter` replaced by `ScalarResult("@return", INT, false)` when the procedure result is `VoidResult`.
 </details>

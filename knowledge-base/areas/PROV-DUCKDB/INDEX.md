@@ -3,8 +3,8 @@ area: PROV-DUCKDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 13/13
 coverage_tier_2: 4/4
 ---
@@ -92,6 +92,8 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - Default converters for DuckDB-specific scalar types: Int128, UInt128 (HUGEINT/UHUGEINT), BitArray (BITSTRING).
 - DuckDB-specific column type annotations (e.g. TIMESTAMP_NS, HUGEINT, UHUGEINT) via `SetDataType`.
 - Scalar string -> BitArray converter using the BitArray(bool[]) ctor.
+- Literal builders (`SetValueToSqlConverter`) for float/double (`BuildFloat` / `BuildDouble`): NaN is emitted as a quoted `NaN` cast, infinities via `FloatingPointHelper.IsPositiveInfinity` / `IsNegativeInfinity` (`LinqToDB.Internal.Common`, replacing the direct `double.` / `float.` BCL calls) as quoted `Infinity` / `-Infinity` casts (DuckDBMappingSchema.cs:60-88). Finite floats are cast to FLOAT explicitly (G9) since DuckDB parses numeric literals as DOUBLE.
+- `Instance` is now lazily created: `static readonly Lazy<MappingSchema> _instance` with `internal static MappingSchema Instance => _instance.Value` (DuckDBMappingSchema.cs:314-316), instead of an eager static initializer, so the schema (which reads `DuckDBProviderAdapter.Instance.MappingSchema`) is built on first use.
 
 ### Bulk copy (`DuckDBBulkCopy`)
 
@@ -226,11 +228,14 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs -- Added `GetWindowNullsPlacement` override (AfterLastArgument, lines 40-43) for IGNORE NULLS placement on LAG/NTH_VALUE etc.; added `BuildDistinctModifier` override (lines 45-49) emitting DISTINCT plus `BuildDistinctOnExpressions` for DISTINCT ON support.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- Added `DuckDBWindowFunctionsMemberTranslator` nested class (lines 21-40) enabling the full window-function capability set (IGNORE NULLS treatment, window FILTER, aggregate DISTINCT, ordered-set FILTER, variance/correlation/regression/median); added `TranslateNewGuid7Method` -> uuidv7() (lines 48-54); changed `TranslateServerNow`/`TranslateNow`/`TranslateZonedNow`/`TranslateZonedUtcNow` from bare-keyword forms to function-call forms (now(), current_localtimestamp()) to fix ON CONFLICT DO UPDATE SET binder misparsing the bare keyword as a column reference; `TranslateStringJoin`'s `BuildAggregateNullsOrderBy` call now sources NullsDefaultOrdering from `translationContext.ProviderFlags.DefaultNullsOrdering` instead of a hardcoded literal.
 
-**Read (this run -- delta):**
+**Read (prior delta run, 2026-10-09):**
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs -- Added `SqlProviderFlags.IsUpdateOutputRowsSupported = true` (line 42, RETURNING).
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs -- `BuildParameter` override replaced by `GetParameterCastType` (Interval/Decimal parameter type, else null); cast decision moved to the optimizer.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlExpressionConvertVisitor.cs -- Added `TruncateDivide`, `CanLowerIntervalDifference` + `ElapsedTicks` + `TypeParameter`, `CanLowerIntervalShift` + `LowerTemporalArithmetic`, `CanWrapWindowOrderByConstant = false`.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlOptimizer.cs -- `TuneParameters`: operand casts now applied from a `SqlBinaryExpression` case via `QueryHelper.EnsureParameterCast` instead of mutating the shared parameter `NeedsCast`; `withStack` dropped.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- Local variable rename in DateAdd `ToInterval` (`intervalExpr` -> `intervalUnit`); no behavior change.
+
+**Read (this run -- delta):**
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBMappingSchema.cs -- float/double infinity checks routed through `FloatingPointHelper` (new `using LinqToDB.Internal.Common`), `Instance` made lazy (`Lazy<MappingSchema>`); no change to emitted SQL literals.
 
 </details>

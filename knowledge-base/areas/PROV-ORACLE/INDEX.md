@@ -3,8 +3,8 @@ area: PROV-ORACLE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-10-21
+last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 coverage_tier_1: 12/12
 coverage_tier_2: 20/20
 ---
@@ -114,6 +114,7 @@ SqlExpressionConvertVisitor
 - `ConvertSqlExpression` -- rewrites `To_Number(To_Char(... 'FF'))` millisecond fragments by lower-casing the `To_Number` prefix and dividing by 1000 (`OracleSqlExpressionConvertVisitor.cs:144-149`).
 - **Temporal lowering (date-difference / date-shift fix, PR #5987)** -- `CanLowerIntervalDifference => true`; `IntervalResolution => SqlIntervalUnit.Microsecond` (operands are cast via `AsTimestamp` to a bare `timestamp`, six fractional digits, so sub-microsecond ticks are declined and fall back to .NET). `ElapsedTicks(SqlIntervalDifferenceExpression)` subtracts the two timestamps and sums `EXTRACT(Day/Hour/Minute/Second FROM interval)` field by field (a day count is a floating number and cannot carry a tick over a long range; seconds go through `Round(... * TicksPerSecond)` cast to long). `CanLowerIntervalShift => true`; `LowerTemporalArithmetic(SqlTemporalArithmeticExpression)` splits the tick count into whole days (`TruncateDivide`) and leftover seconds (`TruncateRemainder / TicksPerSecond`), each through `NumToDSInterval(.., 'DAY'|'SECOND')` (it refuses 2^31 or more of its unit, hence the split), added natively to the temporal; a `DateTime` operand is first forced to `CAST(.. AS timestamp(7))` because `date + interval` stays a `date` and loses the fraction. `TruncateDivide(value, divisor)` is overridden to `Trunc(value / divisor)` (base composes `FLOOR`/`CEILING`; Oracle spells it `CEIL`, so that does not parse).
 - `ConvertSqlFunction` -- maps `CharIndex(p0, p1)` -> `InStr(p1, p0)` and `CharIndex(p0, p1, p2)` -> `InStr(p1, p0, p2)` (`OracleSqlExpressionConvertVisitor.cs:151-169`).
+- **`ConvertDefaultValue(SqlDefaultValueExpression)`** -- when the default value is a `DateTime` and the expression type is `DataType.DateTimeOffset`, returns a `SqlValue` of `DateTimeOffset` built from the ticks with a zero offset (`OracleSqlExpressionConvertVisitor.cs:23-30`). Reason: a zone-less literal beside a `TIMESTAMP WITH TIME ZONE` column is converted in the session time zone (and a `DateTime` is first moved by `ToUniversalTime`), so the default is written with an explicit offset. Other defaults go to the base.
 - `ConvertConversion` -- date/time cast routing: `Trunc(x,'DD')` for date, `TO_DATE`, `TO_TIMESTAMP`, `TO_TIMESTAMP_TZ`, `To_Char` with format masks.
 - `ConvertCoalesce` / `ConvertSqlCondition` / `ConvertSqlCaseExpression` / `VisitSqlValuesTable` -- fix mixed CHAR/NCHAR charsets via `FixCharset` (wraps with `To_NChar` or `CAST ... AS NCHAR`).
 - **`IsWindowOrderByRequired(SqlExtendedFunction)`** -- extends the base: true also for any function with a `FrameClause`, for order-dependent functions (`IsOrderDependentWindowFunction`: ranking, `LAG`/`LEAD`) and `NTILE`, since Oracle raises ORA-30485 when ORDER BY is missing in those windows; `FIRST_VALUE`/`LAST_VALUE` and unframed aggregates may stay unordered.
@@ -168,7 +169,7 @@ Known limitation: ODP.NET bulk copy fails when any column name requires quoting.
 - `DateTime` -> `TO_DATE(..., YYYY-MM-DD HH24:MI:SS)` literal.
 - `DateTime2` -> `TIMESTAMP yyyy-MM-dd HH:mm:ss[.fff...]` with precision 0--7.
 - `DateTimeOffset` -> `TIMESTAMP yyyy... +00:00`.
-- `float` / `double` NaN/Infinity -> `BINARY_FLOAT_NAN`, `BINARY_FLOAT_INFINITY`, etc.
+- `float` / `double` NaN/Infinity -> `BINARY_FLOAT_NAN`, `BINARY_FLOAT_INFINITY`, etc. The infinity checks go through `FloatingPointHelper.IsNegativeInfinity` / `IsPositiveInfinity` instead of `float`/`double` statics (`OracleMappingSchema.cs:89-110`) -- behavior-neutral helper swap.
 - `decimal` -> `Number(28, 10)` default.
 - `string` default -> `VarChar(255)`.
 - Mixed char/nchar charset disambiguation via `HasInconsistentCharset` / `FixCharset` (`OracleExtensions.cs:11-43`).
@@ -328,6 +329,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 - `MaxInListValuesCount = 1000` -- Oracle IN-list limit.
 - `MaxColumnCount = 1000` -- caps columns per query; added this delta (`OracleDataProvider.cs:64`).
 - `IsApplyJoinSupported = true` only for v12+.
+- `CalculateSupportedCorrelatedLevelWithAggregateQueries = version < OracleVersion.v12` -- on v11 the supported correlated-subquery level is calculated with aggregate queries taken into account (`OracleDataProvider.cs:50`), next to `SupportedCorrelatedSubqueriesLevel = 1`.
 - `IsColumnSubqueryShouldNotContainParentIsNotNull` and `IsColumnSubqueryWithParentReferenceAndTakeSupported` differ by version (`OracleDataProvider.cs:47-48`).
 
 ## Files (Tier 1 / Tier 2)
@@ -445,4 +447,8 @@ Read (this run -- delta, sha 05150894e):
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` -- removed the `string.Length >= 4000` -> `NText` promotion from `SetParameter`; added `InferParameterDataType` override driven by `OracleOptions.MaxStringParameterLength`.
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlExpressionConvertVisitor.cs` -- interval-difference / shift lowering (`CanLowerIntervalDifference`, `IntervalResolution`, `ElapsedTicks`, `CanLowerIntervalShift`, `LowerTemporalArithmetic`, `TruncateDivide` -> `Trunc`), non-mutating `ConvertCoalesce` / `VisitSqlValuesTable` charset fixes, `IsWindowOrderByRequired` override.
 
+Read (this run -- delta, sha 89b5ce162):
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` -- new `SqlProviderFlags.CalculateSupportedCorrelatedLevelWithAggregateQueries = version < OracleVersion.v12`.
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleMappingSchema.cs` -- float/double infinity literal checks switched to `FloatingPointHelper.IsNegativeInfinity` / `IsPositiveInfinity` (no behavior change).
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlExpressionConvertVisitor.cs` -- new `ConvertDefaultValue` override: a `DateTime` default typed `DateTimeOffset` becomes a `DateTimeOffset` value with zero offset.
 </details>
