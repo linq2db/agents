@@ -94,6 +94,17 @@ $line = "[$state $($p.tfm)] $progress " +
 
 Write-Output $line
 
+# A run test-cap.ps1 acted on (or could not judge) has a verdict beside its heartbeat; a stopped run's heartbeat
+# otherwise reads RUNNING forever.
+if ((Split-Path -Leaf $Path) -match '^test-progress\..+\.(\d+)\.json$') {
+	$capFile = Join-Path (Split-Path $Path) "test-cap.$($Matches[1]).json"
+	if (Test-Path $capFile) {
+		$cap = Get-Content -Raw -Path $capFile | ConvertFrom-Json
+		$why = if ($cap.reason) { " - $($cap.reason)" } else { '' }
+		Write-Output "test-cap: $($cap.verdict) (total $($cap.total), cap $($cap.max))$why"
+	}
+}
+
 if (([long]$p.failed) -gt 0 -and $p.recentFailures) {
 	Write-Output "recent failures:"
 	foreach ($f in $p.recentFailures) {

@@ -279,6 +279,8 @@ pwsh -NoProfile -File .claude/scripts/test-status.ps1          # newest run, one
 pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw     # dump the raw JSON
 ```
 
+**An optional cap stops a run whose filter selects too much.** [`../hooks/arm-test-cap.js`](../hooks/arm-test-cap.js) (a `PreToolUse` hook, matcher `Bash|PowerShell`, wired personally per [`claude-setup.md`](claude-setup.md)) arms [`../scripts/test-cap.ps1`](../scripts/test-cap.ps1) for each test command; once the heartbeat's filtered `total` is known, a run over the cap (default 1000) is stopped and `test-status.ps1` prints `test-cap: stopped (total N, cap M)`. Only runs descending from the same `claude.exe` whose command line carries the same `--filter` are touched; an upper-bound or pre-#6098 total is recorded as unverifiable and left running. Override per command with a trailing `# test-cap:off` or `# test-cap:<n>`.
+
 Use the script rather than `ls -t` on the directory: it accumulates heartbeats from prior sessions and concurrent runs, so "newest by mtime" is a guess about whose run you are looking at.
 
 **Caveat:** `total` is the number of tests the run executes under the given `--filter` (Ignored / Explicit / NotRunnable leaves excluded, filtered or not). `totalIsUpperBound: true` marks the discovered-count fallback, which has no ETA. A run without `--settings .runsettings` can be widened by the adapter's `AssemblySelectLimit` (default 2000) to the whole assembly, and `total` then counts all of it. A suite whose OneTimeSetUp fails or is skipped leaves `completed < total`. `done` comes only from the root suite's teardown.
