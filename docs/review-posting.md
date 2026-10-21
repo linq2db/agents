@@ -100,7 +100,7 @@ The wrapper prints a single JSON object to stdout containing `reviewId`, `nodeId
 - Line-comment, file-thread, and reply-comment counts (from the wrapper's per-item arrays)
 - Any `fileThreads[].ok == false` or `replyComments[].ok == false` entries — those need a retry (wrapper exit code 2 signals this)
 - Any `verify.body.ok == false` / `verify.lineComments[*].ok == false` entries — mismatches in what GitHub stored vs. what was sent; investigate before submitting
-- Reminder that the draft needs to be **submitted manually on GitHub**
+- Reminder that the draft needs to be **submitted manually on GitHub**. Offer to submit it through the API instead, which keeps the body (*Submitting the draft when the user asks* below): a submit made elsewhere has come back with an empty body.
 
 `/verify-review` captures and reuses `reviewId` later when it PUTs edits to the review body.
 
@@ -139,6 +139,11 @@ The skills post a PENDING draft and never submit it on their own (each skill's *
 
 - **Confirm both the review and the head.** The review must still be `PENDING` and its `commit_id` must still be the PR head: `gh api repos/<o>/<r>/pulls/<n>/reviews/<id> --jq '{state,commit_id}'`, plus `head.sha` from `pulls/<n>`. The event (`COMMENT`, `REQUEST_CHANGES` or `APPROVE`) is the user's call: ask for it rather than inferring it from the severities.
 - **Submit without a body.** `gh api -X POST repos/<o>/<r>/pulls/<n>/reviews/<id>/events -f event=<EVENT>` keeps the stored body when `body` is omitted. On #5959 it was 8509 characters both before and after.
+- **A submit made outside that call can store an empty body.** On #5943 the wrapper verified a 9,273-character draft body (review `5599437905`). After the user submitted it, GitHub held `body: ""`: the prior-review audit, the out-of-scope note and the baselines section were gone, while the line comments survived. How it was submitted was not recorded, so the cause is unproven. The likely one is that the web UI's submit dialog stores whatever its own text box holds. So:
+  - Offer the API call above rather than leaving the submit to the UI.
+  - After any submit, check `gh api repos/<o>/<r>/pulls/<n>/reviews/<id> --jq '{state, body_len: (.body | length)}'`.
+  - Keep the manifest file until that check passes: it is the only copy of the body. The next round reuses the manifest's path (`pr<n>-verify-manifest.ps1`), so copy it aside before writing the next one.
+  - A body found empty is re-posted in the next round's draft, as #5943 round 2 did, or as a PR comment, never `PUT` onto the submitted review, whose body is public history.
 - **Verify anchors through `pulls/<n>/comments`, not the review's own endpoint.** Filter it on `pull_request_review_id`. `reviews/<id>/comments` returns `line: null` for every comment, which reads as lost anchors.
 - **Page the review list.** `pulls/<n>/reviews` returns 30 entries per page, so a long-lived PR needs `?per_page=100` with `--paginate`. Without it, a `select(.user.login == …)` comes back empty.
 
