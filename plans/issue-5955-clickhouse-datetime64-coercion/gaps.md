@@ -215,3 +215,113 @@ The single most useful change is to key the `P12` requirement on commit time, no
 ### Addendum — the `A-12` critique (four rounds)
 
 The fix itself needed four critic rounds (refuted, refuted, weak, weak) and every round found something a measurement then confirmed: the cap read from `SqlDataType.GetMaxPrecision` was 29, not 38; DB2's and Informix's limits (31, 32) sat below the first chosen cap; the ClickHouse family overflow was real; Firebird 3 and 5 overflow the headroom shape on master too; YQL compares mixed decimal types numerically. Rounds 3 and 4 were cheap only because the containers were already up — the same "deferred to CI" pattern as BLK003–005 would have shipped two more defects.
+
+## Round 8 — reviewed HEAD be64e705376d8ca67ea8c67cb2f9216af980a5bc
+
+Findings:
+- **BLK006**: the PR's own step-(6) union test, TO-38 (`FinerLiteralBesideWideComputedDecimalKeepsBothValues`), fails on ClickHouse.Driver.
+- **MAJ011**: `AsDateTime64` trusts a `DataType` the schema default filled in, so `.TimeOfDay` regresses against 6.5.0.
+- **MAJ012**: `DateTimeRank` treats YDB's `DateTime64` as sub-second.
+- **MIN202**: the `COALESCE` agreement rule reports the first operand's facets, so a user cast is stripped.
+- **MIN203**: Sybase's IN-list mirror casts a captured-collection parameter, so the collection is no longer expanded.
+- **MIN204**: the TO-38 remark is false on ClickHouse, and YDB is omitted without a reason.
+- **MIN205**: a disagreeing `COALESCE` reached through a column is skipped as agreement.
+- **SUG203**: two of the three ClickHouse family-promotion arms are untested.
+- **NIT202**: the TO-31 remark names a stale type.
+
+MAJ011, MAJ012, MIN202, MIN203 and MIN205 were reasoned from source, not run; a row is void if its finding is later refuted. The Firebird `DECIMAL(10, s>10)` claim was refuted in the walk and gets no row. CI red on Linux SQLite `InheritanceTests` (GitHub 39469600469) is not attributed to the PR and gets no row. Delivered as a pending draft review (5599440142), all nine posted.
+
+### Attribution
+
+- **BLK006** — GAP-08 — TO-36's `P8` row sent the step-(6) union cells to measurement: "measured disposition per facet-rendering provider (DB2, Informix, YDB, SqlCe, DuckDB, ClickHouse) recorded in `G-01`". That came from critic round 4, objection 3: "the own-facets union type is engine-defined". The test declares `TestProvName.AllClickHouse`, which is Octonica, Driver and MySql. The post-`A-12` `G-01` row records "ClickHouse.Octonica 33/33" and never names Driver; its "left to CI" list is SQL Server, Sybase and Firebird 5 only. Earlier `G-01` rows on this plan ran "ClickHouse ×3" (TO-29, TO-33), so Driver could run locally. A decimal comes back through each client's own reader, so a result proven on one client is not proven on the others. Gate: G-01 — preventable: yes
+  - Not GAP-03: the `P8` row and the attribute both name ClickHouse. The gate narrowed the scope; the map did not lack the entry.
+  - Secondary GAP-02: the same row says the `1.00000000000000005m` literal is "forcing step (6)". That is false on a ClickHouse family, where `E-36` caps at 76 and the result is `Decimal128(33,17)`.
+  - `E-36` step (6)'s "a CLR decimal has at most 29 [digits]" protected the literal, not the 33-digit union column the client reads back. `R7-5` swept writers of the widened type, not readers.
+  - The `P8` "Harness capability" row (worktree enables Octonica as "ClickHouse") has not been re-derived since 2026-09-22.
+  - The Driver behaviour change (silent narrowing → `OverflowException`) has no `P10` entry, because that leg never ran.
+- **MAJ011** — GAP-02 — `A-3` made `AsDateTime64` return any operand reporting `DataType.DateTime64` unchanged. Its premise: once `now()`, `makeDateTime` and `MIN`/`MAX` were retyped, a reported `DateTime64` is a server `DateTime64`. Gate: — — preventable: yes
+  - The plan held two contradicting facts. `P1` gives the opposite as `D-1`'s reason ("the declared type and the server type disagree by construction"). `A-2`(iii) records that an explicit `DbType` names the server type beside a different `DataType`.
+  - No `P4` row asked which mapping shapes report `DateTime64` over a server `DateTime`/`Date`/`Date32`. A `DbType`-only column filled in by the schema default (`ClickHouseMappingSchema.cs:33`) is the "CLR default completed by `MappingSchema`" shape of `work-plan/SKILL.md:134`. That rule landed on 10-11, after `A-3`; the `A-7`/`A-8` re-walks swept callers, not mapping shapes.
+  - Secondary GAP-03: `P7`'s row "`CommonTruncationToTime` … already wrap — out-of-scope" was not re-derived when `7acf5f678` routed that site through the conditional helper. `A-5` notes the move in prose only, and this is the `.TimeOfDay` regression.
+  - The author's decline of the un-annotated case lives in an issue comment (2026-10-03), not in `P10`, so the `DbType`-declared variant was never told apart from it.
+  - Repeats R3-06: same premise, third producer.
+- **MAJ012** — GAP-03 — `DateTimeRank` is a type-keyed helper. It came in with `7cc01f6d2e` under `E-12` and was moved into `QueryHelper` by `A-8`/`E-36`. It ranks `DataType.DateTime64` as sub-second for every provider, and no `P7` row searched which providers map that `DataType`, or to what. Gate: — — preventable: yes
+  - `Grep "DataType\.DateTime64"` over `Source/LinqToDB/Internal/DataProvider` returns two providers. On YDB the type is whole-second `Datetime64` (`YdbMappingSchema.cs:50`).
+  - `R7-2`'s clause table says "date arm everywhere" without the arm's input. `A-11`'s SUG011 relied on the table ("`DateTimeRank` peaks at `DateTime2`") without checking it.
+  - The mapping-shape rule (`work-plan/SKILL.md:134`, 10-11) postdates the rank (10-03) and was never applied to it on a re-walk.
+  - Secondary GAP-05: every YDB run of TO-14/TO-20/TO-22 used `DataType.DateTime` columns.
+- **MIN202** — not-a-gap: withdrawn — the finding was refuted before it was submitted: master emits the same SQL (see *Post-review corrections*). The original attribution follows for the record. GAP-03 — `E-8`'s `COALESCE` arm (`2e51f26dc`, `A-5`) checks agreement on `DataType`/`DbType` only, then reports the first operand's full type. Gate: — — preventable: yes
+  - `A-7` swept that arm's consumers. It listed `SqlExpressionOptimizerVisitor`'s non-mandatory cast elision (`R-6`) only for `AsDateTime64`'s own cast, not for a user `Sql.Convert` over a node whose reported facets had changed.
+  - That is the hazard `D-3`'s rejected-alternative text and `A-1` describe: `from.EqualsDbOnly(to)` strips a user's cast. `work-plan/SKILL.md:124` asks each consumer row for "what it now receives".
+  - Secondary GAP-05: TO-17's operands disagree on `DataType` (charset) only. No cell agrees on `DataType` while differing on precision/scale, which is the input that tells "agree on DataType" apart from "agree on the type".
+- **MIN203** — GAP-02 — `E-16`'s `A-12` row carries a parity line against `ConvertExprExprPredicate` that says "no CLR guard on the mirror (items are expressions, not values)". Gate: — — preventable: yes
+  - The premise could be checked in the file being edited. The same method's first arm tests `inList.Values is [SqlParameter]` (`SybaseSqlExpressionConvertVisitor.cs:121`). The IN-family sibling `E-35` guards `v is not SqlParameter` because "a captured collection must stay a parameter" (`A-10`).
+  - The parity table compared the twin only with its `==` original, using the fixed column list. `A-12` critic round 1 "held … the Sybase mirror and its parity" on that list.
+  - Secondary GAP-05: TO-39 has only a column item (`r.DateTimeCol.In(r.DateCol)`) and no captured-collection cell.
+- **MIN204** — GAP-02 — the remark restates two plan claims that the plan itself contradicts. Gate: G-01 — preventable: yes
+  - (1) TO-36's `P8` row calls the `1.00000000000000005m` cell "forcing step (6)". `E-36`'s own 76 cap makes that false on ClickHouse.
+  - (2) `P10`'s YDB set-operation entry says "accepted pending measurement … to be measured on the implemented tree and this entry corrected". TO-36 sent YDB's disposition to the gate. The post-`A-12` `G-01` records SqlCe's measured exclusion but nothing for YDB on this test, and the entry was never corrected. `work-plan.md`'s `P10` rule (`4eb53ad`, 10-10) was already in force: accepting a regression "needs a probe, not a premise … or keep the row OPEN in `P4`".
+  - `test-diff-sweep` counted the remark as the narrowed set's reason, although the remark's own criterion ("render a literal's precision") admits YDB.
+  - Secondary GAP-08.
+- **MIN205** — GAP-02 — `E-8`'s agreement rule (`AgreeOnOperandType`, `5f6c35497`, the round-2 MAJ008 fix) unwraps only syntactic nesting, and skips an operand reporting `Undefined` as if it had no type. Gate: — — preventable: yes
+  - The plan records that `Undefined` is exactly what a disagreeing `COALESCE` reports (R3-01; TO-12 `CoalesceOfDisagreeingCoarseTypesIsCoerced`). Both facts have been in the plan since round 3, and `A-7`'s re-walk of the `SqlCoalesceExpression` arm did not cross them.
+  - The fix was made for the reported input only, like round 4's MIN001/MIN002.
+  - Secondary GAP-05: TO-17's "nested included" cell is direct nesting only, and the `Undefined`-skip arm has no cell.
+- **SUG203** — GAP-05 — `E-36` step (5) lists three ClickHouse promotion arms. TO-36's control `FinerLiteralBesideNearFullDecimalDoesNotOverflow` exercises only `Decimal64` → `Decimal128`. Gate: — — preventable: yes
+  - Two rules were in force: `work-plan.md`'s enumerated-set rule (`348a372`) and `plan-critic.md`'s per-arm vector. Critic round 2 "held the six-step rule on … `Decimal32`, `Decimal256` at 76" by reasoning, with no cell behind it.
+  - The per-term refinement ("one limit per family" owes a `separates:` row per term, `49902b0`) landed 38 minutes after `55204bb7f`.
+- **NIT202** — GAP-02 — the remark repeats TO-31's `P8` row: "refuses the union of `Decimal(18,2)` and `Decimal(23,9)`". That type came from the round-6 schema-default widening. Gate: — — preventable: partly
+  - `A-12` replaced that widening in `E-13`. Its `re-derives:` line names `E-13` and `E-39`, both of which map to TO-31, but lists only TO-32/TO-33/TO-36..TO-39 from `P8`.
+  - The exclusion still holds, since U-11 says YQL refuses mixed decimal types in a union; only its stated reason went stale.
+  - `work-plan.md`'s `P11` rule was in force: an amendment that changes a rule re-derives each obligation whose premise it changes.
+
+### Aggregate
+
+Classes: GAP-02 ×5, GAP-03 ×2, GAP-05 ×1, GAP-08 ×1, and no GAP-10. Every GAP-02 is a plan claim contradicted by a fact the same plan already records in another block:
+
+| Finding | Claim | Contradicted by |
+|---|---|---|
+| MAJ011 | `A-3`: a reported `DateTime64` is a server `DateTime64` | `P1` |
+| MIN203 | `E-16`: "items are expressions, not values" | `E-35`'s guard and the method's own first arm |
+| MIN204 | TO-36: "forcing step (6)" | `E-36`'s 76 cap |
+| MIN205 | `E-8`: an `Undefined` operand can be skipped | TO-12's `Undefined` `COALESCE` |
+| NIT202 | TO-31's `Decimal(23,9)` | `A-12`'s new rule |
+
+Two clusters:
+- **The `A-12` delta (5 findings: BLK006, MIN203, MIN204, SUG203, NIT202).** These got through four critic rounds that attacked the rule's arithmetic and won each time. No round checked the delta's stated premises against older blocks, or the gate's client scope.
+- **Mechanisms from `A-3`/`A-5` (4 findings: MAJ011, MAJ012, MIN202, MIN205).** The rules that would catch them (the mapping-shape sweep, per-arm cells) landed after the mechanisms were written. Re-walks only cover what each amendment changes, so those rules were never applied to these mechanisms.
+
+The single most useful change is a contradiction search, covered as fix 1 below. Over the delta it catches four findings; run over `P1` as well it catches MAJ011, a fifth.
+
+### Recommended durable fixes (route to `/session-reflect` plan-rule bucket)
+
+1. **GAP-02 ×5 (MIN203, MIN204, MIN205, NIT202; MAJ011 when run over `P1`)** → a `plan-critic.md` attack vector, plus `work-plan.ps1 -Action validate`.
+   - The critic greps the plan for the nouns in every premise a row states and cites the block that confirms or contradicts it. Premises include a skip or guard ("already `DateTime64`", "`Undefined` → skip", "items are expressions"), the branch an input is said to take ("forcing step (6)"), and a type named in a reason. A contradicted premise is `refuted`.
+   - `validate` errors when an `A-n`'s `re-derives:` line names an `E-n` but omits a `TO-n` that row maps to.
+2. **GAP-02/03 ×2 (MAJ011, MAJ012)** → the mapping-shape rule in `work-plan/SKILL.md` (`:134`), plus `work-plan.md` → *P11*.
+   - When a scout rule lands after an `E-n` it governs, the next re-walk applies it to that existing row.
+   - Here: list every `DataType`-keyed branch in `P6` (`AsDateTime64`, `E-32`, `DateTimeRank`). For each one, grep `DataType\.<member>` across `DataProvider/` and probe the `DbType`-only column that the schema completes.
+3. **GAP-08 ×1, plus MIN204's secondary (BLK006)** → `work-plan.md` → *P9*, plus `validate`.
+   - `G-01` names test-provider configurations, not engines. Expand each `TestProvName.All*` group the test declares and require every member to be named or written `blocked`, because clients read values back differently (ClickHouse.Driver 1.4/1.5 overflows on a mantissa ≥ 2^96).
+   - A `P10` "pending measurement" entry that a `P8` row sends to `G-01` fails `-Done` until a `G-01` line closes it.
+
+### Continuity with rounds 1–7
+
+- **Round 1 (caller sweep).** Recurs as MIN202: `A-7` listed the cast-elision consumer (`R-6`) against one cast producer only.
+- **Round 1 / round 4 rec 3 (a `TO-n` per admitted arm).** Recurs in SUG203, and as the secondary class of MAJ012, MIN202, MIN203 and MIN205.
+- **R3-06 (`A-3`'s reported-type premise).** Recurs as MAJ011 with a third producer. `P7`'s operand-kinds and `CommonTruncationToTime` rows were never re-derived after `A-3`.
+- **Round 3 rec 1 (`re-derives:` line).** `A-12` has one, but it omits TO-31 (NIT202).
+- **Round 3 rec 2 (an unprobed item may not reach review).** Recurs as MIN204, this time as a `P10` "pending measurement" entry rather than a critic lead.
+- **Round 3 rec 3 (a narrowed provider set is a claim).** Followed in form. The sweep checks that a remark exists, not that it accounts for each omitted provider its own criterion admits.
+- **Round 4 rec 1 / round 7 rec 2 (deferred `G-01` is `blocked`).** Landed in `7b0373b` at 10-20 21:14, 28 minutes after `A-12`'s commits, with a 10-21 cutoff, so it did not bind this round. It would not have fired anyway: Driver was left out silently, not marked "left to CI" (fix 3).
+- **Round 5 rec 2 / round 7 rec 3 (parity columns built from each twin's actual conjuncts).** Rec 3 has not landed: `SKILL.md:128` and `plan-critic.md:85` still use the fixed five-column list. MIN203 is exactly its case — the missing column is `E-35`'s `SqlParameter` conjunct.
+- **Round 5 MIN003 → round 7 MAJ010 (decimal "own type").** Fixed by `A-12`. BLK006, MIN204, SUG203 and NIT202 sit in that fix's tests and rule; MIN202 is the same reported-type question for `COALESCE` facets.
+- **Round 6 rec 3 (`P10` entry for a change in kind).** Landed. The Driver `OverflowException` change lacks an entry only because that leg never ran.
+- **Round 7 rec 1 (`P12` keyed on commits).** Held: `A-12`'s four critic rounds ran on the tree that was committed. No finding sits in an unattacked fold-in.
+
+### Post-review corrections (2026-10-21)
+
+- **MIN202 withdrawn before it was submitted.** A generated-SQL probe (`ToSqlQuery()`, SQL Server 2022, master `b1315934c` vs `be64e7053`) compared the two shapes `Sql.Convert(Sql.Types.Decimal(18,2), A ?? B)` and `Sql.Convert(Sql.Types.NVarChar(10), Code ?? Name)`. Master already emits `Coalesce([r].[A], [r].[B])` / `Coalesce([r].[Code], [r].[Name])` with no `CAST` for both. So the dropped user cast predates this PR, and its attribution row above is void.
+- **BLK006 → MIN206.** The author's test-only `8c8943d9e` skips the scale-17 arms on ClickHouse.Driver with an early `return`. MIN206, posted on that commit, asks for a declared refusal (`[ThrowsForProvider]` in a split-out method) and a behaviour note for the `OverflowException` change instead. BLK006's GAP-08 attribution still stands: it explains why the leg reached CI unmeasured.
+- **MAJ011, MAJ012, MIN203 and MIN205 confirmed by the same probe.** The emitted SQL differs from master as each finding states: bare `toUnixTimestamp64Nano(r.DbTypeOnly)`, `Datetime64('…10:00:00Z')`, `IN (CAST(@dates AS DateTime))`, and `= 'Ж'` respectively. None was executed against a server.
+- **Re-posted as review 5599971473**, eight comments anchored on `8c8943d9e`. The first draft, 5599440142, was deleted while still pending.

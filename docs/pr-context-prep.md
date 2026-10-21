@@ -23,6 +23,15 @@ Stdin JSON is still accepted for callers that prefer the heredoc form (`pwsh ...
 
 **Reading the returned JSON.** Pass `-OutFile .build/.agents/pr<n>-context.json` and read fields from that file with the **PowerShell tool** or `Grep`; the script creates the directory and prints only a one-line summary, so the 100–300 KB payload never enters the context. Don't redirect stdout instead: the script writes to `[Console]::Out`, not to the PowerShell pipeline, so from the PowerShell tool `& .claude/scripts/pr-context.ps1 … | Out-File …` writes **0 bytes** and dumps the whole payload into the context (#5987, twice). `diff-reader.ps1` and `baselines-diff.ps1` take the same `-OutFile`. Never `Bash(pwsh -NoProfile -Command "$j = Get-Content … | ConvertFrom-Json; …")` — bash expands `$j` as its own (undefined) variable before pwsh sees the string, so pwsh receives `= Get-Content …` and dies with `The term '=' is not recognized`. This is the general rule in [`agent-rules.md`](agent-rules.md) → *PowerShell Core scripts for complex operations*, restated here because the context load is the place it keeps getting hit.
 
+**For the prior-review picture, project the file — don't hand-roll a projection.** Use `pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr<n>-context.json -AuditSummary`. It makes no network call and returns:
+- every review with the finding IDs in it;
+- every thread joined to its first comment (path, line, outdated, author, replies);
+- other authors' review bodies as line arrays, identical bot notices merged;
+- your pending draft, if any;
+- the ID floor from your posted text (fold in the branch's `gaps.md` yourself).
+
+That is what `/review-pr` step 2b and `/verify-review` steps 2–3 start from. (#5943: four separate PowerShell projections of the same file.)
+
 Output is a single JSON object — see the script's header comment for the exact schema. The fields the review skills consume:
 
 | Field | Used for |

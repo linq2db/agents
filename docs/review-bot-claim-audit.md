@@ -1,6 +1,6 @@
 # Auditing prior reviewer claims (bots + humans)
 
-Re-verification procedure for `/review-pr` step 2b and `/verify-review` follow-up passes. The skill loads `pr-context.ps1`'s `reviewThreads[]`; this doc covers what to do with the unresolved-or-other-resolved threads.
+Re-verification procedure for `/review-pr` step 2b and `/verify-review` follow-up passes. The skill loads `pr-context.ps1`'s `reviewThreads[]`, read through its `-From <context JSON> -AuditSummary` projection, which joins each thread to its first comment's path, line and author. This doc covers what to do with the unresolved-or-other-resolved threads.
 
 ## Scope
 
