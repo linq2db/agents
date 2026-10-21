@@ -270,7 +270,7 @@ dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings
 
 **The rule is enforced, not just stated.** [`../hooks/require-test-progress.ps1`](../hooks/require-test-progress.ps1) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
 
-A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
+A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `totalIsUpperBound`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
 
 Read the heartbeat directly, or with the summary helper (the `/test-progress` skill reports the latest run):
 
@@ -281,7 +281,7 @@ pwsh -NoProfile -File .claude/scripts/test-status.ps1 -Raw     # dump the raw JS
 
 Use the script rather than `ls -t` on the directory: it accumulates heartbeats from prior sessions and concurrent runs, so "newest by mtime" is a guess about whose run you are looking at.
 
-**Caveat:** under a `--filter`, `total` reflects the *discovered* (pre-filter) test count, so it over-counts and `etaSec` is unreliable; `total`/`etaSec` are exact only for full, unfiltered runs (the case this is built for). `completed` and `currentTest` are always accurate.
+**Caveat:** `total` is the number of tests the run executes under the given `--filter` (Ignored / Explicit / NotRunnable leaves excluded, filtered or not). `totalIsUpperBound: true` marks the discovered-count fallback, which has no ETA. A run without `--settings .runsettings` can be widened by the adapter's `AssemblySelectLimit` (default 2000) to the whole assembly, and `total` then counts all of it. A suite whose OneTimeSetUp fails or is skipped leaves `completed < total`. `done` comes only from the root suite's teardown.
 
 ## Test Database Configuration
 
@@ -907,7 +907,7 @@ $p = Start-Process -FilePath 'dotnet' -WorkingDirectory $wt -PassThru -WindowSty
 $p.PriorityClass = 'BelowNormal'
 ```
 
-Then poll `test-status.ps1` at natural intervals and read the **run's own summary** from the log at the end. Two things to get right: set `PriorityClass` on the returned object (a detached process does not inherit the shell's), and treat the heartbeat as a progress indicator only — its last sample is written before the final skips are tallied, so a completed run can show e.g. `20782/21317 (97.5%)` and look truncated while the log's `Test run summary` reconciles exactly (`succeeded + skipped == total`). Check that identity before reporting a count. (Measured on #5814: 21317 tests over both SQLite providers in 36m27s, of which >10 min was the cold build.)
+Then poll `test-status.ps1` at natural intervals and read the **run's own summary** from the log at the end. Two things to get right: set `PriorityClass` on the returned object (a detached process does not inherit the shell's), and treat the heartbeat as a progress indicator only — a suite whose OneTimeSetUp fails or is skipped never reaches its tests, so a completed run can still show `completed < total` while the log's `Test run summary` reconciles exactly (`succeeded + skipped == total`). Report counts from the log, after checking that identity. (Measured on #5814: 21317 tests over both SQLite providers in 36m27s, of which >10 min was the cold build.)
 
 ## Diagnosing hung test runs
 

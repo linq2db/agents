@@ -73,7 +73,7 @@ function Format-Duration([double] $seconds) {
 
 $total     = [long]$p.total
 $completed = [long]$p.completed
-$pct       = if ($total -gt 0) { [math]::Round(100.0 * $completed / $total, 1) } else { $null }
+$pct       = if ($total -gt 0 -and -not $p.totalIsUpperBound) { [math]::Round(100.0 * $completed / $total, 1) } else { $null }
 $state     = if ($p.done) { 'DONE' } else { 'RUNNING' }
 $elapsed   = Format-Duration ([double]$p.elapsedSec)
 $eta       = if ($null -ne $p.etaSec) { Format-Duration ([double]$p.etaSec) } else { 'n/a' }
