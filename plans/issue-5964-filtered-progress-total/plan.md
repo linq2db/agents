@@ -70,16 +70,16 @@
 - E-1 `Tests/Base/TestRunCounter.cs:TestRunCounter` — new: resolve the root `WorkItem` from a dispatcher by reflection over instance fields assignable to `WorkItem`, accepting only `ReferenceEquals(item.Test, root)`; count leaves per U-2/U-3; never throws (returns `null` on any failure).
 - E-2 `Tests/Base/TestProgressReporter.cs:TestProgressTracker.OnBefore` — root suite only: `TestRunCounter` count, else fallback `TestCaseCount` with `isUpperBound: true`; non-root suites no longer set the total; replace the "over-counts" comment.
 - E-3 `Tests/Base/TestProgressReporter.cs:TestProgressTracker.Write` — emit `"totalIsUpperBound"`; `etaSec` is `null` when the total is an upper bound.
-- E-4 `Tests/Base/TestProgressState.cs:SetTotal/Total/TotalIsUpperBound` — `SetTotal(long, bool isUpperBound = false)` assigns; new `TotalIsUpperBound`; `Total` summary updated; the Book() comment about "unfiltered runs" updated.
+- E-4 `Tests/Base/TestProgressState.cs:SetTotal/Total/TotalIsUpperBound` — `SetTotal(long, bool isUpperBound = false)` assigns; new `TotalIsUpperBound`; `Total` summary updated; the Book() count-based done latch removed (A-1).
 - E-5 `Tests/Linq/Infrastructure/TestRunCounterTests.cs` — new fixture for TO-2, TO-3, TO-4.
-- E-6 `Tests/Linq/Infrastructure/TestProgressStateTests.cs` — TO-3's state half (`SetTotal` assignment + flag); existing `DoneLatchesWhenCompletedReachesTotal` stays.
+- E-6 `Tests/Linq/Infrastructure/TestProgressStateTests.cs` — TO-3's state half (`SetTotal` assignment + flag); `DoneLatchesWhenCompletedReachesTotal` rewritten as `DoneWaitsForTheRootSuiteWhenCompletedReachesTotal` (A-1).
 
 ## P7 Impact map
 
 - `Tests/Base/TestProgressReporter.cs:74` — sole production `SetTotal` caller (scout: `SetTotal\b` over `Tests\`) — covered by E-2
 - `Tests/Linq/Infrastructure/TestProgressStateTests.cs:186` — sole test `SetTotal` caller, `DoneLatchesWhenCompletedReachesTotal` (`:182-194`) — covered by E-6 (signature stays source-compatible via default parameter)
 - `Tests/Base/TestProgressReporter.cs:248-254` — sole `Total` reader, ETA computation — covered by E-3
-- `Tests/Base/TestProgressState.cs:246` — done latch `_completed >= _total` — covered by E-4 (comment only; an exact total makes the latch correct for filtered runs too)
+- `Tests/Base/TestProgressState.cs:246` — done latch `_completed >= _total` — covered by E-4 (latch removed, A-1)
 - `Tests/Linq/AssemblyInfo.TestProgress.cs:5`, `Tests/Tests.Playground/AssemblyInfo.TestProgress.cs:5`, `Tests/EntityFrameworkCore/AssemblyInfo.TestProgress.cs:6` — the three projects applying the reporter (scout: `AssemblyInfo\.TestProgress|TestProgressReporter`) — covered by E-2 (shared code); only Tests/Linq is run end-to-end (TO-1), Playground/EF are unexercised, see P8
 - `Tests/Base/Parallelization/ResourceLaneDispatcherInstaller.cs:28-33` — replaces `Context.Dispatcher` with `ResourceLaneDispatcher` (no `WorkItem` field) from SetUpFixture OneTimeSetUp — out-of-scope (installed after the root `BeforeTest`, U-5; TO-1 measures)
 - `Tests/Base/Attributes/ActiveIssueAttribute.cs:342,353`, `Tests/Base/Attributes/ThrowsWhenAttribute.cs:173,184` — deferred-commit callers of the tracker (scout: `TestProgressTracker`) — out-of-scope (protocol unchanged)
@@ -98,11 +98,11 @@
 
 ## P9 Verification gates
 
-- G-01: pass — `worktree-test.ps1` (Tests/Linq, net10.0). TO-2/3/3b/4 + `TestProgressStateTests`: 18 passed, all 5 expected tests present. TO-1 red (master): `total 22301, completed 18, done true, etaSec 56555.333`; green (branch, same command, lane dispatcher installed): `total 18, totalIsUpperBound false, completed 18, done true`. Mutation: suite-skip clause dropped → `CountsOnlyTestsThatRunTheAction` red `Count(root, TestFilter.Empty)` 4L vs 2L (and `ResolvesRootWorkItemOnlyForItsOwnTest` 4L vs 2L); reverted, re-run green. `test-diff-sweep.ps1 -IncludeWorkingTree`: 0 narrowed sets, 1 chain at `TestProgressReporter.cs:276` — matches the surrounding column-aligned `sb.Append` block, kept.
+- G-01: pass — per TO: TO-1 → filtered `CountTests.Count1|Count2` run (below); TO-2 → `TestRunCounterTests.CountsOnlyTestsThatRunTheAction`; TO-3 → `TestRunCounterTests.UnresolvableDispatcherYieldsNull` + `TestProgressStateTests.SetTotalAssignsAndCarriesUpperBound`; TO-3b → `TestRunCounterTests.ResolvesRootWorkItemOnlyForItsOwnTest`; TO-4 → `TestRunCounterTests.NUnitDispatchersExposeTopLevelWorkItem`; A-1 → `TestProgressStateTests.DoneWaitsForTheRootSuiteWhenCompletedReachesTotal`. All via `worktree-test.ps1` (Tests/Linq, net10.0). TO-2/3/3b/4 + `TestProgressStateTests`: 18 passed, all 5 expected tests present. TO-1 red (master): `total 22301, completed 18, done true, etaSec 56555.333`; green (branch, same command, lane dispatcher installed): `total 18, totalIsUpperBound false, completed 18, done true`. Mutation: suite-skip clause dropped → `CountsOnlyTestsThatRunTheAction` red `Count(root, TestFilter.Empty)` 4L vs 2L (and `ResolvesRootWorkItemOnlyForItsOwnTest` 4L vs 2L); reverted, re-run green. `test-diff-sweep.ps1 -IncludeWorkingTree`: 0 narrowed sets, 1 chain at `TestProgressReporter.cs:276` — matches the surrounding column-aligned `sb.Append` block, kept.
 - G-02: n/a — Tests/Base infra only, no SQL emitted; the runs wrote no baseline changes.
 - G-06: pass — diff touches only E-1..E-6 lines.
 - G-07: pass — nothing under `Tests/Tests.Playground/` changed.
-- G-09: — (pending) adversarial diff read before the PR opens.
+- G-09: pass — `/code-review medium` on 98dda940a: 6 findings; 1 fixed (A-1: done latch, red→green `DoneWaitsForTheRootSuiteWhenCompletedReachesTotal`), 2 test-hardening fixed, 3 not changed (P10 / D-4 / unreachable). Post-fix: 71 passed (infra fixtures + `ActiveIssueTests` + TO-1 run; heartbeat `total 71, totalIsUpperBound false, completed 71, done true`); Release `Tests/Linq` net10.0 succeeded. PR [#6098](https://github.com/linq2db/linq2db/pull/6098), head b0a58fb5e.
 - Extra: pass — `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` succeeded, 0 warnings; `dotnet build Tests/Base/Tests.Base.csproj -c Release -f net462` succeeded.
 
 ## P10 Adjudicated
@@ -113,7 +113,9 @@
 
 ## P11 Amendments
 
-_None._
+- A-1 (2026-10-21, `/code-review` finding on 98dda940a) — an exact total makes `Book()`'s `_completed >= _total` done-latch reachable on every resolvable run; on master it fired only where `TestCaseCount` equalled the runnable count (a small all-runnable assembly — the PR #5726 Playground `[Repeat]` case) and never on Tests/Linq, whose Ignored/Explicit leaves always over-count. It would publish `done: true` / `currentTest: null` before the last fixture's OneTimeTearDown and the root `AfterTest`, and once `_done` is set `MarkDone` returns before its `Publish`, freezing the file (precedent: `.claude/docs/bug-investigation.md:114`, PR #5726). Remove the latch: `done` comes only from the root suite's `MarkDone`, which is master's observed behaviour. E-4 widens from comment-only to removing the latch; E-6 rewrites `DoneLatchesWhenCompletedReachesTotal` into `DoneWaitsForTheRootSuiteWhenCompletedReachesTotal` (red against 98dda940a, green after). Also from the same review, test-only: TO-3 asserts `FindWorkItemFields(typeof(MainThreadWorkItemDispatcher))` is empty; TO-3b sets every found field instead of `.Single()`. Not changed: OneTimeSetUp-failure over-count (P10), root `Parent == null` (the NUnit `TestAssembly` is always the root), stale corpus prose (D-4). Re-confirmed by the user's "open" instruction after the review triage was reported (2026-10-21).
+  re-derives: P6 (E-4, E-6), P8 (TO-3, TO-3b), P7 (`TestProgressState.cs:246` row)
+  conventions: testing.md → Test layout embedded; swept `git diff origin/master... -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree` (re-run after this amendment, see G-01)
 
 ## P12 Critic verdict
 
@@ -124,3 +126,7 @@ _None._
 - Adapter `AssemblySelectLimit` widening unstated → P10 line + D-4 follow-up.
 - P3 "keep meaning" overstated → narrowed to names and types; `total` drops non-runnable leaves on unfiltered runs too.
 - U-5 / U-6 / U-7 relabelled measured from the critic's decompile citations; U-6 also carries the measured master red side.
+
+**A-1 delta: weak** (plan-critic, model `fable`, 2026-10-21). Searched: `_done|\.Done\b|MarkDone` over `Tests/` (single writer, `TestProgressState.cs:209`); `TryInstall\(` (only `Tests/Linq/TestsInitialization.cs:226`); `Dispatcher` over Playground and EF Core trees (none); heartbeat readers in `.claude` (none treats `completed == total` as finished); decompiled `CompositeWorkItem` (`OnAllChildItemsCompleted` → `OneTimeTearDownWorkItem` → `AfterTestActionCommand`, skipped only on `AbortRequested`), `SimpleWorkItem` (bookings precede `WorkItemComplete`), `MainThreadWorkItemDispatcher` (no instance fields). Root `AfterTest` fires in every host on a normal finish. Objections and what changed:
+- A-1's "never fired in practice" contradicted its own #5726 citation → premise rewritten: never on Tests/Linq, did fire on a small all-runnable assembly. The decision stands, strengthened (master already produced the freeze). The pushed b0a58fb5e commit message carries the old sentence; not rewritten (would need a force-push).
+- P7 `TestProgressState.cs:246` row not re-derived → now "latch removed, A-1".
