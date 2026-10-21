@@ -89,7 +89,7 @@ When a refresh re-detects an existing issue (matched by file + pattern signature
 === END INDEX-PATCH ===
 ```
 
-When an existing issue's pattern signature is no longer present in the file (and the file still exists), flip status to `fixed`:
+When an existing issue's pattern signature is no longer present in the file (and the file still exists), flip status to `fixed`. **Confirm absence first:** `Grep` the current working-tree file for the flagged text (the comment, call or construct — not the line number). If it still appears anywhere in the file, the line moved: emit the `update` patch above with the new line, never `fixed`. (A refresh once flipped five still-present TODOs to `fixed`, and an earlier one four more.)
 
 ```
 === INDEX-PATCH: detected-issues/index.json ===
@@ -114,7 +114,7 @@ For each pattern in [`kb-issue-categories.md`](../docs/kb-issue-categories.md) �
    - **In index but with different files[]** → merge files, `update` patch.
    - **Not in index** → emit a new entry with the next available ID.
    - **Already covered by an open GitHub issue** (cross-source check via `openGithubIssues`): set `source: cross`, set `gh_issue: <n>`, status: `triaged`. Don't auto-flag for review.
-4. After processing all patterns for an area, identify entries in `existingIndex` for files in scope whose patterns no longer fire — flip their status to `fixed`.
+4. After processing all patterns for an area, identify entries in `existingIndex` for files in scope whose patterns no longer fire — flip their status to `fixed`, after the `Grep` absence check above.
 
 ## Cross-source signals
 

@@ -57,6 +57,8 @@ if (-not (Test-Path $kbRoot)) {
     exit 0
 }
 
+$rxCitation = '\b((?:Source|Tests|Build)/[\w./-]+\.(?:cs|csproj|md|json|ps1)):(\d+)\b'
+
 # Determine candidate files
 $explicit = @()
 if ($m.files) { foreach ($f in $m.files) { $explicit += [string]$f } }
@@ -85,13 +87,15 @@ if ($explicit.Count -gt 0) {
             $candidateFiles += [pscustomobject]@{ rel = $rel; abs = $f.FullName }
         }
     }
-    # Random sample
+    # Random sample, drawn only from files that cite code: most KB files have no
+    # Source/Tests citations, and a sample of those audits nothing.
+    $candidateFiles = @($candidateFiles | Where-Object {
+        [regex]::IsMatch([System.IO.File]::ReadAllText($_.abs), $rxCitation)
+    })
     if ($candidateFiles.Count -gt $k) {
         $candidateFiles = $candidateFiles | Get-Random -Count $k
     }
 }
-
-$rxCitation = '\b((?:Source|Tests|Build)/[\w./-]+\.(?:cs|csproj|md|json|ps1)):(\d+)\b'
 
 $audited = @()
 $staleCount = 0

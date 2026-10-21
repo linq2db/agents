@@ -102,6 +102,7 @@ If the test was just authored by the write flow, the test-writer's `dataSources`
 
 Call `test-runner` with:
 - `testPattern` — the `--filter` value. **Always prepend `FullyQualifiedName~CreateData.CreateDatabase|`** unless the filter is already `CreateDatabase`-only or the user explicitly overrides. See `.claude/docs/testing.md` → **Database initialization** for why. **Not for the EF Core projects** — `CreateData.CreateDatabase` lives in `Tests/Linq` and appears nowhere under `Tests/EntityFrameworkCore`, so on an EF target the prefix matches nothing; those contexts provision themselves through `EnsureDeleted` / `EnsureCreated` in `ContextTestBase.InitializeDatabase`. Harmless, but don't read a green EF run as evidence the schema step ran.
+  **Not for a plain `[Test]` with no data source either** (e.g. a `ToSqlQuery()` repro on a hand-built context): with no providers, the prefix runs `CreateDatabase` on every provider enabled in `UserDataProviders.json`, and stopped containers show up as connection-refused failures. Drop the prefix and pass an explicit `tfm` — an unpinned run builds and runs every TFM.
 - `targets` — resolved in 3.1 / 3.2. Prefer the shorthand forms when applicable; remember `{mainTests: true, providers: [...]}` defaults to Playground at `net10.0`, so only set explicit `project` / `tfm` when overriding.
 - `config` — `"Debug"` unless the user asked for Release.
 - `verbosity` — `"normal"`; flip to `"detailed"` when the user needs SQL-dump output from `TestContext.Out.WriteLine`.
