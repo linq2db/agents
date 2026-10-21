@@ -34,6 +34,10 @@ process.stdin.on('end', () => {
         const cmd = String((data.tool_input || {}).command || '');
         if (!testRun.test(cmd) || /--list-tests/.test(cmd)) return process.exit(0);
 
+        // No heartbeat, nothing to read: require-test-progress.js blocks such a run anyway.
+        const writesHeartbeat = /worktree-test\.ps1/.test(cmd) ? !/-NoTestProgress/i.test(cmd) : /--test-progress/.test(cmd);
+        if (!writesHeartbeat) return process.exit(0);
+
         const override = cmd.match(/test-cap:\s*(off|\d+)/i);
         if (override && override[1].toLowerCase() === 'off') return process.exit(0);
 
