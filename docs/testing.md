@@ -1006,6 +1006,18 @@ Use `query.ToSqlQuery().Sql` to see a query's SQL without running it. `IQueryabl
 - **Plain linq2db** emits SQL fully offline when the provider version is explicit: `new DataConnection(new DataOptions().UseSqlServer("Server=.;Database=x", SqlServerVersion.v2022, SqlServerProvider.MicrosoftDataSqlClient))`. A dummy connection string works — nothing is opened. Run this from `Tests.Playground` (link the file in), **not** a hand-rolled console placed under the repo root — `Directory.Build.props` / central package management cascade into any project beneath the root and break a stray project's restore (`Unable to find package <name>`, plus unwanted multi-targeting).
 - **EF Core `.ToLinqToDB()`** on SQL Server opens a real connection to auto-detect the server version (`ProviderDetectorBase.DetectServerVersion` → `SqlConnection.Open()`), so it needs a live server even just to emit SQL. SQLite EF Core emits offline.
 
+#### Comparing a PR head against master offline
+
+A finding whose mechanism shows in the emitted SQL is settled by comparing the SQL both heads emit, with no container. Examples: a cast dropped or added, a literal's type, a collection expanded or bound whole. One worktree serves both arms:
+
+1. **Write the probe.** Make it an untracked `Tests.Playground` test. It builds each query on a `DataConnection` with a dummy connection string and an explicit provider name (`ProviderName.ClickHouseOctonica`, `ProviderName.Ydb`, `ProviderName.SybaseManaged`, `ProviderName.SqlServer2022`), and never executes it. Write `ToSqlQuery()`'s `Sql` together with each of its `Parameters` (name, `DataType`, value) to a file named by an environment variable. A captured collection appears as one parameter whose value is the whole collection, so the parameter types matter as much as the text. Give each finding a control shape that should *not* change.
+2. **Run master.** Build and run the probe on master, writing the first file.
+3. **Run the PR head.** `git checkout --detach origin/pr/<n>` (the untracked probe survives the checkout). Build and run again, writing a second file.
+4. **Check the rebuild.** Before reading the second file, confirm that `linq2db.dll` in the playground's output postdates the first run. An incremental build that skipped the library compares master with itself.
+5. **Compare.** Diff the two files, then check out the original branch again.
+
+This settles the mechanism and whether it is new against master. The server's answer — an error code or a wrong row — still needs a run, so record which of the two a finding rests on. (#5959 round 8: five findings that had only been read from the source, settled in two ~30-second builds. One was refuted, because master emitted the same SQL; four were confirmed.)
+
 #### One probe run, then read it
 
 A repro run usually has to answer several questions — did it throw, what was the message, what SQL came out, what did the rows materialize as. Capture the whole run **once** and then `Grep` / `Read` that capture per question; re-running the same test with a widened filter costs a full build-and-run cycle and returns nothing the first run didn't already contain. Two things make the first capture sufficient:

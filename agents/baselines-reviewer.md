@@ -30,6 +30,13 @@ The repository layout, filename grammar, branch-naming scheme, and the list of e
 
 **Call budget.** Your typical Bash/pwsh/git/gh budget for a single run is **1 `baselines-diff.ps1` call**, its `-From` projections (step 2), and **0–3 `git show` spot reads** when sample diffs are truncated. Every Bash call you issue MUST be recorded in `callLog[]` in your return value (see schema below), with a short `reason`. If your total exceeds the budget, document *why* in each extra entry's `reason` — the parent skill surfaces this to the user verbatim.
 
+**Whole-delta cross-provider checks are already computed — never script them.** `baselines-pr-scan.ps1` answers them over the whole delta:
+- `decimalFacets`: facet bounds against each provider's maximum precision, on every added line;
+- `statementParity`: per-case command counts across providers, for added files;
+- `addedTests`: providers missing from a new test.
+
+Read them from the briefing, or run the scan once with `-OutFile` and `Read` the file. Don't write analysis scripts with `cat >` / heredocs, and don't use `rg` / `sed` / `cat` on the clone. `Grep` / `Read` cover every remaining spot check (`agent-rules.md` → *Dedicated tools over raw CLI*). (#5959 round 8: about 60 calls, about 30 of them throwaway scripts, for exactly these three questions.)
+
 Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). Call the helper with named parameters (step 2); `-OutFile` keeps its multi-megabyte JSON out of your context.
 
 **PR sources come from the briefing, not from git.** A test or source file the PR changes (its `nameStatus`) is read with `Read` / `Grep` from the diff cache: its HEAD body at `<writeDir>/<path>`, its master body at `<writeDir>/_base/<path>`; whether a construct is new in the PR is a compare of those two bodies. Use `git grep <pattern> origin/pr/<n> -- <path>` only for a file the PR does not change. Commit dates come from the context JSON's `commits[]`, and which source areas the PR touches from its `nameStatus` / `diffStat`, never from `git log` / `git diff --stat` / `git show <sha>`. (#5943: about ten of the run's calls re-read changed files and commit dates through `git grep` / `git show` / `git log`, two of them piped into `sed`.)
