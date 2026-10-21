@@ -30,3 +30,36 @@ The single change that would have prevented the most is a `P8` matrix over clien
 - GAP-05 × 6 → `testing.md` (new section: testing a scope invariant, "nothing X happens while Y") — each element of the set the invariant ranges over gets its own cold-process case, including phases that need a reachable server (typed-value reads); beside each control, record the mutation that reddens it (delete the preload, move the work inside the scope, run in reverse fixture order). The `work-plan.md` P8 rules (`:136`, `:158`) only bind planned branches, so this has to live where a no-plan contributor's reviewer will apply it.
 - GAP-02 × 1 (plus the second class on MIN001) → the scout brief in `work-plan/SKILL.md` step 5 — when the design is "load everything ahead of a boundary", probe completeness with a load census (`AppDomain.AssemblyLoad` plus a native-module hook) across success, failure and typed-read paths, and sweep linq2db's by-name loaders (`SqlServerTools` spatial types, `*ProviderAdapter`), which never appear in a reference closure.
 - GAP-01 × 2 → an attack vector in `plan-critic.md` — for any privilege or identity boundary, list every operation and every externally supplied artifact (`--provider-location` folders, third-party native clients) on each side of it, then ask what the reduced identity must be able to read and in what order the boundary is entered relative to preload and validation.
+
+## Round 2 — reviewed HEAD 0f75222b2c006690874b3b9cc5e67c4665c0519a
+
+## Attribution
+
+Still no plan on the branch (`plan.md` absent) and no `P9` results. Each row names the block a Tier M plan would have needed. MIN006, MIN007, NIT001 and NIT002 come from the verification pass; the rest come from the fresh pass at the same HEAD.
+
+- **MIN006** — GAP-02 — needed a `P4` row "which clients the warm-up covers and what it does per client". `SKILL.md:70` says the warm-up creates DuckDB files, but `ImpersonationPreload.cs:111-117` never warms DuckDB up. Second class: GAP-01, because no `P3` line named "DB credentials log in twice per command". — — — preventable: partly
+- **MIN007** — GAP-10 — the mid-branch redesign (from a connection that is created but not opened to an opened warm-up connection) did not exist at plan time, and the PR body was never reconciled with it. — — — preventable: no
+- **NIT001** — GAP-10 — the doc comment at `ImpersonationPreload.cs:183` went stale against the DuckDB skip. Prose staleness. — — — preventable: no
+- **NIT002** — GAP-05 — needed a `TO-n` with a recorded mutation (rule `work-plan.md:158`). `ImpersonationScopeTests.cs:551` cannot fail. It originated in round 1's MIN005 suggestion, which was not mutation-proven either. — — — preventable: yes
+- **MIN008** — GAP-02 — needed a `P5` `D-n` for the warm-up's side effects, with a rejected alternative (read-only mode). `GetUnpooledConnectionString` changes only `Pooling`, so SQLite's default ReadWriteCreate creates the file as the process account (`ImpersonationPreload.cs:205-207`). `SKILL.md:70` documents this as intended. — — — preventable: partly
+- **SUG004** — GAP-01 — needed a `P3` line for the long-lived MCP host covering the warm-up's per-call cost and audit footprint. Every other preload step is memoized and `ImpersonationPreload.cs:118-128` is not. — — — preventable: partly
+- **SUG005** — GAP-05 — needed a `TO-n` for the production logon failure axis (`WindowsImpersonation.cs:28-34`) and a test double that fails the way production fails (rule `:162`). The failed-logon CLI test asserts text that its own double injects. — — — preventable: yes
+- **NIT003** — GAP-10 — the doc at `ConnectionScope.cs:18-22` drifted from what its caller actually runs. Prose. — — — preventable: no
+- **NIT004** — GAP-10 — the `--impersonate` help (`QueryExecutionCliOptions.cs:36`) says a warm-up always runs, but the code skips DuckDB, ODBC, OLE DB and YDB. Prose. — — — preventable: no
+- **NIT005** — GAP-10 — the class summary at `WindowsImpersonation.cs:14` went stale when `RunAsync` moved to `WindowsImpersonationSession`. Prose. — — — preventable: no
+
+## Aggregate
+
+10 findings: 5 trace to plan blocks (GAP-05 ×2, GAP-02 ×2, GAP-01 ×1) and 5 are GAP-10 prose staleness. The prose findings all trail the two mid-branch redesigns (the opened warm-up connection, and the move of `RunAsync`). The design-gap findings all concern the warm-up added in response to round 1: its per-client coverage, its side effects and its lifecycle were never enumerated.
+
+## Recommended durable fixes
+
+- GAP-05 × 2 → `testing.md` (round 1's scope-invariant section), plus: a reviewer-suggested assertion is a claim too. It needs a recorded mutation that reddens it, and a test double must fail on the production failure axis rather than inject the text it asserts.
+- GAP-02 × 2 + GAP-01 × 1 → `plan-critic.md` attack vector: a pre-flight or warm-up action at a privilege boundary needs a per-client table with four columns: covered?, what it creates or mutates, credential uses, and frequency in a long-lived host.
+- GAP-10 × 5 → optional `code-reviewer.md` rubric line: after a mid-branch redesign, sweep the PR body, SKILL.md, help text and doc comments for the superseded design.
+
+## Continuity
+
+- Round-1 GAP-05 recurs (NIT002, SUG005), and the round-1 `testing.md` recommendation was not applied. NIT002 shows that the reviewer's own suggested test (MIN005) had the defect the recommendation targets.
+- Round-1 GAP-01 (`plan-critic.md` identity-boundary vector) recurs through SUG004 and MIN006.
+- Round-1 GAP-02 (load census in the scout brief) did not recur; the warm-up redesign replaced the scan it targeted.
