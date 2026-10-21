@@ -131,3 +131,27 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** neither reproduces; the stack headroom matched an empty class to within 1 KB. The trigger was the host: a C++Builder process that unmasks FP exceptions, so the x86 JIT faults compiling `double >= long.MaxValue`.
 
 **Don't re-attempt:** chasing a native-host crash by framework version or stack depth. Ask first what hosts the process and whether it is x86, then probe with FP exceptions unmasked ([`bug-investigation.md`](bug-investigation.md) → *A .NET Framework crash only inside a native host*). (#6042, #6053)
+
+## SQL-PROVIDER: ranking a `DateTime64` with no precision coarse on both sides of `IsCoarserDateTime`
+
+**Tried:** fixing YDB's whole-second `Datetime64` being ranked sub-second (a literal beside `MAX(D64)` lost its fraction) by ranking every precision-less `DataType.DateTime64` as whole-second in `QueryHelper.DateTimeRank`.
+
+**Failed because:** the rank is read for the other side too. On ClickHouse a literal's own type often arrives as `DateTime64` with no precision, so a `DateTime` column stopped counting as coarser than it and the literal was narrowed again: 18 tests per ClickHouse provider red (`CoarseAggregateComparedWithFinerLiteral`, `…InListKeepsLiteralTime`, `…SetOperationKeepsLiteralTime`, the window-function cells).
+
+**Don't re-attempt:** a symmetric default. An unknown precision must answer "coarser" from both positions (low as the operand, high as the `than` side), so it only ever lets the value keep its own type. (#5959 MAJ012, `7eefd2deb`)
+
+## SQL-PROVIDER: pinning the ClickHouse `Decimal128 → Decimal256` promotion in `GetDecimalTypeForValue` with a test
+
+**Tried:** a `Decimal128(38,10)` column holding a 28-digit value beside a scale-11 literal, arm disabled, in three shapes: `MAX(col) = lit`, a captured `IN`, a `UNION`.
+
+**Failed because:** the comparison and the `IN` pass without the arm (ClickHouse appears to widen a `Decimal128` comparison internally), and the `UNION` result overflows `System.Decimal` on the client whichever family is rendered. The `Decimal32` arm is observable (`Can't compare decimal number due to overflow`).
+
+**Don't re-attempt:** a test cell for that arm; it cannot go red. (#5959 SUG203, `f93720bd9`)
+
+## SQL-PROVIDER: reading the `DbType` on the IN-list values side of ClickHouse's `VisitInListPredicate`
+
+**Tried:** testing the IN-list values with `ClickHouseExpressionExtensions.IsDateTime64` (`DataType` plus `DbType`), as the operand is, when fixing a DbType-only `DateTime` column beside a sub-second literal.
+
+**Failed because:** a value lent the column's type carries `DateTime64` with `DbType "DateTime"`, but the ClickHouse literal writer renders by `DataType`. It was still written `toDateTime64(…)`, the operand was not wrapped, and the server refused with `Code: 53`.
+
+**Don't re-attempt:** the `DbType` test on rendered values. Read the `DbType` for what the server sees of a column operand; test values by what the writer emits, their `DataType`. (#5959 MAJ011, `2940edbc4`)
