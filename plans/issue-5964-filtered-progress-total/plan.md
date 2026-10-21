@@ -98,12 +98,12 @@
 
 ## P9 Verification gates
 
-- G-01: — (pending) TO-1 via hand-run `dotnet test` with heartbeat read (both master and branch); TO-2..TO-4 via `/test`
-- G-02: — (pending) no SQL can move (Tests/Base infra only); confirm no baseline diff
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
-- Extra: Release build of `Tests/Linq/Tests.csproj` (XML-doc `cref` validation, analyzers) and a net462 build of `Tests/Base` (reflection API availability) — (pending)
+- G-01: pass — `worktree-test.ps1` (Tests/Linq, net10.0). TO-2/3/3b/4 + `TestProgressStateTests`: 18 passed, all 5 expected tests present. TO-1 red (master): `total 22301, completed 18, done true, etaSec 56555.333`; green (branch, same command, lane dispatcher installed): `total 18, totalIsUpperBound false, completed 18, done true`. Mutation: suite-skip clause dropped → `CountsOnlyTestsThatRunTheAction` red `Count(root, TestFilter.Empty)` 4L vs 2L (and `ResolvesRootWorkItemOnlyForItsOwnTest` 4L vs 2L); reverted, re-run green. `test-diff-sweep.ps1 -IncludeWorkingTree`: 0 narrowed sets, 1 chain at `TestProgressReporter.cs:276` — matches the surrounding column-aligned `sb.Append` block, kept.
+- G-02: n/a — Tests/Base infra only, no SQL emitted; the runs wrote no baseline changes.
+- G-06: pass — diff touches only E-1..E-6 lines.
+- G-07: pass — nothing under `Tests/Tests.Playground/` changed.
+- G-09: — (pending) adversarial diff read before the PR opens.
+- Extra: pass — `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` succeeded, 0 warnings; `dotnet build Tests/Base/Tests.Base.csproj -c Release -f net462` succeeded.
 
 ## P10 Adjudicated
 
