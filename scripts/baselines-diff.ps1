@@ -33,15 +33,25 @@ Input — two forms (preferred first)
                                   checkout the script runs from, for the orphan check
       -OutFile <path>           — write the JSON (often several MB) there and print one
                                   summary line instead: { ok, outFile, bytes, status,
-                                  counts, testGroups, patterns, orphans, branchWriteWindow }
+                                  branchTip, counts, testGroups, patterns, orphans,
+                                  branchWriteWindow }
 
-    Projection mode (reads a prior -OutFile result; no git, no fetch; prints text):
+    Projection mode (reads a prior -OutFile result; no git, no fetch; prints text). The
+    -OutFile JSON is a single multi-MB line that Read / Grep cannot page; read it this way:
       -From <path>              — the -OutFile JSON to read
-      -Select <spec>            — regressionCandidates | sizeOutliers | archetype:<name>
-                                  | testBase:<regex>; one line per pattern:
+      -Select <spec>            — digest: header (branch and base tips, counts, review and
+                                  compare URLs, write window), then every pattern grouped
+                                  deleted / modified / added, one line each:
+                                  testBase | providerCount | [archetypes] | patternHash
+                                  | netDelta | lastWritten, plus its providers, families
+                                  of 3+ collapsed to `Family.* (n)`.
+                                  regressionCandidates | sizeOutliers | archetype:<name>
+                                  | testBase:<regex>: one line per pattern:
                                   testBase | sampleProvider | providerCount | sampleStatus
                                   | [archetypes] | patternHash
       -WithDiff                 — with -Select, also the sample's +/- lines
+      -MaxDiffLines <int>       — cap on -WithDiff lines per pattern; 0 = no cap. Default 12
+                                  for digest, no cap otherwise
       -CompareTo <path>         — a second -OutFile JSON; prints archetype hits gained
                                   and lost from it to -From (gate for an archetype edit)
 
@@ -64,12 +74,17 @@ Input — two forms (preferred first)
       }
 
 Output (stdout, single JSON object): { status, pr, branch, baseRef,
-baselineRepo, baselineBranchUrl, baselineCompareUrl, baselineReview,
-counts, summary, testGroupSummary[], changePatterns[], sizeOutliers[],
-regressionCandidates[], orphanCheck, orphans[], sql[], metrics[], unknown[],
-testGroups }. When
+branchTip, baseTip, baselineRepo, baselineBranchUrl, baselineCompareUrl,
+baselineReview, counts, summary, testGroupSummary[], changePatterns[],
+sizeOutliers[], regressionCandidates[], orphanCheck, orphans[], sql[],
+metrics[], unknown[], testGroups }. When
 status == "branch_missing", only the header fields plus an all-zero
 `counts` are emitted; the rest are omitted.
+  `branchTip` — { sha, committed }: the commit of `origin/<branch>` this run
+    diffed, resolved once; every git call reads it and `baseTip.sha` instead of
+    the ref names. Pin spot reads to it (`git show <branchTip.sha>:<path>`): the
+    clone is shared across sessions, and another session's fetch moves the ref.
+  `baseTip` — { sha }: the commit `baseRef` resolved to.
   `baselineRepo` — "owner/name" of the baselines repo on GitHub.
   `baselineBranchUrl` — https://github.com/<repo>/tree/<branch>.
   `baselineCompareUrl` — compare view master...branch.
@@ -171,7 +186,8 @@ param(
     [string]$From,
     [string]$Select,
     [string]$CompareTo,
-    [switch]$WithDiff
+    [switch]$WithDiff,
+    [int]$MaxDiffLines = -1
 )
 
 $global:ScriptBaseName = 'baselines-diff'
@@ -184,13 +200,63 @@ if ($From) {
     if (-not (Test-Path -LiteralPath $From)) { Exit-WithError "-From file not found: $From" }
     if (-not $Select -and -not $CompareTo) { Exit-WithError '-From needs -Select and/or -CompareTo' }
     $doc = Get-Content -Raw -LiteralPath $From | ConvertFrom-Json
+    $lineCap = if ($MaxDiffLines -ge 0) { $MaxDiffLines } elseif ($Select -eq 'digest') { 12 } else { 0 }
 
     function Get-PatternKey($p) { "$($p.testBase) | $($p.sampleProvider) | $($p.patternHash)" }
+    function Format-SampleDiff($p) {
+        if (-not ($WithDiff -and $p.sampleDiff)) { return }
+        $lines = @($p.sampleDiff -split "`n" | Where-Object { $_ -match '^[-+]' -and $_ -notmatch '^(\+\+\+|---) ' })
+        $shown = if ($lineCap -gt 0) { @($lines | Select-Object -First $lineCap) } else { $lines }
+        $shown | ForEach-Object { "    $($_.TrimEnd("`r"))" }
+        if ($shown.Count -lt $lines.Count) { "    ... $($lines.Count - $shown.Count) more line(s): -Select 'testBase:<regex>' -WithDiff -MaxDiffLines 0" }
+    }
     function Format-Pattern($p) {
         "$($p.testBase) | $($p.sampleProvider) | $($p.providerCount) | $($p.sampleStatus) | [$(@($p.regressionArchetypes) -join ',')] | $($p.patternHash)"
-        if ($WithDiff -and $p.sampleDiff) {
-            $p.sampleDiff -split "`n" | Where-Object { $_ -match '^[-+]' -and $_ -notmatch '^(\+\+\+|---) ' } | ForEach-Object { "    $_" }
+        Format-SampleDiff $p
+    }
+    # ConvertFrom-Json turns ISO timestamps into DateTime values of mixed kinds, which print in local culture and zone.
+    function Format-When($v) {
+        if ($v -is [datetime] -or $v -is [datetimeoffset]) { return $v.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
+        return [string]$v
+    }
+    # A provider family of three or more collapses to `Family.* (n)`: the full list is in the JSON.
+    function Format-Providers($p, [int]$total) {
+        $names = @($p.providers)
+        if ($total -gt 0 -and $names.Count -eq $total) { return "every touched provider ($total)" }
+        $parts = foreach ($g in ($names | Group-Object { ($_ -split '\.')[0] } | Sort-Object Name)) {
+            if ($g.Count -gt 2) { "$($g.Name).* ($($g.Count))" } else { $g.Group }
         }
+        return (@($parts) -join ', ')
+    }
+
+    # The whole branch on one screen: header, then every pattern grouped by status, deletions and modifications first.
+    if ($Select -eq 'digest') {
+        $tip = if ($doc.branchTip) { "@ $($doc.branchTip.sha) (committed $(Format-When $doc.branchTip.committed))" } else { '@ <tip not recorded: the -OutFile predates branchTip, rerun the diff>' }
+        $base = if ($doc.baseTip) { "@ $($doc.baseTip.sha)" } else { '' }
+        "# $($doc.branch) $tip vs $($doc.baseRef) $base"
+        "# status: $($doc.status)"
+        if ($doc.status -ne 'changed') { return }
+        $c = $doc.counts
+        $s = $doc.summary
+        "# files: added=$($c.added) modified=$($c.modified) deleted=$($c.deleted) renamed=$($c.renamed) other=$($c.other) | sql=$($s.sqlCount) metrics=$($s.metricsCount) unknown=$($s.unknownCount)"
+        "# testGroups=$($s.testGroupCount) patterns=$(@($doc.changePatterns).Count) regressionCandidates=$(@($doc.regressionCandidates).Count) sizeOutliers=$(@($doc.sizeOutliers).Count) orphans=$($s.orphanCount)"
+        if ($doc.baselineReview) { "# review: $($doc.baselineRepo)#$($doc.baselineReview.number) $($doc.baselineReview.state) $($doc.baselineReview.url)" }
+        "# compare: $($doc.baselineCompareUrl)"
+        "# written: $(Format-When $s.branchWriteWindow.first) .. $(Format-When $s.branchWriteWindow.last)"
+        $total = @($s.providers).Count
+        $sections = [ordered]@{ D = 'deleted'; M = 'modified'; A = 'added'; '?' = 'other' }
+        $byStatus = @($doc.changePatterns) | Group-Object { $k = ([string]$_.sampleStatus).Substring(0, 1); if ($sections.Contains($k)) { $k } else { '?' } } -AsHashTable
+        foreach ($k in $sections.Keys) {
+            if (-not $byStatus -or -not $byStatus.ContainsKey($k)) { continue }
+            ''
+            "## $($sections[$k]): $($byStatus[$k].Count) pattern(s) - testBase | providerCount | [archetypes] | patternHash | netDelta | lastWritten"
+            foreach ($p in $byStatus[$k]) {
+                "$($p.testBase) | $($p.providerCount) | [$(@($p.regressionArchetypes) -join ',')] | $($p.patternHash) | $($p.sizeMetrics.netDelta) | $(Format-When $p.lastWritten)"
+                "    $(Format-Providers $p $total)"
+                Format-SampleDiff $p
+            }
+        }
+        return
     }
 
     if ($Select) {
@@ -199,7 +265,7 @@ if ($From) {
             '^sizeOutliers$'         { @($doc.sizeOutliers) }
             '^archetype:(.+)$'       { $a = $Matches[1]; @($doc.changePatterns | Where-Object { @($_.regressionArchetypes) -contains $a }) }
             '^testBase:(.+)$'        { $rx = $Matches[1]; @($doc.changePatterns | Where-Object { $_.testBase -match $rx }) }
-            default { Exit-WithError "-Select: expected regressionCandidates | sizeOutliers | archetype:<name> | testBase:<regex>, got '$Select'" }
+            default { Exit-WithError "-Select: expected digest | regressionCandidates | sizeOutliers | archetype:<name> | testBase:<regex>, got '$Select'" }
         }
         "# $($rows.Count) pattern(s): testBase | sampleProvider | providerCount | sampleStatus | [archetypes] | patternHash"
         $rows | ForEach-Object { Format-Pattern $_ }
@@ -607,7 +673,17 @@ if (-not $rev.ok) {
     return
 }
 
-$nameStatusRes = Invoke-Git @('-C',$clonePath,'diff','--name-status',"$baseRef...$remoteRef")
+# Every git call below reads these two SHAs, not the ref names. The clone is shared across sessions, so another session's
+# fetch can move `origin/baselines/pr_<n>` between two of our calls (#5943: a CI leg committed mid-review).
+$branchTipSha = $rev.stdout.Trim()
+$baseRev = Invoke-Git @('-C',$clonePath,'rev-parse','--verify',"$baseRef^{commit}")
+if (-not $baseRev.ok) { Exit-WithError "git rev-parse ${baseRef}: $($baseRev.error)" }
+$baseTipSha = $baseRev.stdout.Trim()
+$tipDate = Invoke-Git @('-C',$clonePath,'show','-s','--format=%cI',$branchTipSha)
+$branchTip = [pscustomobject]@{ sha = $branchTipSha; committed = if ($tipDate.ok) { $tipDate.stdout.Trim() } else { $null } }
+$baseTip = [pscustomobject]@{ sha = $baseTipSha }
+
+$nameStatusRes = Invoke-Git @('-C',$clonePath,'diff','--name-status',"$baseTipSha...$branchTipSha")
 if (-not $nameStatusRes.ok) { Exit-WithError "git diff --name-status: $($nameStatusRes.error)" }
 
 $entries = @()
@@ -638,7 +714,7 @@ foreach ($e in $entries) {
 # path on the command line blows past ENAMETOOLONG on large baseline PRs.
 $diffBodies = @{}
 if ($entries.Count -gt 0) {
-    $diffRes = Invoke-Git @('-C',$clonePath,'diff',"$baseRef...$remoteRef")
+    $diffRes = Invoke-Git @('-C',$clonePath,'diff',"$baseTipSha...$branchTipSha")
     if (-not $diffRes.ok) { Exit-WithError "git diff (bodies): $($diffRes.error)" }
     $diffBodies = Split-DiffByFile -DiffText $diffRes.stdout
 }
@@ -647,7 +723,7 @@ if ($entries.Count -gt 0) {
 # so the first time a path appears is its last write.
 $lastWritten = @{}
 if ($entries.Count -gt 0) {
-    $logRes = Invoke-Git @('-C',$clonePath,'log','--name-only','--format=@@%aI',"$baseRef..$remoteRef")
+    $logRes = Invoke-Git @('-C',$clonePath,'log','--name-only','--format=@@%aI',"$baseTipSha..$branchTipSha")
     if ($logRes.ok) {
         $when = $null
         foreach ($line in ($logRes.stdout -split "`n")) {
@@ -971,6 +1047,8 @@ Write-JsonOutput ([pscustomobject]@{
     pr = $pr
     branch = $branch
     baseRef = $baseRef
+    branchTip = $branchTip
+    baseTip = $baseTip
     baselineRepo = $baselineRepoFull
     baselineBranchUrl = $baselineBranchUrl
     baselineCompareUrl = $baselineCompareUrl
@@ -993,6 +1071,7 @@ Write-JsonOutput ([pscustomobject]@{
     testGroups = [pscustomobject]$testGroups
 }) -OutFile $outFile -Summary ([ordered]@{
     status            = 'changed'
+    branchTip         = $branchTipSha
     counts            = [pscustomobject]$counts
     testGroups        = $testGroups.Keys.Count
     patterns          = $changePatterns.Count

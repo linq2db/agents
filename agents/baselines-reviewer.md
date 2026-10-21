@@ -18,6 +18,8 @@ The repository layout, filename grammar, branch-naming scheme, and the list of e
 3. **Baselines branch** — `baselines/pr_<pr_number>`. If it does not exist on the remote, the PR has no baseline changes — return the "no baselines" output (see below).
 4. **Change summary** — 3–8 bullets describing what the PR changes. You use this to rationalize each diff.
 5. **Mode** — `initial` or `verify`. The output format is identical between modes; the skill decides what to do with the output.
+6. **Diff cache** — the absolute `writeDir` holding the PR-HEAD body of every changed file at its repo path, and the base (master) body under `_base/` when the cache was built with base bodies.
+7. **Context JSON** — the absolute path of `pr<n>-context.json`: `commits[]` with their dates, `nameStatus` (which files the PR changes), `diffStat`.
 
 ## Tools
 
@@ -26,9 +28,11 @@ The repository layout, filename grammar, branch-naming scheme, and the list of e
   - `pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1` — one JSON-in / JSON-out invocation returns the whole changed-paths list, parsed provider/test/params, and per-file truncated diff bodies.
   Raw `git -C ../linq2db.baselines …` calls are permitted for spot follow-ups (e.g. the full untrimmed body of a single file) but should not be the default — one command per call, never chained.
 
-**Call budget.** Your typical Bash/pwsh/git/gh budget for a single run is **1 `baselines-diff.ps1` call** plus **0–3 `git show` spot reads** when sample diffs are truncated. Every Bash call you issue MUST be recorded in `callLog[]` in your return value (see schema below), with a short `reason`. If your total exceeds the budget, document *why* in each extra entry's `reason` — the parent skill surfaces this to the user verbatim.
+**Call budget.** Your typical Bash/pwsh/git/gh budget for a single run is **1 `baselines-diff.ps1` call**, its `-From` projections (step 2), and **0–3 `git show` spot reads** when sample diffs are truncated. Every Bash call you issue MUST be recorded in `callLog[]` in your return value (see schema below), with a short `reason`. If your total exceeds the budget, document *why* in each extra entry's `reason` — the parent skill surfaces this to the user verbatim.
 
 Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conventions (no `&&` / `;` / shell control flow — one command per Bash call). Call the helper with named parameters (step 2); `-OutFile` keeps its multi-megabyte JSON out of your context.
+
+**PR sources come from the briefing, not from git.** A test or source file the PR changes (its `nameStatus`) is read with `Read` / `Grep` from the diff cache: its HEAD body at `<writeDir>/<path>`, its master body at `<writeDir>/_base/<path>`; whether a construct is new in the PR is a compare of those two bodies. Use `git grep <pattern> origin/pr/<n> -- <path>` only for a file the PR does not change. Commit dates come from the context JSON's `commits[]`, and which source areas the PR touches from its `nameStatus` / `diffStat`, never from `git log` / `git diff --stat` / `git show <sha>`. (#5943: about ten of the run's calls re-read changed files and commit dates through `git grep` / `git show` / `git log`, two of them piped into `sed`.)
 
 ## Procedure
 
@@ -37,8 +41,18 @@ Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conven
    ```
    pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 -Pr <pr_number> -Fetch -OutFile .build/.agents/pr<pr_number>-baselines-diff.json
    ```
-   It prints one summary line and writes the full JSON to `-OutFile`; read that file with `Read` / `Grep`. Default `-BaselinesPath` is `../linq2db.baselines`, default branch is `baselines/pr_<pr>`, default per-file `maxDiffBytes` is `16384`. **When the briefing gives an absolute baselines path** — it does from a worktree, where `../linq2db.baselines` does not resolve — pass it as `-BaselinesPath '<path>'`, never inside a stdin JSON manifest: a Windows path's backslashes are JSON escapes, and the call dies with *Bad JSON escape sequence* before doing any work (#5987). Output fields:
+   It prints one summary line and writes the full JSON to `-OutFile`. **That JSON is a single multi-megabyte line, so `Read` / `Grep` cannot page it — and neither can a scratch script of your own; read it through the helper's projection mode instead:**
+   ```
+   pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 -From .build/.agents/pr<pr_number>-baselines-diff.json -Select digest
+   pwsh -NoProfile -File .claude/scripts/baselines-diff.ps1 -From .build/.agents/pr<pr_number>-baselines-diff.json -Select 'testBase:<regex>' -WithDiff
+   ```
+   `digest` is the orientation surface: the branch and base tips, counts, review and compare URLs, write window, then every pattern grouped deleted / modified / added with its providers (families of three or more collapsed). Read it **without** `-WithDiff` first (a 1,700-file branch is ~30 KB that way, ~150 KB with diffs), then pull each group's sample with `testBase:<regex>`, `regressionCandidates`, `sizeOutliers` or `archetype:<name>` plus `-WithDiff` (`-MaxDiffLines <n>` caps the lines per pattern, `0` = all). (#5943: the run skipped `-OutFile`, got 3.7 MB on stdout, and wrote its own digest script with `cat >` and `sed -i`.)
+
+   **Pin every follow-up read to `branchTip.sha`.** The summary line and the JSON carry `branchTip` — the commit of `origin/baselines/pr_<n>` the run diffed (every git call inside the run reads that SHA, not the ref). The clone is shared across sessions, so another session's fetch, or a CI leg committing its baselines, moves the ref under you. A spot read through the ref name can then disagree with the helper's counts for no reason in the PR. Spot reads use `git -C <baselines> show <branchTip.sha>:<path>`. If you have reason to think the branch moved (the briefing says a baselines-committing CI leg was still running), compare `git -C <baselines> rev-parse origin/baselines/pr_<n>` with `branchTip.sha` once, and on a mismatch re-run the helper. Don't reconstruct its counts with `git diff --name-status | sort | uniq -c`. (#5943: a leg committed mid-run, and nine diagnostic calls went into an added-count mismatch that one `rev-parse` would have explained.)
+
+   Default `-BaselinesPath` is `../linq2db.baselines`, default branch is `baselines/pr_<pr>`, default per-file `maxDiffBytes` is `16384`. **When the briefing gives an absolute baselines path** — it does from a worktree, where `../linq2db.baselines` does not resolve — pass it as `-BaselinesPath '<path>'`, never inside a stdin JSON manifest: a Windows path's backslashes are JSON escapes, and the call dies with *Bad JSON escape sequence* before doing any work (#5987). Output fields:
    - `status` — `"changed"` or `"branch_missing"` (treat the latter as the "no baselines" case).
+   - `branchTip` / `baseTip` — `{sha, committed}` / `{sha}`: the two commits the run diffed (see *Pin every follow-up read* above).
    - `baselineRepo` / `baselineBranchUrl` / `baselineCompareUrl` — the baselines repo `owner/name`, the branch tree URL, and the `master...branch` compare URL. Echo `baselineCompareUrl` into your top-level `summary` text so the reviewer can jump to the full delta.
    - `baselineReview` — `{number, state, url, title}` or `null`. The PR on the baselines repo that tracks this branch (open preferred, most-recently-updated closed as fallback). Always include its URL in the output summary when present; it's the canonical review anchor for the baselines delta.
    - `counts` — `{added, modified, deleted, renamed, other}` (path counts).
@@ -95,7 +109,7 @@ Follow `.claude/docs/agent-rules.md` → **Bash command rules** for shell conven
    - **Subset baseline coverage can be a failure fingerprint, not just scope.** When a *new* test emits baselines for only some of the providers its `[IncludeDataSources]` list targets, the absent providers may mean the test **errored** there (no baseline is captured when a test fails), not that it intentionally excluded them. `Grep` the test source for its `[IncludeDataSources(...)]` set; if baselines are missing for providers that set covers, call it out as a **possible test failure** on those providers rather than "expected shape" — especially when the PR's CI shows failing legs for exactly those providers (the review skill checks CI per [`review-pr`](../skills/review-pr/SKILL.md) → step 2c). Surfaced on PR #5678: `ProviderSpecificReaderValueTests` produced baselines only for the providers it passed on; Oracle/PostgreSQL/DuckDB/DB2 folders were absent because the test errored there — a CI blocker, not a coverage choice.
    - **Orphaned and stale files come from the script, not from hand-rolled scans.** Report `orphans[]` as their own group, and date suspicious files with `lastWritten` against the PR head's last code commit. Do not reconstruct either with ad-hoc `git log --name-only` / `git grep` parsers over the output — that is what the fields replace (#5987: two rounds spent dozens of scratch-script runs on exactly this).
 6. Metrics baselines: single group. List affected TFM × Provider × OS combinations from the `metrics[]` entries. Note whether the change summary plausibly explains the metric move (compile-time / allocation change) or not.
-7. When a diff body is `diffTruncated: true` and you need the full contents to rule out a concern, either rerun `baselines-diff.ps1` with a larger `maxDiffBytes` or (for a single spot) `git -C ../linq2db.baselines show origin/baselines/pr_<n>:<path>`.
+7. When a diff body is `diffTruncated: true` and you need the full contents to rule out a concern, either rerun `baselines-diff.ps1` with a larger `maxDiffBytes` or (for a single spot) `git -C ../linq2db.baselines show <branchTip.sha>:<path>`.
 
 ## Spotting missed compression (feedback loop)
 

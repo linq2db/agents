@@ -82,6 +82,13 @@ Branch presence is checked by the baselines subagent via `baselines-diff.ps1`, s
 
 Nothing beyond those two — no `gh pr list` against `linq2db.baselines`, no `ls-remote`, and no `git log` used to *probe presence* (which is what exception 1 already settles; a **CLOSED** tracking baselines PR is corroboration, never a substitute). The distinction matters: presence-probing with `git log` adds nothing, whereas dating the branch is the one thing neither `rev-parse` nor `baselines-diff.ps1` can tell you. Once the user opts in, the subagent's `baselines-diff.ps1` remains authoritative — don't feed it your probe's answer. (Surfaced on PR #5726: three probe calls were spent here, the ban read as forbidding all of them, and the user opted into the baselines review anyway. Extended on PR #5732, where a blanket "no `git log` on the clone" reading would have suppressed the age check that correctly deferred the pass.)
 
+**A baselines-committing CI run still in flight moves the branch under the reviewer.** Every leg of the GitHub `tests` matrix commits its own baselines to `baselines/pr_<n>` when it passes; a red leg commits none. So before spawning `baselines-reviewer`, look at the `gh pr checks` output you already took for the build-CI check (`review-orchestration.md` → *Loading PR context*). If a test run is still pending or in progress, the agent reviews a branch that gains commits while it works, and the providers of the running legs are missing or stale. That includes a re-run of one failed leg.
+- Tell the user which legs are still running. Offer to wait for them (`ci-tests.md` → *Waiting for a run to finish*) or to run the pass now with those providers marked incomplete. Never spawn the pass silently.
+- Either way, name the in-flight legs in the briefing.
+- A `fail` row is not proof the run is over. While a failed leg is being re-run, its check still shows the failed attempt. So for a GitHub run that reports a failure, take the state from `gh run view <id> --json status,attempt,jobs`.
+
+(#5943: `tests [all]` read `fail` while `Lin w_DB2InformixDuckDB` was on its second attempt. The leg committed DB2 / Informix / DuckDB baselines while the review ran, the agent's counts stopped matching the ref, and it spent nine calls and a second helper run on the mismatch.) The shared clone moves for a second reason too: another session's `fetch` can advance the ref at any time. That is why the agent pins its spot reads to the helper's `branchTip.sha` (`agents/baselines-reviewer.md` → step 2).
+
 Layout and branch-naming conventions for the baselines repo are in `.claude/docs/baselines-repo-layout.md`.
 
 ### `writeDir` directory layout
