@@ -795,8 +795,8 @@ function Invoke-GapReport {
 
     $lines = @([System.IO.File]::ReadAllLines($gapsPath))
     $rows  = @()
-    foreach ($l in $lines) {
-        $t = $l.Trim()
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $t = $lines[$i].Trim()
         if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*\s*[-—]+\s*(.+)$') { continue }
         $id   = $Matches[1]
         $rest = $Matches[2]
@@ -811,6 +811,18 @@ function Invoke-GapReport {
             $cls = $Matches[1]
             if ($rest -match '(G-\d+)')                              { $gate        = $Matches[1] }
             if ($rest -match 'preventable:\s*(yes|partly|no)')       { $preventable = $Matches[1] }
+
+            # The spec keeps the gate and verdict on the row line, but a row that moved them into an indented
+            # `- Gate: … — preventable: …` sub-bullet (round 8 of #5959) is read from there rather than reported null.
+            if ($null -eq $preventable) {
+                for ($j = $i + 1; $j -lt $lines.Count -and $lines[$j] -match '^\s+\S'; $j++) {
+                    if ($lines[$j] -notmatch '^\s+-\s+Gate:\s*(.*)$') { continue }
+                    $tail = $Matches[1]
+                    $gate = if ($tail -match '^(G-\d+)') { $Matches[1] } else { $null }
+                    if ($tail -match 'preventable:\s*(yes|partly|no)') { $preventable = $Matches[1] }
+                    break
+                }
+            }
         }
         else { continue }
 

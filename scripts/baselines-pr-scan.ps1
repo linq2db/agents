@@ -67,6 +67,12 @@ Output (stdout, single JSON object)
     "addedTests": { "universe": 68,
                     "tests": [ { "test": "Tests.Linq.X.Y", "providers": 63,
                                  "missing": [ "ClickHouse.Driver", "..." ] } ] },
+    "decimalFacets": { "checked": 4210, "violationCount": 0,
+                       "violations": [ { "file": "...", "facet": "Decimal(32, 3)",
+                                         "reason": "precision 32 > DB2 max 31" } ] },
+    "statementParity": { "groups": 610, "deviatingCount": 2,
+                         "deviating": [ { "test": "Tests.Linq.X.Y(False)", "mode": 3, "providers": 41,
+                                          "deviating": [ { "provider": "DB2", "count": 4 } ] } ] },
     "renames": {
       "mismatches": 0,
       "mismatchSamples": [ { "file": "...", "old": "...", "new": "..." } ],
@@ -103,6 +109,19 @@ with the test's `[ThrowsFor*]` / `[DataSources]` attributes. A provider whose
 whole leg failed adds no files at all, so it is absent from the universe as
 well. Cross-check the universe against the CI matrix. Only tests missing at
 least one provider are listed.
+
+`decimalFacets` checks every decimal type written on an added line — `Decimal(p, s)`,
+DB2's `Decimal(value, p, s)`, YDB's `Decimal('value', p, s)`, ClickHouse's
+`toDecimalNN(value, s)` — against the provider's maximum precision (from its folder
+name) and for scale above precision. Zero violations bounds a "no facet exceeds a
+provider's limit" claim over the whole delta, not a sample.
+
+`statementParity` groups the added `.sql` files of one test case across providers
+(the file name without its provider argument) and counts the commands each logs: the
+blank-line-separated chunks holding a statement keyword at column 0. A provider off the
+case's most common count took another path (a split batch, an emulation, an extra round
+trip) or stopped part-way: read it.
+`deviating` lists at most 25 cases; `deviatingCount` is the total.
 
 Note: comparisons are Ordinal throughout. A case-only rename (`@Usage` ->
 `@usage`) is a real rename and PowerShell's default case-insensitive `-ne`
@@ -163,6 +182,7 @@ $deltaPaths = [System.Collections.Generic.List[string]]::new()
 # test name -> providers that have an added baseline for it
 $addedByTest   = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
 $addedUniverse = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+$addedPaths    = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 
 foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -split "`n")) {
     if (-not $line.Trim()) { continue }
@@ -178,6 +198,7 @@ foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -spl
             }
             [void]$addedByTest[$test].Add($p)
             [void]$addedUniverse.Add($p)
+            [void]$addedPaths.Add($path)
         }
         'D' { $counts.deleted++ }
         'M' { $counts.modified++ }
@@ -242,6 +263,37 @@ $pureCount       = 0
 # which is the question a reorder-dominated delta turns on.
 $trailingCommaRe = [regex]::new(',\s*$')
 
+# Decimal facets on added lines, checked against what each provider accepts. A reviewer comparing 2000+ added files
+# across providers by hand wrote ~30 throwaway scripts for this and the statement count below (#5959 round 8).
+# Forms: `Decimal(p, s)` / `NUMERIC(p,s)` / `x::decimal(p, s)`, DB2 `Decimal(value, p, s)`, YDB `Decimal('value', p, s)`.
+$decimalFacetRe = [regex]::new("(?i)\b(?:decimal|numeric|number|dec)\s*\(\s*(?:(?:'[^']*'|-?[\d.]+)\s*,\s*)?(\d+)\s*,\s*(\d+)\s*\)")
+# ClickHouse names the family, so only the scale is written: `toDecimal64('value', s)`.
+$chDecimalRe    = [regex]::new("toDecimal(32|64|128|256)\s*\(\s*(?:'[^']*'|[^,()]+)\s*,\s*(\d+)\s*\)")
+$chFamilyMax    = @{ '32' = 9; '64' = 18; '128' = 38; '256' = 76 }
+
+# Largest decimal precision a provider accepts; 0 = not checked (precision < scale is still flagged).
+function Get-DecimalMax([string]$Provider) {
+    switch -Regex ($Provider) {
+        '^DB2'                              { return 31 }
+        '^Informix'                         { return 32 }
+        '^YDB'                              { return 35 }
+        '^Firebird\.(2\.5|3)$'              { return 18 }
+        '^Firebird'                         { return 38 }
+        '^(MySql|MySqlConnector|MariaDB)'   { return 65 }
+        '^PostgreSQL'                       { return 1000 }
+        '^Access'                           { return 28 }
+        '^(SqlServer|Sybase|Oracle|SapHana|DuckDB|SqlCe)' { return 38 }
+        default                             { return 0 }
+    }
+}
+
+# A baseline separates the commands it logs with blank lines. A chunk holding a statement keyword at column 0 is one
+# command: `WITH … SELECT` is one chunk, and YDB's `$CTE_1 = SELECT …;` prologue chunk holds none, so neither double-counts.
+$statementRe     = [regex]::new('^(?:SELECT|INSERT|UPDATE|DELETE|MERGE|WITH|CREATE|DROP|TRUNCATE|UPSERT|REPLACE|ALTER)\b')
+$facetChecked    = 0
+$facetViolations = [System.Collections.Generic.List[object]]::new()
+$statementCounts = [System.Collections.Generic.List[object]]::new()
+
 $curFile = $null
 $add = [System.Collections.Generic.List[string]]::new()
 $del = [System.Collections.Generic.List[string]]::new()
@@ -249,6 +301,37 @@ $del = [System.Collections.Generic.List[string]]::new()
 function Flush-File {
     param([string]$File, $Added, $Removed)
     if (-not $File) { return }
+
+    $fileProvider = ($File -split '/')[0]
+    $maxPrecision = Get-DecimalMax $fileProvider
+    foreach ($l in $Added) {
+        foreach ($m in $script:decimalFacetRe.Matches($l)) {
+            $script:facetChecked++
+            $fp = [int]$m.Groups[1].Value; $fs = [int]$m.Groups[2].Value
+            $why = if ($maxPrecision -gt 0 -and $fp -gt $maxPrecision) { "precision $fp > $fileProvider max $maxPrecision" }
+                   elseif ($fs -gt $fp)                                { "scale $fs > precision $fp" }
+            if ($why) { $script:facetViolations.Add([pscustomobject]@{ file = $File; facet = $m.Value; reason = $why }) }
+        }
+        foreach ($m in $script:chDecimalRe.Matches($l)) {
+            $script:facetChecked++
+            $cap = $script:chFamilyMax[$m.Groups[1].Value]
+            if ([int]$m.Groups[2].Value -gt $cap) {
+                $script:facetViolations.Add([pscustomobject]@{ file = $File; facet = $m.Value; reason = "scale $($m.Groups[2].Value) > Decimal$($m.Groups[1].Value) max $cap" })
+            }
+        }
+    }
+
+    if ($script:addedPaths.Contains($File) -and $File.EndsWith('.sql')) {
+        $fileName = ($File -split '/')[-1] -replace '\.sql$', ''
+        # The test key drops the provider, the first argument in the file name, so every provider's file of one case groups.
+        $key = if ($fileName -match '^([^(]+)\(([^,)]*)(.*)\)$') { "$($Matches[1])($($Matches[3].TrimStart(',')))" } else { $fileName }
+        $count = 0; $chunkHasStatement = $false
+        foreach ($l in @($Added) + '') {
+            if (-not $l.Trim()) { if ($chunkHasStatement) { $count++ }; $chunkHasStatement = $false }
+            elseif ($script:statementRe.IsMatch($l)) { $chunkHasStatement = $true }
+        }
+        $script:statementCounts.Add([pscustomobject]@{ key = $key; provider = $fileProvider; count = $count })
+    }
 
     $sigAdd = 0; $sigDel = 0
     foreach ($l in $Added)   { if ($signalRe.IsMatch($l)) { $sigAdd++ } }
@@ -373,6 +456,18 @@ foreach ($e in ($renameMap.Values | Sort-Object -Property hits -Descending)) {
     }
 }
 
+# A provider whose added file for a test case has a different statement count from the case's most common one
+# either took another code path (an extra round trip, a split batch, an emulation) or failed part-way.
+$parityGroups = 0
+$parity       = @()
+foreach ($g in ($statementCounts | Group-Object key)) {
+    if ($g.Count -lt 2) { continue }
+    $parityGroups++
+    $mode = ($g.Group | Group-Object count | Sort-Object Count -Descending | Select-Object -First 1).Name
+    $off  = @($g.Group | Where-Object { [string]$_.count -ne $mode } | ForEach-Object { [pscustomobject]@{ provider = $_.provider; count = $_.count } })
+    if ($off.Count -gt 0) { $parity += [pscustomobject]@{ test = $g.Name; mode = [int]$mode; providers = $g.Count; deviating = $off } }
+}
+
 $providerList = @()
 foreach ($k in ($providers.Keys | Sort-Object { -$providers[$_] }, { $_ })) {
     $providerList += [pscustomobject]@{ provider = $k; files = $providers[$k] }
@@ -423,6 +518,16 @@ $result = [ordered]@{
     addedTests = [ordered]@{
         universe = $addedUniverse.Count
         tests    = @($addedTests | Select-Object -First $MaxAddedTests)
+    }
+    decimalFacets = [ordered]@{
+        checked        = $facetChecked
+        violationCount = $facetViolations.Count
+        violations     = @($facetViolations | Select-Object -First 25)
+    }
+    statementParity = [ordered]@{
+        groups         = $parityGroups
+        deviatingCount = $parity.Count
+        deviating      = @($parity | Sort-Object { -$_.deviating.Count } | Select-Object -First 25)
     }
     renames   = [ordered]@{
         mismatches      = $mismatchCount

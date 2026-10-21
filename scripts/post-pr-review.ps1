@@ -61,8 +61,13 @@ Manifest schema
     { "inReplyTo": "PRRC_kwDO...", "body": "…" }
   ],
   "concurrency": 5,
-  "verify":     true                          // optional, default false
+  "verify":     true,                         // optional, default false
+  "allowStaleCommit": false                   // optional — post although commitId is not the PR's current head
 }
+
+`commitId` must be the PR's current head. Anchors are validated against the
+current diff, so a stale commitId stops the run before anything is written
+unless `allowStaleCommit` is set.
 
 When `verify` is true, after posting the script fetches the stored review
 body and line comments back from GitHub and byte-compares each against
@@ -134,6 +139,15 @@ if (-not ($commitId -is [string]) -or $commitId.Length -lt 7) { Exit-WithError '
 $owner = if ($m.owner) { [string]$m.owner } else { 'linq2db' }
 $repo  = if ($m.repo)  { [string]$m.repo }  else { 'linq2db' }
 $concurrency = if ((Test-IsInteger $m.concurrency) -and [long]$m.concurrency -gt 0) { [int]$m.concurrency } else { 5 }
+
+# Anchors are validated against the PR's current diff below, while the review is created on commitId: a head that
+# moved since the manifest was written validates one set of lines and posts on another. Stop before any write.
+$prInfo = Invoke-GhJson -ArgumentList @('api', "repos/$owner/$repo/pulls/$pr")
+if (-not $prInfo.ok) { Exit-WithError "failed to read the PR head: $($prInfo.error)" }
+$headSha = [string]$prInfo.data.head.sha
+if (-not $headSha.StartsWith($commitId, [System.StringComparison]::OrdinalIgnoreCase) -and -not $m.allowStaleCommit) {
+    Exit-WithError "commitId $commitId is not the PR head $headSha - nothing was posted. Re-check the findings against the new head and re-anchor them, or set allowStaleCommit = `$true to post on the older commit."
+}
 
 $body = Resolve-Body -Item $m -Label 'review body'
 $lineComments = @()

@@ -97,7 +97,7 @@ Derive any `ErrorMessage` you write from the trx's — or the log's — raw mess
 **An assertion on a `[DataSources]` test must hold for every provider's ordering defaults.** Two cost a full CI round on #5969:
 
 - **NULL sort position is the provider's default** when no `NullsPosition` is requested — last in ascending order on PostgreSQL, Oracle, DB2, DuckDB and ClickHouse, first on SQLite, Access and SQL Server. Assert only the relative order of the non-NULL keys, or request the position explicitly. (`RowNumberWithNullableBooleanOrderBy`: 42 failures across six legs.)
-- **Row order without `ORDER BY` is unspecified**, and `AssertQuery` compares rows in sequence — give the query an `OrderBy` whenever its result has more than one row. (`Issue5970Test`: correct rows, wrong order, Oracle 11 only.)
+- **Row order without `ORDER BY` is unspecified** — give the query an `OrderBy` whenever its result has more than one row and anything order-sensitive reads it. `AssertQuery` itself does **not** compare in sequence: `AreEqual` (`Tests/Base/TestBase.Asserts.cs`) checks the count and then `Except`s both ways, so a reordering alone cannot fail it — only its diagnostic printout is row-by-row. (`Issue5970Test` was recorded as "correct rows, wrong order, Oracle 11 only"; given the set comparison, the real cause is unverified.)
 
 **Instrumenting engine code to trace a divergence.** To find where the SQL build diverges (e.g. a node dropped only on the remote path), add temporary `System.Console.Error.WriteLine("YDBINST:…")` traces at suspect visitor / builder methods, run the targeted test, `grep` the captured output for the marker, then `git restore <source-files>` to revert (confirm `git status -- Source/ Tests/` is clean before committing). **Do not filter SQL-AST nodes by `ToString()` content** (`expr.ToString()?.Contains("GetLength")`) — it does not reliably contain the function/identifier name and silently matches nothing; filter on **structural properties** instead (node type, `IsMandatory`, `ToType`, `cast.Expression is SqlFunction { Name: … }`).
 
@@ -1005,6 +1005,18 @@ Use `query.ToSqlQuery().Sql` to see a query's SQL without running it. `IQueryabl
 
 - **Plain linq2db** emits SQL fully offline when the provider version is explicit: `new DataConnection(new DataOptions().UseSqlServer("Server=.;Database=x", SqlServerVersion.v2022, SqlServerProvider.MicrosoftDataSqlClient))`. A dummy connection string works — nothing is opened. Run this from `Tests.Playground` (link the file in), **not** a hand-rolled console placed under the repo root — `Directory.Build.props` / central package management cascade into any project beneath the root and break a stray project's restore (`Unable to find package <name>`, plus unwanted multi-targeting).
 - **EF Core `.ToLinqToDB()`** on SQL Server opens a real connection to auto-detect the server version (`ProviderDetectorBase.DetectServerVersion` → `SqlConnection.Open()`), so it needs a live server even just to emit SQL. SQLite EF Core emits offline.
+
+#### Comparing a PR head against master offline
+
+A finding whose mechanism shows in the emitted SQL is settled by comparing the SQL both heads emit, with no container. Examples: a cast dropped or added, a literal's type, a collection expanded or bound whole. One worktree serves both arms:
+
+1. **Write the probe.** Make it an untracked `Tests.Playground` test. It builds each query on a `DataConnection` with a dummy connection string and an explicit provider name (`ProviderName.ClickHouseOctonica`, `ProviderName.Ydb`, `ProviderName.SybaseManaged`, `ProviderName.SqlServer2022`), and never executes it. Write `ToSqlQuery()`'s `Sql` together with each of its `Parameters` (name, `DataType`, value) to a file named by an environment variable. A captured collection appears as one parameter whose value is the whole collection, so the parameter types matter as much as the text. Give each finding a control shape that should *not* change.
+2. **Run master.** Build and run the probe on master, writing the first file.
+3. **Run the PR head.** `git checkout --detach origin/pr/<n>` (the untracked probe survives the checkout). Build and run again, writing a second file.
+4. **Check the rebuild.** Before reading the second file, confirm that `linq2db.dll` in the playground's output postdates the first run. An incremental build that skipped the library compares master with itself.
+5. **Compare.** Diff the two files, then check out the original branch again.
+
+This settles the mechanism and whether it is new against master. The server's answer — an error code or a wrong row — still needs a run, so record which of the two a finding rests on. (#5959 round 8: five findings that had only been read from the source, settled in two ~30-second builds. One was refuted, because master emitted the same SQL; four were confirmed.)
 
 #### One probe run, then read it
 

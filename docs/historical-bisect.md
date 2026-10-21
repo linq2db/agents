@@ -49,8 +49,29 @@ MTP era first, and only if the endpoints there both pass does the transition lie
 across the boundary correlates its result with *your invocation*, not with the product — the tell is that
 every pre-boundary sample fails and every post-boundary sample passes.
 
+## Probe outside the harness when the bug fits in a console program
+
+A query-build exception or a wrong result reproducible from a few lines needs no test harness. Use a
+standalone probe project **outside** the repo, so no `Directory.Build.props` or `global.json` applies:
+
+1. Point it at the released packages (`<PackageReference Include="linq2db" Version="$(L2DBVersion)" />`,
+   `dotnet run -p:L2DBVersion=<v>`) to bracket two adjacent releases without building linq2db at all.
+2. Switch to a `ProjectReference` to the bisect worktree's `Source/LinqToDB/LinqToDB.csproj` for commit
+   steps. Each step builds one library TFM, with no Tests project and none of the era detection above.
+3. Walk `--first-parent` first. When the transition is a merge, bisect inside the merged branch.
+
+On #4199 this took 5 package runs and 4 commit steps to reach an adjacent pair. Map the probe's output to
+`git bisect run` exit codes (`0` still broken, `1` fixed, `125` no `RESULT` line) and use
+`--term-old=broken --term-new=fixed` when searching for a fix.
+
 ## Old commits do not build in a current environment
 
+- **C# 14 `field` keyword.** A pattern variable named `field` inside a property body now binds to the
+  property's backing field: 2024-era `SqlMergeStatement.cs:44` fails with `CS1061: 'bool' does not
+  contain a definition for 'IsIdentity'`. Add `-p:LangVersion=12`. Two commits were written off as
+  "doesn't build" before this was diagnosed.
+- **Analyzers in Debug.** 2024-era commits run analyzers in Debug too, and under the current SDK they
+  fail (`RS0030`, `MA0076`). Add `-p:RunAnalyzers=false`.
 - **F# nullness.** Code from before F# 9 fails as `error FS3261: Nullness warning` under a current
   compiler. Add `-p:TreatWarningsAsErrors=false` to every step.
 - **SDK pin.** `global.json` at old commits pins an older SDK with `rollForward: major`, so a newer

@@ -49,7 +49,7 @@ Report them as themselves; do not force them into a class.
 
 ## Output format
 
-Emit exactly this and nothing else. The row shape is parsed by `work-plan.ps1 -Action gap-report`, so keep it exact: finding id **bolded**, then an em dash, then the class.
+Emit exactly this and nothing else. The row shape is parsed by `work-plan.ps1 -Action gap-report`, so keep it exact: finding id **bolded**, then an em dash, then the class. **The gate and `preventable:` stay on the row line** even when the detail runs long: put the extra detail in indented sub-bullets *under* the row, never the verdict. (Round 8 of #5959 moved every verdict into a `- Gate: …` sub-bullet, and the report read all nine as `preventable: null`.)
 
 ```markdown
 ## Attribution

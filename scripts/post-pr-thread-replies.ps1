@@ -1,9 +1,9 @@
 #!/usr/bin/env pwsh
 <#
 Post replies to N PR review-comment threads and resolve each thread, in one
-allowlisted pwsh call. Two API hops per item:
+allowlisted pwsh call. Up to two API hops per item:
 
-  1. POST repos/{o}/{r}/pulls/{n}/comments/{commentId}/replies   — the reply
+  1. POST repos/{o}/{r}/pulls/{n}/comments/{commentId}/replies   — the reply (skipped without `body`)
   2. GraphQL `resolveReviewThread(input:{threadId})`             — the resolve
 
 Why this wrapper exists
@@ -47,8 +47,9 @@ JSON manifest shape:
     "items": [
       {
         "threadId":  "PRRT_kwDOAB09RM549FlA", // required, GraphQL node ID
-        "commentId": 3037904273,              // required, REST comment ID (positive int)
-        "body":      "Fixed at HEAD - ...",   // required, non-empty markdown
+        "commentId": 3037904273,              // REST comment ID (positive int); required with `body`
+        "body":      "Fixed at HEAD - ...",   // optional markdown; omit it to resolve / unresolve
+                                              //   without posting a reply (needs resolve or unresolve)
         "resolve":   true,                    // optional, default true; set false to only reply
         "unresolve": false                    // optional, default false; when true, unresolve
                                               //   the thread instead of resolving (overrides `resolve`).
@@ -67,7 +68,7 @@ Output (stdout, JSON):
         "threadId":  "...",
         "commentId": 3037904273,
         "ok":        true,
-        "replyId":   3213692186,              // present only on successful reply
+        "replyId":   3213692186,              // set on a successful reply; null for a resolve-only item
         "resolved":  true,                    // post-mutation thread state: true when the thread is
                                               //   currently resolved, false when currently unresolved.
                                               //   On the `unresolve: true` path a successful unresolve
@@ -123,56 +124,68 @@ for ($i = 0; $i -lt $m.items.Count; $i++) {
 
     # Per-item validation; record but don't throw — keep going so a single bad
     # entry doesn't abort the rest of the batch.
-    if (-not (Test-IsInteger $item.commentId) -or [long]$item.commentId -le 0) {
+    $hasBody = $null -ne $item.body
+    if ($hasBody -and (-not ($item.body -is [string]) -or $item.body.Length -eq 0)) {
         $results.Add([pscustomobject]@{
-            ok = $false; error = "items[$idx]: commentId (positive integer) required"
+            ok = $false; error = "items[$idx]: body, when present, must be a non-empty string"
         })
         $failedCount++
         continue
     }
+    if ($hasBody -and (-not (Test-IsInteger $item.commentId) -or [long]$item.commentId -le 0)) {
+        $results.Add([pscustomobject]@{
+            ok = $false; error = "items[$idx]: commentId (positive integer) required with body"
+        })
+        $failedCount++
+        continue
+    }
+    $commentId = if (Test-IsInteger $item.commentId) { [long]$item.commentId } else { 0L }
     if (-not $item.threadId -or -not ($item.threadId -is [string]) -or $item.threadId.Length -eq 0) {
         $results.Add([pscustomobject]@{
-            ok = $false; commentId = [long]$item.commentId
+            ok = $false; commentId = $commentId
             error = "items[$idx]: threadId (non-empty string) required"
         })
         $failedCount++
         continue
     }
-    if (-not $item.body -or -not ($item.body -is [string]) -or $item.body.Length -eq 0) {
-        $results.Add([pscustomobject]@{
-            ok = $false; commentId = [long]$item.commentId; threadId = [string]$item.threadId
-            error = "items[$idx]: body (non-empty string) required"
-        })
-        $failedCount++
-        continue
-    }
 
-    $commentId = [long]$item.commentId
     $threadId  = [string]$item.threadId
-    $body      = [string]$item.body
     # unresolve overrides resolve. If neither set, default to resolve.
     $shouldUnresolve = if ($null -ne $item.unresolve) { [bool]$item.unresolve } else { $false }
     $shouldResolve   = if ($shouldUnresolve) { $false }
                        elseif ($null -eq $item.resolve) { $true }
                        else { [bool]$item.resolve }
 
-    # 1) POST reply via JSON file (avoids -f body=@file trap and stdin mangling).
-    $payloadPath = Join-Path $workDir "post-pr-thread-replies-$pr-$commentId.json"
-    $payloadJson = ([pscustomobject]@{ body = $body } | ConvertTo-Json -Depth 100 -Compress)
-    $utf8NoBom   = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($payloadPath, $payloadJson, $utf8NoBom)
-
-    $endpoint = "repos/$owner/$repo/pulls/$pr/comments/$commentId/replies"
-    $replyResult = Invoke-GhJson -ArgumentList @('api', '--method', 'POST', $endpoint, '--input', $payloadPath)
-    if (-not $replyResult.ok) {
+    if (-not $hasBody -and -not $shouldResolve -and -not $shouldUnresolve) {
         $results.Add([pscustomobject]@{
             ok = $false; commentId = $commentId; threadId = $threadId
-            error = "reply failed: $($replyResult.error)"
+            error = "items[$idx]: no body and resolve=false — nothing to do"
         })
         $failedCount++
         continue
     }
-    $replyId = if ($replyResult.data.id) { [long]$replyResult.data.id } else { 0L }
+
+    # 1) POST reply via JSON file (avoids -f body=@file trap and stdin mangling).
+    #    Skipped for a resolve-only item.
+    $replyId = $null
+    if ($hasBody) {
+        $payloadPath = Join-Path $workDir "post-pr-thread-replies-$pr-$commentId.json"
+        $payloadJson = ([pscustomobject]@{ body = [string]$item.body } | ConvertTo-Json -Depth 100 -Compress)
+        $utf8NoBom   = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($payloadPath, $payloadJson, $utf8NoBom)
+
+        $endpoint = "repos/$owner/$repo/pulls/$pr/comments/$commentId/replies"
+        $replyResult = Invoke-GhJson -ArgumentList @('api', '--method', 'POST', $endpoint, '--input', $payloadPath)
+        if (-not $replyResult.ok) {
+            $results.Add([pscustomobject]@{
+                ok = $false; commentId = $commentId; threadId = $threadId
+                error = "reply failed: $($replyResult.error)"
+            })
+            $failedCount++
+            continue
+        }
+        $replyId = if ($replyResult.data.id) { [long]$replyResult.data.id } else { 0L }
+    }
 
     # 2) Resolve / unresolve thread via GraphQL (when requested).
     if (-not $shouldResolve -and -not $shouldUnresolve) {
