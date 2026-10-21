@@ -27,7 +27,7 @@ Don't run if the issue is still **open** — its test is gated for a reason. Sto
 
 ### 1. Resolve the issue + find its disabled tests
 
-1. Resolve the reference. `gh issue view <n> --repo linq2db/linq2db --json number,title,state,closedAt,milestone,comments`. Verify state is `CLOSED`.
+1. Resolve the reference. `gh issue view <n> --repo linq2db/linq2db --json number,title,state,closedAt,milestone,comments`. Verify state is `CLOSED`. Still `OPEN`, with a gate whose recorded failure isn't the issue's: [`bug-investigation.md`](../../docs/bug-investigation.md) → *An open issue whose gate records a different failure than the issue's*.
 2. `Grep` `Tests/` for the issue number (broad search: both `<n>` and the `Issue<n>Test` / `Issue<n>` naming pattern). Filter for `[ActiveIssue]` attributes within ~5 lines of the match.
 3. Catalogue the gated tests: per match, capture `<file>:<line>`, the test method name, the `[<DataSources>]` family it runs against, and any `#if <TFM>` guards.
 4. If **zero** disabled tests reference the issue, stop and tell the user — there's nothing to enable. (Either the test was already enabled, never authored, or lives elsewhere.)
