@@ -39,6 +39,8 @@ When enforcing the above across the corpus (a genericization or stale-reference 
 
 > **Claude Code:** corpus edits are committed inside the `.claude/` submodule and pushed to the agents repo's `master`, never onto a linq2db branch — mechanics in [`agent-rules.md`](agent-rules.md) → *The corpus is a submodule*. Two consequences for this surface: the corpus carries **its own** history, so a corpus commit is reviewable in isolation rather than buried in a product PR; and the superproject's `git status` is blind to it (`submodule.ignore = all`), so an unreviewed corpus edit — including one a subagent made unprompted — shows up only under `git -C .claude status`. Check it before committing corpus work, and after any subagent that could have written there.
 
+**A hook on matcher `Bash|PowerShell` runs before every shell call — write it in node, not pwsh.** pwsh startup measured 0.6–1.2 s per call against ~0.1 s for node (2026-10-21, when `require-test-progress` was ported). pwsh is fine for hooks on rare events (`SessionStart`, `Stop`) or for a detached worker a node hook launches.
+
 ## Proposed: evals for the agent tooling
 
 There is no automated check that the `.claude/` tooling itself behaves as intended — regressions surface only when a human notices a skill misbehaving. A design spec for a component-level eval harness (script-schema checks, a refuse-to-fabricate test, tool-selection sanity, structured-output validation, a model-swap probe) is parked in [`agent-evals.md`](agent-evals.md). It is **not built** — it's a proposal to scope or reject, recorded so the idea isn't lost.
