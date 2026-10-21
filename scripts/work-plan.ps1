@@ -8,6 +8,11 @@
 #   -Action gates      derive the applicable definition-of-done gate subset from P6
 #   -Action reconcile  report changed files that no P6 edit-point authorizes
 #   -Action gap-report render .claude/plans/<key>/gaps.md as counts + dominant class
+#   -Action section    read the plan by P-block: no -Section / -Match lists every block's id, heading and
+#                      line range; -Section P10,P11 returns those blocks' lines; -Match <regex> returns the
+#                      text around each hit (-Context chars either side), in -Section's blocks or the whole
+#                      plan. Lines are cut into -MaxLineChars chunks (L<n>: / L<n>+:), so a persisted result
+#                      pages with Read
 #
 # Schema and block semantics: .claude/docs/work-plan.md
 #
@@ -18,7 +23,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('init', 'validate', 'gates', 'reconcile', 'gap-report')]
+    [ValidateSet('init', 'validate', 'gates', 'reconcile', 'gap-report', 'section')]
     [string] $Action,
 
     [string] $Key,
@@ -46,7 +51,14 @@ param(
 
     # validate only: emit counts and errors, not the edit-point list or the warnings — a Tier L plan's full output
     # overflows a tool-output cap.
-    [switch] $Summary
+    [switch] $Summary,
+
+    # section only: comma-separated block ids (a [string], since -File does not split arrays), a case-insensitive
+    # regex, the characters kept either side of a hit, and the chunk size for long lines (0 = no cut).
+    [string] $Section,
+    [string] $Match,
+    [int] $Context = 240,
+    [int] $MaxLineChars = 1500
 )
 
 Set-StrictMode -Version Latest
@@ -854,6 +866,93 @@ function Invoke-GapReport {
     })
 }
 
+# ---------------------------------------------------------------- section
+
+# A Tier L plan runs to hundreds of KB, in lines of several KB that Read truncates and Grep returns whole (#5943: two
+# agents in one review fell back to ad-hoc substring extraction, one probing for a plan-section script that did not exist).
+function Invoke-Section {
+    param([string] $PlanKey)
+
+    $path  = Get-PlanPath -PlanKey $PlanKey
+    $lines = Read-PlanLines -Path $path
+
+    $index = @()
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^##\s+(P\d+)\b(.*)$') {
+            if ($index.Count -gt 0) { $index[-1].endLine = $i }
+            $index += [ordered]@{ id = $Matches[1]; heading = $Matches[2].Trim(); startLine = $i + 1; endLine = $lines.Count; chars = 0 }
+        }
+    }
+    foreach ($b in $index) {
+        for ($n = $b.startLine; $n -le $b.endLine; $n++) { $b.chars += $lines[$n - 1].Length }
+    }
+
+    $wanted = @()
+    if (-not [string]::IsNullOrWhiteSpace($Section)) {
+        $wanted = @($Section.Split(',', [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim().ToUpperInvariant() })
+        $known  = @($index | ForEach-Object { $_.id })
+        $bad    = @($wanted | Where-Object { $known -notcontains $_ })
+        if ($bad.Count -gt 0) {
+            Exit-WithError -Message "no block $($bad -join ', ') in $path" -NextAction "pass -Section with ids from: $($known -join ', ')"
+        }
+    }
+    $blocks = if ($wanted.Count -gt 0) { @($index | Where-Object { $wanted -contains $_.id }) } else { @($index) }
+
+    $result = [ordered]@{ ok = $true; action = 'section'; key = $PlanKey; path = $path; sections = @($blocks) }
+
+    if ($wanted.Count -eq 0 -and [string]::IsNullOrWhiteSpace($Match)) {
+        Write-JsonOutput $result
+        return
+    }
+
+    $numbers = if ($wanted.Count -gt 0) {
+        @($blocks | ForEach-Object { $_.startLine..$_.endLine })
+    } else {
+        @(1..$lines.Count)
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Match)) {
+        try { $rx = [regex]::new($Match, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) }
+        catch { Exit-WithError -Message "-Match is not a valid regex: $($_.Exception.Message)" -NextAction 'escape the pattern, or pass a plain word' }
+
+        $hits = @()
+        foreach ($n in $numbers) {
+            $text = $lines[$n - 1]
+            $id   = 'header'
+            foreach ($b in $index) { if ($n -ge $b.startLine -and $n -le $b.endLine) { $id = $b.id } }
+            # Hits whose windows overlap on one line merge into one snippet.
+            $windows = @()
+            foreach ($m in $rx.Matches($text)) {
+                $s = [Math]::Max(0, $m.Index - $Context)
+                $e = [Math]::Min($text.Length, $m.Index + $m.Length + $Context)
+                if ($windows.Count -gt 0 -and $s -le $windows[-1][1]) { $windows[-1][1] = [Math]::Max($windows[-1][1], $e) }
+                else { $windows += , @($s, $e) }
+            }
+            foreach ($w in $windows) {
+                $pre  = if ($w[0] -gt 0) { '...' } else { '' }
+                $post = if ($w[1] -lt $text.Length) { '...' } else { '' }
+                $hits += "L$n [$id]: $pre$($text.Substring($w[0], $w[1] - $w[0]))$post"
+            }
+        }
+        $result.matchCount = $hits.Count
+        $result.matches    = @($hits)
+        Write-JsonOutput $result
+        return
+    }
+
+    $out = @()
+    foreach ($n in $numbers) {
+        $text = $lines[$n - 1]
+        if ($MaxLineChars -le 0 -or $text.Length -le $MaxLineChars) { $out += "L${n}: $text"; continue }
+        for ($o = 0; $o -lt $text.Length; $o += $MaxLineChars) {
+            $tag   = if ($o -eq 0) { "L${n}" } else { "L${n}+" }
+            $out  += "${tag}: $($text.Substring($o, [Math]::Min($MaxLineChars, $text.Length - $o)))"
+        }
+    }
+    $result.lines = @($out)
+    Write-JsonOutput $result
+}
+
 # ---------------------------------------------------------------- dispatch
 
 $repoRoot = if ([string]::IsNullOrWhiteSpace($RepoRoot)) { Get-RepoRoot } else { (Resolve-Path $RepoRoot).Path }
@@ -865,4 +964,5 @@ switch ($Action) {
     'gates'     { Invoke-Gates     -PlanKey $planKey }
     'reconcile'  { Invoke-Reconcile  -PlanKey $planKey -RepoRoot $repoRoot }
     'gap-report' { Invoke-GapReport  -PlanKey $planKey }
+    'section'    { Invoke-Section    -PlanKey $planKey }
 }

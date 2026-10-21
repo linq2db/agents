@@ -63,6 +63,28 @@ With -OutFile that object goes to the file, and stdout carries one line:
 `inReplyTo` needs) and `in_reply_to_id` (null on a thread's first comment, the
 first comment's id on every reply). `issueComments[]` carry `id`.
 
+Audit projection (reads a prior -OutFile result; no gh, no git):
+
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -AuditSummary
+
+    One JSON object: { ok, action, pr, headSha, currentUser, ownPendingReviewId,
+    idFloor, auditScope, reviews[], replyOnlyReviews, threads[], otherReviewBodies[],
+    issueCommentAuthors, ownIssueComments[] }.
+      `reviews[]`  — { id, user, own, state, submittedAt, commitId, bodyChars,
+                     findingIds[], threads }; a body-less review that opens no
+                     thread only carries replies and is counted in replyOnlyReviews.
+      `threads[]`  — every thread joined to its first comment: { threadId,
+                     isResolved, resolvedBy, firstCommentId, nodeId, reviewId,
+                     author, own, path, line, outdated, findingIds[], replies,
+                     lastReplyBy, excerpt }.
+      `otherReviewBodies[]` — other authors' non-empty bodies, the claims step 2b
+                     audits: { ids[], user, state, commitId, body[] } (lines; badge
+                     markup and HTML comments stripped; identical bodies merged).
+      `idFloor`    — next ID per severity from your own posted text (reviews, review
+                     comments, issue comments). The branch's gap ledger is not in the
+                     context JSON: fold .claude/plans/<key>/gaps.md in separately.
+      `auditScope` — { otherOpenThreads, resolvedByOthers, otherReviewBodies }.
+
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
 step 7 and `/review-pr` step 2b (which thread-disposition action to take per
 prior line/file comment based on thread state + resolver identity). Each entry
@@ -87,11 +109,135 @@ param(
     [switch]$NoFetch,
     [int]$LinkedConcurrency = 0,
     [string]$ManifestFile,
-    [string]$OutFile
+    [string]$OutFile,
+    [string]$From,
+    [switch]$AuditSummary
 )
 
 $global:ScriptBaseName = 'pr-context'
 . "$PSScriptRoot/_shared.ps1"
+
+# Audit projection: the prior-review picture /review-pr step 2b and /verify-review steps 2-3 start from, read from a
+# saved -OutFile result with no network. The whole JSON is 100-300 KB, and on #5943 it took four hand-written
+# projections to get this far.
+if ($From -or $AuditSummary) {
+    if (-not ($From -and $AuditSummary)) {
+        Exit-WithError -Message '-From and -AuditSummary go together' -NextAction 'load once with -Pr <n> -OutFile <path>, then pass -From <path> -AuditSummary'
+    }
+    if (-not (Test-Path -LiteralPath $From)) { Exit-WithError -Message "-From file not found: $From" -NextAction 'run the load with -Pr <n> -OutFile <path> first' }
+    $doc = Get-Content -Raw -LiteralPath $From | ConvertFrom-Json
+    $me  = [string]$doc.currentUser
+
+    $idRx = [regex]'\b(BLK|MAJ|MIN|SUG|NIT)(\d{3})\b'
+    function Get-FindingIds([string]$Text) { @($idRx.Matches($Text) | ForEach-Object { $_.Value } | Select-Object -Unique) }
+    function Get-Excerpt([string]$Text) { $t = ($Text -replace '\s+', ' ').Trim(); if ($t.Length -gt 200) { $t.Substring(0, 200) + '...' } else { $t } }
+    function Format-When($v) {
+        if ($v -is [datetime] -or $v -is [datetimeoffset]) { return $v.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
+        return $v
+    }
+    function Get-Short([string]$Sha) { if ($Sha -and $Sha.Length -gt 10) { $Sha.Substring(0, 10) } else { $Sha } }
+
+    $comments = @($doc.reviewComments)
+    $byId = @{}
+    foreach ($c in $comments) { $byId[[string]$c.id] = $c }
+
+    $threads = foreach ($t in @($doc.reviewThreads)) {
+        $first   = $byId[[string]$t.firstCommentId]
+        $replies = @($comments | Where-Object { [string]$_.in_reply_to_id -eq [string]$t.firstCommentId } | Sort-Object { [datetime]$_.created_at })
+        [ordered]@{
+            threadId       = $t.threadId
+            isResolved     = $t.isResolved
+            resolvedBy     = $t.resolvedBy
+            firstCommentId = $t.firstCommentId
+            nodeId         = if ($first) { $first.node_id } else { $null }
+            reviewId       = if ($first) { $first.pull_request_review_id } else { $null }
+            author         = if ($first) { $first.user } else { $null }
+            own            = [bool]($first -and $first.user -eq $me)
+            path           = if ($first) { $first.path } else { $null }
+            line           = if ($first) { if ($null -ne $first.line) { $first.line } else { $first.original_line } } else { $null }
+            outdated       = [bool]($first -and $null -eq $first.line)
+            findingIds     = if ($first) { Get-FindingIds $first.body } else { @() }
+            replies        = $replies.Count
+            lastReplyBy    = if ($replies.Count -gt 0) { $replies[-1].user } else { $null }
+            excerpt        = if ($first) { Get-Excerpt $first.body } else { $null }
+        }
+    }
+    $threads = @($threads)
+
+    # A review with no body that opens no thread only carries replies; it is counted, not listed.
+    $replyOnly = 0
+    $reviews = foreach ($r in @($doc.reviews)) {
+        $opened = @($threads | Where-Object { $_.reviewId -eq $r.id }).Count
+        if ($r.user -ne $me -and -not ([string]$r.body).Trim() -and $opened -eq 0) { $replyOnly++; continue }
+        [ordered]@{
+            id          = $r.id
+            user        = $r.user
+            own         = ($r.user -eq $me)
+            state       = $r.state
+            submittedAt = Format-When $r.submitted_at
+            commitId    = Get-Short $r.commit_id
+            bodyChars   = ([string]$r.body).Length
+            findingIds  = Get-FindingIds $r.body
+            threads     = $opened
+        }
+    }
+    $reviews = @($reviews)
+
+    # Another author's review body is audited as a claim list, so it is returned whole; Copilot's <picture> badges
+    # and HTML comments carry no claim and are most of its size. Identical bodies (a bot's "unable to review"
+    # notice) collapse into one entry listing every review id. The body is an array of lines, so a result persisted
+    # past the tool-output cap still pages with Read.
+    $otherBodies = [ordered]@{}
+    foreach ($r in @($doc.reviews | Where-Object { $_.user -ne $me -and ([string]$_.body).Trim() })) {
+        $body = [regex]::Replace([string]$r.body, '(?s)<picture>.*?</picture>|<!--.*?-->', '')
+        $body = ($body -replace '(\r?\n){3,}', "`n`n").Trim()
+        $key  = "$($r.user)`n$body"
+        if ($otherBodies.Contains($key)) { $otherBodies[$key].ids += $r.id; continue }
+        $otherBodies[$key] = [ordered]@{ ids = @($r.id); user = $r.user; state = $r.state; commitId = Get-Short $r.commit_id; body = @($body -split '\r?\n') }
+    }
+    $otherBodies = @($otherBodies.Values)
+
+    # ID-continuation floor from posted text only (review-conventions.md): own review bodies, own review comments and
+    # own issue comments. The branch's gap ledger is not in the context JSON; fold it in separately.
+    $ownText = @()
+    $ownText += @($doc.reviews | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
+    $ownText += @($comments | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
+    $ownIssue = @($doc.issueComments | Where-Object { $_.user -eq $me })
+    $ownText += @($ownIssue | ForEach-Object { [string]$_.body })
+    $floor = [ordered]@{}
+    foreach ($sev in 'BLK', 'MAJ', 'MIN', 'SUG', 'NIT') {
+        $max = 0
+        foreach ($m in $idRx.Matches(($ownText -join "`n"))) { if ($m.Groups[1].Value -eq $sev) { $max = [Math]::Max($max, [int]$m.Groups[2].Value) } }
+        $floor[$sev] = '{0}{1:000}' -f $sev, ($max + 1)
+    }
+
+    $authors = [ordered]@{}
+    foreach ($g in (@($doc.issueComments) | Group-Object user | Sort-Object Count -Descending)) { $authors[$g.Name] = $g.Count }
+
+    $pending = @($reviews | Where-Object { $_.own -and $_.state -eq 'PENDING' })
+
+    Write-JsonOutput ([ordered]@{
+        ok                 = $true
+        action             = 'audit-summary'
+        pr                 = $doc.pr.number
+        headSha            = $doc.headSha
+        currentUser        = $me
+        ownPendingReviewId = if ($pending.Count -gt 0) { $pending[0].id } else { $null }
+        idFloor            = $floor
+        auditScope         = [ordered]@{
+            otherOpenThreads     = @($threads | Where-Object { -not $_.own -and -not $_.isResolved }).Count
+            resolvedByOthers     = @($threads | Where-Object { $_.isResolved -and $_.resolvedBy -ne $me }).Count
+            otherReviewBodies    = @($otherBodies).Count
+        }
+        reviews            = $reviews
+        replyOnlyReviews   = $replyOnly
+        threads            = $threads
+        otherReviewBodies  = @($otherBodies)
+        issueCommentAuthors = $authors
+        ownIssueComments   = @($ownIssue | ForEach-Object { [ordered]@{ id = $_.id; findingIds = Get-FindingIds $_.body; excerpt = Get-Excerpt $_.body } })
+    })
+    return
+}
 
 $m = if ($Pr -gt 0) {
     [PSCustomObject]@{

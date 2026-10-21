@@ -293,7 +293,7 @@ draft ──authored──> critiqued ──> approved ──> implementing ─�
 | `plan-critic` | `P1`–`P9` | nothing (read-only; the skill records `P12`) |
 | `/review-pr`, `/verify-review` | `P1`–`P3` (intent), `P7` (coverage), `P10` (do-not-flag), `P11`, `P12` | dispositions fold back into `P10` / `P11`; `gaps.md` |
 | `review-gap-attributor` | the whole plan + `P9` results + the final findings | nothing (read-only; the skill writes `gaps.md`) |
-| `work-plan.ps1` | `P4`, `P6`, `P7`, `P8`, `P12`, `gaps.md` | scaffold only |
+| `work-plan.ps1` | `P4`, `P6`, `P7`, `P8`, `P12`, `gaps.md`; `-Action section` returns any block, or `-Match` snippets, for a reader whose plan is too large to `Read` | scaffold only |
 
 **A plan states the *intended* contract, not verified fact.** It predates the code and may describe behaviour the diff never implements — deciding that is the review's job. Without this posture the plan launders the author's framing into the review's voice, which [`review-conventions.md`](review-conventions.md) names as the one thing a reviewer is there not to do, and it contradicts `code-reviewer`'s standing rule that *a PR's own root-cause account is a claim*.
 

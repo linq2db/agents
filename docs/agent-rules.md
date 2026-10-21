@@ -72,7 +72,7 @@ MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` 
 - Transient `fatal error — add_item (… errno 1)`: retry once, then treat the Bash tool as unavailable for `git` / `gh` for the session — except a hook-running `git commit` / `push`, which fails the same way from PowerShell: wait and retry, never `--no-verify`. [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *Transient `fatal error — add_item`…*.
 - `docker exec <container> /<path>` mangles the path: prefix with `MSYS_NO_PATHCONV=1` and wrap in `bash -c '…'`.
 - Captured `gh` / `git` stdout decodes via the console code page, not UTF-8 — don't capture body-ish output into a pwsh variable; use `Invoke-Gh` helpers, a file roundtrip, or ASCII-only anchors.
-- `Glob` returns "No files found" for a path documented in CLAUDE.md / a SKILL / `agent-rules.md` — `Read` the documented path directly before concluding it's missing or reimplementing the helper.
+- `Glob` returns "No files found" for files that exist: a path documented in CLAUDE.md / a SKILL / `agent-rules.md`, anything under a gitignored directory (`.build/.agents/`, even as the explicit `path`), and a `path` set to a worktree's `.claude/` root. `Read` the known path directly (or list a gitignored directory with `Get-ChildItem`) before concluding it's missing or reimplementing the helper: [`windows-gotchas.md`](windows-gotchas.md) → *`Glob` may return empty for documented paths*.
 - A tracked file stays `M` after `git restore` / `git stash` with an identical-looking diff — don't chase it, and don't reach for `--assume-unchanged`: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *A file that stays dirty after `git restore`*.
 
 ### Batching and user interaction
