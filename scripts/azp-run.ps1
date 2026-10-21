@@ -65,7 +65,8 @@ Hence four behaviours below, the last three defeatable:
                         commit (-AllowStale to trigger anyway)
   -SettleSeconds        pause before posting (default 5) so the push lands first
   -VerifyTimeoutSeconds poll the PR's checks afterwards until the pipeline shows
-                        up (default 60); exit non-zero when it never does, so a
+                        up - on a re-run, with a build id other than the one it
+                        had before (default 60); exit non-zero when it never does, so a
                         silent no-op surfaces as a failure the caller can retry
                         rather than as a comment URL that means nothing. Before
                         calling it a no-op, it looks for a failed build of that
@@ -192,8 +193,11 @@ foreach ($name in $Pipeline) {
     # `/azp list` answers with a comment rather than a run, so there is nothing to verify.
     if ($name -eq 'list' -or $VerifyTimeoutSeconds -le 0) { continue }
 
-    if ((Get-PipelineChecks $name $before).Count -gt 0) {
-        Write-Output "azp-run: '$name' already had checks on this PR before the trigger; not verifying."
+    # A re-run replaces the pipeline's checks with a new build id, so a re-trigger is verified by that change.
+    $priorChecks  = Get-PipelineChecks $name $before
+    $priorBuildId = Get-BuildId $priorChecks
+    if ($priorChecks.Count -gt 0 -and -not $priorBuildId) {
+        Write-Output "azp-run: '$name' already had checks on this PR before the trigger, without a build id to compare; not verifying."
         continue
     }
 
@@ -203,7 +207,8 @@ foreach ($name in $Pipeline) {
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 5
         $started = Get-PipelineChecks $name (Get-Checks)
-        if ($started.Count -gt 0) { break }
+        if ($started.Count -gt 0 -and (-not $priorBuildId -or (Get-BuildId $started) -ne $priorBuildId)) { break }
+        $started = @()
     }
 
     if ($started.Count -gt 0) {

@@ -93,6 +93,8 @@ Dedup by ID — if the same ID appears in multiple places, keep the most recent 
 
 **Zero own findings** (only other authors reviewed): the run reduces to the step-2b audit. When HEAD equals that review's `commit_id`, skip the step-5 subagents — each verdict is about the claim's accuracy, not fixed-or-not — and walk each audited claim interactively.
 
+**`currentUser` is the PR author.** `resolvedBy == currentUser` then means *self-resolved*, not *reviewer-verified*: list those threads with the commit that resolved each rather than dropping them silently. With no own findings, skip `code-reviewer`; defer `baselines-reviewer` while a CI run is rewriting the baselines branch. Report the audit in chat — posting it (a PR comment, never a review) is opt-in. (#5959)
+
 ### 4. Prepare change summary and baselines state
 
 Execute the **Change summary** and **Baselines clone setup** sections of `.claude/docs/pr-context-prep.md` against the current PR HEAD. Per the project decision, baselines grouping is rerun from scratch in verify mode — do not try to diff incrementally against a prior baselines review.
