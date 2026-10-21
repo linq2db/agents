@@ -60,6 +60,6 @@ Still no plan on the branch (`plan.md` absent) and no `P9` results. Each row nam
 
 ## Continuity
 
-- Round-1 GAP-05 recurs (NIT002, SUG005), and the round-1 `testing.md` recommendation was not applied. NIT002 shows that the reviewer's own suggested test (MIN005) had the defect the recommendation targets.
+- Round-1 GAP-05 recurs (NIT002, SUG005). The round-1 `testing.md` recommendation was applied (`testing.md` → *A scope invariant tested on a hand-picked subset*, citing #5995), but it binds the author's controls, not a reviewer's suggested test: NIT002 came from the reviewer's own MIN005 suggestion, copied verbatim. Routed to `acting-on-findings.md`.
 - Round-1 GAP-01 (`plan-critic.md` identity-boundary vector) recurs through SUG004 and MIN006.
 - Round-1 GAP-02 (load census in the scout brief) did not recur; the warm-up redesign replaced the scan it targeted.
