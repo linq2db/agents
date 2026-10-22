@@ -89,7 +89,7 @@ Firebird v3 caps identifiers at 31 characters; Oracle at 30 / 128 depending on v
 
 ### `Issue<N>` names in a shared feature fixture
 
-A test added to a feature fixture (`Tests/Linq/Linq/<Feature>Tests.cs` etc.) names its models, converters and method for what they are and what they check; the issue appears only as the URL in `[Test(Description = "...")]`. Flag new `Issue<N>`-prefixed types or test names there, and new tests placed inside an existing `#region Issue …` block, as MIN. Existing `Issue<N>*` members are legacy, not a precedent. (#6060)
+A test added to a feature fixture (`Tests/Linq/Linq/<Feature>Tests.cs` etc.) names its models, converters and method for what they are and what they check; the issue appears only as the URL in `[Test(Description = "...")]`. Flag new `Issue<N>`-prefixed types or test names there, and new tests placed inside an existing `#region Issue …` block, as MIN. Existing `Issue<N>*` members are legacy, not a precedent. (#6060) The same goes for an issue-shaped model with its own tables where a shared `Tests/Model` type covers the behaviour (#6109).
 
 ### A new or extended per-issue `Issue<N>Tests.cs` fixture
 
@@ -114,6 +114,10 @@ When a test asserts the *value* of a sample stddev/variance window aggregate (`S
 ### Execution-only test (`ToList()` / `_ =`) can't catch a wrong result
 
 A test that only materializes the query (`_ = query.ToList()`, `.ToArray()` with no assertion) proves the SQL *executes*, not that the result is *correct*. When the feature under test has observable runtime semantics — row ordering, NULLS FIRST/LAST placement, rank/dense-rank values, aggregate values, filtered/partitioned counts — the test passes even when a provider's emulation produces the wrong rows. Flag `MAJ` when the test was added for a feature whose correctness is the point (a wrong emulation goes undetected), `MIN` otherwise; propose asserting the expected values against the materialized result, and confirm the seed data actually exercises the edge (e.g. a NULL in the ordering key for a NULLS-placement test). (Surfaced on PR #5468: the `*WithNulls` window tests set a `Sql.NullsPosition` and had a NULL-key seed row but only called `ToList()`, so a wrong per-provider NULLS emulation would not fail — result assertions were added and confirmed correct across ClickHouse/DuckDB/YDB/SQLite.)
+
+### `ShouldAllBe` / `All(...)` over a filtered result passes when the result is empty
+
+A predicate assertion over every row is vacuous when there are no rows. That matters most where losing the row *is* the regression: an outer-join or `DefaultIfEmpty` test that keeps one key (`where p.ParentID == 5`) and then asserts `ShouldAllBe(x => !x.Has)` stays green if the missed row is dropped, for example by the join turning inner. Flag `SUG` and propose asserting the row's presence as well: `ShouldNotBeEmpty()` / a count before the `ShouldAllBe`, or `ShouldContain(x => x.ParentID == 5 && …)` instead. Skip it when a sibling assertion in the same test already pins the count. (Surfaced on #6091: `NullableStructHasValueFromLeftJoin` and `…GuardFromLeftJoin` used a bare `ShouldAllBe`, while their sibling `NullableStructWithHasValueFromLeftJoin` already used `ShouldContain`.)
 
 ### NUnit `Assert.*` in a new/modified test → prefer Shouldly
 

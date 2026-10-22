@@ -151,6 +151,13 @@ originating PR keeps only the main fix, and each discovered fix becomes a PR bas
     - No rebase is needed: merging the fix branch into the bottom PR's branch makes it an ancestor, which is
       enough. Retarget, check the diff shape (the fix's files leave the bottom PR's diff), and let the user
       relink the stack. (#5707 onto #6107, 2026-10-22)
+11. **Syncing a stack after the parent moves** (parent rebased onto master, or squash-merged):
+    - Merge forward bottom-up — the parent's new head (or `origin/master` once it merged) into the first
+      child, then each child into the next. Don't `git rebase` children that already carry merge commits.
+    - After the parent squash-merges, GitHub retargets the first child to `master` on its own; no `gh pr edit`.
+    - Confirm the merge moved no content: `git diff <old-child-head> HEAD` is empty when the parent's patch
+      was already in the child, and the child's diff against its base keeps the same file set. (#6107 →
+      #5707 → #6037, 2026-10-22)
 
 ## Don'ts
 
