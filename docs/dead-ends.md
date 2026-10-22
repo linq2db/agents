@@ -124,6 +124,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** `[EagerEvaluation]` for an overload whose lambdas may contain `Sql.*` calls. Desugar in a builder instead, running the public method over `ExpressionQueryImpl.CreateQuery(…, sourceExpression)`, and keep the folded arguments in the cache key: [`architecture.md`](architecture.md) → *Values a builder reads after the cache key*. (#5708)
 
+## EXPR-TRANS: witnessing that expose re-visits a subtree it rewrote
+
+**Tried:** using `[ExpressionMethod]` members and `Sql.Property` inside an `ExposeExpressionVisitor` rewrite's output as the red→green witness for the branch returning `Visit(rewritten)` rather than `rewritten`. The plan predicted the un-visited form would leave both unexpanded and fail.
+
+**Failed because:** the mutant returning the rewrite un-visited stayed green in two runs, cells correct. The query builder resolves `[ExpressionMethod]` members and `Sql.Property` itself during build, so expose never has to have done it.
+
+**Don't re-attempt:** as a test obligation — no query result can tell the two apart. Keep `Visit(rewritten)` for consistency with the sibling arms, and state that it is unwitnessed. (#5708 `PivotExpander`, plan A-18, 2026-10-22)
+
 ## EXPR-TRANS: reproducing a host-only clrjit crash by matching the .NET Framework build
 
 **Tried:** reproducing #6042, a stack overflow in `clrjit.dll` from the `QueryCache` static constructor. First on GitHub Actions images, including `windows-2025` with the reporter's exact build (4.8.09221) as x86 and x64. Then by measuring how much stack the JIT needs for that initializer, on the theory that the thread was already out of stack.
