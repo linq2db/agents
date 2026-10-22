@@ -60,6 +60,23 @@ standalone probe project **outside** the repo, so no `Directory.Build.props` or 
    steps. Each step builds one library TFM, with no Tests project and none of the era detection above.
 3. Walk `--first-parent` first. When the transition is a merge, bisect inside the merged branch.
 
+When the probe has to live under the repo's `.build/.agents/` (the scratch-file rule), cut it off from
+the repo's MSBuild files instead:
+
+- Stub `Directory.Build.props` and `Directory.Build.targets` beside the `.csproj`. The props sets
+  `<ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>` and a per-version
+  `<BaseIntermediateOutputPath>obj\$(L2DBVersion)\</BaseIntermediateOutputPath>`; it must be the props,
+  because the `.csproj` is read after the SDK has fixed the intermediate path.
+- Add `<Compile Remove="obj/**;bin/**" />`, or the per-version `obj` folders compile into each other
+  (`CS0579: Duplicate 'TargetFrameworkAttribute'`).
+- The repo `.editorconfig` still applies, so set `<RunAnalyzers>false</RunAnalyzers>` and
+  `<NuGetAudit>false</NuGetAudit>`.
+- Keep the code version-agnostic: `new DataOptions().UseConnectionString(ProviderName.SQLiteMS, …)` works
+  on 5.x and 6.x, `UseSQLiteMicrosoft` does not; `ToSqlQuery()` does not exist in 5.x. SQL Server SQL
+  can be read without a server through `ToSqlQuery()`, but the provider still loads its client: reference
+  `Microsoft.Data.SqlClient` and use `UseSqlServer(cs, SqlServerVersion.v2019,
+  SqlServerProvider.MicrosoftDataSqlClient)`.
+
 On #4199 this took 5 package runs and 4 commit steps to reach an adjacent pair. Map the probe's output to
 `git bisect run` exit codes (`0` still broken, `1` fixed, `125` no `RESULT` line) and use
 `--term-old=broken --term-new=fixed` when searching for a fix.
@@ -74,6 +91,10 @@ On #4199 this took 5 package runs and 4 commit steps to reach an adjacent pair. 
   fail (`RS0030`, `MA0076`). Add `-p:RunAnalyzers=false`.
 - **F# nullness.** Code from before F# 9 fails as `error FS3261: Nullness warning` under a current
   compiler. Add `-p:TreatWarningsAsErrors=false` to every step.
+- **NuGet audit.** An advisory published after the commit fails restore as `error NU1902: Warning As
+  Error: Package 'Microsoft.Build.Tasks.Git' … has a known moderate severity vulnerability`. Add
+  `-p:NuGetAudit=false`. A step script that maps a failed build to exit `125` skips every commit
+  silently; on the v6.3.0..v6.4.0 range all 15 steps were skipped before the log was read.
 - **SDK pin.** `global.json` at old commits pins an older SDK with `rollForward: major`, so a newer
   installed SDK satisfies it — but the selected SDK differs per commit, which is part of why `dotnet test`
   semantics change under you.

@@ -143,6 +143,8 @@ Since the agent-instruction corpus became a submodule at `.claude/` ([#5735](htt
 
 Because the failure mode is a *flat refusal* rather than a warning, don't read it as "something in here is unsaved" and go hunting. Do the check explicitly instead, since `--force` will discard whatever it finds: `git -C <path> status --short` **and** `git -C <path>/.claude status` (the superproject's status is blind to the corpus — `submodule.ignore = all`). Then remove with `--force` and confirm via `git worktree list`.
 
+A clean `.claude` status can still hold work: a plan committed there but not pushed shows only as `ahead N` (`git -C <path>/.claude status -sb`), and it is deleted with the worktree. Move it into the primary clone's corpus first, which needs no publish approval: `git -C <primary-clone>/.claude fetch <path>/.claude master`, then `git -C <primary-clone>/.claude cherry-pick <sha>` per commit. A plan commit only adds files under `plans/<key>/`, so it does not collide with someone's uncommitted corpus edits there. Or push it, when asked to. (#6103 / #6104: both plan commits existed only in their worktrees at finalize.)
+
 Surfaced during 6.4.0 release-prep cleanup, on a worktree whose tree was completely clean.
 
 ## Recreating a worktree wipes `.build/` — `--no-build` packs then fail

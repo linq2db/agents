@@ -155,3 +155,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** a value lent the column's type carries `DateTime64` with `DbType "DateTime"`, but the ClickHouse literal writer renders by `DataType`. It was still written `toDateTime64(…)`, the operand was not wrapped, and the server refused with `Code: 53`.
 
 **Don't re-attempt:** the `DbType` test on rendered values. Read the `DbType` for what the server sees of a column operand; test values by what the writer emits, their `DataType`. (#5959 MAJ011, `2940edbc4`)
+
+## EXPR-TRANS: parameterizing a client-only `as` (`TypeAs`) through `HandleValue`
+
+**Tried:** adding `ExpressionType.TypeAs` beside `ArrayLength` to the new `HandleValue` case in `ExpressionBuildVisitor.VisitUnary`, since a captured `o as int?` fails translation through the same missing case.
+
+**Failed because:** #5144 keeps `as` non-convertible on purpose. `as` is `try_convert`, which linq2db does not support across providers; `ConstantTests.NullableTypeConstantDefininitionAsSqlThrows` pins the exception. Through `HandleValue`, `Sql.AsSql(1 as int?)` folds to `SELECT 1` and that test goes red on every non-SQLite provider.
+
+**Don't re-attempt:** making `as` convertible without a maintainer decision reopening #5144. `ArrayLength` alone shipped. (#6103 plan, critic finding)
