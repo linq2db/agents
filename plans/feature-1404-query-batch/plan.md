@@ -189,15 +189,15 @@ E-n → TO-n: E-1 → TO-1, TO-25…TO-31, TO-43; E-2 → TO-1; E-3 → TO-2, TO
 
 ## P9 Verification gates
 
-- G-01: — (pending) — per-TO record, with the observation that each named mutation turned its arm red
-- G-02: — (pending) — baselines of the new fixture reviewed; no baseline outside it moves (TO-42)
-- G-03: — (pending) — `PublicAPI.Unshipped.txt` lists every new public member; XML docs on each
-- G-04: — (pending) — `/api-baselines` scoped to `Source/LinqToDB`
-- G-05: — (pending) — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net10.0`
-- G-06: — (pending)
-- G-07: — (pending) — `Tests/Tests.Playground/QueryBatchProbe.cs` deleted, never staged
-- G-08: — (pending) — E-3, E-4, E-6, E-7 edit shared builder / runner code; their red→green arms (TO-2, TO-38, TO-39) recorded with the mutation that turned each red
-- G-09: — (pending) — adversarial read of the diff before the draft PR (B-2 of the delivery path below)
+- G-01: skipped — red stage (E-1, E-2, E-7, E-10 in place, no flag, no modifier) failed 21 tests per provider on SQLite.MS / PostgreSQL.16 / SqlServer.2019.MS, every one a count assert or the `ImplicitCollectionLoading.Throw` refusal; green after E-3…E-6. Mutations run on SQLite.MS: M1 TO-2 (gate disjunct dropped → 2), M5 TO-32 (no `WithEagerLoadingStrategy` → throws), M2 TO-39 (`isTemporary: true` → 3 under KeyedQuery, also TO-43 → 3), M3 TO-38 (no `IsSubQuery` → command texts differ), M4 TO-38 (no E-7 branch → `() => 1` fails to translate). Unverified: the named mutations of TO-1, TO-4, TO-5, TO-9, TO-25…TO-31 were not run, so those arms are proven green only.
+- G-02: pass — TO-42 filter (QueryBatch + EagerLoading* + CombinedDml + CombinedCommandsExtensibility) on SQLite.MS 621/7 skipped, PostgreSQL.16 536/7, SqlServer.2019.MS 550/7, direct + remote, 0 failed; `snap-baselines` / `diff-baselines`: 0 changed of 16059 existing files, 269 added (eager / combined baselines absent from the local clone before the run, no local reference). Fixture baselines: `ReturnsTheValuesOfEachPart` read before A-1; the rest not individually read.
+- G-03: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=true`; control: removing the `Methods.LinqToDB.QueryBatch` line → RS0016 on that symbol. The same build also reported #5673's stale `QueryElementType.SqlObjectNameExpression` / `SqlFragmentStatement` ordinals (RS0016 / RS0017), fixed on `feature/query-batches` in c9ce13336e. XML docs on every new public member.
+- G-04: skipped — `/api-baselines` not run; ApiCompat on the new members is unverified (additions only, no suppression expected).
+- G-05: pass — Release `-f net10.0` and `-f netstandard2.0` both succeeded with 0 warnings, binaries rewritten by the run (timestamps checked); `Tests/Base/Tests.Base.csproj -c Release -f net10.0` succeeded (the E-10 `cref`).
+- G-06: n/a
+- G-07: pass — `Tests/Tests.Playground/QueryBatchProbe.cs` deleted before the commit; 3319460afd lists 10 files, none under `Tests/Tests.Playground/`.
+- G-08: pass — TO-2 (M1), TO-38 (M3, M4), TO-39 (M2) each red under its mutation, green on the final tree; see G-01.
+- G-09: skipped — no adversarial read of the diff ran before the draft PR #6111.
 
 Delivery path (stacked PR, user-approved 2026-10-22): B-1 local rename to `feature/1404-query-batch` (done); B-2 at the first implementation commit push and `gh pr create --draft --base feature/query-batches --milestone 6.6.0 --assignee @me`, body "Part of #1404" + "Stacked on #5673", title and body confirmed first; B-3 the user links the stack in the GitHub UI, then check the diff shape; B-4 `test-all` only after `baselines/pr_5673` exists; B-5 sync by merging `origin/feature/query-batches`, never rebasing; B-6 on #5673's squash-merge re-cut onto `origin/master` and cherry-pick this branch's own commits.
 
@@ -207,10 +207,16 @@ Delivery path (stacked PR, user-approved 2026-10-22): B-1 local rename to `featu
 - Remote contexts run sequentially and open no read-consistency transaction (measured U-10): the remote client never starts the load transaction for eager queries today (`Query.cs:243-269`); not introduced here.
 - No cross-call-site registration (`DeferValue` handles), no deferred writes, no forwarding, no groups — #1404 scope narrowed per P3, disclosed in the PR body.
 - Render templates for a `QueryBatch` are cached like any eager query's (`QueryInfo.EagerCommandCache`); no separate cache work.
+- Under mutation M2 (Default pushed temporary) a KeyedQuery-default batch splits as predicted, and a CteUnion-default one fails on SQLite with `near "(": syntax error`: the detached child combines while its nested correlated collection still resolves to CteUnion. The shipped build-wide push never produces that mix. Three natural shapes without `QueryBatch` (option on, CteUnion default, `WithSeparateLoadStrategy()` on a scalar-root collection, on a query root, on a query root with a detached child) were probed on SQLite.MS / PostgreSQL.16 / SqlServer.2019.MS: all return correct values, none reaches it. Unmeasured: a shape that does reach it on #5673 alone.
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-22, during implementation; no `E-n` or `D-n` changed) — test mechanics the plan did not foresee.
+  - TO-1 / TO-8: `ReturnsTheValuesOfEachPart` runs with tracing, so it writes no SQL baseline. A remote context runs the batch as separate commands (P10), so its baseline differs from the direct one by design and `BaselinesWriter` rejects the pair ("Baselines for remote context doesn't match direct access baselines"). Values are still asserted on every `[DataSources]` context, remote included; the combined SQL shape stays pinned by the `TupleArity*`, `ChangedValuesReuseTheCachedQuery` and `CollectionsAreExplicitLoads` baselines.
+  - TO-38: the nested projection also carries a table-free body, `One = db.Select(() => 1)` vs `db.QueryBatch(() => 1)`. With `items.Count()` alone the E-7 mutation stayed green: a body that reads a table is not client-evaluable on its own. With the table-free body M4 is red, as a translation error rather than the extra command the plan predicted.
+  - TO-39: the CteUnion arm is characterization, not red→green. CteUnion already sends one statement before the change, so only KeyedQuery shows the override in the command count.
+  - re-derives: TO-1, TO-8, TO-38, TO-39 (rewritten above in this entry); G-01 records the observed mutation outcomes. No `SC-n` premise changes.
+- A-2 (2026-10-22) — delivery: B-3 done through the Stacks REST API instead of the GitHub UI. `POST repos/linq2db/linq2db/stacks` with `pull_requests: [5673, 6111]` created stack 6112 (trunk `master`). re-derives: none (delivery path only).
 
 ## P12 Critic verdict (M/L)
 
