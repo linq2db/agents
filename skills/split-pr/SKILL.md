@@ -145,6 +145,12 @@ originating PR keeps only the main fix, and each discovered fix becomes a PR bas
    - `git push --force-with-lease=<branch>:<old-sha>`, then retarget with `gh pr edit <n> --base master`.
    - Drop the "Stacked on …" text from each body with `pr-body-edit.ps1` replacements.
    - Close the old baselines PRs (`close-stale-baselines.ps1 -Pr <n>`), then trigger `azp-run.ps1 -Pr <n>`.
+10. **Inserting a fix PR below an already-linked stack** (a shared-engine fix split off the bottom PR):
+    - Ask the user to unlink the stack first. Until then `gh pr edit <n> --base <fix-branch>` fails on both
+      GraphQL and REST with `Cannot change the base branch because the pull request is part of a stack`.
+    - No rebase is needed: merging the fix branch into the bottom PR's branch makes it an ancestor, which is
+      enough. Retarget, check the diff shape (the fix's files leave the bottom PR's diff), and let the user
+      relink the stack. (#5707 onto #6107, 2026-10-22)
 
 ## Don'ts
 

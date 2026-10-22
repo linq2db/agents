@@ -284,6 +284,10 @@ The CLI also emits F# (`--target-language f#`). Its baselines live in separate c
    dotnet build Tests/FSharp.Scaffold/Tests.FSharp.Scaffold.NoNrt.fsproj -c Debug
    ```
 3. Confirm zero `git diff` under `Tests/FSharp.Scaffold/` (both the `<Provider>/` and `NoNrt/<Provider>/` trees).
+   Objects that exist only in the local database are drift, not a generator regression — e.g. the
+   `MSSQL_TemporalHistoryFor_<id>` history tables left in `sql2022` by local test runs. Exclude them from the
+   comparison or recreate the database before judging the diff. (2026-10-22, #5707: 4 such tables turned a
+   42-line golden diff into 226 lines.)
 
 `.claude/scripts/fsharp-scaffold-gates.ps1 -RepoRoot <checkout>` runs steps 1–3 in one call (Release gates; it also proves every golden was rewritten, since `generate.ps1`'s progress output does not reach a redirected log), optionally followed by a C# CLI baseline subset (`-CSharpProviders 'SQLite,SqlServer2025'`) and the CLI tests (`-CliTests`).
 
