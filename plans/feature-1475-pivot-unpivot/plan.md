@@ -819,6 +819,48 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   - TO-14, TO-19 (instrument: `GetCompiledQueryInfo()`), TO-21, TO-23, TO-24, TO-25, TO-27 and TO-28 are rewritten.
   - Three P10 lines are added and one corrected.
 
+- **A-18 (2026-10-22) — A-17 implemented; deviations and measurements.** Pushed: `45847489e` (E-43), `0c22609a6` (A-17),
+  `d74874b08` (TO-28 arm), `beceff21f` (compiled-query doc), `23caaaac4` (shared models), after two stack syncs
+  (#5949 → `a17f3384e`, this branch → `07af8c439`). `test-all` build 24543.
+  - **Errors (E-46).** In-memory invocation reuses `Error_QueryMarkerInvoked` rather than a new constant. Added:
+    `Error_PivotTerminalNotAMember`, `Error_PivotChainNotFromGroup`, `Error_PivotNoTerminal`, `Error_PivotSelectAfterCells`
+    (Select after Cell/Cells, a shape D-9 left undefined), `Error_PivotReadsQueryParameter`, `Error_PivotLambdaNotInline`,
+    `Error_PivotAggregateNotInline`, `Error_PivotArgumentNull`. Every expander error is a `LinqToDBException`; the name
+    rules threw `ArgumentException` at call time before.
+  - **Member position (E-42).** Expose tracks where a terminal may stand: a member assignment's value, a constructor
+    argument, a lambda body, through `Convert`/`TypeAs`. Anything else is `Error_PivotTerminalNotAMember` (pinned as a
+    method argument and inside `Where`). A lambda body counts, so the cells can be the whole projection
+    (`PivotsAsTheWholeProjection`, and the eager-load arm of TO-26).
+  - **TO-25 (v) premise refuted.** With E-42 returning the expansion un-visited, the `[ExpressionMethod]` + `Sql.Property`
+    arm stays green (two runs): the builder resolves both later. `Visit(expanded)` is kept to match the sibling arms; no
+    test can witness it.
+  - **TO-19.** Slot cells red under "drop `RecordMaterializedArgumentSlots`" (`array2`, `mixed2` read 10 instead of 20),
+    green with it. A closure-held set is read at the first build and keyed on nothing, so a later change is not seen.
+    Probe (SQLite.Classic, compiled, capture changed between calls): scalar in `Where` re-read; `Sql.Property` name,
+    `FromSql` text and the `Pivot` value set all reuse the first build. That is #6045's compiled-table key gap, wider than
+    its raw-SQL scope; widened by comment. **User decision (option A):** the fix is an engine PR on #6045; #5708 documents
+    "pass the value set as an argument" on `Pivot`'s `values` and pins the stale arm with a comment naming #6045.
+  - **TO-27.** Split per cell-fed terminal (`[Values] CellFeed`); each arm red under the lift mutation.
+  - **TO-28.** Both pairs red: dropping `Snapshot` fails the new mutate-in-place arm; dropping the evaluated-value
+    `MarkAsValue` fails four inline tests including `InlineUnpivotRereadsColumnNamesFromAMethod`.
+  - **TO-11.** Against the branch's previous baselines (baselines/pr_5708): SQLite.Classic 20 same / 8 changed, DuckDB 18 / 6;
+    every change is an alias rename or follows a test edit (`ComposesAfterAConstantPivot` gained an `OrderByDescending`).
+    No shape change.
+  - **#6028 reached by test order.** `AnEmptyCellOverANonNullableColumnReadsNull(SQLite.MS, Templates)` failed only after
+    the `Cell` arm: both expand to one tree, so it hit the cached query with the faulted mapper. Alone it passes. The test
+    clears the query caches. The coincidence is itself evidence that `Cells(templates)` and `Cell` lower identically.
+  - **TO-12 / TO-26 on shared models** (`testing.md` → *Core behaviour is tested on the common models*): parents 2 and 3
+    of `Parent`/`Child`, pivoted by `ChildID`, expected from the shared data; the fixture-local `Staff`/`Shift`/category
+    tables are gone.
+  - **TO-23.** Red on plain / constructor argument / store-less exactly as U-14's control; misfire sweep 687 pass, 0 fail,
+    6 skipped (SQLite.Classic).
+  - **TO-24.** EF10 SQLite.MS green in both directions.
+  - **G-01 (local).** 584/585 on SQLite.Classic/MS + DuckDB (direct + LinqService) before the #6028 fix, then green; the one
+    skip is the #6028 gate. Release net10.0 (API analyzers), netstandard2.0, Tests net462, Tests and EF10 Release clean.
+  - **D-8.** SelectDynamic PR branch `feature/4992-select-dynamic` (`e88ce53a7`, milestone 6.6.0). Its errors live in
+    `ErrorHelper.SelectDynamic`, not a second `ErrorHelper.Pivot` with divergent members; three constants are duplicated
+    across the two classes once both merge. `BuildTimeArgumentReader.cs` is byte-identical.
+
 ## P12 Critic verdict (M/L)
 
 **Round 1 — `refuted`** (Fable, dispatched with the measurements forwarded verbatim and the unprobed claims labelled).
