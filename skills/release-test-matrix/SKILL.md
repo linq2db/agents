@@ -105,6 +105,8 @@ Tick `4.1` once every selected provider's container is started + DB initialized.
 
 ## Track 4.2 — DB2 iSeries decision
 
+**Independent of the testing tracks — ask it even when the user skips scaffold / LINQPad testing** (6.5.1: testing skipped, `linq2db4iSeries` still bumped 6.3.0 → 6.5.0). "Enabled" also means bumping the `linq2db4iSeries` pin in `Directory.Packages.props` to the latest published version not above the release, plus its `Build/licenses/components.json` versions and `third-party-notices.ps1 -Action generate`.
+
 This is a single gate question, not a workflow. DB2 iSeries provider often lags or hits namespace incompat with linq2db's current `LinqToDB.Internal.*` surface — sometimes it ships for a release, sometimes not.
 
 **Ask the user:**

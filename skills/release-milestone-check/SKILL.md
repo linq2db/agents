@@ -12,6 +12,7 @@ description: Release-prep task 3 — confirm the release milestone has no open i
 1. **Open issues / PRs on the milestone** (anything not closed/merged). Each must be closed, merged, or moved off the milestone — leaving them dangling means a late merge after release prep could land changes that need a new public-API / baselines / release-notes pass.
 2. **Open baselines PRs on `linq2db.baselines`** for source PRs that already merged to milestone. The baselines repo auto-generates a PR per source PR; when the source PR merges, the baselines PR isn't auto-merged — it needs deliberate action.
 3. **Milestone-consistency drift** — merged milestone PRs whose closed issues are on a different (or no) milestone. Skews this audit and the release-notes coverage check. Surfaced + offered for `assign` (step 4b).
+4. **Closed items that ship nothing** — PRs closed unmerged, issues closed as `not_planned` / `duplicate`. They contribute nothing to the release, so they are flagged for removal from the milestone (step 4a).
 
 **Isn't:**
 
@@ -44,7 +45,7 @@ The script:
 - For each merged PR, checks `linq2db.baselines` for an open PR whose head ref is `baselines/pr_<n>` (or `baselines/pull_<n>`) — those are the auto-generated baselines PRs that linger after their source merges.
 - Excludes the release-prep PR itself (the prep PR is on the milestone but is the very thing we're auditing; don't count it as "blocking").
 
-Output: structured JSON with `openIssues[]`, `openPRs[]`, `mergedPRs[]`, `staleBaselinesPRs[]`.
+Output: structured JSON with `openIssues[]`, `openPRs[]`, `mergedPRs[]`, `staleBaselinesPRs[]`, `noContribution[]`.
 
 ### 2. Render results
 
@@ -83,6 +84,10 @@ User can pick `merge <n>` or `close <n>`. User runs the action themselves:
   2. `gh pr merge <baselines-pr> --repo linq2db/linq2db.baselines --squash --delete-branch`
 - Close + delete branch: `gh pr close <baselines-pr> --repo linq2db/linq2db.baselines --delete-branch`
 
+### 4a. Drop closed items that ship nothing
+
+List `noContribution[]` (number, kind, reason, title) and propose removing each from the milestone — they skew the milestone's counts and the release-notes coverage check (6.5.1: closed-unmerged #6015). Milestone removal is visible metadata: propose, and act only on the user's confirmation (`gh issue edit <n> --repo linq2db/linq2db --remove-milestone`; works for PRs too), or let the user do it.
+
 ### 4b. Milestone consistency (PR ↔ closed issues)
 
 For each merged milestone PR (the `mergedPRs[]` from step 1), check that the issues it closes share its milestone:
@@ -99,7 +104,7 @@ PRs merged by the user without the agent have no release-notes draft and no wiki
 
 ### 5. Tick the checklist
 
-If after user actions both lists are empty:
+If after user actions the open-items, stale-baselines and no-contribution lists are all empty:
 
 ```
 pwsh -NoProfile -File .claude/scripts/release-state.ps1 -Action update -Version <ver> -TaskId 3 -Status done -Annotation "<N items resolved>"

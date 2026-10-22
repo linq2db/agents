@@ -20,6 +20,8 @@ description: Release-prep task 1 — update NuGet packages and SHA-pinned GitHub
 - During release prep as task 1 (called by `/release` orchestrator).
 - Manually when the user wants a one-off dependency-update pass outside a release (rare).
 
+**Not for a patch release (`M.m.p`, `p > 0`).** A patch ships no dependency bumps beyond `linq2db4iSeries` (handled by task 4.2). Any other dependency change in a patch — a vulnerable package, a needed upstream fix — lands as its own PR on the milestone, not in release prep.
+
 ## Required reading
 
 - [`.claude/docs/release/nuget-package-notes.md`](../../docs/release/nuget-package-notes.md) — accrued per-package rules; consulted before rendering the table and before each pre-build audit.

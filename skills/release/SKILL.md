@@ -134,10 +134,10 @@ For each user pick (or the "next recommended" task):
    | Task | Skill |
    |------|-------|
    | 0 (already done after step 1) | (no dispatch — handled inline) |
-   | 1 Dependencies | `Skill('release-deps')` |
+   | 1 Dependencies | `Skill('release-deps')`. **Patch release (`p > 0`): mark `[-]` without dispatching** — only `linq2db4iSeries` moves (4.2); other bumps go in separate milestone PRs |
    | 2 PublicAPI | `Skill('release-publicapi')` |
    | 3 Milestone check | `Skill('release-milestone-check')` |
-   | 4.x Test matrix | `Skill('release-test-matrix')` (skill handles sub-track selection) |
+   | 4.x Test matrix | `Skill('release-test-matrix')` (skill handles sub-track selection). A user "skip testing" skips the test tracks, **not** 4.2 DB2 iSeries — ask that one separately |
    | 5 Release notes | `Skill('release-notes')` → mode `sweep` (backfill drafts + wiki for user-merged PRs) then `harvest` (assemble the GitHub-release brief), then `Skill('release-notes-validate')` for the final coverage check |
    | 6 Final verification | `Skill('release-verify')` — see ordering note below |
    | 7.x Ad-hoc | dispatch is per-task — describe the entry to the user and ask which sub-tool / sub-skill to invoke; record the chosen handler in state for future resume |
