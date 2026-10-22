@@ -220,6 +220,10 @@ function Invoke-Init {
             if (-not $skip) { $out += $l }
         }
         $body = ($out -join "`n").TrimEnd()
+
+        # P8 is gone, so a criterion maps to the gate that observes it.
+        $body = $body.Replace('each maps to a TO-n in P8', 'each maps to the G-nn gate in P9 that observes it')
+        $body = $body.Replace('→ TO-1', '→ G-01')
     }
 
     $dir = Split-Path -Parent $planPath
@@ -290,11 +294,22 @@ function Invoke-Validate {
         }
     }
 
-    # P2 rows are SC-n and should name a TO-n.
-    $p2 = Get-Block -Blocks $blocks -Id 'P2'
+    # P2 rows are SC-n and should name a TO-n that P8 defines; Tier S has no P8, so a G-nn gate instead.
+    $p2      = Get-Block -Blocks $blocks -Id 'P2'
+    $p8Ids   = @(Get-BlockRows -Block (Get-Block -Blocks $blocks -Id 'P8') |
+        Where-Object { $_ -match '^-\s*[*_]{0,2}(TO-\d+)' } | ForEach-Object { $Matches[1] })
     foreach ($row in (Get-BlockRows -Block $p2)) {
         if ($row -notmatch 'SC-\d+') { $errors += "P2 : row does not carry an SC-n id -- $row" }
+        elseif ($planTier -eq 'S') {
+            if ($row -match 'TO-\d+')       { $warnings += "P2 : SC row names a TO-n, but Tier S has no P8 -- map it to a G-nn gate -- $row" }
+            elseif ($row -notmatch 'G-\d+') { $warnings += "P2 : SC row names no G-nn gate (Tier S has no P8) -- $row" }
+        }
         elseif ($row -notmatch 'TO-\d+') { $warnings += "P2 : SC row names no TO-n obligation -- $row" }
+        else {
+            foreach ($m in [regex]::Matches($row, 'TO-\d+')) {
+                if ($p8Ids -notcontains $m.Value) { $warnings += "P2 : SC row names $($m.Value), which P8 does not define -- $row" }
+            }
+        }
     }
 
     # P4: no OPEN row survives approval.
