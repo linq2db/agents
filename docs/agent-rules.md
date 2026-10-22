@@ -176,6 +176,7 @@ When the user asks to review a PR, **invoke `Skill(review-pr)`**. Handling one i
 
 When the user asks to run tests, **invoke `Skill(test)`**. Don't call `Agent(test-runner)` directly, and don't run `dotnet build` first — `dotnet test` rebuilds inside the skill, and bypassing it silently skips `CreateDatabase` filter injection and the baselines diff. Project selection (Playground vs Linq), multi-TFM gating and `playgroundLink` are the skill's responsibility.
 
+- **Writing a test by hand instead of through `test-writer`? Read [`testing.md`](testing.md) → *Test layout* first.** Its naming and model rule — no `Issue<N>` types or test names in a shared feature fixture, build on the shared `Tests/Model` models — binds inline-written tests too, and they are the ones that miss it (#6060, #6109).
 - **Every hand-run `dotnet test` / test-exe invocation carries `--test-progress`.** `/test` passes it for you; ad-hoc runs (a worktree repro, a bisect step, a filtered check) lose it, and without a heartbeat a flagless run is indistinguishable from a dead one.
 - **Except the bare-NUnit hosts** (`Tests.Analyzers*`, the CLI tests): there the flag exits 5 as `Zero tests ran`, byte-identical to a bad `--filter`. **`Zero tests ran` after a flag change means the flag, not the filter.** Detail, and the `require-test-progress` hook that enforces the rule: [`testing.md`](testing.md) → *Running the analyzer tests* / *Monitoring a long run*.
 
