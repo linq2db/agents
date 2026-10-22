@@ -195,7 +195,7 @@ Per affected TFM bucket:
 2. The `new_string` is the same block with markers flipped per step 3. Do not reorder, do not regex-replace across the whole file, and do not split into one `Edit` per provider — that triggers N permission prompts. One `Edit` per bucket.
 3. Leave whitespace, comments, and unrelated buckets exactly as they were.
 
-If the user agreed in step 4 to set `BaselinesPath`: a separate `Edit` call inserts the `"BaselinesPath": "../linq2db.baselines"` field into the `MyConnectionStrings` block (see the example in `testing.md` → **Enabling baselines locally**).
+If the user agreed in step 4 to set `BaselinesPath`: a separate `Edit` call inserts the `"BaselinesPath": "../linq2db.baselines"` field into the `MyConnectionStrings` block (see the example in `testing.md` → **Enabling baselines locally**). If the target directory does not exist yet (a scratch path such as a worktree's `.build/.agents/bls`), create it in the same step — `TestConfiguration` silently disables baselines for a missing directory.
 
 #### 5c. Container actions
 

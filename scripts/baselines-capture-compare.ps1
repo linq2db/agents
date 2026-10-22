@@ -27,6 +27,14 @@ Input (named parameters):
   -BaselinesRepo <path>    optional; default `../linq2db.baselines`, else the primary clone's
                            sibling (so it also resolves from a worktree)
   -Fetch                   optional; fetch master + the branch before comparing
+  -AllCaptured             optional; compare every captured file, not only the branch's delta.
+                           For checking a change made *on top of* the branch: the drift it causes
+                           lands in tests the branch never touched, and the default intersection
+                           hides exactly those (#6091: ~25 set-operation renames outside the delta).
+                           Files outside the delta are compared with master only. Costs one
+                           `git show` per file, so pair it with -Since.
+  -Since         <datetime> optional; ignore captured files last written before this time, so
+                           captures left in the directory by earlier runs are not compared
 
 Output (stdout, single JSON object):
   {
@@ -44,6 +52,10 @@ Output (stdout, single JSON object):
 run produced the pre-change SQL, which is the interesting case: it says the branch's content needs
 a different explanation than "this code emits it".
 
+With -AllCaptured, `verdicts` also counts `new` (on neither master nor the branch), and a file
+outside the delta reads `matches-master` or `matches-neither` — the latter is drift the branch's
+baselines do not contain yet.
+
 Exit codes:
   0 = comparison completed
   1 = bad input (missing capture path / branch not found)
@@ -53,7 +65,9 @@ param(
 	[Parameter(Mandatory = $true)][int]$Pr,
 	[Parameter(Mandatory = $true)][string]$CapturePath,
 	[string]$BaselinesRepo,
-	[switch]$Fetch
+	[switch]$Fetch,
+	[switch]$AllCaptured,
+	[datetime]$Since = [datetime]::MinValue
 )
 
 $ErrorActionPreference = 'Stop'
@@ -88,11 +102,16 @@ if ($LASTEXITCODE -ne 0) { Fail "branch not found: $branch (fetch it, or the PR 
 $captured = @{}
 $rootLen  = $root.Length
 foreach ($f in Get-ChildItem -LiteralPath $root -Recurse -File) {
+	if ($f.LastWriteTime -lt $Since) { continue }
 	$rel = $f.FullName.Substring($rootLen).TrimStart('\', '/').Replace('\', '/')
 	$captured[$rel] = $f.FullName
 }
 
 $changed = @(& git -C $repo diff --name-only "origin/master...$branch")
+$inDelta = @{}
+foreach ($rel in $changed) { $inDelta[$rel] = $true }
+
+$toCompare = if ($AllCaptured) { @($captured.Keys | Sort-Object) } else { $changed }
 
 function Read-Blob([string]$ref, [string]$path) {
 	$text = (& git -C $repo show "${ref}:${path}" 2>$null) -join "`n"
@@ -101,18 +120,20 @@ function Read-Blob([string]$ref, [string]$path) {
 }
 
 $files   = @()
-$counts  = @{ matchesMaster = 0; matchesBranch = 0; matchesNeither = 0 }
-$missing = 0
+$counts  = @{ matchesMaster = 0; matchesBranch = 0; matchesNeither = 0; new = 0 }
+$missing = @($changed | Where-Object { -not $captured.ContainsKey($_) }).Count
 
-foreach ($rel in $changed) {
-	if (-not $captured.ContainsKey($rel)) { $missing++; continue }
+foreach ($rel in $toCompare) {
+	if (-not $captured.ContainsKey($rel)) { continue }
 
 	$local = ((Get-Content -Raw -LiteralPath $captured[$rel]) -replace "`r`n", "`n").TrimEnd("`n")
 	$onMaster = Read-Blob 'origin/master' $rel
-	$onBranch = Read-Blob $branch $rel
+	# Outside the delta the branch holds master's content, so reading it again tells nothing.
+	$onBranch = if ($inDelta.ContainsKey($rel)) { Read-Blob $branch $rel } else { $onMaster }
 
 	$verdict =
-		if ($local -eq $onBranch) { 'matches-branch' }
+		if ($null -eq $onMaster -and $null -eq $onBranch) { 'new' }
+		elseif ($inDelta.ContainsKey($rel) -and $local -eq $onBranch) { 'matches-branch' }
 		elseif ($local -eq $onMaster) { 'matches-master' }
 		else { 'matches-neither' }
 
@@ -120,6 +141,7 @@ foreach ($rel in $changed) {
 		'matches-branch'  { $counts.matchesBranch++ }
 		'matches-master'  { $counts.matchesMaster++ }
 		'matches-neither' { $counts.matchesNeither++ }
+		'new'             { $counts.new++ }
 	}
 
 	$files += [ordered]@{ path = $rel; verdict = $verdict }

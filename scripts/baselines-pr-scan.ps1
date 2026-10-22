@@ -81,6 +81,12 @@ Output (stdout, single JSON object)
     }
   }
 
+`aliases` ({ aliasOnlyFiles, otherFiles, otherSamples }) answers "is this drift only column
+aliases?", which `renames` cannot: an alias has no identifier prefix, so every alias rename is a
+mismatch there. A modified file is alias-only when both sides of its change-block read the same
+with identifiers collapsed and `as <alias>` dropped; `otherFiles` = 0 means the delta renames
+columns and changes nothing else.
+
 `renames.mismatches` counts changed line-pairs that still differ after
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
 delta is NOT name-only, and `mismatchSamples` shows the first few.
@@ -294,6 +300,43 @@ $facetChecked    = 0
 $facetViolations = [System.Collections.Generic.List[object]]::new()
 $statementCounts = [System.Collections.Generic.List[object]]::new()
 
+# Column aliases have no identifier prefix, so `renames` scores every alias rename as a mismatch (#6091: 6421 of them,
+# all name-only). A file is alias-only when its two sides read the same once every identifier is collapsed to one token
+# and every `as <alias>` is dropped. Compared over the whole change-block, not per line, so an alias that re-wraps a line
+# still counts. Kept verbatim, because they are not names a query chose: an all-uppercase keyword, a function name (a word
+# before `(`), the type after an uppercase `AS` (CAST), `DECLARE` / `SET` parameter lines and `--` comments - collapsing
+# those hid a parameter retype (#5640: `NVarChar` -> `Text`). linq2db writes an alias with a lowercase `as`.
+$aliasClauseRe   = [regex]::new('\bas\s+(\[[^\]]*\]|"[^"]*"|`[^`]*`|[A-Za-z_][A-Za-z0-9_]*)')
+$aliasTokenRe    = [regex]::new('\[[^\]]*\]|"[^"]*"|`[^`]*`|''[^'']*''[A-Za-z]?|[A-Za-z_][A-Za-z0-9_]*|[0-9][0-9.]*|\S')
+$aliasVerbatimRe = [regex]::new('^\s*(DECLARE|SET)\b')
+$aliasOnlyCount  = 0
+$aliasOther      = [System.Collections.Generic.List[object]]::new()
+
+function Get-AliasShape([System.Collections.Generic.List[string]]$Lines) {
+    $tokens = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in $Lines) {
+        if ($script:aliasVerbatimRe.IsMatch($line)) { $tokens.Add($line.Trim()); continue }
+
+        $code = $line; $comment = $null
+        $at = $line.IndexOf('--')
+        if ($at -ge 0) { $code = $line.Substring(0, $at); $comment = $line.Substring($at).Trim() }
+
+        $code    = $script:aliasClauseRe.Replace($code, '')
+        $found = $script:aliasTokenRe.Matches($code)
+        for ($i = 0; $i -lt $found.Count; $i++) {
+            $t    = $found[$i].Value
+            $next = if ($i + 1 -lt $found.Count) { $found[$i + 1].Value } else { '' }
+            $prev = if ($i -gt 0) { $found[$i - 1].Value } else { '' }
+            if ($t -eq ',') { continue }
+            if ($t -cmatch '^[A-Z][A-Z_]+$' -or $next -eq '(' -or $prev -ceq 'AS') { $tokens.Add($t) }
+            elseif ($t -match '^(\[|"|`|[A-Za-z_])') { $tokens.Add('X') }
+            else { $tokens.Add($t) }
+        }
+        if ($comment) { $tokens.Add($comment) }
+    }
+    return ($tokens -join ' ')
+}
+
 $curFile = $null
 $add = [System.Collections.Generic.List[string]]::new()
 $del = [System.Collections.Generic.List[string]]::new()
@@ -356,6 +399,13 @@ function Flush-File {
             onlyAdded   = @($normA | Where-Object { $normD -notcontains $_ })
             onlyRemoved = @($normD | Where-Object { $normA -notcontains $_ })
         })
+    }
+
+    if ($Added.Count -gt 0 -and $Removed.Count -gt 0) {
+        $shapeA = Get-AliasShape $Added
+        $shapeD = Get-AliasShape $Removed
+        if ([string]::Equals($shapeA, $shapeD, [System.StringComparison]::Ordinal)) { $script:aliasOnlyCount++ }
+        else { $script:aliasOther.Add($File) }
     }
 
     $script:stats.Add([pscustomobject]@{
@@ -533,6 +583,11 @@ $result = [ordered]@{
         mismatches      = $mismatchCount
         mismatchSamples = @($mismatchSamples)
         map             = $renames
+    }
+    aliases   = [ordered]@{
+        aliasOnlyFiles = $aliasOnlyCount
+        otherFiles     = $aliasOther.Count
+        otherSamples   = @($aliasOther | Select-Object -First 25)
     }
 }
 

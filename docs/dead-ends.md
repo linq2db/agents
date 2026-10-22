@@ -20,6 +20,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a builder-side frame fix alone. Correlated outer references and CTE fields need `NullabilityContext` itself to judge them in the frame that holds their outer join, or the optimizer undoes the builder's decision. Measure the mixed-column shape, not only the parent-only one. (#5983, igor-tkachev's MIN008 / MIN009; tests gated `[ActiveIssue(5983)]` in `7e24e0528`)
 
+## EXPR-TRANS: naming set-operation columns from the placeholder's `Alias`
+
+**Tried:** keeping the member-derived name on a predicate column that feeds a `Concat` / `Union` member — `ConcatConditions`' eager-load key query read `as [c1]` after #6091 stopped relabelling conditional tests. `SetOperationBuilder.InitializeProjections` sets every column alias from `GenerateColumnAlias(SqlPathExpression)`, which is always `null`, so a hint on the placeholder is erased. Three fallbacks to the hint: `GenerateColumnAlias(...) ?? placeholder.Alias`; the same only when `TrackingPath` is not a `MemberExpression`; and that plus `placeholder.Sql is not (SqlField or SqlColumn)`.
+
+**Failed because:** the unrestricted fallback renamed ~25 SQLite set-operation baselines — a source column's own alias beat the name `MakeColumn` takes from the tracking path (`Concat891`: `Value1` → `ParentID`). The tracking-path guard still renamed plain table columns that have no member path (`ConcatSumTest`: `PersonID` → `ID`). The blanket `SqlColumn` exclusion dropped the hint again for a predicate read through a subquery, which arrives as a `SqlColumn` — `ConcatConditions` was back to `c1`.
+
+**Don't re-attempt:** either form. Keep the hint only when `TrackingPath` is not a `MemberExpression` and the `SqlColumn` chain does not end at a `SqlField` (`AliasHint`), and measure any change here with `baselines-capture-compare.ps1 -AllCaptured` over the set-operation suites — the drift lands outside the PR's baselines delta. (#6091, `01c5dc3de`)
+
 ## SQL-PROVIDER: an IN-list value keeping its own type beside any computed column value
 
 **Tried:** widening `BasicSqlBuilder.GetInListValueType` so a captured IN-list value keeps its own type beside any computed operand (MIN/MAX, COALESCE, value window functions, a CASE) that reaches a column without a value converter, not only a coarse date/time one. The aim was `[1.004m].Contains(MAX(Decimal64(18,2)))` writing `1.004` rather than `1.00` on ClickHouse.
