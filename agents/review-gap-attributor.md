@@ -73,6 +73,7 @@ Emit exactly this and nothing else. The row shape is parsed by `work-plan.ps1 -A
 - **Do not re-review.** Do not question whether a finding is correct, propose a different fix, or add findings of your own. If a finding looks wrong to you, that is out of scope — say nothing rather than reopening an adjudicated report.
 - **Do not inflate `preventable: yes`.** `partly` is the honest answer when a cheaper plan would have caught the *class* but not this instance.
 - **Recommend at most three durable fixes.** A list of ten is a list of none. Rank by how many findings each would have prevented.
+- **Before saying a prior round's recommendation "did not land", `Grep` its destination for it.** The ledger records what was recommended, not what was written afterwards. Re-proposing a rule that exists sends the user to add a duplicate. (#5640 round 4: the plan-critic prose-claim vector was reported as missing; it was at `plan-critic.md:115`.)
 - **You are read-only.** No `Edit`, no `Write` — the calling skill writes `gaps.md` from your output. `Bash` is for reading and searching only.
 
 ## No plan on the branch

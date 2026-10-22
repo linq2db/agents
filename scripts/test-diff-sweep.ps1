@@ -24,21 +24,28 @@ Invoke directly via the PowerShell tool:
 
     .claude\scripts\test-diff-sweep.ps1 -Repo C:\Worktrees\linq2db\<worktree>
     .claude\scripts\test-diff-sweep.ps1 -Repo <path> -Base origin/master -Path Tests/Linq
+    .claude\scripts\test-diff-sweep.ps1 -Repo . -Ref origin/pr/5640      # no worktree needed
 
 Contract
 --------
-  -Repo  <path>    required; the checkout whose branch is swept (a worktree)
+  -Repo  <path>    required; the checkout whose branch is swept (a worktree), or any clone with -Ref
   -Base  <ref>     default 'origin/master'; diffed as `<Base>...` (merge base), committed changes only
+  -Ref   <ref>     sweep `<Base>...<Ref>` instead of the checkout's HEAD (a PR head, a pushed branch)
   -Path  <path>    default 'Tests/'
-  -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`)
+  -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`); not with -Ref
 
-Output: one JSON document — { base, path, chains: [{file, line, text}], narrowedSets: [{file, line,
-attribute, lineAbove}] }.
+`chains` holds statement-level chains. A chain nested inside parentheses or braces - a call argument,
+`new X(new DataOptions().UseConfiguration(...))`, an object initializer - goes to `nestedChains`:
+on #5640 those were 35 of 148 hits and none was a layout defect.
+
+Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
+narrowedSets: [{file, line, attribute, lineAbove}] }.
 #>
 
 param(
 	[Parameter(Mandatory)][string]$Repo,
 	[string]$Base = 'origin/master',
+	[string]$Ref,
 	[string]$Path = 'Tests/',
 	[switch]$IncludeWorkingTree
 )
@@ -50,7 +57,11 @@ if (-not (Test-Path -LiteralPath $Repo)) {
 	Exit-WithError "repo not found: $Repo" -NextAction 'pass the absolute path of the worktree to sweep'
 }
 
-$range = if ($IncludeWorkingTree) { $Base } else { "$Base..." }
+if ($Ref -and $IncludeWorkingTree) {
+	Exit-WithError '-Ref and -IncludeWorkingTree are exclusive' -NextAction 'drop one: -Ref sweeps a committed ref, -IncludeWorkingTree the checkout'
+}
+
+$range = if ($Ref) { "$Base...$Ref" } elseif ($IncludeWorkingTree) { $Base } else { "$Base..." }
 $diff  = git -C $Repo diff -U3 $range -- $Path
 
 if ($LASTEXITCODE -ne 0) {
@@ -61,7 +72,23 @@ $file   = ''
 $line   = 0
 $recent = [System.Collections.Generic.List[string]]::new()
 $chains = @()
+$nested = @()
 $sets   = @()
+
+# bracket depth at each `).Member(` on the line, string literals blanked first; 0 = statement level
+function Get-ChainDepths([string] $text) {
+	$t = [regex]::Replace($text, '"(?:[^"\\]|\\.)*"', { param($m) '"' + (' ' * ($m.Length - 2)) + '"' })
+	$depths = @()
+	foreach ($m in [regex]::Matches($t, '\)\s*\.\s*[A-Z]\w*\s*\(')) {
+		$d = 0
+		for ($i = 0; $i -le $m.Index; $i++) {
+			switch ($t[$i]) { '(' { $d++ } '{' { $d++ } ')' { $d-- } '}' { $d-- } }
+		}
+		# the `)` of the match closed one level, so the chain itself sits at $d
+		$depths += $d
+	}
+	return $depths
+}
 
 # the nearest preceding line that is not blank and not an attribute (`[Test]`, `[ActiveIssue(...)]`)
 function Get-LineAbove {
@@ -85,7 +112,8 @@ foreach ($l in $diff) {
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
 		if ($text -match '\)\s*\.\s*[A-Z]\w*\s*\(' -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
-			$chains += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			$hit = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			if (@(Get-ChainDepths $text | Where-Object { $_ -le 0 }).Count -gt 0) { $chains += $hit } else { $nested += $hit }
 		}
 
 		if ($text -match '\[(IncludeDataSources|DataSources)\s*\((?<args>[^\]]*)\)') {
@@ -110,5 +138,6 @@ foreach ($l in $diff) {
 	base         = $range
 	path         = $Path
 	chains       = @($chains)
+	nestedChains = @($nested)
 	narrowedSets = @($sets)
 } | ConvertTo-Json -Depth 4

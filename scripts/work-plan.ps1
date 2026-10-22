@@ -654,6 +654,18 @@ function Invoke-Validate {
     if (-not $ok) { exit 1 }
 }
 
+# Every path-like backticked token in a P6 row, so one E-n may list several files. A row with
+# none falls back to its first backticked token, which is what this used to read for every row.
+function Get-RowPaths {
+    param([string] $Row)
+
+    $tokens = @([regex]::Matches($Row, '`([^`]+)`') | ForEach-Object { $_.Groups[1].Value })
+    $paths  = @($tokens | Where-Object { $_ -match '/' -or $_ -match '^[\w.\-]+\.(cs|csproj|fsproj|vbproj|props|targets|json|md|slnx|slnf|txt|yml|yaml|ps1|xml)(:.*)?$' })
+    if ($paths.Count -gt 0) { return $paths }
+    if ($tokens.Count -gt 0) { return @($tokens[0]) }
+    return @()
+}
+
 # ---------------------------------------------------------------- gates
 
 function Invoke-Gates {
@@ -666,7 +678,7 @@ function Invoke-Gates {
 
     $paths = @()
     foreach ($row in (Get-BlockRows -Block $p6)) {
-        if ($row -match '`([^`]+)`') { $paths += $Matches[1] }
+        $paths += @(Get-RowPaths -Row $row)
     }
 
     # Markdown is excluded from the SQL / public-API / TFM heuristics below: a readme.md or an
@@ -736,12 +748,8 @@ function Invoke-Reconcile {
 
     $authorized = @()
     foreach ($row in (Get-BlockRows -Block $p6)) {
-        if ($row -match '`([^`]+)`') {
-            # Strip a :Symbol suffix — the authorization is per file.
-            $p = $Matches[1]
-            $p = ($p -split ':')[0]
-            $authorized += $p.Trim()
-        }
+        # Strip a :Symbol suffix — the authorization is per file.
+        foreach ($p in (Get-RowPaths -Row $row)) { $authorized += ($p -split ':')[0].Trim() }
     }
 
     $r = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'diff', '--name-only', "$Base...$Head")
