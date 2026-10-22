@@ -175,6 +175,33 @@ from the branch after the critic caught stale-clone drift — `P11 A-3`):
   needs the 7/10-arity store or DI.
 - **E-10** `Tests/Linq/Identity/*` — `TO-7`…`TO-10`.
 
+- **E-0** — pre-plan migration surface (`ceb633163`..`47a07a901`, 2026-06-20/21), recorded by A-11 so
+  reconcile stops reporting it; listed, not approved design:
+  - `Source/LinqToDB.Identity/Extensions.cs`
+  - `Source/LinqToDB.Identity/Resources.cs`
+  - `Source/LinqToDB.Identity/PublicAPI.Shipped.txt`
+  - `Source/LinqToDB.Identity/PublicAPI/net10.0/PublicAPI.Shipped.txt`
+  - `Directory.Packages.props`
+  - `README.md`
+  - `Tests/Linq/Tests.csproj`
+  - `linq2db.slnx`
+- **E-13** — A-10: Access ODBC binds `DataType.Text` / `NText` as `OdbcType.Text` / `NText`:
+  - `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs`
+  - `Tests/Linq/DataProvider/AccessTests.cs` — core test `LongTextParameter`
+- **E-14** — A-10 and review round 1:
+  - `Source/LinqToDB.Identity/Stores/RoleStore.cs` — dependent-row delete, YDB support
+  - `Source/LinqToDB.Identity/IdentityNavigations.cs` — `Roles()` / `Users()` return types
+  - `Source/LinqToDB.Identity/PublicAPI.Unshipped.txt`
+  - `Build/licenses/README.md` — bundle-nothing rule
+- **E-15** — A-11, NIT001:
+  - `linq2db.Testing.slnf` — lists `LinqToDB.Identity.csproj`
+- **E-17** — A-13, MIN029:
+  - `Tests/Tests.FpuJit/Tests.FpuJit.csproj` — `ProjectReference` to `LinqToDB.Identity.csproj`
+  - `Tests/Tests.FpuJit/Program.cs` — `"linq2db.Identity"` in `ExpectedAssemblies`
+- **E-16** — A-12, same mechanism as E-1:
+  - `Source/LinqToDB.Identity/Mapping/DefaultMappings.cs` — `(ProviderName.SqlServer2005, DataType.DateTime)` row
+    in `_lockoutEndDataTypes`
+
 All five `ConfigureMappings` overrides across `IdentityDataConnection.cs` and `IdentityDataContext.cs` route
 through `SetupIdentityUser`, so `E-1` needs no second site.
 
@@ -267,6 +294,19 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   (`.build/.agents/pr5640-a9-build-release.log`) — the `MA0215` recorded above no longer reproduces.
 - `G-01` for `A-9` (`TO-7`…`TO-10`): **pass** (2026-10-11, `0bcdf28fd`) — full Identity suite, net10.0,
   SQLite.MS + SqlCe: 159/159, the five new tests included. Informix/ClickHouse/YDB gates are CI-only.
+- `G-01` for `A-11`: **pass** (2026-10-12, per PR body round 3) — Identity suite 168/168 on SQL Server 2019 (MS) +
+  SQLite.MS, net10.0. Release builds of `linq2db.Identity` (all TFMs) and `Tests/Linq` (net10.0) clean.
+- `G-01` for `A-12`: **pass locally** (2026-10-12): `UserLockout` red→green against the local instance with the
+  `SqlServer.2005` dialect; Identity suite 80/80 on that configuration. **CI: blocked.** GitHub `tests [all]` run
+  [38236420765](https://github.com/linq2db/linq2db/actions/runs/38236420765) on `7faa94562` is green on all 22
+  legs, but no GitHub leg runs SQL Server 2005. The Azure `test-all` on `7faa94562`
+  (24189) was **canceled** on 2026-10-12, and none has run on `7faa94562` / `f90bec55c` since. The CI arm of `E-16`
+  is therefore unverified.
+- `G-01` for `A-13`: **pass** (2026-10-22, worktree `5640-identity-migration`, net10.0): Identity suite +
+  `AccessTests.LongTextParameter` / `LongAnsiTextParameter` on SQLite.MS, SQLite.Classic, SqlCe, Access.Ace.Odbc,
+  Access.Ace.OleDb, Firebird.5, Sybase.Managed, SapHana.Native, DB2 — **731/731**. SUG006 red→green measured on
+  Access.Ace.Odbc. FPU JIT harness (x86 net462): `linq2db.Identity ok=606 faults=0`.
+- `G-05` for `A-13`: **pass** — Release `linq2db.Identity` (all TFMs) and `Tests/Linq` (net10.0) build clean.
 
 ## P10 Adjudicated
 
@@ -349,6 +389,57 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
     SqlCe, SQLite.MS) green apart from two load-induced Octonica timeouts that pass alone; Release build of
     `LinqToDB.Identity` clean on all five TFMs. SQL Server, PostgreSQL, Oracle, DB2, Sybase, SAP HANA and Firebird
     are CI-only.
+- **A-11** — **review round 3 (igor-tkachev's agentic review on `96bebf54e`), commits `366b57a23`..`e3f85ade0`.** Each
+  item was dispositioned by the maintainer:
+  - MIN004: the readme's migration section no longer promises that standalone-created databases work unchanged. The
+    standalone package mapped no table names, so `CreateTable` produced CLR-named tables. The section gives the
+    rename / `ConfigureMappings` options (`E-12`).
+  - MIN005: `PasswordHash` / `SecurityStamp` / `PhoneNumber` widened from 100 / 40 / 20 to 256 (`E-1` file). String
+    keys stay 36 because composite-key index limits apply on several providers; the readme documents the width and
+    the override. `UserProfileFields` now writes values over the old widths: red on SQL Server 2019 with a
+    truncation error, green after (`E-10`).
+  - NIT001: `E-15`. Release `IDE0200` / `IDE0340` in two Identity test lines (`E-10`).
+  - Records `E-0` and `E-14`. These files were changed before the plan or in rounds 1–2 without a `P6` row, and
+    `-Reconcile` reported them as unplanned.
+  - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*.
+    Swept `git diff cbfc89b15 e3f85ade0 -- Tests/` by hand, because no worktree exists for `test-diff-sweep.ps1`:
+    3 files, 0 added one-line chains, 0 added or changed narrowed provider sets, 0 gates.
+- **A-12** — **SQL Server 2005 `LockoutEnd`, `7faa94562` (+ readme `f90bec55c`).** Azure `test-all` 24180 on
+  `e3f85ade0` was red only on SQL Server 2005 `UserLockout`: `DateTimeOffset.MaxValue` overflowed `DATETIME`
+  (*SqlDateTime overflow*). 2005 has no `datetimeoffset`, so the column was already `DATETIME`; the value was not
+  converted. `E-16` adds the row, which gives 2005 the whole-second UTC converter of `D-2` / `A-10`. The readme's
+  *Provider support* section lists the whole-second-UTC providers. Its migration section notes that a value an
+  earlier version stored in server-local time reads back shifted until rewritten. Extends `SC-1`'s pinned set by
+  one configuration. `SC-3` is unaffected.
+  - re-derives: `D-2` (pinned set), `P10` first bullet (offset discarded on pinned configurations — now 10, still
+    the adjudicated trade).
+  - The affected part of the approval (`E-16`) is void until re-confirmed. **Re-approved 2026-10-22.**
+- **A-13** — **review round 4 (`gaps.md`, round 4), on `8c381eb99` (master merge) .. `afb9ba0e9`.** Each item was
+  dispositioned by the maintainer in the walk:
+  - MIN025 (`E-4`): the passkey members throw `InvalidOperationException` below `IdentitySchemaVersions.Version3`
+    (new `Resources.PasskeysRequireVersion3`), matching EF Core, which drops the entity from its model there.
+    Previously a store without options, or with the `StoreOptions` default, accepted passkeys that `DeleteAsync` then
+    left behind. `UserDeleteRemovesPasskeys(schemaV3: false)` asserts the refusal; the passkey tests pass `Version3`.
+  - MIN026 (`E-0`): the package-validation comment says validation stays off until the next major resets
+    `BaselineVersion`, as for `Remote.HttpClient.Server` / `Analyzers.CodeFixes` / `CLI`.
+  - MIN027 **withdrawn on measurement**: an unsized `NVarChar` is `NVarChar(255)` in `CREATE TABLE` on SqlCe, Sybase,
+    SAP HANA and DB2, not the builder's `Length is null` width, so `_claimValueTypes`' comment holds and 2000 widens.
+  - MIN028, SUG005, OOS2 (`E-12`): readme migration example compiles; *Provider support* states the Access 255 and
+    `ClaimValue` 2000 caps and Firebird's #5915 reason; the migration note lists Firebird 4+ / YDB `LockoutEnd` types.
+    OOS2 measured: an EF-style `TIMESTAMP WITH TIME ZONE` `LockoutEnd` on Firebird 5 round-trips
+    (raw `2030-01-02 03:04:05.0000 Etc/UTC`, UTC session, UTC+1 client). Non-UTC sessions and YDB unchecked.
+  - SUG006 (`E-13`): `AccessTests.LongAnsiTextParameter` — HY104 on `Access.Ace.Odbc` with the `DataType.Text` arm
+    removed, green with it.
+  - NIT009, NIT010, NIT015, NIT016: comment / XML-doc fixes. NIT014: permanent-lockout carve-out narrowed to SQLite.MS,
+    citing #6031 (SQLite.Classic passes with `MaxValue`).
+  - NIT011–NIT013 (`E-10`): every rule-1 chain the sweep found rewritten (one call per line, query syntax for the
+    navigation `SelectMany`s).
+  - MIN029 (`E-17`): `linq2db.Identity` added to master's x86 FPU JIT sweep after merging `origin/master`.
+  - MIN030 rejected (forwarding arities; the stock-type mirror is covered by `NavigationAssociations`). OOS1
+    (core Access release note) left to `/release-notes`.
+  - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*. `test-diff-sweep.ps1` over
+    `origin/master...` + working tree: before 148 chains / 18 narrowed sets; after 37 chains (34 constructor /
+    initializer false positives, 3 call arguments) / 18 narrowed sets (all `[DataSources(false)]` or with a reason).
 
 ## P12 Critic verdict
 

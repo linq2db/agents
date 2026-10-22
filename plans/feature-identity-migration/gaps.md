@@ -101,3 +101,64 @@ weak, as file-level reconcile is satisfied retroactively by a later amendment.
 - GAP-02 ×9 → `plan-critic.md` attack vector: enumerate every per-provider / behavioural claim the plan or diff writes as prose (code comment, readme sentence, `P3` reason, `P7` verdict) and require a probe citation or a `U-n` marked reasoned for each.
 - GAP-09 (×9 second class) → `work-plan.md` `P11` semantics: a review-round fix commit must cite the `A-n` authorizing it, written before the commit; `-Reconcile` maps commits to amendments, not files to `E-n`.
 - GAP-05/GAP-07 ×5 → `work-plan/SKILL.md` convention embed and `P8` semantics: every `[ActiveIssue]` gate is a `TO-n` with a declared `ErrorTypeName`/`ErrorMessage` and a positive control on the gated engine; embed `bug-investigation.md:451` whenever `P8` changes a `[DataSources]` test's input.
+
+## Round 4 — reviewed HEAD f90bec55c
+
+Plan on branch: yes (Tier M, critic weak on the A-9 delta). Round 3 was igor-tkachev's external review, never
+ledgered; its fixes are `A-11`, followed by `A-12`. Dispositions (`A-13`): 13 fixed, MIN027 **withdrawn on
+measurement** (the unsized default is 255 in `CREATE TABLE`, not the builder's width; the reviewer read the builder's
+`Length is null` arm, which `CreateTable` never reaches), MIN030 rejected, OOS1 left to `/release-notes`. The MIN027 row
+below is therefore a false finding, kept for the record: a "default width" claim needs the emitted DDL, not the builder.
+
+### Attribution
+
+- **MIN025** (passkey writes ignore `SchemaVersion`; `DeleteAsync` gates cleanup on it) — GAP-01 — `D-4` / `TO-7` prove
+  passkey cleanup at `Version3` only; no `D-n` / `TO-n` names a passkey write below `Version3`, where EF Core ignores
+  the entity. `P7`'s `UserOnlyStore.cs:459-609` row listed passkey users without asking which are `SchemaVersion`-gated.
+  Second class GAP-05. — G-01 — preventable: yes
+- **MIN026** (package validation disabled "until next release", no re-enable step) — GAP-01 — no `D-n` or `deferred:`
+  row; `E-0` lists the csproj as unapproved pre-plan surface. — preventable: partly
+- **MIN027** (`ClaimValue` 2000 narrower than defaults on SqlCe / HANA / Sybase / DB2; comment rationale false) —
+  GAP-02 — unprobed comment claims; `A-10` fixed Informix and passkey `Data` widths without sweeping every string
+  column. — G-01 — preventable: yes
+- **MIN028** (readme migration example CS0311) — GAP-02 — `A-11` rewrote the migration section; the sample was never
+  compiled against the guide's own `ApplicationUser`. — preventable: yes
+- **MIN029** (not in master's FPU JIT sweep) — GAP-10 — the `Tests.FpuJit` registry arrived on master after the branch
+  base (#6051/#6058); unknowable to the plan, caught only by a master sync. — preventable: partly
+- **MIN030** (four store arities untested) — GAP-05 — `TO-7`/`TO-9` cover the new arities only; round-1 MIN007's
+  per-entry-point symmetry gap still open. — G-01 — preventable: yes
+- **SUG005** (readme omits Access 255 / `ClaimValue` 2000 caps; Firebird reason wrong) — GAP-02 — `A-12`'s *Provider
+  support* text written from the pinned set, unprobed. — preventable: yes
+- **SUG006** (`DataType.Text` ODBC arm untested) — GAP-05 — `E-13` changed two arms, `LongTextParameter` proves one. —
+  G-01 — preventable: yes
+- **NIT009**, **NIT010**, **NIT014**, **NIT015**, **NIT016** (stale / incomplete comments, doc typos) — GAP-10 — prose.
+  — G-09 — preventable: no
+- **NIT011**–**NIT013** (one-line `SelectMany` / call chains in new tests) — GAP-07 — *Test layout* exists; `A-11`'s
+  hand sweep covered `cbfc89b15..e3f85ade0` only. — G-09 — preventable: yes
+
+### Aggregate
+
+16 findings: GAP-10 ×6, GAP-02 ×3, GAP-05 ×3, GAP-07 ×3, GAP-01 ×2. No dominant class. Three clusters: an arity /
+version / provider arm no `TO-n` must hit (MIN025, MIN030, SUG006); unprobed prose in comments and the readme (MIN027,
+MIN028, SUG005); and the test-layout sweep run over one range only (NIT011–013).
+
+### Continuity with rounds 1–2
+
+| Prior finding | Round-4 finding | Through |
+|---|---|---|
+| round-1 MIN007 (generic contexts untested) | MIN030 | per-entry-point obligation never added; `D-4` multiplied arities |
+| round-1 MIN009, round-2 MIN022/MIN023 (unprobed readme) | MIN028, SUG005 | readme passes inside `A-11` / `A-12` |
+| round-2 OOS3/OOS4 (string widths) | MIN027 | no `P7` row enumerating every string column × provider cap |
+| round-2 CI1 (Access ODBC) | SUG006 | the `A-10` fix tested one of two arms |
+| round-1 MIN015 (convention not in front of the author) | NIT011–013 | hand sweep over one range |
+
+Round-2's recommended `plan-critic.md` prose-claim vector did not land; MIN028 and SUG005 are its shape again.
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-05 ×3 (+ GAP-07) → `work-plan.md` `P8` semantics: code that dispatches on arity, `SchemaVersion` or provider owes
+  one obligation per arm, each able to go red when the arm is not hit.
+- GAP-02 ×3 → the round-2 `plan-critic.md` vector (probe citation per prose claim), plus: readme code samples compile
+  against the guide's own types.
+- GAP-01 ×2 + MIN029 → `definition-of-done.md`: before CI on a long-lived branch, merge master and check new shipped
+  assemblies against master's registries; a csproj switch disabled "until next release" needs a named release step.
