@@ -563,13 +563,12 @@ function Do-CiProbe {
     $state = Read-StateFile -Path $path
     if (-not $state) { Exit-WithError "ci-probe: no state at $path" }
 
-    # gh pr checks doesn't accept --json directly the way pr view does — we use
-    # `--json` with a curated field list via the newer gh release; older
-    # versions silently drop unknown fields, leaving us with what they do
-    # know. `bucket` is the post-2024 normalized failure classification.
+    # gh rejects an unknown --json field outright, so the list holds only fields
+    # `gh pr checks` exposes (no `conclusion`). `bucket` is the normalized
+    # failure classification.
     $r = Invoke-Gh -ArgumentList @(
         'pr','checks',[string]$PrepPR,'--repo','linq2db/linq2db',
-        '--json','name,state,bucket,conclusion,link,startedAt,completedAt,workflow'
+        '--json','name,state,bucket,link,startedAt,completedAt,workflow'
     )
     if (-not $r.ok) { Exit-WithError "gh pr checks failed: $($r.error)" }
     $checks = @()
