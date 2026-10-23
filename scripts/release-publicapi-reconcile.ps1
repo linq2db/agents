@@ -123,7 +123,7 @@ function Get-PlanFilePath {
 function Get-SourceRootPath {
     param([string]$Override)
     if ($Override) { return $Override }
-    return (Join-Path (Get-Location) 'Source')
+    return (Join-Path (Get-RepoRoot) 'Source')
 }
 
 # -- file IO helpers ---------------------------------------------------------
