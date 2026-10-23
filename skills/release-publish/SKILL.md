@@ -201,6 +201,7 @@ Action:
 Preconditions:
 - Steps 1, 2, 3 `done` and step 4 `green`.
 - User explicitly typed `tests green, proceed`.
+- **The release PR's own CI has finished green** — its Azure `default` run included. Wait for it even when the head's tree equals the tested prep-PR build: that run has jobs only a `release`-targeting PR triggers (6.4.0's #5743 / #5744 surfaced there), so a green prep PR does not cover it. Merging early ships before that signal arrives. It does **not** lose the baselines: Azure keeps the run going after the merge and it still writes `baselines/pr_<release-pr>` for step 6 — so don't open a replacement run unless that run actually died (recovery: *Release PR's baselines run did not complete* below). (6.5.1: #6123 merged with build 24621 still running; 24621 carried on.)
 
 Action:
 1. Verify mergeability:
@@ -212,7 +213,7 @@ Action:
    gh pr merge <release-pr> --repo linq2db/linq2db --merge
    ```
    (`--merge`, not squash — `release` branch should reflect the linear `master` history that's been validated.)
-3. Ask user to run the merge themselves and confirm done. Skill detects via:
+3. Ask user to run the merge themselves and confirm done. A bare "proceed" to the step-4 gate is not that confirmation — stop after printing the command. Skill detects via:
    ```
    gh pr view <release-pr> --repo linq2db/linq2db --json state,mergedAt
    ```
@@ -224,7 +225,7 @@ Action:
 
 ### 6. Merge CI-generated baselines PR
 
-CI runs on the release PR, regenerates baselines, opens a PR against `linq2db.baselines` master (head ref `baselines/pr_<release-pr-#>`). This step runs **in parallel with `/release-postpublish`** — it's not on the release-merge critical path.
+CI runs on the release PR, regenerates baselines, opens a PR against `linq2db.baselines` master (head ref `baselines/pr_<release-pr-#>`, or `baselines/pr_<trigger-pr>` after the *Release PR's baselines run did not complete* recovery). This step runs **in parallel with `/release-postpublish`** — it's not on the release-merge critical path.
 
 Action:
 1. Print: "wait for CI to open the baselines PR on `linq2db.baselines`. Notify me when it's open (or when CI completes — I can detect via `gh pr list --repo linq2db/linq2db.baselines`)."
@@ -325,6 +326,29 @@ Procedure (verified on 6.3.0 — `linq2db.cli` at 416 MB exceeded 250 MB ceiling
 6. **Mark `state.postpublish.steps.nuget-verify.status = 'partial'`** (not `done`) with annotation pointing to the issue + the count of published-vs-deferred packages.
 
 7. **Flag downstream impact** to the user: if any deferred package is referenced by `Directory.Packages.props` in the next-version-bump PR (e.g. `linq2db.t4models` re-pin), that PR's CI will fail until the deferred package finally publishes. User merges the bump PR manually after.
+
+### Release PR's baselines run did not complete
+
+**First check it is really gone.** A release PR merged while its Azure `default` run is in progress is *not* this case — the run is not cancelled by the merge and finishes the baselines on `baselines/pr_<release-pr>` as usual. (6.5.1: a trigger PR #6124 was opened for exactly that misreading, then closed and its duplicate run stopped by hand.) Confirm with `azp-build-info.ps1 -BuildId <id>` that the run ended `canceled` / `failed` with legs that never pushed before using the recipe below.
+
+Symptom: the release PR is `MERGED` and its `default` run ended without pushing every leg's baselines, so step 6 has no complete `baselines/pr_<release-pr>` to merge. Don't reopen the release PR. Instead open a **throwaway PR against `release`** that carries the release tree unchanged: `default.yml`'s `pr: release` trigger runs the full matrix on it with no `/azp run` comment.
+
+1. Build an empty commit on `release` — same tree, so the baselines describe exactly what shipped — and push it, all without a checkout:
+   ```
+   git fetch origin release
+   $tree = git rev-parse 'origin/release^{tree}'
+   $c = git commit-tree $tree -p origin/release -m "Release <ver>: trigger baselines regeneration (do not merge)"
+   git push origin "${c}:refs/heads/infra/release-<ver>-baselines"
+   ```
+   Branch off `release`, **not** `master`: after the release merge, `master` has nothing `release` lacks, so a `master` → `release` PR is refused with "no commits between".
+2. Open it as a draft with **no milestone** — a milestone would keep the release milestone open (postpublish step 5) for a PR that never merges:
+   ```
+   gh pr create --repo linq2db/linq2db --base release --head infra/release-<ver>-baselines --title "[DO NOT MERGE] Release <ver> baselines trigger" --body-file <path> --assignee @me --draft
+   ```
+   The body says do-not-merge, names the release PR and states the tree is unchanged. Check the shape: `gh pr view <n> --json commits,changedFiles` → 1 commit, `changedFiles: 0`.
+3. Confirm Azure queued it (a `default` build on `refs/pull/<n>/merge`): `azp-build-info.ps1 -Pr <n>`.
+4. Step 6 then targets `baselines/pr_<trigger-pr>` instead of `baselines/pr_<release-pr>` — record the trigger PR in `state.publish.steps.baselines-pr-merged.note`, and say so in the release PR's step-6 tick.
+5. **Keep the trigger PR open until every leg has pushed its baselines** — the `default` run finished, not merely the baselines PR appearing (legs push one commit each as they finish). Then close it unmerged and delete the branch: `gh pr close <n> --repo linq2db/linq2db --delete-branch`. Continue with step 6.
 
 ### A failed release build must be re-queued, not retried
 
