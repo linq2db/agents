@@ -229,7 +229,7 @@ Detail-heavy mechanics live in [`pr-and-push.md`](pr-and-push.md). One-line trig
 
 ### Pull request rules
 
-See [`AGENTS.md`](../AGENTS.md) → *Pull requests* and [`pr-and-push.md`](pr-and-push.md) → *Creating a PR* (incl. milestone picklist order). Claude specifics: after `gh pr create`, propose `/azp run test-all` ([`ci-tests.md`](ci-tests.md)) and wait for confirmation; fork PRs need `maintainerCanModify: true` for follow-ups — else stop and ask.
+See [`AGENTS.md`](../AGENTS.md) → *Pull requests* and [`pr-and-push.md`](pr-and-push.md) → *Creating a PR* (incl. milestone picklist order). Claude specifics: after `gh pr create`, propose the `/azp run` pipeline [`ci-tests.md`](ci-tests.md) → *Scoped pipeline vs `test-all`* picks and wait for confirmation; fork PRs need `maintainerCanModify: true` for follow-ups — else stop and ask.
 
 ### Docker containers: start/stop/create only
 

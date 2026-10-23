@@ -50,7 +50,7 @@ Consequences worth remembering:
 
 ## When to propose a CI run
 
-- **After `gh pr create` (new PR)** — propose once, default to `/azp run test-all`. Skip if the PR is draft and the user has said they want more local iteration before inviting CI attention.
+- **After `gh pr create` (new PR)** — propose once, the pipeline *Scoped pipeline vs `test-all`* below picks: `test-all` unless the change maps to one database. Skip if the PR is draft and the user has said they want more local iteration before inviting CI attention.
 - **After pushing new commits that move SQL emission on an active PR** — the prior CI baselines are stale; offer a follow-up run (`/azp run test-<affected-provider>` is usually enough). **Note that baseline updates land incrementally per provider config** — a recent commit on `baselines/pr_<n>` doesn't mean every file is current. To check whether a specific baseline file reflects the latest fix, `git -C ../linq2db.baselines log -1 --format='%H %ai %s' -- <path-to-baseline>`; if the timestamp predates the fix push, that file is stale and the corresponding CI provider job hasn't run yet.
 - **When the user asks "does this pass on X?"** for a provider that isn't set up locally — propose `/azp run test-<X>` instead of spinning the provider up.
 
