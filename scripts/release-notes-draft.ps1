@@ -42,6 +42,24 @@ Actions
               Out: { ok, page, sectionAction, diffPath, bulletCount,
                      deepDiveCount }
 
+  omit        Persist an omit decision: upsert an omit-flagged, prose-less draft
+              on each PR (head SHA looked up per PR).
+              In:  -Prs <n>[,<n>…] [-Repo]
+              Out: { ok, results[]: { pr, ok, commentId, created } }
+
+  build-manifest  Turn the harvested drafts into the cumulative apply-wiki
+              manifest. Parses each non-omitted draft's full text:
+              `**<Component> — <type>**` headers (type: ⚠ Breaking changes /
+              Added / Improved / Fixed) over `- ` bullets, and a
+              `**Provider bullets**` block of `- **<Component>** — <text>`
+              bullets (type Fixed; a text starting `known limitation:` goes to
+              "Known limitations"). Indented continuation lines and code fences
+              stay with their bullet.
+              In:  -Milestone <ver> [-Version] [-WikiClone]   (run harvest first)
+              Out: { ok, manifestFile, bulletCount, components{} } — exit 1 on
+                   any unparseable draft, listing them in errors[]
+              File: .build/.agents/release-<ver>-apply-wiki.json
+
   sweep-plan  Find milestone PRs missing a draft comment and/or missing from
               the wiki notes (orphan sweep — catches user-merged PRs).
               In:  -Milestone <ver> [-PlanFile] [-WikiClone] [-Repo] [-Version]
@@ -56,10 +74,11 @@ Marker scheme mirrors `release-state.ps1` (start/end + machine block).
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('find','upsert','harvest','apply-wiki','sweep-plan')]
+    [Parameter(Mandatory)][ValidateSet('find','upsert','harvest','apply-wiki','sweep-plan','omit','build-manifest')]
     [string]$Action,
 
     [int]$Pr,
+    [int[]]$Prs,
     [string]$Milestone,
     [string]$Repo = 'linq2db/linq2db',
     [string]$Version,
@@ -504,6 +523,83 @@ function Do-Upsert {
     }
 }
 
+function Do-Omit {
+    $list = @($Prs | Where-Object { $_ -gt 0 })
+    if (-not $list) { Exit-WithError '-Prs <n>[,<n>…] required for omit' }
+    $results = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($n in $list) {
+        $sha = Invoke-Gh -ArgumentList @('pr','view',[string]$n,'--repo',$Repo,'--json','headRefOid','--jq','.headRefOid')
+        if (-not $sha.ok) { $results.Add([ordered]@{ pr = $n; ok = $false; error = "head lookup failed: $($sha.error)" }) | Out-Null; continue }
+        $body = Build-CommentBody -PrNumber $n -LastSha $sha.stdout.Trim() -Omit $true -IncludeBrief $false -FullText '' -BriefText ''
+        $existing = Find-DraftComment -PrNumber $n -RepoFull $Repo
+        if ($existing) {
+            $res = Set-IssueComment -CommentId $existing.id -RepoFull $Repo -Body $body
+            $results.Add([ordered]@{ pr = $n; ok = $res.verifyOk; commentId = $existing.id; created = $false }) | Out-Null
+        } else {
+            $posted = Add-IssueComment -PrNumber $n -RepoFull $Repo -Body $body
+            $results.Add([ordered]@{ pr = $n; ok = $true; commentId = $posted.id; created = $true }) | Out-Null
+        }
+    }
+    $allOk = -not ($results | Where-Object { -not $_.ok })
+    Write-JsonOutput ([ordered]@{ ok = $allOk; action = 'omit'; results = $results.ToArray() })
+    if (-not $allOk) { exit 1 }
+}
+
+function Do-BuildManifest {
+    if (-not $Version) { Exit-WithError '-Milestone (or -Version) required for build-manifest' }
+    $harvestPath = Join-Path (Get-WorkDir) "release-$Version-notes-harvest.json"
+    if (-not (Test-Path -LiteralPath $harvestPath)) { Exit-WithError "harvest file not found: $harvestPath — run -Action harvest first" }
+    $h = [System.IO.File]::ReadAllText($harvestPath, [System.Text.UTF8Encoding]::new($false)) | ConvertFrom-Json
+    $typeMap = @{ '⚠ Breaking changes' = 'Breaking'; 'Added' = 'Added'; 'Improved' = 'Improved'; 'Fixed' = 'Fixed' }
+    $bullets = New-Object 'System.Collections.Generic.List[object]'
+    $errors  = New-Object 'System.Collections.Generic.List[string]'
+
+    $flush = {
+        param($prNum, $comp, $type, $buf)
+        if (-not $buf) { return }
+        $text = (($buf -join "`n").TrimEnd()) -replace '^- ', ''
+        if ($comp -eq '*provider*') {
+            if ($text -notmatch '^\*\*(?<c>[^*]+)\*\* — (?<t>[\s\S]*)$') { $errors.Add("#${prNum}: provider bullet not '- **<Component>** — <text>'"); return }
+            $comp = $Matches.c; $text = $Matches.t
+            if ($text -match '^known limitation: (?<t>[\s\S]*)$') { $type = 'Known limitations'; $text = $Matches.t }
+            $text = $text.Substring(0, 1).ToUpperInvariant() + $text.Substring(1)
+        }
+        if (-not $comp -or -not $type) { $errors.Add("#${prNum}: bullet outside a component header"); return }
+        $bullets.Add([ordered]@{ pr = $prNum; component = $comp; changeType = $type; text = $text; url = "https://github.com/$Repo/pull/$prNum" }) | Out-Null
+    }
+
+    foreach ($it in @($h.items) | Where-Object { $_.hasDraft -and -not $_.omit }) {
+        $prNum = [int]$it.pr; $comp = $null; $type = $null; $buf = $null
+        foreach ($line in ([string]$it.fullText -split "`r?`n")) {
+            if ($line -match '^\*\*Provider bullets\*\*\s*$') {
+                & $flush $prNum $comp $type $buf; $buf = $null; $comp = '*provider*'; $type = 'Fixed'; continue
+            }
+            if ($line -match '^\*\*(?<c>.+?) — (?<t>.+?)\*\*\s*$') {
+                & $flush $prNum $comp $type $buf; $buf = $null
+                $comp = $Matches.c; $type = $typeMap[$Matches.t]
+                if (-not $type) { $errors.Add("#${prNum}: unknown change type '$($Matches.t)'") }
+                continue
+            }
+            if ($line -match '^- ') { & $flush $prNum $comp $type $buf; $buf = @($line); continue }
+            if ($null -ne $buf) { $buf += $line }
+            elseif ($line.Trim()) { $errors.Add("#${prNum}: text outside a bullet: $line") }
+        }
+        & $flush $prNum $comp $type $buf
+    }
+
+    if ($errors.Count) {
+        Write-JsonOutput ([ordered]@{ ok = $false; action = 'build-manifest'; errors = $errors.ToArray() })
+        exit 1
+    }
+    $clone = if ($WikiClone) { $WikiClone } else { '../linq2db.wiki' }
+    $manifest = [ordered]@{ version = $Version; wikiClone = $clone; prBullets = $bullets.ToArray(); deepDives = @() }
+    $manifestPath = Join-Path (Get-WorkDir) "release-$Version-apply-wiki.json"
+    [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+    $byComp = [ordered]@{}
+    foreach ($b in $bullets) { $byComp[$b.component] = 1 + [int]$byComp[$b.component] }
+    Write-JsonOutput ([ordered]@{ ok = $true; action = 'build-manifest'; manifestFile = $manifestPath; bulletCount = $bullets.Count; components = $byComp })
+}
+
 function Do-Harvest {
     if (-not $Milestone) { Exit-WithError '-Milestone required for harvest' }
     $prs = Resolve-MilestonePRs -RepoFull $Repo -Title $Milestone -Plan $PlanFile
@@ -644,5 +740,7 @@ switch ($Action) {
     'harvest'    { Do-Harvest }
     'apply-wiki' { Do-ApplyWiki }
     'sweep-plan' { Do-SweepPlan }
+    'omit'           { Do-Omit }
+    'build-manifest' { Do-BuildManifest }
     default      { Exit-WithError "unknown action: $Action" }
 }

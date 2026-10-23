@@ -53,13 +53,15 @@ Same applies whenever a new sub-skill is added or an existing one materially cha
    - Tell the user: "ready to create branch `release-prep/<ver>` from `origin/master`, plus PR `Release prep <ver>` (draft, assigned to @me, milestone `<ver>`, body = initial checklist). Confirm to proceed."
    - On confirmation:
      - `git fetch origin master`.
-     - `git switch -c release-prep/<ver> origin/master`.
+     - Create the branch in a worktree, not by switching the primary clone (`agent-rules.md` → *Creating a new branch*): `git worktree add -b release-prep/<ver> <worktrees-root>/<ver>-release-prep origin/master`. Every later task (edits, builds, `/api-baselines repoRoot`) targets that worktree. Push with `-u origin release-prep/<ver>` — the new branch tracks `origin/master` until then.
      - Apply `/version-bump`'s edit logic on `release-prep/<ver>` (see step 1a below — do **not** invoke the `/version-bump` skill unchanged here, since that would create the `infra/bump-versions` branch, which is wrong for release prep).
      - Commit the version bump on `release-prep/<ver>` (not `infra/bump-versions` for this case).
      - Push, create the prep PR with the initial checklist body, assign milestone.
      - Tick `[x] 0. Branch + version bump`.
 
 **1a. `/version-bump` on the prep branch.** Existing `/version-bump` creates `infra/bump-versions` and edits `Directory.Build.props`. For the release-prep flow, perform the same edits on the already-created `release-prep/<ver>` branch instead. The edit logic (set `<Version>` to milestone, increment each `<EFxVersion>` minor by 1, one batched Edit) is identical — just the branch is different. Do not create `infra/bump-versions` here. Tell the user this explicitly when dispatching: "running /version-bump's edit logic on release-prep/<ver>, not on a separate infra/bump-versions branch — same edits, different branch."
+
+**Patch release when master is already bumped.** After a release, master's `<Version>` is moved to the next minor and every `<EFxVersion>` is raised — those EF versions are not released yet. A patch milestone (`M.m.p`, `p > 0`) cut from such a master sets `<Version>` **down** to the patch version and leaves every `<EFxVersion>` **unchanged**; raising them again would skip a version that never shipped. `/release-postpublish`'s next-version bump then restores master's next minor and raises EF from there. (6.5.1: master at 6.6.0 / EF3 3.35.0 → `Version` 6.5.1, EF untouched.)
 
 ### 2. Load state
 
@@ -146,6 +148,8 @@ For each user pick (or the "next recommended" task):
 
    - Task 2 (`/release-publicapi`) normally builds in its own step 1 to surface RS0016/RS0017 diagnostics. Once task 6 has run, those diagnostics are already addressed (or recorded in `Unshipped.txt`), so task 2 can move `Unshipped → Shipped` without re-building.
    - Task 4 (`/release-test-matrix`) tests built artifacts; task 6 produces the verified-clean build the matrix exercises.
+
+   **Hold task 6 while a milestone fix is still in flight.** A late fix merging after task 6 forces a master merge into the prep branch, a second verification build, regenerated API baselines and a re-applied wiki section. When an open PR is still headed for this milestone (a regression found during prep, say), close the other tasks and wait for it to merge before dispatching task 6. (6.5.1: #6116 was in flight when task 6 started; the build was redone.)
 
    `/release-verify` runs the only Release build of the release-prep cycle (no other sub-skill is allowed to run a verification build). It owns the `build → fix-or-disable analyzer errors → /api-baselines refresh → consolidated commit` loop end-to-end and runs **once** per release prep. If the user picks task 6 before tasks 1/3/5 are done, refuse and surface the open prerequisites first.
 
