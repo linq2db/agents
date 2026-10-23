@@ -118,7 +118,11 @@ Input (named parameters):
                            -NoBuild); the rest pass -NoBuild. For a probe or sweep across
                            providers, where a combined run's failures cannot be told apart
                            by provider at a glance and one database is driven by one
-                           process at a time. Exclusive with -LogPath.
+                           process at a time. Exclusive with -LogPath. Refuses a
+                           `.LinqService` provider: run on its own it executes only
+                           CreateDatabase, so the remote cases and the remote-vs-direct
+                           baselines check silently never run. Verify remote cases with
+                           a combined run (direct + .LinqService in one -Provider list).
   -GroupFailures           optional; adds `failureGroups`: every failure (not just the
                            first -MaxFailures) grouped by test METHOD, with a count and
                            the first message line. For triaging a broad sweep, where a
@@ -208,6 +212,10 @@ $Provider = @($Provider | ForEach-Object { $_ -split ',' } | ForEach-Object { $_
 if ($PerProvider) {
     if ($Provider.Count -lt 1) { Exit-WithError -Message '-PerProvider needs -Provider' -NextAction 'pass -Provider a,b,c' }
     if ($LogPath)             { Exit-WithError -Message '-PerProvider writes one log per provider; drop -LogPath' -NextAction 'omit -LogPath' }
+    # A .LinqService provider run on its own executes only CreateDatabase (observed on #6116), so its remote cases and
+    # the remote-vs-direct baselines check never run.
+    $remote = @($Provider | Where-Object { $_ -like '*.LinqService' })
+    if ($remote.Count -gt 0) { Exit-WithError -Message "-PerProvider cannot run a remote provider apart from its direct one: $($remote -join ', ')" -NextAction 'drop -PerProvider and pass the direct and .LinqService providers in one run' }
 
     $passThrough = @()
     foreach ($kv in $PSBoundParameters.GetEnumerator()) {
