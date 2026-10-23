@@ -201,7 +201,8 @@ Action:
 Preconditions:
 - Steps 1, 2, 3 `done` and step 4 `green`.
 - User explicitly typed `tests green, proceed`.
-- **The release PR's own CI has finished green** — its Azure `default` run included. Wait for it even when the head's tree equals the tested prep-PR build: that run has jobs only a `release`-targeting PR triggers (6.4.0's #5743 / #5744 surfaced there), so a green prep PR does not cover it. Merging early ships before that signal arrives. It does **not** lose the baselines: Azure keeps the run going after the merge and it still writes `baselines/pr_<release-pr>` for step 6 — so don't open a replacement run unless that run actually died (recovery: *Release PR's baselines run did not complete* below). (6.5.1: #6123 merged with build 24621 still running; 24621 carried on.)
+- **Do not wait for the release PR's provider matrix or its baselines.** Merge as soon as steps 1–4 hold; the baselines (steps 6–7) are the *last* thing the release does, running alongside `/release-postpublish`. Azure does not cancel the release PR's `default` run when the PR merges — unlike a push to a PR — so it carries on and still writes `baselines/pr_<release-pr>`. Waiting for it used to hold the release for hours (~18 h wall-clock on 6.5.0). Don't open a replacement run unless that run actually died (recovery: *Release PR's baselines run did not complete* below). (Adopted on 6.5.1: #6123 merged with build 24621 running; 24621 carried on.)
+- **Still read that run when it finishes.** It has jobs only a `release`-targeting PR triggers (6.4.0's #5743 / #5744 surfaced there). A red one is triaged like any post-release regression — a fix on `master` and, if users are affected, a patch release — not a reason to hold the merge.
 
 Action:
 1. Verify mergeability:
@@ -221,7 +222,7 @@ Action:
    - Update step status `done`.
    - Update `state.currentPhase = 'postpublish'`.
    - Dispatch to `Skill('release-postpublish')` to start the publish flow (official nuget upload, docs PR, GitHub release).
-   - Steps 6 + 7 (baselines) remain `open` in the publish-phase state; the orchestrator tracks them as parallel work alongside postpublish. They don't block postpublish progress.
+   - Steps 6 + 7 (baselines) remain `open` in the publish-phase state; the orchestrator tracks them as parallel work alongside postpublish. They don't block postpublish progress — expect them to be the release's last step, since the release PR's `default` run is still going.
 
 ### 6. Merge CI-generated baselines PR
 
