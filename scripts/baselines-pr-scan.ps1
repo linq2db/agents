@@ -36,6 +36,10 @@ Parameters
                        (e.g. `^\s*ORDER BY` , `\bas \[c\d+\]`).
   -IdentifierPrefixes  default `@:?$` — characters that introduce a parameter
                        identifier across providers. Used by the normaliser.
+  -StripWrapper <fn>   a SQL function name (e.g. `toDateTime64`). Each changed
+                       line pair is compared again with every `<fn>(inner, …last)`
+                       call replaced by `inner`, nested calls included; see
+                       `wrapper` below. Omitted: `wrapper` is null.
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
   -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
@@ -86,6 +90,13 @@ aliases?", which `renames` cannot: an alias has no identifier prefix, so every a
 mismatch there. A modified file is alias-only when both sides of its change-block read the same
 with identifiers collapsed and `as <alias>` dropped; `otherFiles` = 0 means the delta renames
 columns and changes nothing else.
+
+`wrapper` ({ function, pairs, wrapperOnlyPairs, otherPairs, otherSamples }) answers "does this
+delta only add or remove a wrapping call?", which `permutation` and `renames` cannot: a wrap
+rewrites every line it touches. `pairs` counts the line pairs of symmetric change-blocks, and
+`otherPairs` the ones that still differ once the wrapper is stripped. Those carry a real change,
+such as a literal written at another precision inside the wrap. (#6116: 653 of 659 pairs were
+wrap-only, and the 6 left were the review's defect.)
 
 `renames.mismatches` counts changed line-pairs that still differ after
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
@@ -141,6 +152,7 @@ param(
     [string]   $BaseRef            = 'origin/master',
     [string]   $Signal             = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
+    [string]   $StripWrapper,
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
     [int]      $MaxImpureFiles     = 25,
@@ -337,6 +349,38 @@ function Get-AliasShape([System.Collections.Generic.List[string]]$Lines) {
     return ($tokens -join ' ')
 }
 
+$wrapperPairs   = 0
+$wrapperOther   = 0
+$wrapperSamples = [System.Collections.Generic.List[object]]::new()
+
+# Replaces each `<fn>(inner, last)` with `inner`, innermost call first, so a nested wrap collapses too. A call with no
+# top-level comma is kept, under a placeholder name so the loop terminates. Quotes are honoured: a comma or parenthesis
+# inside a string literal does not count.
+function Remove-Wrapper([string]$Text, [string]$Fn) {
+    $open = "$Fn("; $hold = "`u{0001}("
+    while ($true) {
+        $i = $Text.LastIndexOf($open, [System.StringComparison]::Ordinal)
+        if ($i -lt 0) { break }
+        $start = $i + $open.Length
+        $depth = 1; $inStr = $false; $j = $start; $lastComma = -1
+        while ($j -lt $Text.Length -and $depth -gt 0) {
+            $c = $Text[$j]
+            if ($inStr) { if ($c -eq "'") { $inStr = $false } }
+            elseif ($c -eq "'") { $inStr = $true }
+            elseif ($c -eq '(') { $depth++ }
+            elseif ($c -eq ')') { $depth-- }
+            elseif ($c -eq ',' -and $depth -eq 1) { $lastComma = $j }
+            $j++
+        }
+        if ($depth -ne 0 -or $lastComma -lt 0) {
+            $Text = $Text.Substring(0, $i) + $hold + $Text.Substring($start)
+            continue
+        }
+        $Text = $Text.Substring(0, $i) + $Text.Substring($start, $lastComma - $start).Trim() + $Text.Substring($j)
+    }
+    return $Text.Replace($hold, $open)
+}
+
 $curFile = $null
 $add = [System.Collections.Generic.List[string]]::new()
 $del = [System.Collections.Generic.List[string]]::new()
@@ -423,6 +467,15 @@ function Flush-File {
 
     for ($i = 0; $i -lt $Added.Count; $i++) {
         $a = $Added[$i]; $d = $Removed[$i]
+        if ($script:StripWrapper) {
+            $script:wrapperPairs++
+            if (-not [string]::Equals((Remove-Wrapper $a $script:StripWrapper), (Remove-Wrapper $d $script:StripWrapper), [System.StringComparison]::Ordinal)) {
+                $script:wrapperOther++
+                if ($script:wrapperSamples.Count -lt 25) {
+                    $script:wrapperSamples.Add([pscustomobject]@{ file = $File; old = $d; new = $a })
+                }
+            }
+        }
         if ([string]::Equals($script:normRe.Replace($a, 'X'), $script:normRe.Replace($d, 'X'), [System.StringComparison]::Ordinal)) {
             $am = $script:normRe.Matches($a); $dm = $script:normRe.Matches($d)
             if ($am.Count -ne $dm.Count) { continue }
@@ -589,6 +642,15 @@ $result = [ordered]@{
         otherFiles     = $aliasOther.Count
         otherSamples   = @($aliasOther | Select-Object -First 25)
     }
+    wrapper   = if ($StripWrapper) {
+        [ordered]@{
+            function         = $StripWrapper
+            pairs            = $wrapperPairs
+            wrapperOnlyPairs = $wrapperPairs - $wrapperOther
+            otherPairs       = $wrapperOther
+            otherSamples     = @($wrapperSamples)
+        }
+    } else { $null }
 }
 
 Write-JsonOutput -InputObject $result -Depth 6 -OutFile $OutFile -Summary ([ordered]@{
