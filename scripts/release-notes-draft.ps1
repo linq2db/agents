@@ -366,7 +366,10 @@ function Build-VersionSection {
                 if (-not $skipLink -and $deepDiveAnchorByPr.ContainsKey([int]$b.pr)) {
                     $txt = $txt.TrimEnd() + " See [details](#$($deepDiveAnchorByPr[[int]$b.pr])) below."
                 }
-                [void]$lines.Add("- $txt ($ref)")
+                # A bullet ending in a code fence would get the citation glued onto the closing ```,
+                # which breaks the fence; put it on its own continuation line instead.
+                if ($txt -match '```\s*$') { [void]$lines.Add("- $txt`n`n  ($ref)") }
+                else                       { [void]$lines.Add("- $txt ($ref)") }
             }
             [void]$lines.Add('')
         }
