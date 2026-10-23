@@ -523,13 +523,13 @@ When the API is genuinely missing on an older TFM, **prefer enabling the matchin
 
 ## Analyzers are Release-only — build Release before push when a change can trip one
 
-Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). So a `dotnet build -c Testing` / `/test` run can be fully green while CI's Release `build` leg fails. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
+Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). **CI runs none of them**: Azure sets `with_analyzers: false` and the GitHub `build.yml` passes `-p:RunAnalyzersDuringBuild=false` (re-enabling is [#6118](https://github.com/linq2db/linq2db/issues/6118)). So a violation passes every CI check and surfaces only in the next local Release build — usually release prep's `/release-verify`, on someone else's file. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
 ```
 
-(net10.0 alone is enough to surface the diagnostic — analyzers are TFM-independent.) Otherwise CI fails on e.g. `MA0186` (Equals parameter missing `[NotNullWhen(true)]`) after a green local run, costing a red CI cycle.
+(net10.0 alone surfaces most diagnostics, but not all — `NUnit4001` fired only on net462 in 6.5.1, where `MidpointRounding` has two members.) A test-only change needs the same check against `Tests/Linq/Tests.csproj`.
 
 **Untracked scratch probes fail the pre-push Release build of `Tests/Linq`.** A probe fixture left under `Tests/Linq/` (never committed, so CI never sees it) compiles into the local Release build, and its analyzer findings are errors there — `IDE0200` on a probe's lambda failed it on #5959 while every tracked file was clean. Move the probes out of the project (e.g. into the worktree's `.build/.agents/`) for the Release build and back afterwards, rather than fixing scratch code or reading the red as the branch's.
 
