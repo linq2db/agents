@@ -525,7 +525,7 @@ When the API is genuinely missing on an older TFM, **prefer enabling the matchin
 
 ## Analyzers are Release-only — build Release before push when a change can trip one
 
-Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). **CI runs none of them**: Azure sets `with_analyzers: false` and the GitHub `build.yml` passes `-p:RunAnalyzersDuringBuild=false` (re-enabling is [#6118](https://github.com/linq2db/linq2db/issues/6118)). So a violation passes every CI check and surfaces only in the next local Release build — usually release prep's `/release-verify`, on someone else's file. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
+Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). CI runs them in its Release solution build only — Azure `build` (`with_analyzers: true`) and the GitHub `Build and pack` job, since [#6118](https://github.com/linq2db/linq2db/issues/6118) — so a violation fails the PR's required `build` check, a 20–40 minute round-trip after the push. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
@@ -557,10 +557,10 @@ The line's own comment says it is "also required for xml-doc validation". So eve
 - **The pre-push Release build must target the project you edited.** The `Source/LinqToDB/LinqToDB.csproj` command in the section above structurally cannot see a doc comment under `Tests/`. For a doc-comment change in the test suite:
 
 ```
-dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=false
 ```
 
-Both flags match what PR CI passes (`build.yml` sets `with_analyzers: false`), so this reproduces that leg exactly — ~3.5 min warm against a red CI cycle.
+That matches what PR CI passes — analyzers on, API analyzers off — so the same build also catches the analyzer findings that leg would fail on.
 
 (#5750: a `<see cref="TranslationProviderFlags.CanLowerIntervalShift"/>` added to `IntervalTranslationTests.Arithmetic.cs`, a file with no `using LinqToDB.Linq.Translation;`, passed a full green `test-all` and failed the `build` check with `CS1574` on all four TFMs.)
 

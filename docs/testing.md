@@ -190,7 +190,7 @@ Because the CLI multi-targets `net8.0;net9.0;net10.0` and `Testing` collapses to
 `Tests/Tests.FpuJit` is a net462 x86 console exe, not an NUnit project, run by the `x86 FPU-unmasked JIT sweep` job in `.github/workflows/build.yml` on every PR. With FP exceptions unmasked (as C++Builder / Delphi hosts leave them) it `PrepareMethod`s every method of every shipped assembly with a .NET Framework target, and fails on any method the x86 .NET Framework JIT cannot compile — in practice a `NaN` / `±Infinity` constant or a `double.IsPositiveInfinity` / `IsNegativeInfinity` compare. Build the special values with `Internal/Common/FloatingPointHelper` instead (#6051). `/test` does not run it; locally, on Windows:
 
 ```bash
-dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunApiAnalyzersDuringBuild=false
 .build/bin/Tests.FpuJit/Release/net462/linq2db.Tests.FpuJit.exe
 ```
 
