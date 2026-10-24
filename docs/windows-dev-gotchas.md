@@ -525,7 +525,7 @@ When the API is genuinely missing on an older TFM, **prefer enabling the matchin
 
 ## Analyzers are Release-only — build Release before push when a change can trip one
 
-Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). CI runs them in its Release solution build only — Azure `build` (`with_analyzers: true`) and the GitHub `Build and pack` job, since [#6118](https://github.com/linq2db/linq2db/issues/6118) — so a violation fails the PR's required `build` check, a 20–40 minute round-trip after the push. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
+Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). CI runs them in its Release solution build only — Azure `build` (`with_analyzers: true`) and the GitHub `Build and pack` job, since [#5883](https://github.com/linq2db/linq2db/issues/5883) — so a violation fails the PR's required `build` check, a 20–40 minute round-trip after the push. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
