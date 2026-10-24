@@ -9,6 +9,8 @@ The `[*.{cs,vb}]` section has three relevant regions:
 - **Catch-up catalog** — every enforced rule as `severity = error`, with deferred / disabled ones sitting inline at `none` plus a justification comment. New analyzer-package rules are auto-added here as `error` and walked during `/release-verify`.
 - **"inactive diagnostics (explicitly configured)"** — older rules permanently `none`, grouped by reason headers (`# too aggressive`, `# Lots of false positives`, `# slow`, …).
 - **`[Tests/**]` override** — rules relaxed to `none` for test code only (e.g. MA0111, MA0150, MA0186), so source can enforce a rule without forcing test code to comply.
+- **Sub-tree overrides go per rule ID.** A nested `.editorconfig` (e.g. `Examples/.editorconfig`) cannot blanket-disable with `dotnet_analyzer_diagnostic.severity = none`: the root's per-ID `dotnet_diagnostic.<ID>.severity = error` wins over the generic key even from a nearer file. Relax rule by rule, as `[Tests/**]` does. Executables (`Source/LinqToDB.CLI`, `Examples/**`) turn off CA2007 / MA0004 — `ConfigureAwait` is a library concern (#5945).
+- **Culture-invariant formatting in multi-TFM code: `.ToString(CultureInfo.InvariantCulture)`.** `FormattableString.Invariant` trips MA0111 (an error outside `[Tests/**]`) on net6+, and `string.Create(IFormatProvider, …)` does not exist on net462, so the explicit `ToString` is the one form that satisfies MA0075 / MA0076 / CA1305 on every TFM (#5945).
 
 To **enable / fix** a rule: set `= error` (and move it out of the inactive section into the catalog if it lived there); if test code shouldn't be forced to comply, add `<rule> = none` to `[Tests/**]`.
 

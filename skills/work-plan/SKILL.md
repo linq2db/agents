@@ -43,7 +43,7 @@ Invoked directly, or by `/fix-issue` after the branch exists and existing test c
 2. **If a plan already exists, switch to `amend` mode. Never overwrite one.** `-Action init` refuses an existing plan unless `-Force`, and `-Force` is the user's call, not yours.
 3. If the branch does not exist yet, stop and say so — the branch comes first (agent-rules → *Creating a new branch*). Do not create it from here.
 
-**In a worktree, the plan lands in that worktree's own `.claude/` checkout**, which the `post-checkout` hook bootstraps on a detached HEAD. Before committing a plan from a worktree, `git -C <worktree>/.claude switch master` — otherwise the commit is stranded. See [`worktree.md`](../../docs/worktree.md).
+**In a worktree, the plan lands in that worktree's own `.claude/` checkout**, which the `post-checkout` hook bootstraps on `master`. Before committing a plan from a worktree, confirm with `git -C <worktree>/.claude status -sb` (a primary clone predating #5821 leaves it detached — `switch master` first, otherwise the commit is stranded). See [`worktree.md`](../../docs/worktree.md).
 
 ### 2. Classify the tier
 
