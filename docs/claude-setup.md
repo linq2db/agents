@@ -60,6 +60,8 @@ Settings precedence: project-local `.claude/settings.local.json` > user-level `~
 
 **A rejected corpus push while another session has uncommitted corpus edits: merge, don't rebase.** `git -C .claude pull --rebase` refuses on a dirty tree, and `--autostash` stashes and restores the other session's file under it. Run `git -C .claude fetch origin master`, check that `git -C .claude diff --name-only HEAD...origin/master` doesn't overlap the dirty files, then `git -C .claude merge --no-edit origin/master` and push. The merge leaves their working-tree files untouched. (#5983 round 5.)
 
+**Your own commit, clean tree: one call.** When the rejected push carries only commits you made, `corpus-push-one.ps1 -Commit <sha>` (once per commit, oldest first) fetches, rebuilds on `origin/master` and pushes, with no merge commit; then `git -C .claude pull --rebase origin master`. Hand-roll the fetch → diff → merge sequence above only when another session's uncommitted edits are in the tree. (#6130: four rejected pushes in one session cost 16 calls and three merge commits.)
+
 ## Agent-agnostic corpus guidance lives elsewhere
 
 Guidance that applies to **any** agent maintaining this corpus — authoring long instruction docs ("lost in the middle" placement), the supply-chain risk of editing skills/hooks/agents, and the eval-harness proposal — has moved to [`maintaining-the-corpus.md`](maintaining-the-corpus.md). The rule for treating untrusted fetched agent/editor config as executable is in [`AGENTS.md`](../AGENTS.md) → *Security*. This file keeps only the Claude-Code-specific harness mechanics below.
