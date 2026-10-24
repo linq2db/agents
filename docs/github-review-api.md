@@ -160,6 +160,7 @@ mutation($rid:ID!, $path:String!, $body:String!) {
 - `subjectType` accepts `LINE` or `FILE`. For file-level findings always pass `FILE`.
 - `path` and `body` are strings. `line` / `side` / `startLine` / `startSide` are omitted for `FILE`.
 - Input fields verified via introspection on 2026-04-19: `clientMutationId, path, body, pullRequestId, pullRequestReviewId, line, side, startLine, startSide, subjectType`.
+- **A `null` thread with no `errors` usually means the review is no longer pending.** The mutation attaches only to a `PENDING` review. Once the user has submitted it, every call returns `{"thread": null}`, with LINE or FILE, `-f` or `-F`. Check `gh api repos/<o>/<r>/pulls/<n>/reviews/<id> --jq '{state, submitted_at}'` before appending, and send a late finding as a new review or a PR comment instead. A path outside the PR diff fails the same silent way. (#6121: four retries in different argument shapes, all null, before the state check showed `COMMENTED`.)
 
 Returns `thread.id` and the comment's `databaseId`, both useful for later edits or resolves. The file-level comment becomes part of the pending review and is submitted together with the rest when the reviewer clicks "Finish your review" on GitHub.
 
