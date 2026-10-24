@@ -24,7 +24,7 @@ it looks:
 
 Usage (via the PowerShell tool, not wrapped in Bash):
 
-    # wait up to 3h, checking every 5 min, then print the job list
+    # wait up to 50 min, checking every 5 min, then print the job list
     .claude\scripts\azp-wait.ps1 -BuildId 23500
 
     # tighter loop for a short build
@@ -37,11 +37,15 @@ Output is a single JSON document: the build's final state plus one entry per Job
 timeline record. Exit codes are distinct so a caller can tell the cases apart
 without parsing: 0 = terminal state reached, 3 = timed out still waiting,
 1 = API failure.
+
+-TimeoutMinutes is capped at 50: the session's prompt cache expires after 1 hour,
+so a longer wait makes the next turn re-read the whole context. On exit 3,
+re-arm the wait (turn-conduct.md -> "Cap a background wait at 50 minutes").
 #>
 
 param(
     [Parameter(Mandatory)][int]$BuildId,
-    [int]$TimeoutMinutes = 180,
+    [ValidateRange(1, 50)][int]$TimeoutMinutes = 50,
     [int]$IntervalSeconds = 300,
     [switch]$UntilJobsAppear,
     [string]$Org = 'linq2db',
