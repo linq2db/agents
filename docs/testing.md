@@ -190,7 +190,7 @@ Because the CLI multi-targets `net8.0;net9.0;net10.0` and `Testing` collapses to
 `Tests/Tests.FpuJit` is a net462 x86 console exe, not an NUnit project, run by the `x86 FPU-unmasked JIT sweep` job in `.github/workflows/build.yml` on every PR. With FP exceptions unmasked (as C++Builder / Delphi hosts leave them) it `PrepareMethod`s every method of every shipped assembly with a .NET Framework target, and fails on any method the x86 .NET Framework JIT cannot compile — in practice a `NaN` / `±Infinity` constant or a `double.IsPositiveInfinity` / `IsNegativeInfinity` compare. Build the special values with `Internal/Common/FloatingPointHelper` instead (#6051). `/test` does not run it; locally, on Windows:
 
 ```bash
-dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunApiAnalyzersDuringBuild=false
 .build/bin/Tests.FpuJit/Release/net462/linq2db.Tests.FpuJit.exe
 ```
 
@@ -580,10 +580,11 @@ These are the maintainer's house rules for **new** test code, and they win over 
    - Set operations have no query-syntax form, so they stay `.Concat(...)` etc.
    - When a join sits on top of a set operation, wrap it: `from x in a.Concat(b) join …`.
 
-3. **`AssertQuery` instead of a hand-duplicated `AreEqual` expected.** `AreEqual(<LINQ-to-objects copy>, <db query>)` keeps two copies of the query that can drift apart. `AssertQuery(query)` derives the expected result from the same query, against the in-memory collections. Two cases where the rule does not apply:
+3. **`AssertQuery` instead of a hand-duplicated `AreEqual` expected.** `AreEqual(<LINQ-to-objects copy>, <db query>)` keeps two copies of the query that can drift apart. `AssertQuery(query)` derives the expected result from the same query, against the in-memory collections. Four cases where the rule does not apply:
    - **Scalar results.** A root `Any` / `All` / `Count` cannot go through `AssertQuery`. Use rule 1's form with an in-memory `expected` and `ShouldBe`.
    - **`object`-typed projections.** These need the explicit-comparer caveat in *Test Patterns* above.
    - **Scalar element types.** Still `AssertQuery`, but pass `EqualityComparer<T>.Default` (`<T?>` for a nullable result). The default comparer compares `T`'s public instance members: an `int`, `double`, `string` or `DateTime` has none, so every pair compares equal and the assertion checks only the row count ([#6099](https://github.com/linq2db/linq2db/issues/6099); #5943 MIN022: `DegreesOfIntTruncates` over `int`). A `decimal` has members, `Scale` included, so a provider returning `2.50` for an expected `2.5` fails instead (#5943: `Round16` on YDB). An anonymous-type projection is unaffected.
+   - **Aggregates over a navigation.** `AssertQuery` evaluates the expected side over tables it reads back from the database, and on that side `p.Children.Max(c => (int?)c.ChildID) == 11` came out false for every parent. It expected 7 rows where 6 were correct (#6121, `NegatedNullableAggregateComparisonFromSubquery`). Keep `AreEqual` with an explicit LINQ-to-Objects expected over the model collections, and say why in a one-line comment so a reviewer can tell it from a layout slip.
 
    What a conversion trades away: `AssertQuery` re-reads every table the query names (`TableName(…)` included) and runs the expected side over that read-back data, then compares count plus a two-way `Except` — order is not checked, and a value the database stored wrongly is wrong on both sides. So changing the test's data cannot prove a converted test can fail; prove it with a product mutation that forces a wrong value (#5943 round 5: away-from-zero answered to-even turned each converted `Round32`–`Round35` red). The actual query runs first, so a red and an `[ActiveIssue]` gate's exception are unchanged.
 
@@ -613,6 +614,8 @@ Review severity for a violation in added test code is `NIT`, with a `suggestion`
 **Naming in a feature fixture** binds hand-written tests too, not only `test-writer`'s: no `Issue<N>`-prefixed types or test names in a shared `<Feature>Tests.cs` — the issue goes in `[Test(Description = "<url>")]` only. Rule and severity: [`test-writer.md`](../agents/test-writer.md) → *Fixture lookup*, [`test-review-checklist.md`](test-review-checklist.md) → *`Issue<N>` names in a shared feature fixture*. (#6060)
 
 **Core behaviour is tested on the common models, not on a copy of the issue's.** Build the repro on `Tests/Model` (`Parent` / `Child` / `Person` …) and its pre-populated tables, and add a fixture-local type only for the shape the shared models lack — e.g. a base class and interface mapped onto the existing `Child` table, not new `Client` / `Contract` tables via `CreateLocalTable`. The shared data also gives an in-memory `expected` and a `[DataSources]` matrix for free. (#6109)
+
+**Asserting that a test helper's assertion fails needs NUnit's `Assert.Throws`, not `Should.Throw`.** NUnit records a failed `Assert.That` on the current test result before it throws `AssertionException`, so catching the exception does not un-fail the test. `Assert.Throws<AssertionException>(() => AssertQuery(…))` runs the delegate in `TestExecutionContext.IsolatedContext`, which uses a fresh result and discards the recorded failure; Shouldly's `Should.Throw` has no such isolation. This is the one deliberate exception to "Shouldly over `Assert`". (#6131, measured by decompiling NUnit 4.6.1 `Assert.Throws` / `CreateIsolatedContext`.)
 
 ## Constant vs parameter arguments in test queries
 

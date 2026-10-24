@@ -525,13 +525,15 @@ When the API is genuinely missing on an older TFM, **prefer enabling the matchin
 
 ## Analyzers are Release-only — build Release before push when a change can trip one
 
-Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). **CI runs none of them**: Azure sets `with_analyzers: false` and the GitHub `build.yml` passes `-p:RunAnalyzersDuringBuild=false` (re-enabling is [#6118](https://github.com/linq2db/linq2db/issues/6118)). So a violation passes every CI check and surfaces only in the next local Release build — usually release prep's `/release-verify`, on someone else's file. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
+Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in Release** (`Testing`/`Debug` fast-iteration skips them). CI runs them in its Release solution build only — Azure `build` (`with_analyzers: true`) and the GitHub `Build and pack` job, since [#5883](https://github.com/linq2db/linq2db/issues/5883) — so a violation fails the PR's required `build` check, a 20–40 minute round-trip after the push. Before pushing a change that can plausibly trip an analyzer — new/changed public API, `Equals`/`GetHashCode`, nullable annotations (`[NotNullWhen]` etc.), banned-API-adjacent calls — do one local Release build first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
 ```
 
 (net10.0 alone surfaces most diagnostics, but not all — `NUnit4001` fired only on net462 in 6.5.1, where `MidpointRounding` has two members.) A test-only change needs the same check against `Tests/Linq/Tests.csproj`.
+
+**A clean Release build of `linq2db.slnx` says nothing about `Tests.FpuJit`, `Tests.SingleFile` or `Tests.Playground`.** The solution excludes all three from its Release configuration (`<Build Solution="Release|*" Project="false" />`), so analyzer findings in them show up only in a build of the project itself — CI's FPU-sweep job and the single-file `publish -c Release`. Build the project directly when a change touches one. (#6130: the analyzer inventory needed a separate FpuJit build.)
 
 **Untracked scratch probes fail the pre-push Release build of `Tests/Linq`.** A probe fixture left under `Tests/Linq/` (never committed, so CI never sees it) compiles into the local Release build, and its analyzer findings are errors there — `IDE0200` on a probe's lambda failed it on #5959 while every tracked file was clean. Move the probes out of the project (e.g. into the worktree's `.build/.agents/`) for the Release build and back afterwards, rather than fixing scratch code or reading the red as the branch's.
 
@@ -557,10 +559,10 @@ The line's own comment says it is "also required for xml-doc validation". So eve
 - **The pre-push Release build must target the project you edited.** The `Source/LinqToDB/LinqToDB.csproj` command in the section above structurally cannot see a doc comment under `Tests/`. For a doc-comment change in the test suite:
 
 ```
-dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunAnalyzersDuringBuild=false -p:RunApiAnalyzersDuringBuild=false
+dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=false
 ```
 
-Both flags match what PR CI passes (`build.yml` sets `with_analyzers: false`), so this reproduces that leg exactly — ~3.5 min warm against a red CI cycle.
+That matches what PR CI passes — analyzers on, API analyzers off — so the same build also catches the analyzer findings that leg would fail on.
 
 (#5750: a `<see cref="TranslationProviderFlags.CanLowerIntervalShift"/>` added to `IntervalTranslationTests.Arithmetic.cs`, a file with no `using LinqToDB.Linq.Translation;`, passed a full green `test-all` and failed the `build` check with `CS1574` on all four TFMs.)
 

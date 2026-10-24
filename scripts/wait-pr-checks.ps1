@@ -25,6 +25,8 @@ and on 6.5.0 it did. Read exit 0 as "the DB-free coverage is in" and check the P
 separately before concluding anything about merging; azp-wait.ps1 is what waits on the Azure side.
 
 Launch it with run_in_background and wait for the completion notification; do not poll its output file.
+-TimeoutMinutes is capped at 50 (the session's prompt cache expires after 1 hour); on exit 2, re-arm it —
+turn-conduct.md -> "Cap a background wait at 50 minutes".
 
 .EXAMPLE
 & .claude/scripts/wait-pr-checks.ps1 -Pr 5873
@@ -39,7 +41,7 @@ Exit 0 = every gated leg SUCCESS. Exit 1 = at least one non-green. Exit 2 = time
 param(
 	[Parameter(Mandatory)][int]$Pr,
 	[string]$Repo = 'linq2db/linq2db',
-	[int]$TimeoutMinutes = 60,
+	[ValidateRange(1, 50)][int]$TimeoutMinutes = 50,
 	[int]$PollSeconds = 45,
 	# The DB-free gate from .github/workflows/build.yml. Override to wait on a subset.
 	[string[]]$Gate = @(
