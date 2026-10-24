@@ -141,6 +141,8 @@ This is the step that stops a design that violates an already-enforced rule.
 
 **When the change makes a value exact that used to be wrong in one direction, sweep every comparison against it — branches that never fired on master go live.** A threshold, latch or `>=` written against an over- or under-count was dead while the count was wrong, so nothing exercised it; making the count exact turns it on with no edit near it. List each comparison against the changed value as a `P7` row stating what it does once reachable. (#5964: an exact heartbeat `total` made `completed >= total` mark the run done before the last teardowns, and its early `_done` froze the file — the PR #5726 symptom; `P7` had called the latch "correct now" by reasoning.)
 
+**When the edit surface is "every read of a property", sweep the reads the receiver text hides.** A `builder.X` / `Builder.X` grep finds the qualified reads and misses two populations: the unqualified `X` inside the declaring type and every partial of it, and *alias* properties on other types whose getter returns the same value (`=> DataContext.X`). Have a scout count each population separately, and list the aliases it found by getter shape. (#5951: the issue's census of `ExpressionBuilder.MappingSchema` counted 35 qualified reads and missed 41 unqualified ones in the `ExpressionBuilder*.cs` partials; critic round 1 then found the `ParametersContext.MappingSchema` alias, whose five reads no scout had searched.)
+
 Frame each so **"I couldn't find it" is a valid answer** (agent-rules → *Frame subagent prompts to allow failure*), and require a `file:line` per finding plus the exact pattern searched. A scout that reports "localized" without naming its search has not answered.
 
 Run `git status` **and** `git -C <primary-clone>/.claude status` after the fan-out returns — subagent tool declarations are advisory, not enforced.
@@ -208,6 +210,7 @@ Ask both in the **same** prompt when both are missing — don't make the user an
 - **Forward every measurement you already hold, verbatim.** The critic cannot see your probes, so a fact you measured and withheld is one it will re-derive from documentation — and documentation is exactly what a careful critic reaches for.
 - **Label every fact `measured:` or `reasoned, unprobed:`.** A reasoned claim wearing the `measured` label buys silence on precisely the point that needed noise.
 - **Never pre-empt an objection by name.** Saying "this is fine because X" instructs the critic not to look there. A wrong `refuted` costs one visible re-author round; a suppressed correct objection costs the implementation.
+- **A model that helped design the plan is not an independent critic of that part.** When the critic's model also contributed design ideas earlier in the session (a design consult, a proposal you adopted), say so in `P12` beside the verdict, and dispatch the critic fresh — the plan and the code, never the design thread. (#5951: fable proposed the analyzer's trigger set, then critiqued the plan built on it for four rounds.)
 
 Reconcile by verdict:
 
