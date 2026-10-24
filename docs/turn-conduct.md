@@ -43,6 +43,8 @@ is not here: it lives in [`../CLAUDE.md`](../CLAUDE.md).
 
 - **Don't launch a run in the same parallel batch as the edits it depends on.** A failed `Edit` doesn't stop its sibling calls, so the run starts anyway and spends a full build on the unedited tree. The usual failure is *"File has not been read yet"*, after a `git checkout` / `reset` / `stash` — or a pwsh `ReadAllText` / `WriteAllText` in-place rewrite — changed the file since you last read it. Issue the edits, confirm each applied, and launch the run in the next turn. This is the launch-side counterpart of the bullet above. (#5983: happened twice in one review walk, each time costing a `Tests/Linq` build.)
 
+- **Re-query a remote state right before reporting it as current.** A CI check, a PR's mergeability or a build's queue position is a snapshot the moment you read it; carried into a later turn's "still waiting on X" it becomes a claim nobody re-checked. Before a status line names something as pending, queued or running, fetch it again in that turn — one `gh pr checks` / build-info call. (6.5.1: a docs build reported as `QUEUED` from a check ~40 min old had finished green; the user caught it — *"you sure docs waiting? it shows complete"*.)
+
 - **Waiting is not the default — keep doing the independent work.** Awaiting the notification means not *polling*; it doesn't mean ending the turn. If there is work that doesn't depend on the run's result and doesn't touch its tree (a corpus or plan edit, a CI check, a static sweep, preparing the next step's inputs), do it while the run is in flight. End the turn only when everything left depends on the result. (#5707: *"don't wait for run if we can continue"*.)
 
 ## Spending context
