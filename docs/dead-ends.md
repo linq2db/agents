@@ -4,6 +4,18 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## MAPPING: inputs that do not separate a handle's schema from the live one
+
+**Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):
+- a required association (`CanBeNull = false`) whose target gets a query filter in the scope — 1 row on both arms;
+- a missing row's member default through `DefaultIfEmpty` with `SetDefaultValue` in the scope — 0 on both;
+- a `SelectMany` without a result selector over a second handle whose snapshot alone maps an extra column — green on both;
+- an entity group key registered scalar in the scope, then navigated (`GroupBy(c => c).Select(g => g.Key.Parent.Value1)`) — green on both.
+
+**Failed because:** the filter's outer-join promotion in `AssociationHelper.cs:172-180` never takes effect — `ExpressionBuildVisitor.cs:1858-1861` gives every non-list association a definite optionality, so the flag is either preset (`:117`) or reset (`:367-370`). The missing-row value is read as NULL and defaulted by the reader with the runtime schema. The other two sites' schema choice is not observable through these shapes.
+
+**Don't re-attempt:** these inputs for a schema-source test. The sites stay fixed for consistency without a separating test (plan P10 L-9). See [`testing.md`](testing.md) → *Testing a build step against a schema-snapshot divergence* for the arrangements that do separate. (#5951)
+
 ## EXPR-TRANS: one descriptor decision in `SuggestColumnDescriptor` for both literals and parameters
 
 **Tried:** fixing a SQL Server regression — `MAX(datetimeCol) = @v` binding `@v` as `datetime2`, so a value read back from the column (`.003`) stopped matching — by removing the guard that withholds a coarse date/time descriptor reached through a computed value (MIN/MAX, COALESCE, value window functions).
