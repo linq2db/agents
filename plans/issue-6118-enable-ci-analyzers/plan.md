@@ -22,6 +22,6 @@ CI runs no Roslyn analyzers ([#6118](https://github.com/linq2db/linq2db/issues/6
 
 ## P9 Verification gates
 
-- G-01: pass (SC-1, SC-2) / blocked (SC-3) — no test code changes. SC-1: `dotnet build linq2db.slnx -c Release -p:RunApiAnalyzersDuringBuild=false` on `9516c1cb8`, 0 errors / 0 warnings; SC-2: `dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunApiAnalyzersDuringBuild=false`, 0 errors / 0 warnings. SC-3 waits on the PR's CI run
+- G-01: pass — no test code changes. SC-1: `dotnet build linq2db.slnx -c Release -p:RunApiAnalyzersDuringBuild=false` on `9516c1cb8`, 0 errors / 0 warnings; SC-2: `dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunApiAnalyzersDuringBuild=false`, 0 errors / 0 warnings. SC-3 on `972114bb2` (#6130): GitHub run 40112962420 all legs green, `Build and pack` 20.3 min (14.4 min on master run 40108371444 with analyzers off, timeout 60); Azure `build` 24646 succeeded, 39.3 min (timeout 120)
 - G-06: pass — `git diff --stat`: 3 files, 6+/8-, only the E-1..E-4 lines
 - G-07: n/a — nothing under `Tests/Tests.Playground/` touched
