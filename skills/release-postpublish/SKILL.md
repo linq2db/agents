@@ -44,11 +44,12 @@ Five ordered steps, recorded in `state.postpublish.steps.<key>` by **direct edit
 CI builds and publishes nugets on the release-branch merge. Packages can take **minutes** to appear on nuget.org — re-run as needed; this skill doesn't poll-wait.
 
 Action:
-1. Run the verifier:
+1. Run the verifier in **push-log mode** — it takes the expected list from the release build's push log and checks each package at its own version (see the warning below for why discovery mode is not enough):
    ```
-   pwsh -NoProfile -File .claude/scripts/release-nuget-verify.ps1 -Action verify -Version <ver>
+   pwsh -NoProfile -File .claude/scripts/azp-step-log.ps1 -BuildId <n> -StepName 'Publish to Nuget.org'
+   pwsh -NoProfile -File .claude/scripts/release-nuget-verify.ps1 -Action verify -PushLog <logPath> -WaitMinutes 45
    ```
-   The script:
+   Read `complete` / `counts.missing`, never `ok`. Expect a lag: on 6.5.1, 0 of 40 packages were listed 6 min after the push and all 40 after ~25 min — so `-WaitMinutes` (in the background) rather than a single check. Discovery mode (`-Version <ver>`, no `-PushLog`) remains for when no push log is available; there the script:
    - Discovers packable projects under `Source/` and `NuGet/` — every csproj that isn't `<IsPackable>false</IsPackable>`. Dedupes by `<PackageId>` (or filename fallback) — EF variants share an ID.
    - Parallel-queries `https://api.nuget.org/v3-flatcontainer/<id>/index.json` (listed versions only).
    - Reports per-package: `published` (target version found), `latestListed` (most recent listed version), `fetchStatus`.
@@ -75,7 +76,7 @@ Action:
 > ```
 > pwsh -NoProfile -File .claude/scripts/azp-step-log.ps1 -BuildId <n> -StepName 'Publish to Nuget.org'
 > ```
-> Grep the log for `Pushing <id>.<ver>.nupkg` and for `Your package was pushed.` — the two counts must match, with no `error` / `409` / `413`. That list is what to wait on. nuget.org indexing lags the push by minutes, so re-poll rather than reading a miss as a failed publish.
+> Grep the log for `Pushing <id>.<ver>.nupkg` and for `Your package was pushed.` — the two counts must match, with no `error` / `409` / `413`. That list is what to wait on — `release-nuget-verify.ps1 -PushLog <logPath>` reads it for you. nuget.org indexing lags the push by minutes, so re-poll rather than reading a miss as a failed publish.
 
 **If the discovery list looks wrong** (a package the user expects is missing from the table, or an unpackable project is included): the script's heuristic (csproj `<IsPackable>` + `<PackageId>` element) can be off for niche cases. Add the missing id via `-ExtraIds linq2db.foo` and re-run; or fix the csproj heuristic detection in the script if the case is general.
 
@@ -199,6 +200,8 @@ Action:
 **Source the preamble from the release-notes harvest, not from PR titles.** Task 5 of the prep phase already produced curated per-PR blurbs at `.build/.agents/release-<ver>-notes-harvest.json`; read `items[]` where `includeBrief && !omit` (36 entries on 6.4.0). Structure follows the previous release's body: `Highlights of this release:` → `Provider-specific highlights:` → per-tool sections → `[Full release notes](<wiki-anchor>)` + `[Nugets](…)`.
 
 > **`tag_name` is stripped by a PATCH that omits it.** Sending only `body` to `PATCH /repos/{o}/{r}/releases/{id}` on a **draft** release silently resets the tag to `untagged-<hash>`. Always include `tag_name`, `target_commitish` and `name` in the payload, then re-fetch and verify all of them plus the body (`github-authoring.md` → *Draft-release `tag_name` strip on PATCH*). Hit on 6.4.0 despite being documented.
+>
+> **Set `target_commitish` to the master-side parent SHA, not the branch name.** The pipeline's draft carries the literal `master`, and a draft's tag is only created at publish — so it would land on whatever `master` points at *then*. Any merge between draft and publish (the bump PR, a fix) would move the tag past the release. Pin the SHA from the warning below in the PATCH. (6.5.1: draft had `master`; pinned to `a98781700`.)
 
 > ### ⚠ The release tag must land on `master`, never on the release-branch merge commit
 >
@@ -236,9 +239,10 @@ Action:
    > _"Milestone `<next-ver>` doesn't exist. Create it? (`gh api repos/linq2db/linq2db/milestones --method POST -f title=<next-ver>`)"_
    On `yes`, create. Don't auto-create — explicit confirmation.
 3. **Dispatch `/version-bump`.** The existing skill edits `Directory.Build.props` (Version + EFxVersion). Per its contract it creates branch `infra/bump-versions` from `origin/master` and stops at "ready for user to confirm + commit + push + PR".
+   - **Check `git branch --list 'infra/bump-versions*'` first.** Earlier cycles' bump branches are squash-merged, so they linger locally and `git worktree add -b infra/bump-versions` fails with `a branch named … already exists`. They are not this session's to delete; use a release-specific name instead (6.5.1: `infra/bump-versions` and `infra/bump-versions-6.6.0` both existed from 6.5.0, so `infra/bump-after-6.5.1`). Substitute that name in step 5's commands.
 4. **Additionally re-pin `linq2db.t4models`.** Open `Directory.Packages.props`, find the `<PackageVersion Include="linq2db.t4models">` entry, update its `Version=` to the **just-released** version (the `<ver>` we just published, e.g. `6.3.0` — not the new `<next-ver>`). Show diff. This goes on the same `infra/bump-versions` branch as the version edits.
    - Grep for any other linq2db-published self-references (`<PackageVersion Include="linq2db..." />`) and flag for the user — there should only be `linq2db.t4models` today, but surface anything else found.
-5. **User-driven commit + push + PR.** Per `/version-bump`'s contract, the skill does not commit / push / open PR automatically. Surface the full diff for confirmation. On user `go`:
+5. **User-driven commit + push + PR.** Per `/version-bump`'s contract, the skill does not commit / push / open PR automatically. Surface the full diff for confirmation. **Push only once `linq2db.t4models <ver>` is listed on nuget.org** (step 1's verifier) — the re-pin otherwise fails restore with NU1102 and the PR's first CI run is wasted; committing locally earlier is fine. On user `go`:
    - `git add Directory.Build.props Directory.Packages.props`
    - `git commit -m "Bump versions for <next-ver>; pin linq2db.t4models to <ver>"`
    - `git push -u origin infra/bump-versions`

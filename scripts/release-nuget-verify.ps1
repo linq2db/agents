@@ -13,23 +13,35 @@ flatcontainer index and checks whether <version> appears in the
 listed versions. Listed-only — unlisted (yanked) versions are not
 counted as published.
 
+Push-log mode (authoritative — prefer it): -PushLog <path> takes the
+expected list from the release build's 'Publish to Nuget.org' step log
+(fetch it with azp-step-log.ps1) instead of csproj discovery. Every
+`Pushing <id>.<ver>.nupkg` line becomes one expected package checked at
+ITS OWN version, so the per-RID linq2db.cli.<rid> packages, linq2db.FSharp
+and the EF-major-versioned linq2db.EntityFrameworkCore rows are all covered
+(csproj discovery misses or mis-versions them). -Version is then optional.
+
 Action:
 
-  verify      Inputs:  -Version <ver>                 # the release version
+  verify      Inputs:  -Version <ver>                 # the release version (discovery mode)
+                       [-PushLog <path>]              # push-log mode, see above
                        [-Repo <owner/repo>]           (default: linq2db/linq2db)
                        [-SourceRoot <path>]
                        [-ExtraIds id1,id2,...]        # extra package IDs to verify
                                                        # (use when discovery misses one
                                                        # — e.g. dotnet-tool nuspec sourcing)
+                       [-WaitMinutes <n>]             # poll until all are listed or n min pass
+                       [-PollSeconds <n>]             (default: 120)
               Output:  {
-                ok, version,
-                packages[]: { id, published, latestListed, hasTargetVersion, csproj? },
+                ok, version, source: 'push-log'|'discovery', complete,
+                packages[]: { id, version, published, latestListed, hasTargetVersion, csproj? },
                 counts: { total, published, missing }
               }
+              `ok` reports fetch health, not publication — read `complete` / `counts.missing`.
 
-Re-run is idempotent — packages can take minutes to appear on
-nuget.org after CI publishes. The script does not poll/wait;
-caller's responsibility (orchestrator) to re-invoke.
+nuget.org indexing lags the push: on 6.5.1, 0 of 40 packages were listed
+6 min after the push and all 40 after ~25 min. Without -WaitMinutes the
+script checks once; re-invoke, or pass -WaitMinutes to poll.
 
 Conventions: `.claude/docs/script-authoring.md`.
 #>
@@ -39,10 +51,13 @@ param(
     [Parameter(Mandatory)][ValidateSet('verify')]
     [string]$Action,
 
-    [Parameter(Mandatory)][string]$Version,
+    [string]$Version,
+    [string]$PushLog,
     [string]$Repo = 'linq2db/linq2db',
     [string]$SourceRoot,
     [string]$ExtraIds,
+    [int]$WaitMinutes = 0,
+    [int]$PollSeconds = 120,
     [int]$MaxParallel = 8
 )
 
@@ -149,7 +164,25 @@ function Find-PackableProjects {
 
 # -- verify (main) -----------------------------------------------------------
 
-function Do-Verify {
+function Get-ExpectedFromPushLog {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { Exit-WithError "push log not found: $Path" }
+    $rows = New-Object 'System.Collections.Generic.List[object]'
+    $seen = @{}
+    foreach ($m in (Select-String -LiteralPath $Path -Pattern 'Pushing (?<id>\S+?)\.(?<ver>\d+\.\d+\.\d+(?:-[0-9A-Za-z.\-]+)?)\.nupkg')) {
+        $id  = $m.Matches[0].Groups['id'].Value
+        $ver = $m.Matches[0].Groups['ver'].Value
+        $key = "$id|$ver"
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+        $rows.Add(@{ id = $id; version = $ver; csproj = $null }) | Out-Null
+    }
+    if ($rows.Count -eq 0) { Exit-WithError "no 'Pushing <id>.<ver>.nupkg' lines in $Path" }
+    return $rows.ToArray()
+}
+
+function Get-ExpectedFromDiscovery {
+    if (-not $Version) { Exit-WithError '-Version is required unless -PushLog is given' }
     $root = if ($SourceRoot) { $SourceRoot } else { Get-Location | Select-Object -ExpandProperty Path }
 
     $discovered = Find-PackableProjects -Root $root
@@ -163,11 +196,44 @@ function Do-Verify {
     foreach ($e in $extras) {
         if (-not $idMap.ContainsKey($e)) { $idMap[$e] = $null }
     }
-    $ids = @($idMap.Keys | Sort-Object)
-
-    if ($ids.Count -eq 0) {
+    if ($idMap.Count -eq 0) {
         Exit-WithError "no packable projects discovered under $root and no -ExtraIds given"
     }
+    return @($idMap.Keys | Sort-Object | ForEach-Object { @{ id = $_; version = $Version; csproj = $idMap[$_] } })
+}
+
+function Do-Verify {
+    $source   = if ($PushLog) { 'push-log' } else { 'discovery' }
+    $expected = if ($PushLog) { Get-ExpectedFromPushLog -Path $PushLog } else { Get-ExpectedFromDiscovery }
+    $deadline = (Get-Date).AddMinutes($WaitMinutes)
+
+    while ($true) {
+        $packages = Test-Expected -Expected $expected
+        $missing  = @($packages | Where-Object { -not $_.published }).Count
+        if ($missing -eq 0 -or (Get-Date) -ge $deadline) { break }
+        Write-Verbose "$missing of $($packages.Count) not listed yet; retrying in $PollSeconds s"
+        Start-Sleep -Seconds $PollSeconds
+    }
+
+    Write-JsonOutput @{
+        ok       = $true
+        action   = 'verify'
+        version  = $Version
+        source   = $source
+        repo     = $Repo
+        complete = ($missing -eq 0)
+        packages = $packages
+        counts   = @{
+            total     = $packages.Count
+            published = $packages.Count - $missing
+            missing   = $missing
+        }
+    }
+}
+
+function Test-Expected {
+    param([object[]]$Expected)
+    $ids = @($Expected | ForEach-Object { $_.id } | Sort-Object -Unique)
 
     # Parallel fetch listed versions for each ID. flatcontainer index.json
     # returns listed versions only (unlisted/deleted are absent).
@@ -186,22 +252,24 @@ function Do-Verify {
         }
     }
 
+    $byId = @{}
+    foreach ($r in $results) { $byId[$r.id] = $r }
+
     $packages = New-Object 'System.Collections.Generic.List[object]'
-    $publishedCount = 0
-    foreach ($r in $results) {
-        $hasTarget = ($r.versions -contains $Version)
+    foreach ($e in $Expected) {
+        $r = $byId[$e.id]
+        $hasTarget = ($r.versions -contains $e.version)
         $latest = $null
         if ($r.versions.Count -gt 0) {
             # Best-effort latest: take the lexically-greatest version. Not a
             # semver-aware comparison, but good enough for "what's the most
-            # recent version published?" diagnostic display. Callers wanting
-            # a real comparison can read $r.versions directly from the plan.
+            # recent version published?" diagnostic display.
             $latest = $r.versions | Sort-Object -Descending | Select-Object -First 1
         }
-        if ($hasTarget) { $publishedCount++ }
         $packages.Add([ordered]@{
-            id               = $r.id
-            csproj           = $idMap[$r.id]
+            id               = $e.id
+            version          = $e.version
+            csproj           = $e.csproj
             published        = $hasTarget
             hasTargetVersion = $hasTarget
             latestListed     = $latest
@@ -209,19 +277,7 @@ function Do-Verify {
             fetchError       = $r.error
         }) | Out-Null
     }
-
-    Write-JsonOutput @{
-        ok       = $true
-        action   = 'verify'
-        version  = $Version
-        repo     = $Repo
-        packages = $packages.ToArray()
-        counts   = @{
-            total     = $packages.Count
-            published = $publishedCount
-            missing   = $packages.Count - $publishedCount
-        }
-    }
+    return $packages.ToArray()
 }
 
 # -- dispatch ----------------------------------------------------------------
