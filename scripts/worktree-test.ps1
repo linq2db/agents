@@ -113,8 +113,11 @@ Input (named parameters):
                            feature, never recognition of unchanged source".
   -PerProvider             optional; with a -Provider list, runs each provider as its own
                            invocation - its own log and summary - one after another, and
-                           prints `{ ok, providers: [ { provider, result } ] }` with each
-                           `result` the single-run JSON below. The first run builds (unless
+                           prints `{ ok, summary: [ { provider, total, failed,
+                           failedMethods } ], providers: [ { provider, result } ] }` with
+                           each `result` the single-run JSON below. A failure message is
+                           cut to -FailureLines lines (8); raise it when an AssertQuery
+                           diff's failing rows sit further down. The first run builds (unless
                            -NoBuild); the rest pass -NoBuild. For a probe or sweep across
                            providers, where a combined run's failures cannot be told apart
                            by provider at a glance and one database is driven by one
@@ -241,8 +244,19 @@ if ($PerProvider) {
         if ($i -eq 0 -and $run.buildFailed) { break }
     }
 
+    # One line per provider, so a sweep reads at a glance without walking every result.
+    $rollup = @($runs | ForEach-Object {
+        [ordered]@{
+            provider      = $_.provider
+            total         = $_.result.summary.total
+            failed        = $_.result.summary.failed
+            failedMethods = @($_.result.failedTests | ForEach-Object { $_ -replace '\(.*$', '' } | Select-Object -Unique)
+        }
+    })
+
     Write-JsonOutput ([ordered]@{
         ok        = -not ($runs | Where-Object { -not $_.result.ok })
+        summary   = $rollup
         providers = $runs
     })
     exit ($(if ($runs | Where-Object { -not $_.result.ok }) { 1 } else { 0 }))

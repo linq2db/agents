@@ -588,6 +588,10 @@ These are the maintainer's house rules for **new** test code, and they win over 
 
    What a conversion trades away: `AssertQuery` re-reads every table the query names (`TableName(…)` included) and runs the expected side over that read-back data, then compares count plus a two-way `Except` — order is not checked, and a value the database stored wrongly is wrong on both sides. So changing the test's data cannot prove a converted test can fail; prove it with a product mutation that forces a wrong value (#5943 round 5: away-from-zero answered to-even turned each converted `Round32`–`Round35` red). The actual query runs first, so a red and an `[ActiveIssue]` gate's exception are unchanged.
 
+   **The expected side runs the provider's `Expressions` map expansions too.** On a provider with a `MapMember` entry for the member under test, the expected value is the map's C# expansion, not the member's own body. A red or green there partly measures the map — e.g. Oracle's `Sql.Right` map made the expected value of `Right("John", 5)` NULL, not `"John"`. Judge a mapped provider's result again once the map entry is gone (#5922).
+
+   **A test of a translation must make the call reach SQL — wrap it in `Sql.AsSql(...)`.** In a projection, a call over columns is often left to the client: most translator handlers decline when `TranslationFlags.Expression` is set and `CanBeEvaluatedOnClient` holds, and the value is then computed in C# from the fetched columns. The test passes on every provider while testing nothing — check that the function appears in the baseline SQL. (#5922: `MathRoundNegativeMidpoints` was green on 16 providers with SQL `SELECT Id, D, F`; with `Sql.AsSql` it went red on 14.) Keep a separate un-wrapped cell when the client fallback is itself under test.
+
    ```csharp
    // not this
    AreEqual(
