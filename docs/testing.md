@@ -901,6 +901,7 @@ A table handle keeps the mapping schema it was created under; `UseMappingSchema`
 - **Isolate a per-member site with a two-handle join.** In `from p in parents join c in scoped …`, the join context carries the outer handle's schema, so a member of the second handle (an association, an `is` test) separates only if its own site picks the member's source.
 - **Prove red after the fix is in.** With the branch's builder changes committed, run the new tests with `git checkout origin/master -- Source/LinqToDB/Internal/Linq/Builder`, then restore it with `git checkout HEAD -- …`. Before committing, `git stash push -- Source/LinqToDB` does the same.
 - **Shared model types collide with `TestBase` properties.** Inside a `TestBase` fixture, write `Model.Parent` / `Model.Child` for the types; `Parent` / `Child` are the in-memory collections.
+- **A `CreateTempTable(…, setTable)` cell with `IEnumerable` items excludes remote contexts.** That overload fills the table by BulkCopy even for an empty list, which throws `ArgumentException: Data context must be of DataConnection or DataContext type` on `.LinqService`. Use `[DataSources(false)]`, or pass an `IQueryable` (INSERT … SELECT) to keep remote coverage. (#5951)
 
 Inputs measured not to separate are in [`dead-ends.md`](dead-ends.md) → *MAPPING: inputs that do not separate a handle's schema from the live one*.
 
