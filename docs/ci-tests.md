@@ -304,6 +304,10 @@ calls where log-reading costs many. (On #5877 four of five red legs matched an u
 exactly; the fifth was the exit-139 case above, so none was PR-caused. A review subagent spent five calls
 on `--log-failed` for one leg and recovered no test names, having skipped this check.)
 
+### A date/time red off by exactly ±60 minutes — check the clock change first
+
+When a date/time assertion fails by an hour, compare the failure's **UTC log timestamp** with the nearest daylight-saving change in the runner's zone. Inside the repeated or skipped local hour, the failure is calendar-triggered and unrelated to the PR. Re-run the failed jobs once the hour has passed, and the gate goes green. But don't stop at "test artifact": find where the offset is computed. A reader that rebuilds a `DateTimeOffset` from wall-clock parts plus a zone lookup gets the repeated hour wrong in product code too. (#6140: 48 `DateTimeOffsetNow` failures on Oracle 18–23 at `00:00–00:32Z` on 2026-10-25 traced to `OracleProviderAdapter.cs:529-532`, filed as [#6147](https://github.com/linq2db/linq2db/issues/6147). Writing tests that avoid a transition: [`testing.md`](testing.md) → *A date range that straddles a daylight-saving transition*.)
+
 ### Did a change make CI faster or slower?
 
 To evaluate a performance claim — a PR asserting a speedup, or a suspicion that something regressed — compare the same job/task across recent builds with [`.claude/scripts/azp-job-durations.ps1`](../scripts/azp-job-durations.ps1) rather than hand-rolling `/definitions` → `/builds` → `/timeline` → `/logs`. Add `-WithTestCounts` whenever the claim is about *speed*, because duration alone can't be read without the count beside it:
