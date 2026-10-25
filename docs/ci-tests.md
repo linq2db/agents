@@ -155,6 +155,8 @@ On test-all, the Azure Windows SQL Server ≤2016 legs run the Linq tests on NET
 
 When a CI build fails, the per-task error messages aren't in the GitHub check-runs annotations — they're inside the Azure DevOps build logs. The `dev.azure.com/linq2db` build API is publicly readable (no auth), but the hand-flow is fiddly: hit `/timeline?api-version=7.0` for the JSON list of failed `Task` records, then `/logs/<id>` for each one's raw log, then regex for `Failed <TestName>... Error Message:` blocks.
 
+The build API's reads are anonymous, but the pipeline **run-preview** endpoint is not. An anonymous `POST _apis/pipelines/<id>/preview` (`previewRun: true`, which compiles the YAML with chosen `templateParameters` and queues nothing) returns **200 with an empty body** rather than 401, so it reads as success. Treat an empty `finalYaml` as "not authenticated", not as a compiled pipeline. (#6128: the `default.yml` `run_tests: true` compile check had to be recorded `skipped`.)
+
 Use [`.claude/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
 
 ```
