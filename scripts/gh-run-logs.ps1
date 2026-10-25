@@ -54,6 +54,10 @@ Output: one JSON object on stdout. Logs persist under WriteDir for Read / Grep.
   {
     "runId": 35018401682,
     "repo": "linq2db/linq2db",
+    "attempt": 1,
+    "runStatus": "completed",
+    "runConclusion": "failure",
+    "conclusionFilter": "failure",
     "logsDir": ".build/.agents/gh-35018401682",
     "jobsMatched": 6,
     "jobsFetched": 6,
@@ -61,6 +65,10 @@ Output: one JSON object on stdout. Logs persist under WriteDir for Read / Grep.
                 "conclusion": "failure", "path": "...", "bytes": 4499584 } ],
     "failed": [ { "id": ..., "name": ..., "error": "..." } ]
   }
+
+`runStatus` / `runConclusion` are the run's own (latest attempt); `conclusionFilter` echoes
+-Conclusion. `jobsMatched: 0` with `runConclusion: success` means there is nothing to triage,
+not a failed fetch.
 
 A job whose log GitHub has already expired (they age out) lands in `failed` with
 the API error rather than aborting the run - a partial fetch is still useful.
@@ -109,13 +117,13 @@ function Get-MatchedJobs([int] $n) {
     return ,$matched
 }
 
+$run = Invoke-GhJson -ArgumentList @('api', "repos/$Repo/actions/runs/$RunId", '--jq', '{run_attempt,status,conclusion}')
+if (-not $run.ok) { Exit-WithError "gh api run failed: $($run.error)" }
+
 if ($Attempt -gt 0) {
     $jobs = Get-MatchedJobs $Attempt
 }
 else {
-    $run = Invoke-GhJson -ArgumentList @('api', "repos/$Repo/actions/runs/$RunId", '--jq', '{run_attempt}')
-    if (-not $run.ok) { Exit-WithError "gh api run failed: $($run.error)" }
-
     $Attempt = [int]$run.data.run_attempt
     $jobs    = Get-MatchedJobs $Attempt
 
@@ -160,13 +168,15 @@ foreach ($job in $jobs) {
 }
 
 Write-JsonOutput ([ordered]@{
-    runId       = $RunId
-    repo        = $Repo
-    attempt     = $Attempt
-    conclusion  = $Conclusion
-    logsDir     = $WriteDir
-    jobsMatched = $jobs.Count
-    jobsFetched = $fetched.Count
-    jobs        = $fetched
-    failed      = $failed
+    runId            = $RunId
+    repo             = $Repo
+    attempt          = $Attempt
+    runStatus        = $run.data.status
+    runConclusion    = $run.data.conclusion
+    conclusionFilter = $Conclusion
+    logsDir          = $WriteDir
+    jobsMatched      = $jobs.Count
+    jobsFetched      = $fetched.Count
+    jobs             = $fetched
+    failed           = $failed
 })
