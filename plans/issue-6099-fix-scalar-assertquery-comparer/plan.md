@@ -80,6 +80,7 @@
 - E-5 `Tests/EntityFrameworkCore/TestBase.cs:AreEqualWithComparer<T>` — same as E-4 (line 109).
 - E-7 `Source/LinqToDB.Tools/EnumerableExtensions.cs:ToDiagnosticString` — a member-less non-scalar `T` uses the type name for the header column and `ta.Type` for the row alignment, instead of indexing the empty `ta.Members` (`:100`, `:115`). A-2.
 - E-8 `Tests/Linq/Tools/ToDiagnosticStringTests.cs:TestDiagnosticStringNoMembers` (new test) — red→green for E-7. A-2.
+- E-9 `Source/LinqToDB.Tools/EnumerableExtensions.cs:ToDiagnosticString` — honour `addTableHeader: false`: pass it through the scalar re-entry and size columns from values regardless of the flag (`:42`, `:85`). A-4.
 - E-6 `Tests/Linq/Infrastructure/AssertQueryTests.cs` (new) — the TO-1…TO-10 tests, beside the existing infrastructure fixtures (ActiveIssueTests, TestProgressStateTests).
 
 ## P7 Impact map (M/L)
@@ -116,6 +117,7 @@ House rules embedded: `testing.md` → *Test layout* (one call per line; `Assert
 - TO-11 `AreEqualWithComparer` on `IEnumerable<int>`: `[1,2]` (array) vs `[1,2]` (list) passes, `[1,2]` vs `[1,3]` throws — providers: none — proof: red→green (A-2 F1)
 - TO-12 `AreEqualWithComparer` on a self-referential `Node : IEnumerable<Node>`: equal trees pass, a different child count throws — providers: none — proof: red→green (A-2 F2)
 - TO-13 `ToDiagnosticString` over a member-less class prints a one-column table headed by the type name — providers: none — proof: red→green (A-2, E-7)
+- TO-14 `ToDiagnosticString(addTableHeader: false)`: a member value wider than its name renders, and a scalar sequence prints no header — providers: none — proof: red→green (A-4, E-9)
 - TO-10 `AreEqualWithComparer` on `DateTime` with the same ticks but different `Kind` throws, and the same pair as `DateTime?` passes — providers: none — proof: characterization (D-1 keeps both today's member comparer and today's `Nullable` path for date types)
 
 ## P9 Verification gates
@@ -150,6 +152,12 @@ House rules embedded: `testing.md` → *Test layout* (one call per line; `Assert
   - Tier stays M (the `LinqToDB.Tools` fix is a two-line local repair). The critic is re-dispatched on the delta (P12 round 3).
   re-derives: P3 (Source exception for E-7), P5 (D-1 order of checks, D-3 cache recursion), P6 (E-4 widened, E-7, E-8), P7 (ToDiagnosticString callers, DecimalComparerInstance readers), P8 (TO-11, TO-12, TO-13)
   conventions: `testing.md` → *Test layout* (one call per line, Shouldly in E-8), checked by hand against the new tests
+- A-3 (2026-10-25, CI on `1faaee0a1`) — U-5 resolved: Azure `test-all` 24655 and GitHub `tests [all]` 40119233045 were fully green, including the unfiltered net462 main suite on the GitHub Win legs (SqlCE leg: 9005 tests). So the D-4 fallout set is empty, and the TO-7 net462 labels are confirmed. The baselines branch is 136 added / 0 modified / 0 deleted (TO-1 + TO-2 × 68 providers), so G-02 is confirmed.
+  re-derives: P4 (U-5), P7 (the deferred "currently-green tests that go red" row: empty), P9 (G-02)
+- A-4 (2026-10-25, `/review-pr` round 1, walked with the user) — MIN001: the PR body is corrected (zero fallout; characterization tests named as such). NIT001: the `GetDefault<T>` XML doc names `EqualityComparer{T}.Default` instead of "value equality", because a member-less class compares by reference. An out-of-scope observation became a fix on the branch: `ToDiagnosticString(addTableHeader: false)` threw `ArgumentOutOfRangeException` once a value was wider than its column name (the width ignored values when the header was off), and the scalar branch dropped the flag on re-entry. This relaxes P3 for E-9 the same way A-2 did for E-7: a behaviour fix with no API surface change.
+  - E-9 `Source/LinqToDB.Tools/EnumerableExtensions.cs:ToDiagnosticString` — pass `addTableHeader` through the scalar re-entry (`:42`); size columns from values regardless of the flag (`:85`).
+  - TO-14 `ToDiagnosticStringTests.TestDiagnosticStringWithoutHeader` (member value wider than its name) and `TestDiagnosticStringScalarWithoutHeader` (no header for a scalar) — proof: red→green, measured (pre-fix: `ArgumentOutOfRangeException` `repeatCount -3`; unexpected `| Value |` header).
+  re-derives: P3 (Source exception for E-9), P6 (E-9), P8 (TO-14)
 
 ## P12 Critic verdict (M/L)
 
