@@ -95,6 +95,29 @@ A worked example: this is how a ~4.5 s build of a 13-level `LoadWith` chain was 
 `DynamicResolver+DestroyScout.Finalize` (85% of the finalizer thread) — i.e. lambda compilation — which
 a counter pass then pinned to 38 460 `Expression.Lambda(..).Compile()` calls for `default(T)`.
 
+**`DestroyScout.Finalize` time does not by itself mean per-build compilation — attribute the compiles to callers first.** [`../scripts/speedscope-callers.csx`](../scripts/speedscope-callers.csx) charges a frame's inclusive time to its nearest `linq2db!` callers, which `speedscope-top.csx` cannot show:
+
+```
+dotnet script .claude/scripts/speedscope-callers.csx -- <trace>.speedscope.json <frameSubstring> [depth] [top]
+```
+
+On the #5911 depth-100 join chain the finalizer thread showed 17 s of `DestroyScout.Finalize`, the `LoadWith` signature above. Yet every `CompileExpression` / `DynamicMethod.CreateDelegate` in the trace was one-time SQL Server provider setup (`TypeMapper`, `SqlServerProviderAdapter`, ~15 delegates). The finalizer cost tracked the GC count, i.e. allocation, not compilation.
+
+Two more trace traps:
+
+- **Deep recursion truncates stacks.** At depth 100 the stacks exceed what the profiler records, so the inclusive times of root-side frames (`Build`, `JoinBuilder.BuildMethodCall`) are unreliable. Leaf-side frames are fine.
+- **`dotnet script` compiles csx with an older C# than the repo.** There is no `using var` and no nullable annotations, so write scratch csx in plain C# 7 style.
+
+### Wall-clock A/B on a busy machine
+
+The development box is normally shared and loaded, and a quiet window is usually not available. A run there showed master varying 1.7× against itself between interleaved runs, which hides any effect smaller than that. Measure with contention-robust metrics instead:
+
+- **Allocated bytes per build:** `GC.GetAllocatedBytesForCurrentThread()` delta around the build. Contention does not change it. It still varies ±~4 % between builds of the same query, so compare ranges, not single values.
+- **Work counts** (calls, passes, nodes visited), per *Counters beat profiles* below.
+- **Interleaved runs** (master, branch, master, branch), so noise shows as disagreement between repeats of the same build.
+
+`Process.TotalProcessorTime` is quantised to the 15.6 ms Windows tick, which makes it useless per build at this scale. (#6140: no metric separated master from branch; the PR was reframed as a work reduction.)
+
 ### Counters beat profiles for "how many"
 
 A profile tells you *where*; a counter tells you *how many* and *how cacheable*. The decisive artifact

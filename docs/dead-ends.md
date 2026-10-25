@@ -80,6 +80,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** an optimizer-foldable child. Use a child only the *convert* visitor replaces — a `SqlCoalesceExpression`, turned into a `Coalesce` function — which does reach the rebuild; it showed the type loss on the direct path as well (#6056). (#6055)
 
+## SQL-AST: cutting `SelectQueryOptimizerVisitor` whole-tree passes to speed up a deep join chain
+
+**Tried:** skipping the redundant top-of-query whole-tree expression pass (`VisitSqlQuery`'s `:223`) in fixpoint iterations ≥2 (#6140, after #5911 counted five passes per build). The goal was a faster translation of `DeepJoinChainBenchmark` at depth 100.
+
+**Failed because:** the pass was a semantic no-op and the skip is correct (0 SQL diff across the CI matrix), but there was no measurable gain. Interleaved master/branch runs showed no difference above noise in wall-clock or in allocations (~27 MB/build, within master's own ±1 MB). A CPU trace explained why: the whole `SelectQueryOptimizerVisitor.Optimize` is ~45 ms of a ~367 ms depth-100 build. The cost sits in the builder (`ExpressionBuildVisitor.TryGenerateComparison` → `ConvertCompareExpression` ~196 ms, `NullabilityContext.CanBeNull` ~124 ms), in `BasicSqlBuilder.BuildSql` (~123 ms) and in GC stalls.
+
+**Don't re-attempt:** pass-count reductions in `SelectQueryOptimizerVisitor` as a performance fix for deep join chains. Profile first ([`measuring-query-build.md`](measuring-query-build.md)); the builder's comparison and nullability paths are the cost centre (#5738's scope). (#5911, #6140)
+
 ## PROV-FIREBIRD: binary Guid *parameter* writes on a UTF8 Firebird 6 database
 
 **Tried:** binding a binary Guid to a `CHAR(16) CHARACTER SET OCTETS` / `BINARY(16)` column (INSERT VALUES, UPDATE SET, WHERE compare) as raw `byte[]`; as native `FbDbType.Guid`; with `FbParameter.Charset` set to `Octets` (and, by reflection, every other charset value) or `FbDbType.Binary`; with explicit `CHAR(16) CHARACTER SET OCTETS` DDL instead of `BINARY(16)`; with an explicit OCTETS CAST target.
