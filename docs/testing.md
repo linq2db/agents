@@ -277,7 +277,7 @@ dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings
 
 **The rule is enforced, not just stated.** [`../hooks/require-test-progress.js`](../hooks/require-test-progress.js) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. That includes a command that only *names* the exe, such as `Get-ChildItem -Filter linq2db.Tests.exe` or a header read. Put the name inside a scratch script under `.build/.agents/` and run the script, since the hook sees only the script path (#6128). Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
 
-A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `totalIsUpperBound`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
+A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `totalIsUpperBound`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`; `sessionId` is the launching session's `CLAUDE_CODE_SESSION_ID` (`null` outside Claude Code), so a per-session observer shows only its own runs. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
 
 Read the heartbeat directly, or with the summary helper (the `/test-progress` skill reports the latest run):
 
@@ -695,6 +695,14 @@ Two details the obvious fix gets wrong:
 ### Access has no 64-bit integer column
 
 Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
+
+### ClickHouse and YDB don't report rows affected — assert the stored value
+
+An entity `Update` returns 0 on ClickHouse and -1 on YDB, so `.ShouldBe(1)` on the count fails there for a correct query. When the test is about *which* row changed, drop the count and assert the stored value afterwards — that is the outcome a wrong key or column set breaks anyway. Keep a count assertion only where the count is the subject, behind `context.IsAnyOf(TestProvName.AllClickHouse) ? 0 : 1` (`Issue1925Tests`). (#6145: `EntityUpdateFollowsHandleSchema`, 8 ClickHouse/YDB cases.)
+
+### `CreateTempTable(…, setTable)` defaults to a temporary table, which YDB refuses
+
+The `setTable` overloads default `tableOptions` to `TableOptions.IsTemporary`, and YDB fails with *"Creating temporary table is not supported."* When the test needs the overload for something other than temporariness (its mapping swap, its column set), pass `tableOptions: TableOptions.NotSet` so the test runs on YDB instead of gating it. (#6145: `EntityUpdateFollowsHandleSchemaUnderTempTable`.)
 
 ### Firebird types a multi-row insert's literal column from the first row
 

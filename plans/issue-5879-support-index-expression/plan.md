@@ -61,7 +61,7 @@
 ### D-2 — Rewrite rules
 
 - **chosen:** `Indexer == null` with one argument → `Expression.ArrayIndex(obj, arg)` (Binary). `Indexer == null` with several → `Expression.ArrayIndex(obj, args)` (the `Get` call). `Indexer` with a getter → `Expression.Call(obj, getter, args)` (`GetGetMethod(true)`, `obj` null for a static indexed property). Getter-less indexer → node returned unchanged (`base.VisitIndex`).
-- **rejected:** guarding `Assign` targets and non-zero-based rank-1 arrays (`int[*]`). Neither is translatable; both fail loudly either way (P10); a guard would be support for a shape no query can use.
+- **rejected:** guarding `Assign` targets and non-zero-based rank-1 arrays (`int[*]`). Neither is translatable; both fail loudly either way (P10); a guard would be support for a shape no query can use. (A-3: the `Assign` half is refuted — `EntityDescriptor`'s dynamic-column setter assigns through an indexer; an `Assign` target is now kept as `Index`.)
 - **why this:** the target shapes are exactly the compiler's, so parity is by construction, not by mirroring.
 - **failure mode of the choice:** an `Index` used as an assignment target now fails in expose with `ArgumentException` instead of a later `NotSupportedException` (U-6).
 
@@ -82,6 +82,7 @@
 - E-6 `Source/LinqToDB/Internal/Expressions/ExpressionVisitors/EqualsToVisitor.cs:EqualsTo` — `ExpressionType.Index` arm comparing `Indexer`, `Object`, `Arguments` (A-1; same condition as E-5).
 - E-8 `Source/LinqToDB/Internal/Expressions/ExpressionVisitors/EqualsToVisitor.cs:DefaultCompareArguments` — remove the `Sql.IQueryableContainer` constant arm, reachable only for a null container where it threw (A-2)
 - E-9 `Tests/Linq/Linq/TestQueryCache.cs:NullQueryableContainerArgumentHitsCache` — TO-14's red→green test (A-2)
+- E-10 `Source/LinqToDB/Internal/Linq/Builder/Visitors/ExposeExpressionVisitor.cs:VisitBinary` — keep an `IndexExpression` `Assign` target unrewritten (A-3)
 - E-7 `Source/LinqToDB/Internal/Linq/ExpressionCacheManager.cs:SuggestParameterDisplayName` — keep or remove the `IndexExpression` arm and its doc sentence according to TO-11's outcome; make `IsValuePreservingCall` recognise an explicit-interface-implementation indexer getter if TO-13 reproduces (A-1).
 
 ## P7 Impact map (M/L)
@@ -139,7 +140,7 @@ Every hand-built tree is built inside a local helper from **fresh** values, whic
 
 ## P10 Adjudicated (M/L)
 
-- An `IndexExpression` used as an `Assign` target now fails in expose with `ArgumentException` instead of `NotSupportedException` (U-6, D-2). Neither is translatable, and no query API produces an assignment over an index.
+- An `IndexExpression` used as a compound-assign or increment/decrement target now fails in expose with `ArgumentException` (U-6, D-2). Nothing in `Source/` builds one (searched `AddAssign|PreIncrementAssign|IsAssignment`). The plain `Assign` case is no longer here: A-3.
 - A non-zero-based rank-1 array (`T[*]`) indexed via `ArrayAccess` is rewritten like any rank-1 access (U-12). What happens after that is reasoned, unprobed. It has no compiler twin and no provider can translate it.
 - A `QueryFilter` interceptor that introduces an `IndexExpression` on the lambda-only filter path (`TableBuilder.cs:141-144`: expose runs before the interceptor) still hits `PathVisitor`'s `NotSupportedException` (U-14). That requires user interceptor code to build the node itself. Changing the expose/interceptor order there is a separate concern with its own behavioural surface.
 - An `IndexExpression` in a branch of a client-compilable conditional whose visited test stops being compilable (U-15, `ExposeExpressionVisitor.cs:732-735`) is not normalized and still throws in `PathVisitor`. That is reasoned, unprobed, and measured in the red-stage probe. Changing which branches expose visits there is out of scope: those lines preserve `?:` short-circuit semantics.
@@ -157,6 +158,11 @@ Every hand-built tree is built inside a local helper from **fresh** values, whic
   re-derives: P3 (E-8 deviation; D-3 constraint superseded), P6 (E-8, E-9), P7 (A-2 row), P8 (TO-14), P12 (A-2 delta round)
   conventions: testing.md → *Test layout* and *Testing query cache HIT / MISS behaviour* embedded for TO-14's new test (one call per line, `[QueryCacheTest]`, miss-count delta, reason line on the narrowed set).
   **Outcome:** TO-14 run on SQLite.Classic (direct + LinqService) with the new tests included: 568 total, 564 passed, 0 failed, 4 skipped. The skips are pre-existing #6046 `[ActiveIssue]` gates. Release `Source/LinqToDB` (5 TFMs), 0 warnings. Committed as `40a2c0244`, pushed to #6141, and noted in the PR body under *Follow-up commit*. In the same pass, a throwaway probe for issue draft A reproduced the hand-built `SwitchExpression` throw (`PathVisitor`), filed as [#6142](https://github.com/linq2db/linq2db/issues/6142).
+
+- A-3 (2026-10-25, CI triage of test-all Azure 24689 / GitHub 40144841304 on `1a78badf2`) — every red, 1451 cases across all providers on both systems, was `ArgumentException: Expression must be writeable (Parameter 'left')` from `ExposeExpressionVisitor.VisitBinary` → `BinaryExpression.Update`, in the dynamic-column family (`DynamicColumns*`, `SqlProperty*`, `DynamicColumnStore*`, `Issue4483*`, `ADynamicColumnCarriesItsDeclaredUnit`). Cause: `EntityDescriptor.cs:760-770` builds `DynamicColumnSetter` as `Assign(Property(storage, "Item", name), value)`; E-1 rewrote the target into the non-writeable `get_Item` call. U-6 / D-2's "no query API produces an assignment over an index" was false, and P7 searched consumers of `Index` but not internal *producers* of it (`Expression.Property(…, "Item", …)` builds an `IndexExpression`; searched `MakeIndex|ArrayAccess|Expression\.Property\(\w+, \w+, |"Item"` across `Source/`: `EntityDescriptor.cs:763` is the only producer). E-10 `ExposeExpressionVisitor.VisitBinary`: an `Assign` whose `Left` is `IndexExpression` is rebuilt with `base.VisitIndex(left)` (object and arguments visited, node kept) and `Visit(Right)`. Compound / increment assigns stay in P10.
+  re-derives: P5 (D-2 rejected bullet), P6 (E-10), P7 (producer search), P8 (TO-15), P10 (assign entry narrowed)
+  **TO-15** the existing dynamic-column tests are the regression set — proof: red→green (red: CI 24689 / 40144841304 on `1a78badf2`; green: below).
+  **Outcome:** `worktree-test.ps1` Tests/Linq net10.0, SQLite.Classic + SQLite.MS, filter `DynamicColumn|SqlProperty|Issue4483|ExpressionTests|LoadWithTests|ParameterTests|TestQueryCache`: 776 total, 774 passed, 0 failed, 2 skipped (pre-existing `[ActiveIssue]`). `Issue4483*` are SQL Server 2016+-only, left to CI.
 
 ## P12 Critic verdict (M/L)
 

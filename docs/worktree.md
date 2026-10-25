@@ -145,6 +145,8 @@ Because the failure mode is a *flat refusal* rather than a warning, don't read i
 
 A clean `.claude` status can still hold work: a plan committed there but not pushed shows only as `ahead N` (`git -C <path>/.claude status -sb`), and it is deleted with the worktree. Move it into the primary clone's corpus first, which needs no publish approval: `git -C <primary-clone>/.claude fetch <path>/.claude master`, then `git -C <primary-clone>/.claude cherry-pick <sha>` per commit. A plan commit only adds files under `plans/<key>/`, so it does not collide with someone's uncommitted corpus edits there. Or push it, when asked to. (#6103 / #6104: both plan commits existed only in their worktrees at finalize.)
 
+Neither status shows **gitignored** files, and `--force` deletes them too: the worktree's `.build/.agents/` (probe patches, traces, A/B scripts) and a worktree-local `UserDataProviders.json`. Before removing, check them against what a resume note or plan still names, and copy the ones still needed into the primary clone's `.build/.agents/<key>/`. (#5911: `--untracked-files=all` came back empty while the resume note pointed at probe artifacts inside the worktree.)
+
 Surfaced during 6.4.0 release-prep cleanup, on a worktree whose tree was completely clean.
 
 ## Recreating a worktree wipes `.build/` — `--no-build` packs then fail
