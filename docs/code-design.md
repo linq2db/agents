@@ -201,6 +201,15 @@ A change that removes or raises a modern TFM in `<TargetFrameworks>`, or narrows
 3. **Sweep**: run `Tests/Linq` on SQLite with `-LinqToDBAsset netstandard2.0`. A `MissingMethodException` is a feature-parity gap (the tests call net-only API); any other red is a candidate hard fail.
 4. **Record** the result (classified hard fails and provider items, or "none") in the PR body, and file each actionable item as its own issue.
 
+#### Adding a .NET major TFM: re-check the ban lists
+
+RS0030 bans by documentation ID, so **per overload**. A new .NET major adds overloads and C# overload resolution often prefers them: .NET 9's `params ReadOnlySpan<object?>` twins moved every 4+-argument `string.Format` off the banned `object[]` overload, silently. A change that adds a .NET major to `<TargetFrameworks>` (net10 → net11) must, before it merges:
+
+1. **List** the gaps: `.claude/scripts/banned-api-overloads.ps1 -RefDir <new ref pack> -BaselineRefDir <previous ref pack>` (`<dotnet>\packs\Microsoft.NETCore.App.Ref\<ver>\ref\net<N>.0`) prints, for every banned member in every tracked `BannedSymbols.txt`, the same-name overloads no entry covers; `newInTarget` marks the ones the new TFM added.
+2. **Classify** each `newInTarget` gap: the same hazard as its banned twin (culture-sensitive formatting or parsing, current-culture comparison, a reflection invoke that skips `TargetInvocationException` unwrapping) → ban it beside the twin with the same message; the sanctioned alternative the message names (`IFormatProvider`, `StringComparison`, `char` / `Rune`) → leave it. Older gaps of the same hazard count too: the check first ran on the .NET 11 PR ([#5942](https://github.com/linq2db/linq2db/pull/5942)), which is what found the .NET 9 span twins.
+3. **Build** `-c Release` for the new TFM, so each added ban either passes or exposes the call sites that already bind to the new overload.
+4. **Record** the added entries, or "none", in the PR body.
+
 ### `IsDependsOnSources` ignore-set doesn't cover field/column refs
 
 `QueryHelper.IsDependsOnSources(expr, onSources, sourcesToIgnore:)` applies `sourcesToIgnore` only on the **direct `ISqlTableSource`-element** match path. The `SqlField` / `SqlColumn` paths — how predicates actually reference tables — check `OnSources.Contains(field.Table)` / `Contains(column.Parent)` **without** consulting `sourcesToIgnore`. So `sourcesToIgnore` does *not* subtract a table a predicate reaches through a field, and `IsDependsOnSources(pred, [t], sourcesToIgnore: [t])` still returns true.
