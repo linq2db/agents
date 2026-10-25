@@ -146,6 +146,24 @@ A comment, review, run or job id in a link (`#issuecomment-<id>`, `/actions/runs
 
 **The positive half: a new operator or public API earns a worked example per case it answers.** For each issue or discussion the PR cites as motivation, show the shape that case asked for as runnable code, name the test covering it, and **confirm that test exists** rather than inferring it from a commit message. For an operator a reader may not know — `PIVOT`, `UNPIVOT`, a set operation, a window frame — a small source table plus the resulting rows, rendered as markdown tables, does more than any amount of prose; take the values from the actual fixture so the illustration is true. (Same correction: *"add more info on SelectDynamic, examples, which issues/discussions it address with examples (also check if we have tests for those cases)"*, and *"in pivot/unpivot examples it will help to render sample source and result tables to introduce feature to people not familiar with those operators"*.)
 
+### A design-proposal issue for team review
+
+When an external request, or a recurring theme, prompts a design proposal, the issue body follows this shape:
+
+- **Aggregate the prior art first.** Combine the request with **every** related issue, open *and* closed, into one numbered problem list. Each problem gets exactly one verdict:
+  - **solved**, naming the current API, with an example;
+  - **design**, with an API sketch and user-side usage;
+  - **won't / can't**, naming the limitation that cannot be lifted.
+
+  Closed issues matter. They hold the maintainers' earlier answers and positions, which the proposal must either honour or explicitly revisit. [`gh-issue-digest.ps1`](../scripts/gh-issue-digest.ps1) fetches them in one call.
+- **Self-contained.** A reader must understand every problem without opening another issue. Restate what was wanted, what linq2db does today and why that is insufficient. Cite issue numbers only as "reported in #n". Spell out the engine facts the design rests on, and verify the ones that are not pinned by a test (a playground probe) before posting.
+- **Shippable tasks with milestones by impact.** Split the work into tasks that each merge and ship alone. Additive, non-breaking work goes to `6.x`; breaking changes, or work that depends on major-release internals, go to `7.0.0`. Give each task its dependencies and impact.
+- **Decisions requested from the team** end the body as a numbered list.
+- **Independent design before drafting.** Get the design from a second model that has not seen your draft, then merge the two and resolve the disagreements. A reviewer handed your conclusion tends to confirm it.
+- **Private-channel requesters stay unnamed.** Someone who asked in Discord, chat or e-mail is "a request in Discord", never a name or handle, even when they also have public GitHub activity.
+
+(Established on the 2026-10-25 write-side extension proposal.)
+
 ### An open question for a specific person is a comment, not an issue
 
 When work surfaces a design question the code's author can answer — "was this guard meant to be reachable?", "is this pairing intentional?" — ask it as a comment on the PR that raised it, `@`-mentioning them, rather than filing an issue. An issue asserts that something needs doing and enters the backlog with a milestone; a question does not know that yet, and filing one commits the maintainer to triaging a hypothesis. If the answer turns out to need work, *then* it earns an issue, and the answer is already there to link. Keep the comment self-contained: the observation, the evidence from the tree, the two or three readings you can see, and what the current PR assumes — so it can be answered without re-deriving anything. (Established on #5877, where a proposed follow-up issue about `GetProjectFlags` was redirected to a question on the PR.)
