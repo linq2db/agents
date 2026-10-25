@@ -222,16 +222,21 @@ A `TimeSpan` property mapped with no `[Duration]` fails on three providers befor
 
 Exclude them in `[DataSources(...)]`, or map the member with `[Duration]` when the test is not about a native time type. SQLite MS, DuckDB, Access, SQL Server 2008+, PostgreSQL, YDB, Firebird, Sybase, DB2, Informix and MySQL 8 store it. (#5983, `SpanOverMissedLeftJoinReadsDefault`)
 
-## The runner's `[slow]` line reports assembly arch, not process arch
+## The runner's arch tag is the PE machine type — read the CLR header to know the process arch
 
-Microsoft.Testing.Platform's progress output tags still-running tests as `(<exe>|<tfm>|<arch>)` — e.g.
-`EagerLoadMultiLevel("SqlServer.2017") (linq2db.Tests.exe|net462|x86)`. That `arch` is the **assembly's PE machine
-type**, which is I386 for a netfx AnyCPU build even when the process is 64-bit. It is **not** the process
-architecture, and netfx legs are not 32-bit because of it.
+Microsoft.Testing.Platform tags tests and run summaries as `(<exe>|<tfm>|<arch>)`, for example
+`(linq2db.Tests.exe|net462|x86)`. That `arch` is the exe's PE machine type. `I386` alone is ambiguous: it is the
+machine type of both an AnyCPU build and an x86 one. What decides the process is the CLR header's `Requires32Bit`
+flag. Read it with `System.Reflection.PortableExecutable.PEReader` (`PEHeaders.CoffHeader.Machine` and
+`PEHeaders.CorHeader.Flags`). The `x64` / `x86` segment in a CI path (`net462\main\x64\…`)
+is only the name of the artifact half, and it says nothing about the process.
 
-Read the step's actual invocation instead — the CI log prints it (`net462\main\x64\linq2db.Tests.exe …`), and the
-`x64`/`x86` path segment is authoritative. Mistaking the label for the process arch on #5614 produced a whole wrong
-analysis (an "OOM family is bitness-wide" reframe) that had to be retracted.
+The SDK gives a .NET Framework **exe** published with no RID the default win-x86. Our MTP test projects are exes,
+so `Tests/Linq` net462 published without `-a` is `I386, ILOnly, Requires32Bit`: a 32-bit process. Until #6128
+(`bd7455b77`) both CIs published the main netfx suite that way. Every non-Access netfx leg therefore ran 32-bit,
+and on full runs NUnit's result string ran out of address space (`OutOfMemoryException` in
+`TestEventDispatcher` / `XmlNode.OuterXml`). Published with `-a x64`, the exe is `Amd64` with no
+`Requires32Bit`. #5614 read the label the other way round and retracted a correct analysis.
 
 ## `ToListAsync` needs `using LinqToDB.Async`
 
@@ -270,7 +275,7 @@ A full suite run takes 1–2 hours. To watch progress without scraping console o
 dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings --filter "..." --provider SQLite.MS --test-progress
 ```
 
-**The rule is enforced, not just stated.** [`../hooks/require-test-progress.js`](../hooks/require-test-progress.js) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
+**The rule is enforced, not just stated.** [`../hooks/require-test-progress.js`](../hooks/require-test-progress.js) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. That includes a command that only *names* the exe, such as `Get-ChildItem -Filter linq2db.Tests.exe` or a header read. Put the name inside a scratch script under `.build/.agents/` and run the script, since the hook sees only the script path (#6128). Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
 
 A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `totalIsUpperBound`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
 
@@ -587,6 +592,10 @@ These are the maintainer's house rules for **new** test code, and they win over 
    - **Aggregates over a navigation.** `AssertQuery` evaluates the expected side over tables it reads back from the database, and on that side `p.Children.Max(c => (int?)c.ChildID) == 11` came out false for every parent. It expected 7 rows where 6 were correct (#6121, `NegatedNullableAggregateComparisonFromSubquery`). Keep `AreEqual` with an explicit LINQ-to-Objects expected over the model collections, and say why in a one-line comment so a reviewer can tell it from a layout slip.
 
    What a conversion trades away: `AssertQuery` re-reads every table the query names (`TableName(…)` included) and runs the expected side over that read-back data, then compares count plus a two-way `Except` — order is not checked, and a value the database stored wrongly is wrong on both sides. So changing the test's data cannot prove a converted test can fail; prove it with a product mutation that forces a wrong value (#5943 round 5: away-from-zero answered to-even turned each converted `Round32`–`Round35` red). The actual query runs first, so a red and an `[ActiveIssue]` gate's exception are unchanged.
+
+   **The expected side runs the provider's `Expressions` map expansions too.** On a provider with a `MapMember` entry for the member under test, the expected value is the map's C# expansion, not the member's own body. A red or green there partly measures the map — e.g. Oracle's `Sql.Right` map made the expected value of `Right("John", 5)` NULL, not `"John"`. Judge a mapped provider's result again once the map entry is gone (#5922).
+
+   **A test of a translation must make the call reach SQL — wrap it in `Sql.AsSql(...)`.** In a projection, a call over columns is often left to the client: most translator handlers decline when `TranslationFlags.Expression` is set and `CanBeEvaluatedOnClient` holds, and the value is then computed in C# from the fetched columns. The test passes on every provider while testing nothing — check that the function appears in the baseline SQL. (#5922: `MathRoundNegativeMidpoints` was green on 16 providers with SQL `SELECT Id, D, F`; with `Sql.AsSql` it went red on 14.) Keep a separate un-wrapped cell when the client fallback is itself under test.
 
    ```csharp
    // not this
@@ -970,7 +979,11 @@ Func<Task> act = () => db.SomeApiAsync(record);
 await act.ShouldThrowAsync<LinqToDBException>();
 ```
 
-Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all.)
+Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all; a fifth on #5879, `Should.NotThrow`.)
+
+### `nameof(Parent.Children)` inside a `TestBase` fixture names the wrong thing
+
+`TestBase` exposes the in-memory model data as properties named after the model types — `Person`, `Parent`, `Child`, `GrandChild`, … — each an `IEnumerable<T>`. Inside a fixture deriving from it, a bare type name in an *expression* position binds to that property, not to the type. So `nameof(Parent.Children)` fails with `CS1061: 'IEnumerable<Parent>' does not contain a definition for 'Children'`, while `typeof(Parent)` in the same file still means the model type. This bites hand-built expression trees (`Expression.Property(p, nameof(…))`) above all. Qualify the type, as in `nameof(Model.Parent.Children)`, or `Model.Person` throughout. Also note that `Person.ID` is a **field**, so the tree needs `Expression.Field`, not `Expression.Property`. (#5879: three compile errors in one build of the hand-built `LoadWith` and association tests.)
 
 **Write `Action act = () => { … };`, not `var act = …` — the `var` form is type-dependent.** Shouldly's sync overload is `ShouldThrow<T>(this Func<object?> actual)` alongside the `Action` one, so `var act = () => q.ToList();` compiles *only* because `Func<List<T>>` converts to `Func<object?>` by reference covariance. Point the same idiom at an expression of a **value** type and the covariance is gone: `var act = () => Helper(db);` on an `int`-returning helper infers `Func<int>` and fails with `error CS1929: 'Func<int>' does not contain a definition for 'ShouldThrow'`. Copying the `var` shape from a passing fixture (`Exceptions/JoinTests.cs:60`) is what walks you into it. An explicit `Action` with a statement body discards the result and works for both. (#5704.)
 

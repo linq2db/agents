@@ -352,13 +352,14 @@ banner, an arch or TFM label — confirm it against the **primary artifact** (th
 config, the invocation) before building on it. Labels report what a tool believes; artifacts report what
 ran.
 
-On #5614 the Microsoft.Testing.Platform `[slow]` line printed `(linq2db.Tests.exe|net462|x86)`, which
-became "the netfx legs are 32-bit" and then a whole reframe on top of it — the OOM family is
-bitness-wide, the `#if NETFRAMEWORK` guard is "really about bitness", a lane cap would fix three legs.
-The real invocation was in the same log: `net462\main\x64\linq2db.Tests.exe`. MTP reports the assembly's
-PE machine type (I386 for netfx AnyCPU), not the process architecture. Maintainer: *"netfx is not x86,
-don't fantasize."* One grep of the same log for the invocation is cheap; the wrong version costs a
-retracted analysis.
+A path name is a label too. On #5614 the MTP line `(linq2db.Tests.exe|net462|x86)` was dismissed in favour
+of the invocation path `net462\main\x64\linq2db.Tests.exe`, and the analysis built on "the netfx legs are
+32-bit" was retracted. The primary artifact is the binary. Its CLR header read `I386, ILOnly,
+Requires32Bit`, because the SDK defaults a .NET Framework exe published with no RID to win-x86. The legs
+*were* 32-bit, and the `x64` in the path is just our name for that artifact half. It took #6128 to measure
+the header, after three SQL Server legs died out of address space in one release run. The header takes
+one read; trusting the wrong label cost a correct analysis twice, in opposite directions:
+[`testing.md`](testing.md) → *The runner's arch tag is the PE machine type*.
 
 ## Anchor a log extraction to its query — a global grep answers a different question
 

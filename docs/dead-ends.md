@@ -199,3 +199,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** #5144 keeps `as` non-convertible on purpose. `as` is `try_convert`, which linq2db does not support across providers; `ConstantTests.NullableTypeConstantDefininitionAsSqlThrows` pins the exception. Through `HandleValue`, `Sql.AsSql(1 as int?)` folds to `SELECT 1` and that test goes red on every non-SQLite provider.
 
 **Don't re-attempt:** making `as` convertible without a maintainer decision reopening #5144. `ArrayLength` alone shipped. (#6103 plan, critic finding)
+
+## EXPR-TRANS: probing builder-time evaluation through a `[SqlQueryDependent]` argument
+
+**Tried:** reaching `EvaluationHelper.EvaluateExpression`'s compiled-query `ArrayIndex` arm with `CompiledQuery.Compile((dc, id) => dc.Person.Where(…).TagQuery(tags[1]))`, since `TagQueryBuilder` calls `builder.EvaluateExpression<string>`.
+
+**Failed because:** `TagQuery`'s argument is `[SqlQueryDependent]`, and expose materializes such arguments into constants before any builder runs (`ExposeExpressionVisitor.VisitMethodCall` → `HandleSqlDependentParameters`), so the builder only ever evaluates a `Constant`. The same holds for `QueryName`, `AsSubQuery(name)`, `TakeHints` and `NullsPosition`. The probe printed the right tag, which said nothing about the suspect arm.
+
+**Don't re-attempt:** a `[SqlQueryDependent]` argument as the carrier for a build-time-evaluation probe. Use a plain argument the builder evaluates itself, such as `CountBy`'s comparer (`CountByBuilder.cs:46`), which reproduced it as #6139. (#5879, U-10)

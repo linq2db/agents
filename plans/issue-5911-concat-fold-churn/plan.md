@@ -84,7 +84,7 @@ Consequence: per-pass allocation churn in the query-build path (#5911 suspects a
   - TO-8 → `StringConcatTests` + `CteTests` on SQLite.MS, 233/233 (local half)
   - TO-9 → `StringConcatTests.Optimizer_InlinedParameter_ReplacedByValue` (green before and after)
   - TO-10 → probe re-run, 0 changed iteration-≥2 rows
-- G-02: blocked — CI baselines on the PR (TO-8's CI half); needs the push and an Azure `test-all` run.
+- G-02: pass — PR #6136 head `63cf7870`: Azure `test-all` 24675 succeeded (14/14 jobs) and GitHub `tests [all]` run 40131953104 green (`wait-pr-checks.ps1 -Gate 'tests [all]'`: all gated legs green; every `test-all (…)` context SUCCESS). No baselines branch: `git ls-remote https://github.com/linq2db/linq2db.baselines refs/heads/baselines/pr_6136` empty, and `Build/CI/push-baselines.ps1:62-66` pushes nothing when a leg's commit is empty — so no leg produced a SQL diff. TO-8's CI half and A-1's possible OUTER APPLY / conditionless-join SQL change: not observed on any provider.
 - G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net10.0` both "Build succeeded", 0 warnings.
 - G-06: pass — `git diff --stat`: 2 files, 221 insertions, 0 deletions; no unrelated lines touched.
 - G-07: n/a — no `Tests/Tests.Playground/` changes.

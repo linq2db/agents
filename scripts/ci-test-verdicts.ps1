@@ -65,7 +65,8 @@ Usage
     .claude/scripts/ci-test-verdicts.ps1 -Dir <dirs> -Verdict gate-too-wide -Format table
 
 Output: JSON on stdout by default (one object per deduped case), plus the full row set at
-<WriteDir>/ci-test-verdicts.json. `-Format table` prints a grouped human summary instead.
+<WriteDir>/ci-test-verdicts.json. `<WriteDir>` defaults to `.build/.agents/ci-test-verdicts-<first -Dir leaf>`.
+`-Format table` prints a grouped human summary instead.
 Each case carries `fixture`, the declaring type from the test's own stack frame (empty when the
 log has no frame, e.g. a gate that holds), because the case line names only the method.
 
@@ -132,7 +133,8 @@ $knownVerdicts = 'gate-too-wide', 'signature-mismatch', 'gate-collision', 'gate-
 $unknown       = @($Verdict | Where-Object { $knownVerdicts -notcontains $_ })
 if ($unknown) { throw "Unknown -Verdict value(s): $($unknown -join ', '). Valid: $($knownVerdicts -join ', ')." }
 
-if (-not $WriteDir) { $WriteDir = Join-Path (Get-Location) '.build/.agents/ci-test-verdicts' }
+# Keyed by the first input dir (gh-<run>, azp-<build>), so concurrent sessions do not overwrite each other.
+if (-not $WriteDir) { $WriteDir = Join-Path (Get-Location) ".build/.agents/ci-test-verdicts-$(Split-Path -Leaf $Dir[0])" }
 if (-not (Test-Path $WriteDir)) { New-Item -ItemType Directory -Path $WriteDir -Force | Out-Null }
 $WriteDir = (Resolve-Path -LiteralPath $WriteDir).Path
 
