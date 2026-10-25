@@ -4,6 +4,18 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## MAPPING: inputs that do not separate a handle's schema from the live one
+
+**Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):
+- a required association (`CanBeNull = false`) whose target gets a query filter in the scope — 1 row on both arms;
+- a missing row's member default through `DefaultIfEmpty` with `SetDefaultValue` in the scope — 0 on both;
+- a `SelectMany` without a result selector over a second handle whose snapshot alone maps an extra column — green on both;
+- an entity group key registered scalar in the scope, then navigated (`GroupBy(c => c).Select(g => g.Key.Parent.Value1)`) — green on both.
+
+**Failed because:** the filter's outer-join promotion in `AssociationHelper.cs:172-180` never takes effect — `ExpressionBuildVisitor.cs:1858-1861` gives every non-list association a definite optionality, so the flag is either preset (`:117`) or reset (`:367-370`). The missing-row value is read as NULL and defaulted by the reader with the runtime schema. The other two sites' schema choice is not observable through these shapes.
+
+**Don't re-attempt:** these inputs for a schema-source test. The sites stay fixed for consistency without a separating test (plan P10 L-9). See [`testing.md`](testing.md) → *Testing a build step against a schema-snapshot divergence* for the arrangements that do separate. (#5951)
+
 ## EXPR-TRANS: one descriptor decision in `SuggestColumnDescriptor` for both literals and parameters
 
 **Tried:** fixing a SQL Server regression — `MAX(datetimeCol) = @v` binding `@v` as `datetime2`, so a value read back from the column (`.003`) stopped matching — by removing the guard that withholds a coarse date/time descriptor reached through a computed value (MIN/MAX, COALESCE, value window functions).
@@ -67,6 +79,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** the build-time `Finalize` already runs `SelectQueryOptimizerVisitor`'s expression optimizer in **Modify** mode (`SelectQueryOptimizerVisitor.cs:43,223`), which reduces `B + 0` in place before any Transform pass sees it, so the rebuild is never reached and the probe is the plain-sum case again.
 
 **Don't re-attempt:** an optimizer-foldable child. Use a child only the *convert* visitor replaces — a `SqlCoalesceExpression`, turned into a `Coalesce` function — which does reach the rebuild; it showed the type loss on the direct path as well (#6056). (#6055)
+
+## SQL-AST: cutting `SelectQueryOptimizerVisitor` whole-tree passes to speed up a deep join chain
+
+**Tried:** skipping the redundant top-of-query whole-tree expression pass (`VisitSqlQuery`'s `:223`) in fixpoint iterations ≥2 (#6140, after #5911 counted five passes per build). The goal was a faster translation of `DeepJoinChainBenchmark` at depth 100.
+
+**Failed because:** the pass was a semantic no-op and the skip is correct (0 SQL diff across the CI matrix), but there was no measurable gain. Interleaved master/branch runs showed no difference above noise in wall-clock or in allocations (~27 MB/build, within master's own ±1 MB). A CPU trace explained why: the whole `SelectQueryOptimizerVisitor.Optimize` is ~45 ms of a ~367 ms depth-100 build. The cost sits in the builder (`ExpressionBuildVisitor.TryGenerateComparison` → `ConvertCompareExpression` ~196 ms, `NullabilityContext.CanBeNull` ~124 ms), in `BasicSqlBuilder.BuildSql` (~123 ms) and in GC stalls.
+
+**Don't re-attempt:** pass-count reductions in `SelectQueryOptimizerVisitor` as a performance fix for deep join chains. Profile first ([`measuring-query-build.md`](measuring-query-build.md)); the builder's comparison and nullability paths are the cost centre (#5738's scope). (#5911, #6140)
 
 ## PROV-FIREBIRD: binary Guid *parameter* writes on a UTF8 Firebird 6 database
 
@@ -179,3 +199,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** #5144 keeps `as` non-convertible on purpose. `as` is `try_convert`, which linq2db does not support across providers; `ConstantTests.NullableTypeConstantDefininitionAsSqlThrows` pins the exception. Through `HandleValue`, `Sql.AsSql(1 as int?)` folds to `SELECT 1` and that test goes red on every non-SQLite provider.
 
 **Don't re-attempt:** making `as` convertible without a maintainer decision reopening #5144. `ArrayLength` alone shipped. (#6103 plan, critic finding)
+
+## EXPR-TRANS: probing builder-time evaluation through a `[SqlQueryDependent]` argument
+
+**Tried:** reaching `EvaluationHelper.EvaluateExpression`'s compiled-query `ArrayIndex` arm with `CompiledQuery.Compile((dc, id) => dc.Person.Where(…).TagQuery(tags[1]))`, since `TagQueryBuilder` calls `builder.EvaluateExpression<string>`.
+
+**Failed because:** `TagQuery`'s argument is `[SqlQueryDependent]`, and expose materializes such arguments into constants before any builder runs (`ExposeExpressionVisitor.VisitMethodCall` → `HandleSqlDependentParameters`), so the builder only ever evaluates a `Constant`. The same holds for `QueryName`, `AsSubQuery(name)`, `TakeHints` and `NullsPosition`. The probe printed the right tag, which said nothing about the suspect arm.
+
+**Don't re-attempt:** a `[SqlQueryDependent]` argument as the carrier for a build-time-evaluation probe. Use a plain argument the builder evaluates itself, such as `CountBy`'s comparer (`CountByBuilder.cs:46`), which reproduced it as #6139. (#5879, U-10)

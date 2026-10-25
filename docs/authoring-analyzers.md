@@ -246,6 +246,17 @@ Mechanics that are non-obvious (each cost a debugging cycle on #5703 — the ski
 
 When the gap is "nothing enforces that declaration X accompanies implementation shape Y", prefer a Roslyn analyzer over a reflection test that walks a fixed type list: the analyzer fires on new code as it is written and, if it goes in the shipped `linq2db.Analyzers` package, covers user-defined members too, whereas a reflection test only ever covers the types it names. The repo already hosts both flavours — repo-internal rules (`LINQ2DB0001` in `Source/CodeGenerators`, wired via `OutputItemType="Analyzer"`, shipped in no package) and user-facing ones (`L2DB1001` in `Source/LinqToDB.Analyzers`) — and `Source/LinqToDB/LinqToDB.csproj` deliberately omits `OutputItemType="Analyzer"` on the user-facing reference, so the two hosts are separate by design and an internal invariant needs an internal rule. Note `Tests/BannedSymbols.txt` bans every `MemberInfo.GetCustomAttribute*` overload, so a reflection test would have to route through `AttributesExtensions.GetAttribute<TAttribute>(bool inherit)` anyway. (#5783, #5788)
 
+## Designing a "read X, not Y" rule: formalize what is reachable before choosing an escape
+
+For an internal rule of the shape "this code must read value X, not Y", design the criterion before the exemption mechanism:
+
+- **State it as reachability.** A read of Y is wrong when an X value is syntactically reachable at the site (a parameter, an earlier local, a pattern variable, a member of a type that holds one); legitimate when none is; undecidable when X is reachable only through data the analyzer cannot follow. The rule reports the decidable "wrong" case, and the undecidable sites are listed in the rule's remarks rather than flagged.
+- **Derive the aliases.** If other properties return Y (`=> DataContext.MappingSchema`), find them by getter shape at compilation start rather than listing them, so the next alias is covered.
+- **Restrict the structural exemption.** A fallback like `source?.X ?? Y` is exempt only when its left operand is actually a source of X; an open `?? Y` exemption silences a fallback from the wrong value.
+- **Remove false positives at the root.** A dead parameter, a constructor that should take the value, or a context that ignores its own member is fixed in the code, not marked. A member-level marker attribute or a "flag every read and annotate" design was rejected on #5951: the marker exempts whole methods, and annotation produced dozens of markers on sites that were not capture points. `#pragma warning disable <id> // <reason>` stays the escape hatch, with zero instances as the target.
+
+Measure the criterion against a census of the real sites before implementing: list every site with its expected verdict, and require the first Release build to report exactly that list. (#5951, `LINQ2DB0007`: three draft criteria missed 9 of 12 known defects or flagged dozens of correct sites before the reachability form held.)
+
 ## Registration
 
 Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).

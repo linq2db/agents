@@ -123,7 +123,7 @@ Posting is publicly visible and incurs CI cost, so follow the standard confirmat
 
 **One `/azp run <pipeline>` comment starts *both* CI systems — there is no separate GitHub trigger to issue.** `.github/workflows/tests-comment.yml` fires on `startsWith(github.event.comment.body, '/azp run')` and resolves the Azure pipeline name against a `surfaces` map, so the same comment Azure consumes also launches the GitHub `tests` workflow's legs. Offering "re-run `/azp run test-all` **and** the GitHub tests workflow" as two actions is wrong, and the second one has no command behind it. Verify both started the same way you verify anything else: `gh pr checks <n>` for the Azure legs, and the workflow-runs query below for the GitHub half.
 
-**A push to the PR cancels its in-flight Azure `test-all`, and the cancelled legs vanish from `gh pr checks`**, which lists only the new head's contexts — so after a follow-up push, re-post `/azp run test-all` rather than waiting on a build that no longer exists. (#6043: build 24265 `completed/canceled` by the push of the next commit.)
+**A push to the PR cancels its in-flight Azure `test-all`, and the cancelled legs vanish from `gh pr checks`**, which lists only the new head's contexts — so after a follow-up push, re-post `/azp run test-all` rather than waiting on a build that no longer exists. (#6043: build 24265 `completed/canceled` by the push of the next commit.) The same applies to a manual *Rerun failed jobs* on an older build of the PR: the next push cancels it too. Push first, then re-run, or the re-run is lost. (#6132: build 24657's re-run canceled by a master-merge push.)
 
 ## Waiting for a run to finish
 
@@ -147,11 +147,15 @@ On test-all, the Azure Windows SQL Server ≤2016 legs run the Linq tests on NET
 
 **A scoped Azure pipeline can be green while running no tests at all.** Azure `test-clickhouse` [24596](https://dev.azure.com/linq2db/0dcc414b-ea54-451e-a54f-d63f05367c4b/_build/results?buildId=24596) reported every job succeeded while all six of its `Tests (…)` tasks were `skipped`; the ClickHouse cases ran only on the GitHub run the same comment started, which was red. Before counting an Azure scoped leg as coverage, confirm that at least one `Tests (` task ran (`azp-job-durations.ps1 -BuildId <id>`, `result` per task). When none did, the GitHub run is the only verdict. (#6116; the reason the tasks were skipped was not investigated.)
 
+**Testing an Azure `test-workflow-*.yml` change on an offloaded leg.** PR pipelines pass `offload_linux_to_github` / `offload_windows_to_github: true` (`Build/Azure/pipelines/testing.yml`), so legs marked `gh_linux` / `gh_windows` never run the Azure template on a PR. Today that means every linux leg and every x86 Windows leg. Only `default.yml`, after merge, runs them on Azure. To cover them before merge: push a `TEMP:` commit setting the flag to `false`, run the narrowest surface that selects the leg (e.g. `test-access` for x86), then revert in a follow-up commit. (#6132: build 24678, `40e3cc25a`.)
+
 ## Reading failed CI test runs
 
 **Find *which* pipeline failed with `gh pr checks <n>`, not `gh api commits/<headSha>/check-runs`.** The auto-triggered `build` pipeline (and any pipeline Azure runs against the PR *merge* commit) attaches its check to that merge SHA — a different commit than the PR head — so `gh api repos/linq2db/linq2db/commits/<headSha>/check-runs` can silently omit it. Seen on #5703: the head's `check-runs` listed only `test-all` (all green) while `gh pr checks 5703` showed `build	fail` (buildId 22173, sourceVersion = the Azure merge commit). Treat `gh pr checks <n>` as the authoritative "is CI failing?" list; use the `check-runs` API only to resolve a *specific* named check's `buildId`.
 
 When a CI build fails, the per-task error messages aren't in the GitHub check-runs annotations — they're inside the Azure DevOps build logs. The `dev.azure.com/linq2db` build API is publicly readable (no auth), but the hand-flow is fiddly: hit `/timeline?api-version=7.0` for the JSON list of failed `Task` records, then `/logs/<id>` for each one's raw log, then regex for `Failed <TestName>... Error Message:` blocks.
+
+The build API's reads are anonymous, but the pipeline **run-preview** endpoint is not. An anonymous `POST _apis/pipelines/<id>/preview` (`previewRun: true`, which compiles the YAML with chosen `templateParameters` and queues nothing) returns **200 with an empty body** rather than 401, so it reads as success. Treat an empty `finalYaml` as "not authenticated", not as a compiled pipeline. (#6128: the `default.yml` `run_tests: true` compile check had to be recorded `skipped`.)
 
 Use [`.claude/scripts/azp-build-failures.ps1`](../scripts/azp-build-failures.ps1) instead — it does the timeline + parallel log fetch + per-failure parse in one call:
 
