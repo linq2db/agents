@@ -222,16 +222,21 @@ A `TimeSpan` property mapped with no `[Duration]` fails on three providers befor
 
 Exclude them in `[DataSources(...)]`, or map the member with `[Duration]` when the test is not about a native time type. SQLite MS, DuckDB, Access, SQL Server 2008+, PostgreSQL, YDB, Firebird, Sybase, DB2, Informix and MySQL 8 store it. (#5983, `SpanOverMissedLeftJoinReadsDefault`)
 
-## The runner's `[slow]` line reports assembly arch, not process arch
+## The runner's arch tag is the PE machine type — read the CLR header to know the process arch
 
-Microsoft.Testing.Platform's progress output tags still-running tests as `(<exe>|<tfm>|<arch>)` — e.g.
-`EagerLoadMultiLevel("SqlServer.2017") (linq2db.Tests.exe|net462|x86)`. That `arch` is the **assembly's PE machine
-type**, which is I386 for a netfx AnyCPU build even when the process is 64-bit. It is **not** the process
-architecture, and netfx legs are not 32-bit because of it.
+Microsoft.Testing.Platform tags tests and run summaries as `(<exe>|<tfm>|<arch>)`, for example
+`(linq2db.Tests.exe|net462|x86)`. That `arch` is the exe's PE machine type. `I386` alone is ambiguous: it is the
+machine type of both an AnyCPU build and an x86 one. What decides the process is the CLR header's `Requires32Bit`
+flag. Read it with `System.Reflection.PortableExecutable.PEReader` (`PEHeaders.CoffHeader.Machine` and
+`PEHeaders.CorHeader.Flags`). The `x64` / `x86` segment in a CI path (`net462\main\x64\…`)
+is only the name of the artifact half, and it says nothing about the process.
 
-Read the step's actual invocation instead — the CI log prints it (`net462\main\x64\linq2db.Tests.exe …`), and the
-`x64`/`x86` path segment is authoritative. Mistaking the label for the process arch on #5614 produced a whole wrong
-analysis (an "OOM family is bitness-wide" reframe) that had to be retracted.
+The SDK gives a .NET Framework **exe** published with no RID the default win-x86. Our MTP test projects are exes,
+so `Tests/Linq` net462 published without `-a` is `I386, ILOnly, Requires32Bit`: a 32-bit process. Until #6128
+(`bd7455b77`) both CIs published the main netfx suite that way. Every non-Access netfx leg therefore ran 32-bit,
+and on full runs NUnit's result string ran out of address space (`OutOfMemoryException` in
+`TestEventDispatcher` / `XmlNode.OuterXml`). Published with `-a x64`, the exe is `Amd64` with no
+`Requires32Bit`. #5614 read the label the other way round and retracted a correct analysis.
 
 ## `ToListAsync` needs `using LinqToDB.Async`
 
@@ -270,7 +275,7 @@ A full suite run takes 1–2 hours. To watch progress without scraping console o
 dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings --filter "..." --provider SQLite.MS --test-progress
 ```
 
-**The rule is enforced, not just stated.** [`../hooks/require-test-progress.js`](../hooks/require-test-progress.js) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
+**The rule is enforced, not just stated.** [`../hooks/require-test-progress.js`](../hooks/require-test-progress.js) is a `PreToolUse` hook (matcher `Bash|PowerShell`) exiting 2 on a flagless `linq2db.Tests*.exe` / `dotnet test` invocation; the bare-NUnit hosts (`Tests.Analyzers`, `Tests.Analyzers.Internal`, the CLI tests) and `--list-tests` are exempt. Wire it per [`claude-setup.md`](claude-setup.md). It matches on command *text*, so a command that merely quotes a flagless invocation is blocked too — an accepted cost. That includes a command that only *names* the exe, such as `Get-ChildItem -Filter linq2db.Tests.exe` or a header read. Put the name inside a scratch script under `.build/.agents/` and run the script, since the hook sees only the script path (#6128). Added 2026-09-09 after the rule was broken in a session that had it loaded, which is the evidence that prose had reached its limit here.
 
 A bare `--test-progress` writes to `.build/.agents/test-progress.<tfm>.<pid>.json` (one per TFM/process); pass `--test-progress <dir|*.json>` to redirect it. Fields: `done`, `total`, `totalIsUpperBound`, `completed`, `passed`, `failed`, `skipped`, `inconclusive`, `currentTest`, `elapsedSec`, `testsPerSec`, `etaSec`, and `recentFailures[]`. `inconclusive` counts the cases an `[ActiveIssueNew]` gate rewrote — a known issue still failing as declared. It is the only local count of that population: the platform summary folds Inconclusive into *skipped*, and CI passes no `--test-progress` at all.
 
@@ -588,6 +593,10 @@ These are the maintainer's house rules for **new** test code, and they win over 
 
    What a conversion trades away: `AssertQuery` re-reads every table the query names (`TableName(…)` included) and runs the expected side over that read-back data, then compares count plus a two-way `Except` — order is not checked, and a value the database stored wrongly is wrong on both sides. So changing the test's data cannot prove a converted test can fail; prove it with a product mutation that forces a wrong value (#5943 round 5: away-from-zero answered to-even turned each converted `Round32`–`Round35` red). The actual query runs first, so a red and an `[ActiveIssue]` gate's exception are unchanged.
 
+   **The expected side runs the provider's `Expressions` map expansions too.** On a provider with a `MapMember` entry for the member under test, the expected value is the map's C# expansion, not the member's own body. A red or green there partly measures the map — e.g. Oracle's `Sql.Right` map made the expected value of `Right("John", 5)` NULL, not `"John"`. Judge a mapped provider's result again once the map entry is gone (#5922).
+
+   **A test of a translation must make the call reach SQL — wrap it in `Sql.AsSql(...)`.** In a projection, a call over columns is often left to the client: most translator handlers decline when `TranslationFlags.Expression` is set and `CanBeEvaluatedOnClient` holds, and the value is then computed in C# from the fetched columns. The test passes on every provider while testing nothing — check that the function appears in the baseline SQL. (#5922: `MathRoundNegativeMidpoints` was green on 16 providers with SQL `SELECT Id, D, F`; with `Sql.AsSql` it went red on 14.) Keep a separate un-wrapped cell when the client fallback is itself under test.
+
    ```csharp
    // not this
    AreEqual(
@@ -891,6 +900,20 @@ Three idioms, each proves something different. Full mechanics in [`query-cache-m
 
 **A caching fix's test asserts reuse directly — never only the SQL text.** A rebuilt query emits the same `LastQuery` as a reused one, so `db.LastQuery.ShouldBe(sql)` across two argument values cannot go red for a "rebuilds per value" regression. For `IQueryable` queries, assert a `GetCacheMissCount()` delta. `CompiledQuery` builds bypass `Query<T>.CacheMissCount` entirely, because `CompiledTable<T>` keeps its own cache. There, assert that the two invocations return the same built query: `query2.GetCompiledQueryInfo().ShouldBeSameAs(query1.GetCompiledQueryInfo())`. The `QueryUtils` helper reads the compiled table's internal `Info` by reflection, since nothing public exposes it. (#6003: three compiled `FromSql` tests asserted `LastQuery` equality and stayed green while each new argument value triggered a full rebuild. The `BuildsOnce` tests caught it.) **Executing one `IQueryable` instance twice is not a reuse test:** after the first execution `ExpressionQuery` returns its memoised `Info`, so a second-execution `ShouldBeSameAs` cannot fail. A single instance can only assert that `Info` was memoised at all — `GetCompiledQueryInfo()` throws on null. (#6003 round 3: `FromSql_RawSqlString_TopLevel_QueryReused`.)
 
+### Testing a build step against a schema-snapshot divergence
+
+A table handle keeps the mapping schema it was created under; `UseMappingSchema` / `AddMappingSchema`, and `CreateTempTable(..., setTable)` while it lives, replace the data context's schema. A test that a build step reads the handle's schema rather than the live one needs an input where the two **disagree on the facet that read consumes**:
+
+- **Pick the facet, not a rename.** A column rename separates only a site that emits names (`FromSql`'s raw table). Most reads decide another facet: the column set, primary key or skip-on-insert (entity DML, Merge default insert); association presence or an inheritance mapping; a discriminator code's conversion; a parameter's conversion. Write each cell against the facet its site reads. (#5951: a rename was the planned input for 11 cells and separated one.)
+- **Prefer "handle created inside the scope, queried after it".** The live schema is `CombineSchemas(added, old)`, so it differs from a snapshot only where the scope adds or overrides. Creating the handle inside a scope that adds the facet and querying after the scope closes makes the snapshot the superset, so the fixed path is the one that works (an association resolves, a row is found) and master's live read is the one that fails. The pre-scope shape ("handle before, query inside") asserts only that a facet is *not* applied.
+- **A facet seen only on read-back cannot separate.** The reader converts values and fills NULL defaults with the runtime context's schema (`ConvertFromDataReaderExpression.cs`), so a converter or default that shows only in the read value agrees on both arms. For a type-level conversion, use an override arrangement: the base schema (`GetDataContext(context, o => o.UseMappingSchema(baseSchema))`) carries the read-back conversion and value A of the facet under test, and the scope overrides it with B.
+- **Isolate a per-member site with a two-handle join.** In `from p in parents join c in scoped …`, the join context carries the outer handle's schema, so a member of the second handle (an association, an `is` test) separates only if its own site picks the member's source.
+- **Prove red after the fix is in.** With the branch's builder changes committed, run the new tests with `git checkout origin/master -- Source/LinqToDB/Internal/Linq/Builder`, then restore it with `git checkout HEAD -- …`. Before committing, `git stash push -- Source/LinqToDB` does the same.
+- **Shared model types collide with `TestBase` properties.** Inside a `TestBase` fixture, write `Model.Parent` / `Model.Child` for the types; `Parent` / `Child` are the in-memory collections.
+- **A `CreateTempTable(…, setTable)` cell with `IEnumerable` items excludes remote contexts.** That overload fills the table by BulkCopy even for an empty list, which throws `ArgumentException: Data context must be of DataConnection or DataContext type` on `.LinqService`. Use `[DataSources(false)]`, or pass an `IQueryable` (INSERT … SELECT) to keep remote coverage. (#5951)
+
+Inputs measured not to separate are in [`dead-ends.md`](dead-ends.md) → *MAPPING: inputs that do not separate a handle's schema from the live one*.
+
 ## Reading test output
 
 Always read the **full** test run log — not just the tail. NUnit and `dotnet test` interleave relevant information across the log: `_CreateData` failures appear near the top, setup exceptions and warnings can come well before the failing assertion, and stack traces may be truncated if you jump to the end. Do not use `tail`, `head`, `head_limit: 1`, or similar tricks to skim the output; read the entire log and scroll back for context when a failure is surprising. The only exception is when you have already read the log once and are fetching a specific slice you've already identified.
@@ -956,7 +979,11 @@ Func<Task> act = () => db.SomeApiAsync(record);
 await act.ShouldThrowAsync<LinqToDBException>();
 ```
 
-Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all.)
+Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all; a fifth on #5879, `Should.NotThrow`.)
+
+### `nameof(Parent.Children)` inside a `TestBase` fixture names the wrong thing
+
+`TestBase` exposes the in-memory model data as properties named after the model types — `Person`, `Parent`, `Child`, `GrandChild`, … — each an `IEnumerable<T>`. Inside a fixture deriving from it, a bare type name in an *expression* position binds to that property, not to the type. So `nameof(Parent.Children)` fails with `CS1061: 'IEnumerable<Parent>' does not contain a definition for 'Children'`, while `typeof(Parent)` in the same file still means the model type. This bites hand-built expression trees (`Expression.Property(p, nameof(…))`) above all. Qualify the type, as in `nameof(Model.Parent.Children)`, or `Model.Person` throughout. Also note that `Person.ID` is a **field**, so the tree needs `Expression.Field`, not `Expression.Property`. (#5879: three compile errors in one build of the hand-built `LoadWith` and association tests.)
 
 **Write `Action act = () => { … };`, not `var act = …` — the `var` form is type-dependent.** Shouldly's sync overload is `ShouldThrow<T>(this Func<object?> actual)` alongside the `Action` one, so `var act = () => q.ToList();` compiles *only* because `Func<List<T>>` converts to `Func<object?>` by reference covariance. Point the same idiom at an expression of a **value** type and the covariance is gone: `var act = () => Helper(db);` on an `int`-returning helper infers `Func<int>` and fails with `error CS1929: 'Func<int>' does not contain a definition for 'ShouldThrow'`. Copying the `var` shape from a passing fixture (`Exceptions/JoinTests.cs:60`) is what walks you into it. An explicit `Action` with a statement body discards the result and works for both. (#5704.)
 
