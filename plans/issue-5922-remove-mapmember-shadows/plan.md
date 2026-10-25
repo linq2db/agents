@@ -199,12 +199,12 @@ On `Source/LinqToDB` the analyzer runs in **Release only** (`Directory.Build.pro
 - E-13 `Source/LinqToDB/Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs` — `TranslateRight` (map formula over the string-length node), `TranslateTruncate`.
 - E-14 `Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs` — `TranslateRight`; new math translator with `TranslateTruncate`.
 - E-15 `Source/LinqToDB/Internal/DataProvider/SQLite/Translation/SQLiteMemberTranslator.cs` — `TranslateRight`; new math translator with `TranslateTruncate`.
-- E-16 `Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` — `TranslateRight` (`rightUTF8`).
+- E-16 `Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` — `TranslateRight` (`rightUTF8`); `TranslateRoundAwayFromZero` sign-symmetric for non-decimal values (A-1).
 - E-17 `Source/LinqToDB/Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs` — `TranslateRight`, `TranslateTruncate`.
 - E-18 `Source/LinqToDB/Internal/DataProvider/SqlServer/Translation/SqlServerMemberTranslator.cs` — `TranslateTruncate` (`Round(x,0,1)`).
-- E-19 `Source/LinqToDB/Internal/DataProvider/DB2/Translation/DB2MemberTranslator.cs` — `TranslateTruncate`.
+- E-19 `Source/LinqToDB/Internal/DataProvider/DB2/Translation/DB2MemberTranslator.cs` — `TranslateTruncate`; `TranslateRoundAwayFromZero` sign-symmetric for non-decimal values (A-2).
 - E-20 `Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs` — new math translator with `TranslateTruncate`.
-- E-21 `Source/LinqToDB/Internal/DataProvider/MySql/Translation/MySqlMemberTranslator.cs` — new math translator with `TranslateTruncate`.
+- E-21 `Source/LinqToDB/Internal/DataProvider/MySql/Translation/MySqlMemberTranslator.cs` — new math translator with `TranslateTruncate`, and `TranslateRoundAwayFromZero` sign-symmetric for non-decimal values (A-1).
 - E-22 `Source/LinqToDB/Internal/DataProvider/Sybase/Translation/SybaseMemberTranslator.cs` — `TranslateTruncate` (Floor/Ceiling).
 - E-23 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — rows for the new virtuals, overrides and nested translator classes.
 - E-24 `Tests/Linq/Linq/MathFunctionTests.cs` — new Round / RoundToEven / Truncate tests (TO-7..TO-11, TO-14, TO-15).
@@ -276,7 +276,33 @@ Members not separately exercised: a direct `Sql.Power(double?,double?)` call —
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-25, master measurements + user decisions)
+  - **Measured on master** (16 providers, YDB unavailable locally: port 2136 blocked).
+    - TO-5's real-tree build reports exactly the predicted 16 × 0007 and 4 × 0008, and no 0009.
+    - Projected `Math.Round` / `Sql.Round*` over columns are mostly evaluated on the client unless wrapped in `Sql.AsSql`, so the new server-translation tests wrap every call. Separate "on client" cells cover the client path.
+    - Confirmed: the base ToEven precision-null bug (-2.5 → -3, -0.5 → -1) on 14/16 providers, all but Access and ClickHouse.
+    - Confirmed: the Access AwayFromZero `Int` bug (-2.4 / -2.0 → -3).
+    - Confirmed: the Oracle `Right('John', 6)` → `'n'`.
+    - New defect: on the client path, the map expansions `(decimal)v!` crash for null inputs — `Sql.RoundToEven(double?)` on Firebird / PostgreSQL / SapHana and `Sql.Truncate(double?)` on PostgreSQL. The port fixes it, and `SqlRoundDoubleOverloadsOnClient` plus `SqlTruncateOverloads`' client cells are red→green.
+    - New, pre-existing: MySQL and ClickHouse round doubles half-to-even (2.5 → 2), so `Math.Round(double, AwayFromZero)` and `Sql.Round(double)` are wrong there.
+    - New, engine limit: DuckDB rejects `ROUND(DECIMAL, <column>)`.
+    - Engine semantics: Sybase `RIGHT(s, 0)` returns NULL.
+    - `AssertQuery`'s expected side applies the provider's map expansions too, so Right/Round master reds on mapped providers are partly expected-side artifacts.
+  - **User decisions:**
+    - Fix MySQL / ClickHouse double AwayFromZero here: a sign-symmetric `SIGN(v) * FLOOR(ABS(v) * 10^p + 0.5) / 10^p` for non-decimal values, in the shared `TranslateRoundAwayFromZero` override. `Sql.Round*` inherits it through the D-5 default delegation.
+    - Gate DuckDB's column-precision decimal cell with a throws gate.
+    - Treat Sybase `n = 0` as engine semantics: the row is left out for Sybase, as for Oracle.
+    - U-11 is resolved by the master run: Access native `Round` is banker's (`Math.Round` ToEven rows were correct on both drivers), so Access ToEven emits native `Round`.
+  - re-derives: P4 (U-11), P5 (D-5: MySQL / ClickHouse arm), P6 (E-16, E-21 widened; E-24, E-25 test shapes), P8 (TO-7, TO-8, TO-9, TO-10, TO-11, TO-12, TO-14), P10 (Sybase / DuckDB lines)
+  - conventions (A-1): `testing.md` → *Test layout* and *A narrowed provider set is a claim*, embedded.
+- A-2 (2026-10-25, post-change runs; user accepted all three items below)
+  - The base ToEven midpoint now uses `ROUND(v / 2, 0) * 2` instead of a MOD-based branch. Measured: Sybase decimal `FLOOR(v) % 2 = 0` was false for -4, and master had hidden it behind `ROUND`.
+  - DB2 rounds doubles half-to-even too (0.125 @2 → 0.12, measured), so it gets the same magnitude override as MySQL / ClickHouse, adding a `TranslateRoundAwayFromZero` override to E-19.
+  - Informix `RIGHT(s, 0)` returns NULL: engine semantics, so the row is left out, as for Oracle / Sybase.
+  - Access cannot type a function result over a NULL argument (OleDb "could not determine the value", ODBC "data type mismatch"; master the same): its null rows are left out of the Round and Right tests.
+  - Result: 16 local providers green on `MathFunctionTests` plus the `StringFunctionTests` Right / Stuff / Insert / Remove tests (2195 runs, 0 failures; YDB not local). Release `Source/LinqToDB -f net10.0`: clean, no LINQ2DB0007-0009. Commits `486aa1257`, `b36dfaaa9`, `7e1c4293f` (local, unpushed).
+  - re-derives: P6 (E-19), P10 (Informix / Access lines)
+  - conventions: `testing.md` → *Test layout* and *A narrowed provider set is a claim*, re-embedded. Each new narrowing carries its measured reason at the data. Swept `git diff origin/master -- Tests/`, with the new tests in the working tree: each narrowing carries a measured reason (`RightLongerThanString` Oracle-only = the clamp; `MathRoundResidueDoubleKeepsDoubleRoute` PostgreSQL-only = the mutation target; DuckDB throws gate = engine limit).
 
 ## P12 Critic verdict (M/L)
 
