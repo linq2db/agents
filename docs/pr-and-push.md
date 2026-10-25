@@ -65,10 +65,10 @@ After the review lands, fix or reply per thread and resolve via the existing hel
 
 ### After every successful push: refresh the release-notes draft
 
-If the PR already has a release-notes draft comment (the marker `<!-- release-notes:draft:`), the pushed commits may have changed what ships. Refresh it via [`/release-notes`](../skills/release-notes/SKILL.md) → mode `refresh <pr>`:
+If the PR already has a release-notes draft file (`.claude/release-notes/<pr>.md` in the corpus), the pushed commits may have changed what ships. Refresh it via [`/release-notes`](../skills/release-notes/SKILL.md) → mode `refresh <pr>`:
 
 - `release-notes-draft.ps1 -Action find -Pr <n>` reports `present` + the `lastSha` the draft was generated from. If `present: false`, **do nothing** — drafts are created on explicit request (`/release-notes draft`), never auto-created on a stray push. If `lastSha` equals the new PR HEAD, it's a no-op.
-- When HEAD moved, regenerate the proposed text, **show the user the change and confirm**, then `upsert`. The maintainer verifies correctness on every update — so regeneration is safe, but it's still gated by that confirm.
+- When HEAD moved, regenerate the proposed text, **show the user the change and confirm**, then `upsert` and commit + push the draft file to the corpus (that confirm authorizes it — `/release-notes` → `draft` step 5). The maintainer verifies correctness on every update — so regeneration is safe, but it's still gated by that confirm.
 
 Fold this into the push bundle alongside the PR-body check, Copilot re-request, and baselines cleanup.
 
@@ -153,7 +153,7 @@ Both `/review-pr` (in interactive-mode `fix`-path post-walk) and `/verify-review
 When merging a PR (or right after the user reports having merged one), two release-bookkeeping tasks run — both user-confirmed:
 
 1. **Milestone consistency.** A merged PR and the issues it closes should share a milestone. Run `pwsh -NoProfile -File .claude/scripts/milestone-consistency.ps1 -Action check -Pr <n>`. If it reports `laggards`, propose assigning the PR's milestone to them and, on confirmation, run `-Action assign -Pr <n>` (REST PATCH by numeric milestone id; verifies after). Laggards flagged `likelyIntentional` (issue on an earlier/closed milestone — fix shipped in a past release, this PR is a follow-up) are skipped by default; don't reassign them unless you really mean to (`-IncludeReleased`). Milestone is metadata so it's exempt from "never edit content authored by others", but the change is visible — **propose, then confirm**. (Same check fires from `/review-pr` when a discrepancy surfaces and from `/release-milestone-check`.)
-2. **Release notes draft** — ensure the PR has a draft comment (`/release-notes draft <pr>` if missing). This always happens; the wiki write does not.
+2. **Release notes draft** — ensure the PR has a draft file in the corpus (`/release-notes draft <pr>` if missing). This always happens; the wiki write does not.
 3. **Release notes → wiki (optional, explicit).** The team often updates the wiki right after merge so users can preview what's coming — but it's an **opt-in step the user requests explicitly**, not automatic on merge. The authoritative full-section generation is at release prep (`/release` task 5 → `sweep`/`harvest`/`apply`). When the user asks, run [`/release-notes`](../skills/release-notes/SKILL.md) → mode `apply` (wiki strategy B: regenerate the whole version section in the local `linq2db.wiki` clone → show the diff → push on confirm). Skip `omit`-flagged drafts. Because the section is regenerated wholesale, assemble the cumulative bullet set via `/release-notes harvest --milestone <ver>` rather than a single bullet when more than one PR has merged into the version.
 
 If the PR was merged **by the user outside the agent**, both tasks are missed — they're backfilled later by `/release-notes sweep` (release prep task 5, or ad-hoc).

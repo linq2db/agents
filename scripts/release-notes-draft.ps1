@@ -1,26 +1,30 @@
 #!/usr/bin/env pwsh
 <#
-release-notes-draft.ps1 — deterministic GitHub/wiki plumbing for the
-release-notes automation (`/release-notes` skill).
+release-notes-draft.ps1 — deterministic plumbing for the release-notes
+automation (`/release-notes` skill).
 
 This script does NOT compose prose. The agent writes the user-facing change
 text (per the provider-claim-verification discipline) and hands it to this
-script as manifest fields; the script wraps it in the comment scaffolding,
-posts/updates the PR draft comment idempotently, harvests drafts at release
-time, and regenerates the wiki release-notes section.
+script as manifest fields; the script wraps it in the draft scaffolding,
+writes the per-PR draft file idempotently, harvests drafts at release time,
+and regenerates the wiki release-notes section.
+
+Draft store: one file per PR at `<corpus>/release-notes/<pr>.md` (corpus =
+this script's parent directory). The script writes files only — it never
+commits or pushes; the skill owns the corpus git step.
 
 Actions
 -------
 
-  find        Locate the draft comment on a PR and parse its state.
-              In:  -Pr <n> [-Repo <owner/repo>]
-              Out: { ok, present, commentId?, url?, state: { lastSha, omit,
+  find        Locate the PR's draft file and parse its state.
+              In:  -Pr <n>
+              Out: { ok, present, path?, state: { lastSha, omit,
                      includeBrief, markerVersion } }
 
-  upsert      Create or update (PATCH) the draft comment.
+  upsert      Create or overwrite the draft file.
               In:  -ManifestFile { pr, lastSha, omit, includeBrief,
-                                   fullText, briefText, [repo] }
-              Out: { ok, commentId, url, created|patched, verify: { ok,
+                                   fullText, briefText }
+              Out: { ok, path, created|patched, verify: { ok,
                      sentLength, storedLength } }
 
   harvest     Collect every milestone PR's draft (flags + full + brief text).
@@ -43,9 +47,9 @@ Actions
                      deepDiveCount }
 
   omit        Persist an omit decision: upsert an omit-flagged, prose-less draft
-              on each PR (head SHA looked up per PR).
+              file per PR (head SHA looked up per PR).
               In:  -Prs <n>[,<n>…] [-Repo]
-              Out: { ok, results[]: { pr, ok, commentId, created } }
+              Out: { ok, results[]: { pr, ok, path, created } }
 
   build-manifest  Turn the harvested drafts into the cumulative apply-wiki
               manifest. Parses each non-omitted draft's full text:
@@ -60,7 +64,7 @@ Actions
                    any unparseable draft, listing them in errors[]
               File: .build/.agents/release-<ver>-apply-wiki.json
 
-  sweep-plan  Find milestone PRs missing a draft comment and/or missing from
+  sweep-plan  Find milestone PRs missing a draft file and/or missing from
               the wiki notes (orphan sweep — catches user-merged PRs).
               In:  -Milestone <ver> [-PlanFile] [-WikiClone] [-Repo] [-Version]
               Out (stdout): counts + sweepFile path
@@ -117,7 +121,12 @@ function Get-WorkDir {
     return $dir
 }
 
-# -- comment body parse/build ------------------------------------------------
+function Get-DraftPath {
+    param([int]$PrNumber)
+    return Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'release-notes') "$PrNumber.md"
+}
+
+# -- draft body parse/build --------------------------------------------------
 
 function Get-BetweenMarkers {
     param([string]$Body, [string]$Open, [string]$Close)
@@ -130,8 +139,8 @@ function Get-BetweenMarkers {
     return $Body.Substring($a, $b - $a).Trim("`r","`n")
 }
 
-# Parse the draft comment body into a state object. Rendered checkboxes are
-# authoritative for the flags (the maintainer may have toggled them in the UI);
+# Parse the draft body into a state object. The checkboxes are authoritative
+# for the flags (the maintainer may have ticked them by hand);
 # the embedded JSON is authoritative for lastSha.
 function Read-DraftState {
     param([string]$Body)
@@ -156,7 +165,7 @@ function Read-DraftState {
     return $state
 }
 
-function Build-CommentBody {
+function Build-DraftBody {
     param(
         [int]$PrNumber, [string]$LastSha, [bool]$Omit, [bool]$IncludeBrief,
         [string]$FullText, [string]$BriefText
@@ -177,7 +186,7 @@ function Build-CommentBody {
     [void]$lines.Add($DraftStart)
     [void]$lines.Add('## 📝 Release-notes draft')
     [void]$lines.Add('')
-    [void]$lines.Add('<sub>🤖 Auto-generated user-facing summary for this PR. Toggle the boxes to control how it ships; the text is regenerated when new commits land (the maintainer confirms every change).</sub>')
+    [void]$lines.Add("<sub>🤖 User-facing summary for [#$PrNumber](https://github.com/$Repo/pull/$PrNumber), maintained by ``/release-notes``. Tick the boxes to control how it ships; the text is regenerated when new commits land (the maintainer confirms every change).</sub>")
     [void]$lines.Add('')
     [void]$lines.Add("- [$omitMark] $OmitLabel (exclude from both the wiki notes and the GitHub release highlights)")
     [void]$lines.Add("- [$briefMark] $BriefLabel (the brief release-page notes)")
@@ -201,55 +210,39 @@ function Build-CommentBody {
     return ($lines -join "`n")
 }
 
-# -- comment fetch/write -----------------------------------------------------
+# -- draft file read/write ---------------------------------------------------
 
-function Find-DraftComment {
-    param([int]$PrNumber, [string]$RepoFull)
-    $r = Invoke-GhJson -ArgumentList @('api', "repos/$RepoFull/issues/$PrNumber/comments", '--paginate')
-    if (-not $r.ok) { Exit-WithError "comment list for PR #$PrNumber failed: $($r.error)" }
-    foreach ($c in @($r.data)) {
-        if ($c.body -and $c.body.Contains($DraftMarkerPrefix)) {
-            return [pscustomobject]@{ id = [long]$c.id; url = [string]$c.html_url; body = [string]$c.body }
-        }
-    }
-    return $null
+# Line endings are normalised on read: a checkout with core.autocrlf yields CRLF.
+function Read-DraftFile {
+    param([string]$Path)
+    return [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false)).Replace("`r`n", "`n").TrimEnd("`n")
 }
 
-# POST a new issue comment; returns { id, url }.
-function Add-IssueComment {
-    param([int]$PrNumber, [string]$RepoFull, [string]$Body)
-    $workDir = Get-WorkDir
-    $payloadPath = Join-Path $workDir "release-notes-draft-post-$PrNumber.json"
-    $utf8 = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($payloadPath, ([pscustomobject]@{ body = $Body } | ConvertTo-Json -Depth 100 -Compress), $utf8)
-    $r = Invoke-GhJson -ArgumentList @('api', '--method', 'POST', "repos/$RepoFull/issues/$PrNumber/comments", '--input', $payloadPath)
-    if (-not $r.ok) { Exit-WithError "POST comment on PR #$PrNumber failed: $($r.error)" }
-    return [pscustomobject]@{ id = [long]$r.data.id; url = [string]$r.data.html_url }
+function Find-Draft {
+    param([int]$PrNumber)
+    $path = Get-DraftPath -PrNumber $PrNumber
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $body = Read-DraftFile -Path $path
+    if (-not $body.Contains($DraftMarkerPrefix)) { Exit-WithError "draft file has no '$DraftMarkerPrefix' marker: $path" }
+    return [pscustomobject]@{ path = $path; body = $body }
 }
 
-# PATCH an existing comment + byte-verify (mirrors edit-gh-comment.ps1).
-function Set-IssueComment {
-    param([long]$CommentId, [string]$RepoFull, [string]$Body)
-    $workDir = Get-WorkDir
-    $payloadPath = Join-Path $workDir "release-notes-draft-patch-$CommentId.json"
-    $utf8 = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($payloadPath, ([pscustomobject]@{ body = $Body } | ConvertTo-Json -Depth 100 -Compress), $utf8)
-    $endpoint = "repos/$RepoFull/issues/comments/$CommentId"
-    $r = Invoke-GhJson -ArgumentList @('api', '--method', 'PATCH', $endpoint, '--input', $payloadPath)
-    if (-not $r.ok) { Exit-WithError "PATCH comment $CommentId failed: $($r.error)" }
-    $url = [string]$r.data.html_url
-    # verify
-    $g = Invoke-Gh -ArgumentList @('api', $endpoint, '--jq', '.body')
-    $verifyOk = $false; $storedLen = -1
-    $sentLen = [System.Text.Encoding]::UTF8.GetByteCount($Body)
-    if ($g.ok) {
-        $stored = $g.stdout
-        if ($stored.EndsWith("`n")) { $stored = $stored.Substring(0, $stored.Length - 1) }
-        $stored = $stored.Replace("`r`n", "`n")
-        $storedLen = [System.Text.Encoding]::UTF8.GetByteCount($stored)
-        $verifyOk = ($stored -ceq $Body)
+# Write the draft file + byte-verify the re-read content.
+function Write-Draft {
+    param([int]$PrNumber, [string]$Body)
+    $path = Get-DraftPath -PrNumber $PrNumber
+    $dir = Split-Path -Parent $path
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $created = -not (Test-Path -LiteralPath $path)
+    [System.IO.File]::WriteAllText($path, "$Body`n", [System.Text.UTF8Encoding]::new($false))
+    $stored = Read-DraftFile -Path $path
+    return [pscustomobject]@{
+        path         = $path
+        created      = $created
+        verifyOk     = ($stored -ceq $Body)
+        sentLength   = [System.Text.Encoding]::UTF8.GetByteCount($Body)
+        storedLength = [System.Text.Encoding]::UTF8.GetByteCount($stored)
     }
-    return [pscustomobject]@{ url = $url; verifyOk = $verifyOk; sentLength = $sentLen; storedLength = $storedLen }
 }
 
 # -- merged-PR listing (for harvest / sweep) ---------------------------------
@@ -455,7 +448,7 @@ function Splice-VersionSection {
 
 # Extract existing deep-dive blocks (<!-- rn:deepdive:#n --> + #### heading + body) from the
 # current version section. Deep-dive *bodies* live only in the wiki — they are never stored in the
-# PR draft comments, so `harvest` can't supply them. A full-section regenerate from a manifest that
+# per-PR draft files, so `harvest` can't supply them. A full-section regenerate from a manifest that
 # omits them would silently delete them; Do-ApplyWiki carries these forward.
 function Get-ExistingDeepDives {
     param([string]$PageText, [string]$Ver)
@@ -478,7 +471,7 @@ function Get-ExistingDeepDives {
 
 function Do-Find {
     if (-not $Pr) { Exit-WithError '-Pr required for find' }
-    $c = Find-DraftComment -PrNumber $Pr -RepoFull $Repo
+    $c = Find-Draft -PrNumber $Pr
     if (-not $c) {
         Write-JsonOutput ([ordered]@{ ok = $true; action = 'find'; pr = $Pr; present = $false; state = $null })
         return
@@ -486,7 +479,7 @@ function Do-Find {
     $state = Read-DraftState -Body $c.body
     Write-JsonOutput ([ordered]@{
         ok = $true; action = 'find'; pr = $Pr; present = $true
-        commentId = $c.id; url = $c.url; state = $state
+        path = $c.path; state = $state
     })
 }
 
@@ -494,33 +487,20 @@ function Do-Upsert {
     $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
     if (-not (Test-IsInteger $m.pr) -or [long]$m.pr -le 0) { Exit-WithError 'manifest.pr (positive int) required' }
     $prNum = [int]$m.pr
-    $repoFull = if ($m.repo) { [string]$m.repo } else { $Repo }
     $lastSha = [string]$m.lastSha
     $omit = [bool]$m.omit
     $includeBrief = [bool]$m.includeBrief
     $fullText  = [string]$m.fullText
     $briefText = [string]$m.briefText
 
-    $body = Build-CommentBody -PrNumber $prNum -LastSha $lastSha -Omit $omit -IncludeBrief $includeBrief -FullText $fullText -BriefText $briefText
-
-    $existing = Find-DraftComment -PrNumber $prNum -RepoFull $repoFull
-    if ($existing) {
-        $res = Set-IssueComment -CommentId $existing.id -RepoFull $repoFull -Body $body
-        $exit = if ($res.verifyOk) { 0 } else { 2 }
-        Write-JsonOutput ([ordered]@{
-            ok = $res.verifyOk; action = 'upsert'; pr = $prNum; commentId = $existing.id
-            url = $res.url; patched = $true; created = $false
-            verify = [ordered]@{ ok = $res.verifyOk; sentLength = $res.sentLength; storedLength = $res.storedLength }
-        })
-        exit $exit
-    } else {
-        $posted = Add-IssueComment -PrNumber $prNum -RepoFull $repoFull -Body $body
-        Write-JsonOutput ([ordered]@{
-            ok = $true; action = 'upsert'; pr = $prNum; commentId = $posted.id
-            url = $posted.url; patched = $false; created = $true
-            verify = [ordered]@{ ok = $true; sentLength = [System.Text.Encoding]::UTF8.GetByteCount($body); storedLength = $null }
-        })
-    }
+    $body = Build-DraftBody -PrNumber $prNum -LastSha $lastSha -Omit $omit -IncludeBrief $includeBrief -FullText $fullText -BriefText $briefText
+    $res  = Write-Draft -PrNumber $prNum -Body $body
+    Write-JsonOutput ([ordered]@{
+        ok = $res.verifyOk; action = 'upsert'; pr = $prNum; path = $res.path
+        patched = -not $res.created; created = $res.created
+        verify = [ordered]@{ ok = $res.verifyOk; sentLength = $res.sentLength; storedLength = $res.storedLength }
+    })
+    if (-not $res.verifyOk) { exit 2 }
 }
 
 function Do-Omit {
@@ -530,15 +510,9 @@ function Do-Omit {
     foreach ($n in $list) {
         $sha = Invoke-Gh -ArgumentList @('pr','view',[string]$n,'--repo',$Repo,'--json','headRefOid','--jq','.headRefOid')
         if (-not $sha.ok) { $results.Add([ordered]@{ pr = $n; ok = $false; error = "head lookup failed: $($sha.error)" }) | Out-Null; continue }
-        $body = Build-CommentBody -PrNumber $n -LastSha $sha.stdout.Trim() -Omit $true -IncludeBrief $false -FullText '' -BriefText ''
-        $existing = Find-DraftComment -PrNumber $n -RepoFull $Repo
-        if ($existing) {
-            $res = Set-IssueComment -CommentId $existing.id -RepoFull $Repo -Body $body
-            $results.Add([ordered]@{ pr = $n; ok = $res.verifyOk; commentId = $existing.id; created = $false }) | Out-Null
-        } else {
-            $posted = Add-IssueComment -PrNumber $n -RepoFull $Repo -Body $body
-            $results.Add([ordered]@{ pr = $n; ok = $true; commentId = $posted.id; created = $true }) | Out-Null
-        }
+        $body = Build-DraftBody -PrNumber $n -LastSha $sha.stdout.Trim() -Omit $true -IncludeBrief $false -FullText '' -BriefText ''
+        $res  = Write-Draft -PrNumber $n -Body $body
+        $results.Add([ordered]@{ pr = $n; ok = $res.verifyOk; path = $res.path; created = $res.created }) | Out-Null
     }
     $allOk = -not ($results | Where-Object { -not $_.ok })
     Write-JsonOutput ([ordered]@{ ok = $allOk; action = 'omit'; results = $results.ToArray() })
@@ -605,7 +579,7 @@ function Do-Harvest {
     $prs = Resolve-MilestonePRs -RepoFull $Repo -Title $Milestone -Plan $PlanFile
     $items = New-Object 'System.Collections.Generic.List[object]'
     foreach ($pr in $prs) {
-        $c = Find-DraftComment -PrNumber ([int]$pr.number) -RepoFull $Repo
+        $c = Find-Draft -PrNumber ([int]$pr.number)
         if (-not $c) {
             $items.Add([ordered]@{
                 pr = [int]$pr.number; title = $pr.title; hasDraft = $false
@@ -659,7 +633,7 @@ function Do-ApplyWiki {
     $pageText = [System.IO.File]::ReadAllText($pagePath, [System.Text.UTF8Encoding]::new($false))
 
     # Carry forward deep-dives already published in the live section that the manifest omits — their
-    # bodies exist only in the wiki (never in draft comments), so a manifest-only regenerate would drop them.
+    # bodies exist only in the wiki (never in draft files), so a manifest-only regenerate would drop them.
     $manifestDeepDives = @($m.deepDives)
     $manifestDdPrs     = @($manifestDeepDives | ForEach-Object { [int]$_.pr })
     $carriedDeepDives  = @(Get-ExistingDeepDives -PageText $pageText -Ver $ver | Where-Object { $manifestDdPrs -notcontains [int]$_.pr })
@@ -699,7 +673,7 @@ function Do-SweepPlan {
     $missingWiki  = New-Object 'System.Collections.Generic.List[object]'
     foreach ($pr in $prs) {
         $prNum = [int]$pr.number
-        $c = Find-DraftComment -PrNumber $prNum -RepoFull $Repo
+        $c = Find-Draft -PrNumber $prNum
         $hasDraft = [bool]$c
         $omit = $false
         if ($c) { $omit = (Read-DraftState -Body $c.body).omit }

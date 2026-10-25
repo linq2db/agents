@@ -22,6 +22,7 @@ links don't resolve; read from a mounted checkout, they do.
 | `scripts/*.ps1` | PowerShell Core helpers used by skills and subagents. |
 | `rules/*.md` | Path-scoped rules that load only when a matching file is opened. |
 | `knowledge-base/` | Built KB over linq2db's code, issues, PRs, and history. |
+| `release-notes/<pr>.md` | Per-PR release-notes drafts, owned by `/release-notes` (from 6.6.0). |
 
 ## Working on the corpus
 
