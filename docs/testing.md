@@ -696,6 +696,14 @@ Two details the obvious fix gets wrong:
 
 Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
 
+### ClickHouse and YDB don't report rows affected — assert the stored value
+
+An entity `Update` returns 0 on ClickHouse and -1 on YDB, so `.ShouldBe(1)` on the count fails there for a correct query. When the test is about *which* row changed, drop the count and assert the stored value afterwards — that is the outcome a wrong key or column set breaks anyway. Keep a count assertion only where the count is the subject, behind `context.IsAnyOf(TestProvName.AllClickHouse) ? 0 : 1` (`Issue1925Tests`). (#6145: `EntityUpdateFollowsHandleSchema`, 8 ClickHouse/YDB cases.)
+
+### `CreateTempTable(…, setTable)` defaults to a temporary table, which YDB refuses
+
+The `setTable` overloads default `tableOptions` to `TableOptions.IsTemporary`, and YDB fails with *"Creating temporary table is not supported."* When the test needs the overload for something other than temporariness (its mapping swap, its column set), pass `tableOptions: TableOptions.NotSet` so the test runs on YDB instead of gating it. (#6145: `EntityUpdateFollowsHandleSchemaUnderTempTable`.)
+
 ### Firebird types a multi-row insert's literal column from the first row
 
 `CreateLocalTable(data)` on Firebird writes the rows as one multi-row insert of literals, and the column's type comes from the first row's literal: `1.23456789` makes it `NUMERIC(9,8)`, so a later `123456789.25` fails the whole insert with `numeric value is out of range` before the query under test runs. The direct leg fails and the LinqService leg can pass, which reads like a remote divergence. Keep each column's rows in one literal shape (same integer and fractional digit counts), or put the widest value first. (#5943: `ScalarThroughText` and a probe table, both direct-only on Firebird 5.)
