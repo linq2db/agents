@@ -59,6 +59,8 @@ Input (JSON, via -ManifestFile <path> or stdin). From the PowerShell tool use -M
       },
       {
         "position": "end",                 // append: no anchor; joined to the body with exactly one blank line
+                                           // - so it starts a new block. To add a bullet to a list that ends
+                                           // the body, use a `replacements` entry on the list's last line.
         "textFile": ".build/.agents/x.md"  // instead of "text": UTF-8 file read verbatim - for a drafted section,
                                            // which saves JSON-escaping it into the manifest
       }

@@ -584,6 +584,18 @@ function Invoke-Validate {
         }
 
         if ($null -eq $verdict) {
+            # A round heading carries that round's verdict; prose inside a round can name any verdict word, so the
+            # any-line scan below misread a two-round `weak` plan as `holds` (feature-release-tests-github).
+            $rounds = @($p12.lines | Where-Object { $_ -match '^\*\*Round \d+' })
+            foreach ($l in $rounds) {
+                if ($l -match '^\*\*Round \d+\s*[—-]+\s*`(holds|weak|refuted)`') { $verdict = $Matches[1] }
+            }
+            if ($rounds.Count -ge 2) {
+                $warnings += 'P12 : several critic rounds but no `**Current verdict: <word>**` line -- add one at the top of P12'
+            }
+        }
+
+        if ($null -eq $verdict) {
             foreach ($l in $p12.lines) {
                 # Skip the block's own fill comment — it names all three verdict
                 # words in its instructions and would otherwise read as a verdict.
