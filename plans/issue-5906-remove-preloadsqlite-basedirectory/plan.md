@@ -39,6 +39,7 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 - U-9 Linux / macOS CI legs: `FixUpDllFileName` appends `.dll` only on Windows, so the pre-loader looks for a file literally named `e_sqlite3` and never matches `libe_sqlite3.so`; it finds nothing with or without the variable, the net8+ resolver returns the zero handle, and default probing loads the native (critic round 1, decompile) — resolved-by probe: decompile; the CI SQLite legs in G-01 confirm (`blocked — CI` until read)
 - U-11 Keep or delete the T4 assignment (D-5)? Keep, comment fixed — resolved-by user answer (2026-10-26)
 - U-12 What does SDS load on net462 in Tests/Linq / Playground? Measured: process is x86 (`Environment.Is64BitProcess == False`); the output root holds an x86 `e_sqlite3.dll` (PE machine `014C`) beside `runtimes\win-{x86,x64,arm64}\native`, so `PreLoadSQLiteDll` returns without loading (`_SQLiteNativeModuleFileName == null`) and the variable is irrelevant there — resolved-by probe
+- U-13 Which SQLite engine version do both clients run? 3.53.3 — measured: `SQLiteTests.TestDbVersion` / `TestDbVersion2` (`[Explicit]`, selected by name) on SQLite.Classic + SQLite.MS, net10.0, 4/4 passed against the switch's `3.53.3`; `https://www.sqlite.org/releaselog/3_53_3.html` returns 200 — resolved-by probe
 - U-10 Does the net8+ resolver in `TestsInitialization.cs:49-73`, which reads `UnsafeNativeMethods._SQLiteNativeModuleHandle`, depend on the pre-load having found a file? Yes, it returns that handle; TO-1 records the handle non-zero before and after, so an unchanged path keeps the resolver's input unchanged — resolved-by probe (TO-1)
 
 ## P5 Decisions (M/L; rejected alternatives mandatory at L)
@@ -86,6 +87,7 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 - E-3 `Tests/Tests.T4/Shared.ttinclude` — comment-only (D-5): replace line 9 with a 1–2 line comment naming the shadow-copying T4 host and SDS's pre-loader as the reader; lines 10-11 unchanged.
 - E-4 `SQLite.Runtime.props:comment` — rewrite lines 7-11 per D-4.
 - E-5 `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj:PostBuild2 comment` — rewrite lines 142-146 per D-4 (the copies and ordering note unchanged).
+- E-7 `Build/Azure/README.md:80-83` — (A-2) the four SQLite test-matrix rows: 3.53.4 → 3.53.3, number and release-log slug; restates the measured engine version (U-13).
 - E-6 `Tests/Linq/DataProvider/SQLiteTests.cs:TestDbVersion comment` — line 785: replace "because both clients are SQLitePCLRaw-based and share one native package" with "because both clients load e_sqlite3 from one native package"; the conclusion and lines 786-787 stay.
 
 ## P7 Impact map (M/L)
@@ -112,6 +114,8 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 - TO-5 LINQPad 5 host (user-run): install the branch's `.lpx`, create a SQLite.Classic and a SQLite.MS connection to `Data/TestData.sqlite`, expand the schema, run one query each in the default mode and one with "run each query in its own process" on; plus the LINQPad 7+ smoke row as a cheap confirmation — providers: SQLite.Classic, SQLite.MS — proof: characterization
 - TO-6 Comment audit: `git grep -n -e PreLoadSQLite -e "SQLitePCLRaw-based"` on the branch outside `.claude/` returns only sites kept by D-5 or restored by D-2, each with a comment naming `UnsafeNativeMethods.GetBaseDirectory` as the reader; an independent reader checks E-4/E-5 text against U-2/U-5 — providers: none (text) — proof: characterization
 
+- TO-7 (A-2) README rows match the engine: `TestDbVersion` passes against `3.53.3` (U-13) and all four `Build/Azure/README.md` SQLite rows read `3.53.3` with the `3_53_3` link — providers: SQLite.Classic, SQLite.MS — proof: characterization
+
 ## P9 Verification gates
 
 All rows 2026-10-26 against the uncommitted E-1…E-6 tree on base `c82e21c35`.
@@ -122,11 +126,12 @@ All rows 2026-10-26 against the uncommitted E-1…E-6 tree on base `c82e21c35`.
 - G-01 TO-4: pass (user-run, fresh devenv, branch tree) — scratch warnings in `Default/SQLite.tt`: `native: …\.build\bin\NuGet\Debug\net462\runtimes\win-x64\native\e_sqlite3.dll`; `sds: location=C:\Users\…\AppData\Local\assembly\dl3\…\System.Data.SQLite.dll codebase=file:///C:/Worktrees/linq2db/5906-preloadsqlite-basedirectory/.build/bin/NuGet/Debug/net462/System.Data.SQLite.dll` — the shadow copy E-3's comment claims, and the native under the override root. After removing the scratch, the four templates regenerated with no `.generated.cs` change (`git status`); a leftover blank line in `Default/SQLite.tt` was restored.
 - G-01 TO-5: pass (user-run) — LINQPad 5 with the branch's `.lpx`: "works" across the TO-5 steps.
 - G-01 TO-6: pass — `git grep -n -e PreLoadSQLite -e "SQLitePCLRaw-based" -- . ":!.claude"` → `SQLite.Runtime.props:9` (the comment pointing at the T4 site) and `Tests/Tests.T4/Shared.ttinclude:12` (kept by D-5); the T4 comment names SDS's native pre-loader as the reader, not the method name `GetBaseDirectory`. Independent read of E-4/E-5 text: pending G-09.
+- G-01 TO-7: pass — `TestDbVersion` 4/4 on net10.0 (U-13); README rows 80-83 updated, link 200.
 - G-02: n/a — no SQL-generating code in P6; recheck the CI baselines PR for an empty diff.
 - G-03: n/a — E-2 removes a statement inside an `internal sealed` class; no member added or removed.
 - G-04: n/a — no public surface change.
 - G-05: pass — `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj -c Release -p:GenerateLpxArtifacts=false` (net472 + net8.0-windows7.0) 0 warnings 0 errors; `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` 0/0 (net10.0 instead of the planned net462: the test edits are comment-only, and net462 Debug built clean).
-- G-06: pass — `git diff --stat`: the six E-n files, 11+ / 17-.
+- G-06: pass — `32f7ffdb0`: the six E-1…E-6 files; follow-up commit `6502c1276`: `Build/Azure/README.md` only (E-7, 4+ / 4-).
 - G-07: pass — `Tests/Tests.Playground/NativePathProbe.cs` deleted; `git status --short` lists only E-1…E-6.
 - G-09: pass — independent read-only review (`fable`) of the uncommitted diff, with the SDS decompile re-run: deletions behaviour-neutral, no orphaned `using`, untouched neighbours consistent. Three comment findings, all applied (comment-only, no rebuild needed): F1 the `Shared.ttinclude` comment said the pre-loader "can't locate" the native from a shadow copy, but it falls back to `CodeBase` when marker subfolders exist — reworded to state the coupling (U-5); F2 the `SQLite.Runtime.props` sentence claimed SDS always loads from `runtimes/<rid>/native`, false for the net462 test host (U-12) — scoped; F3 garden-path wording and wrap in `LinqToDB.LINQPad.csproj:143-146`. F4 (the kept site names "its native pre-loader", not `GetBaseDirectory`) accepted as-is, see TO-6.
 
@@ -139,10 +144,16 @@ All rows 2026-10-26 against the uncommitted E-1…E-6 tree on base `c82e21c35`.
 
 - A-1 (2026-10-26, TO-1 measurement) — TO-1's expected net462 value ("ending `runtimes\win-x64\native`, handle non-zero") was reasoned and wrong: the net462 test host runs x86 and its output root carries an x86 `e_sqlite3.dll`, so `PreLoadSQLiteDll` declines and the CLR's DllImport loads the root copy (U-12). The criterion "identical before and after" is unchanged and held. No E-n change.
   re-derives: P4 (U-12), P8 (TO-1 expected value)
+- A-2 (2026-10-26, user request after G-09) — adds E-7: `Build/Azure/README.md`'s SQLite rows said 3.53.4 while `SQLitePCLRaw.lib.e_sqlite3` is 3.53.3; the stale number came along with the 6.5.0 SourceGear.sqlite3 removal. Doc-only and approved by the user in the same turn; delta critique in P12 round 2.
+  re-derives: P4 (U-13), P6 (E-7), P8 (TO-7), P9 (G-06)
 
 ## P12 Critic verdict (M/L)
 
-**Current verdict: weak** — every objection folded in or disposed below; no residual objection carried.
+**Current verdict: weak** — every objection folded in or disposed below; no residual objection carried. Round 2 (A-2 delta) holds.
+
+### Round 2 — `fable`, delta on A-2 (E-7, U-13, TO-7), uncommitted README diff on `32f7ffdb0` — holds
+
+Searched: `git log -S 3.53.4` provenance (`f51f065ea` 6.4.0, `47ed37b1d` 6.5.0 left the README stale); every `project.assets.json` target group for `Tests` (8 groups, all `SQLitePCLRaw.lib.e_sqlite3/3.53.3`); the net462 root `e_sqlite3.dll` by SHA-256 and embedded version (3.53.3), the Linux `libe_sqlite3.so` (3.53.3); version-stating sites across the tree (only the pin, the test switch, the four rows and generated license files). No objections. Notes: EF3 on net462 resolves lib.e_sqlite3 2.1.2 (SQLite 3.39.2); the README's netfx legend says that job also runs the EF.Core suite, so an optional footnote could say so (outside A-2, not taken). G-06 / A-2 wording fixed after the round.
 
 ### Round 1 — `fable`, on the plan at base `c82e21c35` — weak
 
