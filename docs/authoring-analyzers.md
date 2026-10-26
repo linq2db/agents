@@ -257,6 +257,17 @@ For an internal rule of the shape "this code must read value X, not Y", design t
 
 Measure the criterion against a census of the real sites before implementing: list every site with its expected verdict, and require the first Release build to report exactly that list. (#5951, `LINQ2DB0007`: three draft criteria missed 9 of 12 known defects or flagged dozens of correct sites before the reachability form held.)
 
+**A census proves fit to today's tree only — list each clause's equivalent spellings too.** The next site will be written in a spelling the tree does not contain yet. For every trigger, exclusion and drift anchor, enumerate the C# forms that mean the same thing, and give each a fixture or a stated limit:
+
+- a capture: field / auto-property / `out` parameter / any assignment target (the target of the read's own assignment is no source);
+- a getter: `=> x` / `get => x;` / `get { return x; }`;
+- a receiver: chain head / mid-chain / after `?.` or `!`;
+- a carrier: in scope / definitely assigned (pattern and `out` variables are scoped to the block but assigned only on one path);
+- a source: every type the carrier clause names, in every clause that uses it;
+- an anchor: the types the rule resolves, **and** the member names its triggers match by string — a renamed member switches a trigger off silently.
+
+(#6145 review round 1: six of nine analyzer findings were a clause stated in one spelling — the field capture but not the auto-property, `=>` but not an accessor body, the chain head but not mid-chain, `IBuildContext` but not `ContextRefExpression`, in scope but not definitely assigned, type anchors but not member names. The census was exact, and every one of them still got through.)
+
 ## Registration
 
 Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).
