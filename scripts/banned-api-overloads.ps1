@@ -24,7 +24,8 @@ Input (named parameters):
                             every gap is marked `newInTarget` = true when the
                             overload does not exist in the baseline.
   -BanFile        <path[]>  optional; default: every tracked `BannedSymbols.txt`
-                            under -RepoRoot
+                            under -RepoRoot. A relative path resolves against
+                            -RepoRoot, not the current directory.
   -RepoRoot       <path>    optional; default: current directory
 
 Output (stdout, single JSON object):
@@ -63,6 +64,15 @@ if ($BanFile.Count -eq 0) {
     $BanFile = @(git -C $RepoRoot ls-files -- '*BannedSymbols.txt' | ForEach-Object { Join-Path $RepoRoot $_ })
     if ($BanFile.Count -eq 0) {
         [Console]::Error.WriteLine("No tracked BannedSymbols.txt under $RepoRoot")
+        exit 1
+    }
+}
+
+# against the shell's cwd a relative path silently reads another checkout's ban list (#4314)
+$BanFile = @($BanFile | ForEach-Object { if ([IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $RepoRoot $_ } })
+foreach ($f in $BanFile) {
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) {
+        [Console]::Error.WriteLine("Ban file not found: $f")
         exit 1
     }
 }
