@@ -121,12 +121,12 @@ Secondary (user decision): the custom SQL Server modes are spread over three set
 - E-4 `Data/Create Scripts/SqlServer.sql` — remove SA/Contained markers at `:483-486,507-510`; retarget :545-548, :581-584, :788-791, :827-830 to SqlServer.CS, SqlServer.CS.MS, SqlServer.Contained, SqlServer.Contained.MS.
 - E-5 `DataProviders.json` — local: remove SA (`:153-154`), Contained → `localhost,1425`, add CS (`TestDataCS`/`TestDataMSCS`, `localhost,1425`); Azure (`:213-216`): remove SA, add CS (`Server=localhost`); `All.Providers` (`:287-290`).
 - E-6 `UserDataProviders.json.template` — the same in the 4 TFM buckets (`:46-49,177-180,304-307,431-434`) and connections (`:591-606`); the rewritten Contained lines get the missing `Server=` and `;`.
-- E-7 `Build/Azure/scripts/sqlserver.extras.sh` — image linq2db/linq2db:mssql-2025; contained auth; create + tune TestDataCS, TestDataMSCS, TestDataContained, TestDataMSContained (CS collation); drop SA DBs.
+- E-7 `Build/Azure/scripts/sqlserver.extras.sh` — image linq2db/linq2db:mssql-2025; wait via the wait_or_recreate helper ported from sqlserver.2022_2025.sh (A-1); contained auth; create + tune TestDataCS, TestDataMSCS, TestDataContained, TestDataMSContained (CS collation); drop SA DBs.
 - E-8 `Build/Azure/scripts/sqlserver.extras.cmd` — same on win-mssql-2025 with -C.
 - E-9 `Build/Azure/netfx/sqlserver.extras.json`, `Build/Azure/net80/sqlserver.extras.json`, `Build/Azure/net90/sqlserver.extras.json`, `Build/Azure/net100/sqlserver.extras.json` — provider list → the 4 new configs.
 - E-10 `Build/Azure/scripts/sqlserver.2017_2019.sh`, `Build/Azure/scripts/sqlserver.2017_2019.cmd` — plain `CREATE DATABASE TestData` / `TestDataMS` on 2019; fix the CS comments and the `:68-69` SA/Contained comment.
 - E-11 `Build/Azure/pipelines/templates/test-matrix.yml` — EXTRAS entry filters `[sqlserver.2019]` → `[sqlserver.2022]`, comment lines; `:49-50` filter docs.
-- E-12 `Data/Setup Scripts/sqlserver2025.cmd`, `Data/Setup Scripts/sqlserver2025-win.cmd` — contained auth + the 4 DBs + tuning.
+- E-12 `Data/Setup Scripts/sqlserver2025.cmd`, `Data/Setup Scripts/sqlserver2025-win.cmd` — contained auth + the 4 DBs (no tuning: the scripts' existing TestData lines are untuned too).
 - E-13 `Data/Setup Scripts/sqlserver2019.cmd` — plain `TestData`/`TestDataMS`; remove SA/Contained DBs and contained auth.
 - E-14 `Data/Setup Scripts/readme.md` — describe where the modes live.
 - E-15 `Build/Azure/README.md:194-197` — provider table rows.
@@ -161,6 +161,7 @@ Secondary (user decision): the custom SQL Server modes are spread over three set
 - `Build/Azure/pipelines/templates/test-matrix.yml:184` — comment listing `n_SqlServer2019Extras` — out-of-scope (key unchanged, P3)
 - `.github/workflows/tests.yml`, `.github/workflows/tests-release.yml` — searched `(?i)extras|SqlServer2019Extras` across the worktree excluding `.claude`/`.build`: no hard-coded lane names; they consume `test-matrix.yml` — out-of-scope
 - `linq2db.slnx:78,108,138,157,203-204` — lists the extras json/scripts, file names unchanged — out-of-scope
+- `Build/Azure/scripts/sqlserver.2022_2025.sh:11-51`, `Build/Azure/scripts/sqlserver.2017_2019.sh` — `wait_or_recreate` helper (added #5614) copied into `sqlserver.extras.sh` (A-1); searched `wait_or_recreate` across `Build/`: defined in those two scripts only, each with its own copy, so the extras copy follows the existing per-script pattern — covered by E-7
 - `Build/Azure/scripts/sqlserver.2022_2025.{sh,cmd}`, `Build/Azure/*/sqlserver.2022_2025.json` — untouched under D-2 — out-of-scope
 - Test models whose casing mismatches the script beyond E-17/E-18/E-19 — static sweep of `Tests/Model`, `Tests/Base`, `Tests/Linq` mapping attributes and raw SQL found none (scout, not exhaustive over ~151 SQL Server test files) — deferred: TO-10 surfaces the rest on CI, fixed via `P11`
 - Source catalog references (`SqlServerSchemaProvider.cs` sys/INFORMATION_SCHEMA casing, `SqlServerSqlBuilder.cs:323,469` `OBJECT_ID(N'…')`, bulk copy, `SqlServerSqlBuilder.cs:340-434` type names, `OUTPUT INSERTED/DELETED`, `LinqToDB.Tools` `Schemas.generated.cs`) — scout found consistent casing; live behaviour of `json`/`vector`/`sysname`/`INSERTED` under a CS catalog unprobed — deferred: TO-10 triage
@@ -183,11 +184,13 @@ Secondary (user decision): the custom SQL Server modes are spread over three set
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
+- G-01: pass (local, net10.0 Debug, worktree-test.ps1 -NoBuild) — red run on SqlServer.CS.MS + SqlServer.Contained.MS: 31 failed exactly as predicted (28 ParameterTests "Invalid column name 'VarBinaryDataType'…", 3 TestSqlQueryDependent_Time "Invalid object name 'ALLTYPES'"), Contained.MS all green, guards green (TO-4/5/6 red). Green run after E-17/18/19: 161 total, 156 passed, 4 skipped (TestHalfVectorType ×2 ActiveIssue "Unsupported Vector type 'System.Half'" = TO-12; Issue3520Test ×2 pre-existing #3520 gate), 1 failed = CreateTempTableTests on CS.MS with lifted exclusion ("Cannot resolve the collation conflict between SQL_Latin1_General_CP1_CI_AS and Latin1_General_CS_AS") while Contained.MS green → TO-9: E-20 uses AllSqlServerCaseSensitiveCatalog. Control TO-1/TO-2: CS.MS → TestDataMS red on `_CS_` (was SQL_Latin1_General_CP1_CI_AS), Contained.MS → TestDataMSCS red on containment (NONE); reverted. SqlServer.CS 9/9, SqlServer.Contained 9/9 (TO-3), SQLite.MS 4/4, DuckDB 5/5 (TO-5 symmetry). TO-10/TO-11 pending CI.
+- G-02: blocked — depends on the CI baselines PR produced after the first push
+- G-06: pass — diff touches only P6 files; column-aligned blocks kept (TestProvName overflow on the two longer names only)
+- G-07: pass — no Tests/Tests.Playground changes
+- G-09: pass — code-reviewer on the uncommitted diff vs origin/master: MIN001 (stale CachingTests baseline keys) dropped → P10; NIT001 (E-12 "tuning" drift) → plan fixed (A-1); out-of-scope wait-loop observation → fixed (A-1); SA→CS local-config migration → PR-body note; Windows image / SA×2025 breadth left to TO-10.
+- Release build `Tests/Linq` -c Release -f net10.0: pass (Build succeeded, 0 errors). No Source/ change, so no Source Release / netstandard2.0 build owed.
+- Note: `work-plan.ps1 -Action reconcile` reports the 5 space-containing paths (`Data/Create Scripts/…`, `Data/Setup Scripts/…`) as unplanned because it compares git's quoted form; all 5 are E-4/E-12/E-13/E-14 — script defect, not drift.
 
 ## P10 Adjudicated (M/L)
 
@@ -197,12 +200,14 @@ Secondary (user decision): the custom SQL Server modes are spread over three set
 - `UserDataProviders.json.template` Northwind connection strings lacking `Server=` — pre-existing, lines not touched.
 - Schema-provider case-insensitive default comparers (`GetSchemaOptions.cs:63`, `SchemaProviderBase.cs:104-105,372`) — behaviour unchanged unless TO-10 exposes a failing test.
 - UTF-8 / `_SC` collations not covered (D-8).
+- `CachingTests.TestSqlQueryDependent_Time` case argument renamed `TIMEDATATYPE` → `timeDataType` (E-19), so its 54 existing baseline keys across SqlServer.2008–2025[.MS] and Contained[.MS] become stale and are left in place — review MIN001, dropped by the user. The old value cannot work under a CS catalog (the field name is spliced raw into the SQL).
 - `SelectTests.MultipleSelect11` stops running on the moved configs (its `IncludeDataSources` names `AllSqlServer2019` but no 2025 group, U-8); its `SqlServer.Contained*` baseline keys go stale. Adding 2025 to an inclusion list chosen for a 2014 perf regression widens a test's scope beyond this task.
 - EF.Core tests never exercise the modes: they run on `<db>.{DB_SUFFIX}` catalogs created by `EnsureCreated` with server defaults (`Tests/EntityFrameworkCore/TestBase.cs:178-198`, `ContextTestBase.cs:59-65`) — true for today's SA/Contained EF runs as well. The latent `CategoryId` vs `CategoryID` mismatch in `ToolsTests.cs:649,662,675,688` is therefore unreachable by this mode; recorded, not fixed here.
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-26, pre-PR adversarial review G-09) — E-7 widened: `sqlserver.extras.sh` replaces its timeout-less `SELECT 1` busy loop with the `wait_or_recreate` helper from `sqlserver.2022_2025.sh` (same `linq2db/linq2db:mssql-2025` image, which "intermittently fail[s] to come up on the CI agents"); without it a startup crash spins the EXTRAS leg until job timeout; gated by TO-10 (EXTRAS leg green), the recreate arm is not exercisable on demand, as in the sibling scripts. E-12 narrowed: no tuning lines in the local scripts (review NIT001). User-approved in the review walk.
+  re-derives: P6 (E-7, E-12), P7 (wait_or_recreate source row)
 
 ## P12 Critic verdict (M/L)
 
@@ -219,3 +224,5 @@ Objections and responses:
 8. Minor: stale comments (`SelectTests.cs:1923`, `TestBase.Context.cs:185,219`, `ParameterTests.cs:1503`), TO-1 should assert the message, P3 should say *definitions*. → E-23, E-24; `ParameterTests.cs:1503` left as a dated record (P7); TO-1 and P3 amended.
 
 Still open from the critic's view: U-6 (Windows image accepting contained auth + CS collation) is unprobed until the first CI run.
+
+**Round 2 (delta A-1) — holds** (plan-critic on `fable`, 2026-10-26). Searched: the extras.sh diff vs origin/master (old loop had no timeout and no sleep, so a crashed container spins until `timeoutInMinutes`, `test-jobs.yml:110-112,174-176`); whitespace-insensitive diff of `sqlserver.2022_2025.sh:11-51` vs the new `sqlserver.extras.sh` helper — only a dropped comment differs, every executable line identical (upgrades "behaves identically" to measured); call-site arguments vs the script's own `docker run`; `wait_or_recreate|SELECT 1|is_up` across `Build/Azure/scripts/*.sh` (no other unswept Linux sibling); Windows twin `sqlserver.extras.cmd:1` already on `mssql-container.ps1`; `git log -S wait_or_recreate` (#5614 left the extras loop without a recorded reason); no `DELAYED_DURABILITY|RECOVERY SIMPLE` in any `Data/Setup Scripts/` file (E-12 holds); `set -e` absent in both scripts, run by shebang on both CI systems. Note taken: A-1 names TO-10 as its gate.
