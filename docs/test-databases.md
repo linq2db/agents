@@ -64,7 +64,7 @@ Other families currently have no override; extend this table when the user ident
 
 | Family | Excluded IDs (never auto-resolved by family or version rules) |
 |---|---|
-| `SqlServer` | `SqlServer.SA`, `SqlServer.SA.MS`, `SqlServer.Contained`, `SqlServer.Contained.MS`, `SqlServer.Northwind`, `SqlServer.Northwind.MS`, `SqlServer.Azure`, `SqlServer.Azure.MS` (special-purpose configs not used on the dev desktop) |
+| `SqlServer` | `SqlServer.CS`, `SqlServer.CS.MS`, `SqlServer.Contained`, `SqlServer.Contained.MS`, `SqlServer.Northwind`, `SqlServer.Northwind.MS`, `SqlServer.Azure`, `SqlServer.Azure.MS` (special-purpose configs not used on the dev desktop) |
 
 Explicit input still wins for excluded IDs — the user can enable `SqlServer.Azure.MS` by typing it verbatim, and the *Normalised inputs* block in `/test-providers` step 4 will be empty for that token.
 
@@ -100,6 +100,7 @@ No setup needed. Runs against `Microsoft.Data.Sqlite` (provider ID `SQLite.MS`) 
 | 2019 | `SqlServer.2019`, `SqlServer.2019.MS` | no | `sqlserver2019.cmd` | `sql2019` | `linq2db/linq2db:mssql-2019-fts` | docker: 2 |
 | 2022 | `SqlServer.2022`, `SqlServer.2022.MS` | no | `sqlserver2022.cmd` | `sql2022` | `linq2db/linq2db:mssql-2022` | docker: 1 |
 | 2025 | `SqlServer.2025`, `SqlServer.2025.MS` | no | `sqlserver2025.cmd` | `sql2025` | `linq2db/linq2db:mssql-2025` | docker: latest |
+| 2025 (modes) | `SqlServer.CS`, `SqlServer.CS.MS` (case-sensitive data + catalog, sequential access), `SqlServer.Contained`, `SqlServer.Contained.MS` (contained, case-sensitive data) | no | `sqlserver2025.cmd` | `sql2025` | `linq2db/linq2db:mssql-2025` | special-purpose |
 | 2022 (Win) | — | no | `sqlserver2022-win.cmd` | `sql2022` | `linq2db/linq2db:win-mssql-2022` | avoid |
 | 2025 (Win) | — | no | `sqlserver2025-win.cmd` | `sql2025` | `linq2db/linq2db:win-mssql-2025` | avoid |
 

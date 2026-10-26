@@ -19,7 +19,8 @@ PostgreSQL.{13,14,15,16,17,18}[.EF8|.EF9|.EF10]/
 SQLite.Classic[.MPM|.MPU]/  SQLite.MS[.EF8|.EF9|.EF10|.EF31]/
 SapHana.Odbc/         SqlCe/
 SqlServer.{2005,2008,2012,2014,2016,2017,2019,2022,2025}[.MS][.EFn]/
-SqlServer.{Contained,Northwind,SA}[.MS][.EFn]/
+SqlServer.{CS,Contained,Northwind}[.MS][.EFn]/
+SqlServer.SA[.MS][.EFn]/       (sequential-access config before #4658; now carried by SqlServer.CS)
 Sybase.Managed/
 ```
 
