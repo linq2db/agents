@@ -89,6 +89,34 @@ The SQL AST (`Source/LinqToDB/SqlQuery/` and `Source/LinqToDB/Internal/SqlQuery/
 
 When a task leads to proposing a new core seam (interface, hook, extension point), don't justify it by the driving case alone — sweep for existing code exhibiting the same gap (grep for the workaround pattern, e.g. `MappingSchema.Default` fallbacks) and existing/potential issues it addresses (KB github indexes + `gh search issues`), and fold that adoption analysis into the design artifact. A core change justified only by one consumer is a workaround wearing a design's coat. (#5675)
 
+### Extension points come in two kinds: static interception and a maintained dynamic facade
+
+When designing an extension point, choose its kind deliberately:
+
+- A **static interception point** embeds user logic at a fixed place in the pipeline. Examples: query filters, value converters, `ICommandInterceptor`.
+- A **dynamic facade** is a public API that linq2db provides **and maintains** over a churning internal, such as the shape of a query or modification being built. The team absorbs internal churn behind it, so users never touch `Internal.*`.
+
+Never offer the raw SQL AST as the contract. `DataConnection.ProcessQuery` is the cautionary case: a public signature made of `Internal` types breaks its users on every minor.
+
+A facade earns the word "maintained" only with all of these:
+- **Public types only.** It speaks LINQ lambdas and the public mapping descriptors, never `ISqlExpression` / `SqlStatement`.
+- **A written semantic contract.** It states the invocation points, the ordering, and how often it is invoked.
+- **A conformance test matrix** that every refactor must keep green.
+- **A deprecation window**, with changes made only at a major release.
+- **Dogfooding.** The declarative built-ins are implemented *on top of* the facade, which proves it is sufficient.
+- **A downstream compatibility suite**, where public libraries built on our extensibility are registered. It tests their latest published versions against the current build.
+
+**Every proposed extension point states its query-cache behaviour, or names its downside.** It is cache-friendly when both of these hold:
+1. Its decisions depend only on cache-key inputs (configuration id, query flags, expression shape).
+2. Its runtime data (tenant, user, clock) reaches SQL as parameters.
+
+Anything else must name its cost:
+- a cache-variant key multiplies cache entries;
+- a per-query cache opt-out means full translation on every execution;
+- a hook that returns a rewritten statement loses command caching.
+
+(Maintainer framing on the 2026-10-25 write-side extension proposal.)
+
 ### Don't grow core builder API for a helper-only fix
 
 A fix scoped to a helper / peripheral API (e.g. `ToSqlQuery`'s by-name `Query<T>` round-trip) must not expand core builder surface (`ISqlBuilder` / `BasicSqlBuilder`) to serve it — threading a new flag/parameter through the shared builder for one convenience path fails the cost/benefit test. If the fix genuinely needs new core surface, drop or narrow it instead. (User call on #5657: an export-scoping `ForGetSqlText` seam on `ISqlBuilder` was rejected — "if we need to add api changes to sqlbuilder then we will not use this fix for helper API"; the peripheral behavior was left as-is.) This is the API-surface counterpart of the general "propose minimal, let the user expand" preference.
@@ -172,6 +200,15 @@ A change that removes or raises a modern TFM in `<TargetFrameworks>`, or narrows
 2. **Classify** each by the table above. Most are feature parity; only the first two rows need work.
 3. **Sweep**: run `Tests/Linq` on SQLite with `-LinqToDBAsset netstandard2.0`. A `MissingMethodException` is a feature-parity gap (the tests call net-only API); any other red is a candidate hard fail.
 4. **Record** the result (classified hard fails and provider items, or "none") in the PR body, and file each actionable item as its own issue.
+
+#### Adding a .NET major TFM: re-check the ban lists
+
+RS0030 bans by documentation ID, so **per overload**. A new .NET major adds overloads and C# overload resolution often prefers them: .NET 9's `params ReadOnlySpan<object?>` twins moved every 4+-argument `string.Format` off the banned `object[]` overload, silently. A change that adds a .NET major to `<TargetFrameworks>` (net10 → net11) must, before it merges:
+
+1. **List** the gaps: `.claude/scripts/banned-api-overloads.ps1 -RefDir <new ref pack> -BaselineRefDir <previous ref pack>` (`<dotnet>\packs\Microsoft.NETCore.App.Ref\<ver>\ref\net<N>.0`) prints, for every banned member in every tracked `BannedSymbols.txt`, the same-name overloads no entry covers; `newInTarget` marks the ones the new TFM added.
+2. **Classify** each `newInTarget` gap: the same hazard as its banned twin (culture-sensitive formatting or parsing, current-culture comparison, a reflection invoke that skips `TargetInvocationException` unwrapping) → ban it beside the twin with the same message; the sanctioned alternative the message names (`IFormatProvider`, `StringComparison`, `char` / `Rune`) → leave it. Older gaps of the same hazard count too: the check first ran on the .NET 11 PR ([#5942](https://github.com/linq2db/linq2db/pull/5942)), which is what found the .NET 9 span twins.
+3. **Build** `-c Release` for the new TFM, so each added ban either passes or exposes the call sites that already bind to the new overload.
+4. **Record** the added entries, or "none", in the PR body.
 
 ### `IsDependsOnSources` ignore-set doesn't cover field/column refs
 

@@ -164,6 +164,7 @@ When creating a PR on `linq2db/linq2db`:
 
 - **Always open as draft** (`gh pr create --draft`). Never publish a ready-for-review PR unless the user explicitly asks.
 - **Confirm title and body with the user before running `gh pr create`.** Propose both, wait for approval, then create.
+- **Check the body's red/green claims against what was measured.** Before `gh pr create`, check every "red before the fix" and "expected to go red" sentence against the plan's recorded pre-fix run and the CI outcome. Call a test that was green before the fix characterization, and update a CI prediction once the run is in. (#6131: four characterization tests were described as proven red, and the predicted CI fallout never happened.)
 - **Link referenced issues/tasks as closed on merge.** If the work targets a known issue or task, include `Fixes #<n>` / `Closes #<n>` in the PR body so GitHub auto-closes it when the PR merges. One keyword per issue.
 - **Assignee.** Assign the PR to the current GitHub user (`gh pr create --assignee @me`) unless the user specifies someone else. If `@me` resolution fails with a transient `502 Bad Gateway` (it does a live API call during create, and the PR is **not** created when it fails), resolve the handle explicitly — `gh api user --jq '.login'` — and pass it as `--assignee <login>` on the retry.
 - **Milestone.**

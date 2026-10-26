@@ -58,11 +58,35 @@ needs the same suppression the precedent uses, on the method:
 Counters added to the library for a measurement build compile fine in `Debug` / `Testing` and then
 fail the moment anything builds `Release` (banned interpolated `StringBuilder.AppendLine` without an
 `IFormatProvider`, `MA0111` pushing `string.Create` over `FormattableString`, `IDE0330`/`MA0158`
-demanding `System.Threading.Lock` over `lock (object)`). Counts are configuration-independent, so
-**build instrumentation in `Debug`** and don't contort throwaway code to satisfy analyzers. Conversely
+demanding `System.Threading.Lock` over `lock (object)`). **Counts are not configuration-independent.**
+`#if DEBUG` `Debug.WriteLine($"…{expr}")` sites (`ExpressionBuildVisitor.MakeWithCache`,
+`SqlQueryColumnNestingCorrector`) render debug strings, which run `NullabilityContext` and
+`ExpressionPrinter` work that a Release build never does. On the #5738 deep-join probe, Debug reported
+30× the `CanBeNull` calls and 2× the allocations. Count in **Release**, and skip the analyzers instead
+of contorting throwaway code:
+`dotnet build <project> -c Release -f net10.0 -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false`.
+Conversely
 `-c Testing` is net10.0-only and hides API gaps on `net462`/`netstandard2.0` (`Environment.ProcessId`
 is the classic — use `Process.GetCurrentProcess().Id`); see [`../AGENTS.md`](../AGENTS.md) → *Build
 gotchas that fast-iteration hides*.
+
+### Counter probes that localise growth
+
+A cold Release build of the benchmarks project takes about 5 minutes, so get the most out of each one:
+
+- **Pair each call counter with an inner-work counter.** Count the calls of a suspect, and also the
+  units of work inside it (stack pops, nodes visited). Sweep the depth and print the d80/d40 ratio of
+  each. A ratio near 2 is linear; near 4 is quadratic. On #5738, `IsNullableSourceCalculator` calls
+  were linear (1.97) while its pops were quadratic (3.87). The cost was per-call walk length, not call
+  count, which a trace's inclusive time cannot show you.
+- **Attribute work to its outermost caller.** Use a `[ThreadStatic]` depth: record the caller's
+  stack-trace key on entry only when the depth is 0, and charge the nested work done until exit to that
+  caller. A per-call stack key credits recursive frames to the recursion itself. When skipping frames,
+  also skip visitor plumbing (`ExpressionVisitorUtils`, `Accept`), or the top entry comes out as
+  `VisitArguments <- VisitArguments`.
+- **Put candidate fixes behind runtime toggles.** Use `static bool` flags read at the edit-point, and
+  run every combination in one process from one build. Compare each combination's emitted SQL and its
+  decision sequence against the all-off run, so the probe also checks that the fix changes nothing.
 
 ### Profiling with `dotnet-trace`
 
