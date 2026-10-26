@@ -126,6 +126,8 @@ Input (named parameters):
                            CreateDatabase, so the remote cases and the remote-vs-direct
                            baselines check silently never run. Verify remote cases with
                            a combined run (direct + .LinqService in one -Provider list).
+  -OutFile       <path>    optional; write the result JSON there, print one compact line
+                           (see below). The way to keep a -PerProvider result.
   -GroupFailures           optional; adds `failureGroups`: every failure (not just the
                            first -MaxFailures) grouped by test METHOD, with a count and
                            the first message line. For triaging a broad sweep, where a
@@ -171,6 +173,10 @@ Output (stdout, single JSON object):
                                      // failures in a Tests/Linq run whose filter lacks CreateData.CreateDatabase
   }
 
+-OutFile <path> writes that JSON to the file and prints one compact `{ ok, outFile, bytes, summary }` line.
+Use it to keep a result: with -PerProvider the JSON goes to [Console]::Out, so `*> file` captures nothing
+(#5906: two empty result files).
+
 `summary` is null when no `Test run summary:` block was produced (typically a
 build failure - check `buildFailed` and read `logPath`).
 
@@ -199,7 +205,8 @@ param(
     [switch]$GroupFailures,
     [int]$FailureLines = 8,
     [int]$MaxFailures  = 20,
-    [switch]$PerProvider
+    [switch]$PerProvider,
+    [string]$OutFile
 )
 
 . "$PSScriptRoot/_shared.ps1"
@@ -222,7 +229,7 @@ if ($PerProvider) {
 
     $passThrough = @()
     foreach ($kv in $PSBoundParameters.GetEnumerator()) {
-        if ($kv.Key -in 'Provider', 'PerProvider', 'NoBuild', 'SerialBuild', 'SharedCompilation', 'NoRestore') { continue }
+        if ($kv.Key -in 'Provider', 'PerProvider', 'NoBuild', 'SerialBuild', 'SharedCompilation', 'NoRestore', 'OutFile') { continue }
         if ($kv.Value -is [System.Management.Automation.SwitchParameter]) { if ($kv.Value) { $passThrough += "-$($kv.Key)" } }
         elseif ($kv.Value -is [array]) { $passThrough += "-$($kv.Key)"; $passThrough += ($kv.Value -join ',') }
         else { $passThrough += "-$($kv.Key)"; $passThrough += [string]$kv.Value }
@@ -254,7 +261,7 @@ if ($PerProvider) {
         }
     })
 
-    Write-JsonOutput ([ordered]@{
+    Write-JsonOutput -OutFile $OutFile -Summary @{ summary = $rollup } -InputObject ([ordered]@{
         ok        = -not ($runs | Where-Object { -not $_.result.ok })
         summary   = $rollup
         providers = $runs
@@ -566,6 +573,7 @@ if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
 if ($hint)        { $result['hint']         = $hint }
 
-$result | ConvertTo-Json -Depth 5
+if ($OutFile) { Write-JsonOutput -InputObject $result -Depth 5 -OutFile $OutFile -Summary @{ summary = $summary } }
+else          { $result | ConvertTo-Json -Depth 5 }
 
 if ($exitCode -ne 0 -or $missingTests.Count -gt 0) { exit 1 }
