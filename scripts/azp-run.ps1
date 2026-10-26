@@ -168,12 +168,21 @@ function Get-RefusedBuild([string]$name, [datetime]$since) {
 }
 
 # GitHub `tests (comment)` runs created at or after $since and not yet reported for an earlier pipeline.
+# Every PR comment starts a `tests (comment)` run, the Azure bot's replies included, and those end `skipped`:
+# taking the earliest one by time reported a skipped neighbour as the run (#6161: 40371420237 instead of
+# 40371438419). So skip `skipped` runs, and give a still-queued neighbour a few seconds to settle.
 function Get-DispatchRun([datetime]$since) {
-    $json = gh run list --repo $Repo --workflow tests-comment.yml --limit 10 --json databaseId,createdAt 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
-    $runs = @($json | ConvertFrom-Json) |
-        Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) } |
-        Sort-Object { [datetime]$_.createdAt }
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        if ($attempt -gt 0) { Start-Sleep -Seconds 5 }
+        $json = gh run list --repo $Repo --workflow tests-comment.yml --limit 10 --json databaseId,createdAt,status,conclusion 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
+        $runs = @(@($json | ConvertFrom-Json) |
+            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' } |
+            Sort-Object { [datetime]$_.createdAt })
+        # A queued run may still end `skipped`; prefer one that has started.
+        $live = @($runs | Where-Object { $_.status -eq 'in_progress' -or $_.status -eq 'completed' })
+        if ($live.Count -gt 0) { return $live[0] }
+    }
     return @($runs)[0]
 }
 

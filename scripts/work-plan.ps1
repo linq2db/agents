@@ -796,11 +796,17 @@ function Invoke-Reconcile {
 
     # Fold in the working tree before the emptiness check: the exit checks run before the first commit, when
     # every change is still uncommitted (#4314).
-    $w = if ($Head -eq 'HEAD') { Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain', '--untracked-files=all') } else { $null }
+    # -z: plain porcelain quotes a path containing a space ("Data/Create Scripts/x.sql"), which then matches
+    # no P6 path and reads as unplanned (#6161). NUL-separated entries are unquoted; a rename or copy is
+    # followed by its source path as a separate entry, which is skipped.
+    $w = if ($Head -eq 'HEAD') { Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain', '-z', '--untracked-files=all') } else { $null }
     if ($w -and $w.ok) {
-        foreach ($l in @($w.stdout -split "`r?`n")) {
-            if ($l.Trim() -eq '') { continue }
-            $p = $l.Substring(3).Trim()
+        $entries = @($w.stdout -split "`0")
+        for ($i = 0; $i -lt $entries.Count; $i++) {
+            $l = $entries[$i]
+            if ($l.Length -lt 4) { continue }
+            $p = $l.Substring(3)
+            if ($l[0] -eq 'R' -or $l[0] -eq 'C') { $i++ }
             if ($p -ne '' -and $changed -notcontains $p) { $changed += $p }
         }
     }
