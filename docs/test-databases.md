@@ -109,6 +109,12 @@ No setup needed. Runs against `Microsoft.Data.Sqlite` (provider ID `SQLite.MS`) 
 - **If docker is explicitly requested, or the test depends on a 2017+ feature** → pick the oldest docker version that covers the feature. `sql2022` (latest stable) and `sql2025` (latest) are the usual docker choices; `sql2019` for FTS coverage.
 - **`-win` images are avoid-by-default.** Linux images are slimmer, faster to pull, and cover the same SQL surface for everything we test. Only use `-win` when the user explicitly requests it.
 
+**The 2025 mode databases, as measured on 17.0 (#6161).** Where a test fails on `SqlServer.CS` or `SqlServer.Contained` only, these decide which kind of failure it is:
+- **`SqlServer.CS` has a case-sensitive catalog because it has no `CATALOG_COLLATION`.** `CREATE DATABASE … COLLATE Latin1_General_CS_AS` gives `catalog_collation_type_desc = DATABASE_DEFAULT`, so object and column names match case-sensitively. A red that says `Invalid object/column name` is usually a test or mapping casing bug, not a linq2db one (#6161 found four, all in tests).
+- **A contained database cannot have a case-sensitive catalog.** Its catalog collation is fixed at `Latin1_General_100_CI_AS_KS_WS_SC`, and `CONTAINMENT = PARTIAL` with `CATALOG_COLLATION` fails with `Msg 12845`. That is why the modes are two configs and not one.
+- **Temp tables follow the database collation only in the contained DB.** On `SqlServer.CS`, tempdb keeps the server's CI collation, so joining a temp table to a CS column fails with `Cannot resolve the collation conflict`. On `SqlServer.Contained` the same join works.
+- **Type names stay case-insensitive under a CS catalog.** `JSON`, `VECTOR(n)`, `SYSNAME`, `NVarChar`, `Sql_Variant`, `GEOGRAPHY` and `HIERARCHYID` all resolve in any casing, so a type-name casing difference is not a CS-catalog bug.
+
 ## PostgreSQL
 
 Postgres images are slim (~150MB) and fast to start, so running multiple dialect versions in parallel is cheap. The recommended default set covers every SQL dialect linq2db emits, with latest on top.

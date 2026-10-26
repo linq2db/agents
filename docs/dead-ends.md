@@ -215,3 +215,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** `TagQuery`'s argument is `[SqlQueryDependent]`, and expose materializes such arguments into constants before any builder runs (`ExposeExpressionVisitor.VisitMethodCall` → `HandleSqlDependentParameters`), so the builder only ever evaluates a `Constant`. The same holds for `QueryName`, `AsSubQuery(name)`, `TakeHints` and `NullsPosition`. The probe printed the right tag, which said nothing about the suspect arm.
 
 **Don't re-attempt:** a `[SqlQueryDependent]` argument as the carrier for a build-time-evaluation probe. Use a plain argument the builder evaluates itself, such as `CountBy`'s comparer (`CountByBuilder.cs:46`), which reproduced it as #6139. (#5879, U-10)
+
+## TESTS-INFRA: one `Microsoft.SqlServer.Types` for both SqlClients on net8+
+
+**Tried:** replacing the Redist dotMorten 1.5.0 test reference (`Tests/linq2db.Providers.props`) with the official `Microsoft.SqlServer.Types` 170.x, and with dotMorten 2.5.0, to un-gate the MDS hierarchyid / spatial tests.
+
+**Failed because:** each assembly binds its UDT types to one client — 1.5.0 to System.Data.SqlClient, 170.x to `Microsoft.SqlServer.Server` (MDS 5+; SDS then fails `InvalidUdtException … no UDT attribute`), 2.5.0 to MDS 4.0 (`CS7069` / `TypeLoadException` against MDS 7). SDS and MDS contexts share the test process, and only one `Microsoft.SqlServer.Types` loads. The official package's native spatial library is also `win-*` only, while the SQL Server 2017+ net8+ suites run on Linux.
+
+**Don't re-attempt:** a single-assembly swap. Un-gating MDS needs SDS dropped from the net8+ matrix or a separate test process per client. (#5730)
