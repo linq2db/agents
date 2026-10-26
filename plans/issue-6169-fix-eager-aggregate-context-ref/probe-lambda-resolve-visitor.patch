@@ -1,0 +1,22 @@
+diff --git a/Source/LinqToDB/Internal/Linq/Builder/LambdaResolveVisitor.cs b/Source/LinqToDB/Internal/Linq/Builder/LambdaResolveVisitor.cs
+index f1004485a..ec696a275 100644
+--- a/Source/LinqToDB/Internal/Linq/Builder/LambdaResolveVisitor.cs
++++ b/Source/LinqToDB/Internal/Linq/Builder/LambdaResolveVisitor.cs
+@@ -44,6 +44,8 @@ protected override Expression VisitMember(MemberExpression node)
+ 
+ 					if (expr is SqlPlaceholderExpression)
+ 						return expr;
++
++					return base.VisitMember(node);
+ 				}
+ 
+ 				return node;
+@@ -68,6 +70,8 @@ protected override Expression VisitMethodCall(MethodCallExpression node)
+ 
+ 					if (expr is SqlPlaceholderExpression)
+ 						return expr;
++
++					return base.VisitMethodCall(node);
+ 				}
+ 
+ 				return node;
