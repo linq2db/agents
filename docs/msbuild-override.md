@@ -47,6 +47,12 @@ A property defined in `Directory.Packages.props` (or any shared props file) reac
 
 (Prompted on #5786, where the maintainer asked "ensure other roslyn users not affected, like linq2db.cli" — the sweep was two greps and confirmed the pin was opt-in, but it had not been done until asked.)
 
+## A TFM-derived property in an early import is empty for a project that sets its TFM in the body
+
+`Directory.Build.props` and `Directory.Packages.props` are imported by `Sdk.props`, before the project body. MSBuild evaluates all properties first, in file order, and item conditions after that. So a property those files compute from `$(TargetFramework)` stays empty in a project that sets `<TargetFramework>` in its own body, while an item condition on `'$(TargetFramework)'=='net10.0'` in the same file sees the real TFM. `Tests.Analyzers*` set `<TargetFramework>$(LowestSupportedTargetFramework)</TargetFramework>`, for example.
+
+The trap is keying different rows of one package on different selectors. A legacy row on `'$(BandLatestForNuget)'==''` and a pin on `'$(TargetFramework)'=='net10.0'` both match such a project, and restore fails with **NU1506** *"Duplicate 'PackageVersion' items found"*. Key every row of one package on the same selector, or add the property test to the TFM row (`'$(BandLatestForNuget)'!='' and '$(TargetFramework)'=='net10.0'`). (#5942 master sync, 2026-10-25: a SignalR.Client security pin from master merged into the branch's band-keyed rows.)
+
 ## Generating a source file from a csproj target
 
 Emitting C# from MSBuild (e.g. surfacing central-package versions to code so they can't drift) hits two traps in a row:

@@ -40,8 +40,9 @@ process.stdin.on('end', () => {
             const s = segment.trim();
             if (!s || exemptHost.test(s) || /--list-tests/.test(s)) continue;
 
+            // The exe counts only in command position: `ls` / `Get-Item` of the build output names it too.
             const isTestRun =
-                /linq2db\.Tests(\.Playground)?\.exe/.test(s) ||
+                /^(?:&\s*|Start-Process\s+(?:-FilePath\s+)?)?["']?[^\s"']*linq2db\.Tests(\.Playground)?\.exe["']?(?:\s|$)/i.test(s) ||
                 (/\bdotnet\s+test\b/.test(s) &&
                     /Tests[/\\]Linq[/\\]Tests\.csproj|Tests\.Playground\.csproj|linq2db\.playground\.slnf/.test(s));
 

@@ -268,6 +268,8 @@ While the header reads *approval void*, `-Action validate` should not pass. (#60
 
 The `plan-critic` result — `holds` | `weak` | `refuted` — its objections, and what changed in response.
 
+**From the second round on, keep a `**Current verdict: <word>**` line at the top of `P12`.** Without it `-Action validate` takes the verdict from the last round heading, and warns.
+
 **A `weak` verdict is carried forward with the objections visible, not silently absorbed.** The user approves knowing the strongest case against the design.
 
 **An unprobed lead is not carried to review.** An objection the critic marks `lead:` — a consumer or shape it could name but, being read-only, not run — is disposed before implementation is called done: probe it and add a `TO-n`, record a `P7` `deferred:` row with its reason, or adjudicate it in `P10`. Leaving it as a lead hands the probe to the reviewer. (#5959: the A-5 critic delta named three round-3 findings word for word as unprobed leads.)
