@@ -38,6 +38,7 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 - U-8 Does a child process inherit the variable and depend on it? Searched `ProcessStartInfo|new Process\(|Process\.Start\(` across `Tests/**/*.cs`: `Tests/LinqToDB.CLI` (CLI / MCP server, which references Microsoft.Data.SQLite only — `Source/LinqToDB.CLI/LinqToDB.CLI.csproj:102`) and `Tests/Tests.FpuJit` (no SQLite); `Tests/Tests.T4/Cli/CLI.ttinclude:54` spawns the CLI too and `Cli/*.tt` do not include `Shared.ttinclude` — resolved-by scout
 - U-9 Linux / macOS CI legs: `FixUpDllFileName` appends `.dll` only on Windows, so the pre-loader looks for a file literally named `e_sqlite3` and never matches `libe_sqlite3.so`; it finds nothing with or without the variable, the net8+ resolver returns the zero handle, and default probing loads the native (critic round 1, decompile) — resolved-by probe: decompile; the CI SQLite legs in G-01 confirm (`blocked — CI` until read)
 - U-11 Keep or delete the T4 assignment (D-5)? Keep, comment fixed — resolved-by user answer (2026-10-26)
+- U-12 What does SDS load on net462 in Tests/Linq / Playground? Measured: process is x86 (`Environment.Is64BitProcess == False`); the output root holds an x86 `e_sqlite3.dll` (PE machine `014C`) beside `runtimes\win-{x86,x64,arm64}\native`, so `PreLoadSQLiteDll` returns without loading (`_SQLiteNativeModuleFileName == null`) and the variable is irrelevant there — resolved-by probe
 - U-10 Does the net8+ resolver in `TestsInitialization.cs:49-73`, which reads `UnsafeNativeMethods._SQLiteNativeModuleHandle`, depend on the pre-load having found a file? Yes, it returns that handle; TO-1 records the handle non-zero before and after, so an unchanged path keeps the resolver's input unchanged — resolved-by probe (TO-1)
 
 ## P5 Decisions (M/L; rejected alternatives mandatory at L)
@@ -113,14 +114,21 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 
 ## P9 Verification gates
 
-- G-01: — (pending) TO-1…TO-6 one row each; TO-3's CI half is `blocked — CI` until the run is read; TO-4/TO-5 recorded from the user's report.
-- G-02: — (pending) expected n/a: no SQL-generating code in P6; confirm the CI baselines PR shows no diff for this branch.
-- G-03: — (pending) expected n/a: E-2 edits an `internal sealed` class body, no member added or removed.
-- G-04: — (pending) expected n/a: no public surface changes.
-- G-05: — (pending) `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj -c Release` (net472 + net8.0-windows) and `dotnet build Tests/Linq/Tests.csproj -c Release -f net462`.
-- G-06: — (pending) diff limited to E-1…E-6.
-- G-07: — (pending) TO-1/TO-2 probe files in `Tests/Tests.Playground/` restored before staging.
-- G-09: — (pending)
+All rows 2026-10-26 against the uncommitted E-1…E-6 tree on base `c82e21c35`.
+
+- G-01 TO-1: pass — scratch `Tests.Playground` `NativePathProbe.ProbeNativePath` (SQLite.Classic) via `worktree-test.ps1 -NoBuild`, output `.build/.agents/5906-probe.txt`. Base: net10.0 x64 `file=…\net10.0\runtimes\win-x64\native\e_sqlite3.dll`, handle non-zero; net462 x86 `file=<null> handle=0`. After E-1: identical on both (env `<null>`). The net462 expected value in TO-1 was wrong, see A-1 / U-12.
+- G-01 TO-2: pass — mutation "point `PreLoadSQLite_BaseDirectory` at a decoy directory holding a copy at `decoy\runtimes\win-x64\native\e_sqlite3.dll`" (plus `win-x86`) applied to `TestsInitialization.cs:44` on the base tree: net10.0 loaded `…\5906-decoy\runtimes\win-x64\native\e_sqlite3.dll`, net462 loaded `…\5906-decoy\runtimes\win-x86\native\e_sqlite3.dll`; mutation reverted.
+- G-01 TO-3: local pass with a pre-existing red — `Tests.DataProvider.SQLiteTests`, `-PerProvider` SQLite.Classic / .MPU / .MPM / SQLite.MS on net10.0 and net462: 143–144 per run, 10 failed per run, all `DateTimeRoundtrip_BulkCopyUtc` ×8 / `DateTimeRoundtrip_InsertUtc` ×2 (#2107 `[ActiveIssue]` message mismatch: `Assert.That(result.DateTime, Is.EqualTo(dt.ToLocalTime()))` fails instead of the gated `Kind` assert). Same 10 on the base tree (stash, net10.0, SQLite.Classic + SQLite.MS, 10/92 and 10/91) — not caused by this branch; no native-load exception anywhere. CI half: blocked — PR #6160 head `32f7ffdb0`, `/azp run test-sqlite` → Azure 24742 + GitHub 40345810293, to triage.
+- G-01 TO-4: pass (user-run, fresh devenv, branch tree) — scratch warnings in `Default/SQLite.tt`: `native: …\.build\bin\NuGet\Debug\net462\runtimes\win-x64\native\e_sqlite3.dll`; `sds: location=C:\Users\…\AppData\Local\assembly\dl3\…\System.Data.SQLite.dll codebase=file:///C:/Worktrees/linq2db/5906-preloadsqlite-basedirectory/.build/bin/NuGet/Debug/net462/System.Data.SQLite.dll` — the shadow copy E-3's comment claims, and the native under the override root. After removing the scratch, the four templates regenerated with no `.generated.cs` change (`git status`); a leftover blank line in `Default/SQLite.tt` was restored.
+- G-01 TO-5: pass (user-run) — LINQPad 5 with the branch's `.lpx`: "works" across the TO-5 steps.
+- G-01 TO-6: pass — `git grep -n -e PreLoadSQLite -e "SQLitePCLRaw-based" -- . ":!.claude"` → `SQLite.Runtime.props:9` (the comment pointing at the T4 site) and `Tests/Tests.T4/Shared.ttinclude:12` (kept by D-5); the T4 comment names SDS's native pre-loader as the reader, not the method name `GetBaseDirectory`. Independent read of E-4/E-5 text: pending G-09.
+- G-02: n/a — no SQL-generating code in P6; recheck the CI baselines PR for an empty diff.
+- G-03: n/a — E-2 removes a statement inside an `internal sealed` class; no member added or removed.
+- G-04: n/a — no public surface change.
+- G-05: pass — `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj -c Release -p:GenerateLpxArtifacts=false` (net472 + net8.0-windows7.0) 0 warnings 0 errors; `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` 0/0 (net10.0 instead of the planned net462: the test edits are comment-only, and net462 Debug built clean).
+- G-06: pass — `git diff --stat`: the six E-n files, 11+ / 17-.
+- G-07: pass — `Tests/Tests.Playground/NativePathProbe.cs` deleted; `git status --short` lists only E-1…E-6.
+- G-09: pass — independent read-only review (`fable`) of the uncommitted diff, with the SDS decompile re-run: deletions behaviour-neutral, no orphaned `using`, untouched neighbours consistent. Three comment findings, all applied (comment-only, no rebuild needed): F1 the `Shared.ttinclude` comment said the pre-loader "can't locate" the native from a shadow copy, but it falls back to `CodeBase` when marker subfolders exist — reworded to state the coupling (U-5); F2 the `SQLite.Runtime.props` sentence claimed SDS always loads from `runtimes/<rid>/native`, false for the net462 test host (U-12) — scoped; F3 garden-path wording and wrap in `LinqToDB.LINQPad.csproj:143-146`. F4 (the kept site names "its native pre-loader", not `GetBaseDirectory`) accepted as-is, see TO-6.
 
 ## P10 Adjudicated (M/L)
 
@@ -129,7 +137,8 @@ Base: `origin/master` @ `c82e21c35`. Tier L because the edit set spans four area
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-26, TO-1 measurement) — TO-1's expected net462 value ("ending `runtimes\win-x64\native`, handle non-zero") was reasoned and wrong: the net462 test host runs x86 and its output root carries an x86 `e_sqlite3.dll`, so `PreLoadSQLiteDll` declines and the CLR's DllImport loads the root copy (U-12). The criterion "identical before and after" is unchanged and held. No E-n change.
+  re-derives: P4 (U-12), P8 (TO-1 expected value)
 
 ## P12 Critic verdict (M/L)
 
