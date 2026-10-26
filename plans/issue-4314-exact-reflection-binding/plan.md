@@ -28,6 +28,12 @@ There is also a TFM divergence today: on net462/ns2.0 the arity lookup at `TypeM
 - No internal Roslyn analyzer (user decision 2026-10-25: banned API + helpers).
 - No pragma suppressions at coercion sites (user decision 2026-10-25: separately named coercing helper).
 
+User-visible deltas vs master:
+
+- D-1: a `TypeMapper` wrapper member whose parameter types need a value conversion to reach the target overload/ctor now fails with `LinqToDBException` "Method/Constructor not found in target type" (or aborts an optional wrapper under `IgnoreMissingMembers`) instead of `ArgumentException` from `Expression.Call`/`New`. No shipped prose states the old behaviour.
+- D-1: `LinqToDB.Internal.Extensions.ReflectionExtensions.GetMethodEx(Type, string, params Type[])` and `GetPublicInstanceMethodEx` return null where the default binder needed a value conversion. Neither had an XML doc on master; they now document the rule.
+- D-5: on net462/netstandard2.0 the `TypeMapper` generic-arity lookup (`[TypeWrapperGenericArgs]`) now accepts reference-assignable parameters, as net8+ already did; ties throw `AmbiguousMatchException`.
+
 ## P4 Unknowns (M/L)
 
 - U-1 Which call sites rely on loose matching today? — resolved-by probe: divergence logger on TypeMapper :672/:800/:804, `GetMethodEx(name, params)`, `GetPublicInstanceMethodEx`, ConvertBuilder:36, Associations:278, EagerLoad:447/:459; ran Tests.TypeMapping + Common.ConvertTests + all 18 `*ProviderAdapter` instances (25 loadable) and a SQLite.MS EagerLoad/Association run (582 tests, 1289 GetMethodEx hits). Divergences: ConvertBuilder:36 (enum→`Nullable<int>(int)`), ConvertBuilder:82-83 via GetMethodEx (`op_Explicit(decimal)`→`(decimal?)`), TypeMapper:804 Devart (derived→base). Nothing else.
@@ -142,14 +148,14 @@ There is also a TFM divergence today: on net462/ns2.0 the arity lookup at `TypeM
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-03: — (pending)
-- G-04: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
+- G-01: pass — worktree-test.ps1, 2026-10-26; red = run on unfixed source with the new tests, green = after the fix. TO-1 `MappingTests.MethodRequiringValueCoercionIsNotFound` red (ArgumentException from Expression.Call) → green. TO-2 `MappingTests.ConstructorRequiringValueCoercionIsNotFound` red (ArgumentException from Expression.New) → green. TO-3 `MappingTests.MethodWithBaseTypeParameterBinds` green before and after (control). TO-4a `ReflectionExtensionsTests.GetMethodExFindsIdenticalParameters` green before/after. TO-4b `ReflectionExtensionsTests.GetMethodExFindsReferenceAssignableParameters` green before/after (control). TO-4c `GetMethodExRejectsPrimitiveWidening` red (returned `Widen(Int32)`) → green, plus `GetMethodCoercingFindsValueConversions` green. TO-4d `GetMethodExRejectsNullableWrapping` red (returned `Nullable(Int32?)`) → green. TO-4e `GetMethodExRejectsBoxing` red (returned `Boxed(Object)`) → green. TO-4f `GetConstructorExRejectsPrimitiveWidening` + `GetConstructorExFindsReferenceAssignableParameters` green. TO-4g `GetMethodExWithArityFindsReferenceAssignableParameters` 2/2 on net10.0 and net462 Release (ExpectTests-confirmed). TO-5 `ConvertTests` (incl. `NullableParameterInOperatorConvert`) green on net10.0 and SQLite.MS. TO-6a (net10.0 + CLI + EF), TO-6b (net462), TO-6c (netstandard2.0): not test methods — Release builds and the RS0030 mutation, recorded in G-05. TO-7 SQLite.MS `EagerLoad*` + `AssociationTests` + `ConvertTests` 611 pass / 5 skip / 0 fail (same 5 skips as the pre-fix probe run); no-provider TypeMapping+ReflectionExtensions+Convert 63/63 Debug net10.0, TypeMapping+ReflectionExtensions 29/29 Release net10.0 and net462. TO-8 DuckDB `BulkCopyTests` 120 pass / 6 skip / 0 fail. test-diff-sweep -IncludeWorkingTree: one real chain fixed; remaining hits are `typeof(X).GetMethodEx(...)` / `GetConstructorEx(...)` single calls on a `typeof` operand — accepted as false positives. G-09 follow-up (MIN001, D-5 tie rule): `GetMethodExWithArityThrowsOnTieAcrossHierarchy` red on the pre-fix `Select` (returned `MixedDerived.Mixed(object)`, no throw) → green; `GetMethodExWithArityPrefersIdenticalParameters`, `GetMethodExWithArityThrowsOnTie`, `GetMethodExWithArityPrefersHidingMethod` green before/after (controls). After the fix: net10.0 Debug ReflectionExtensions+TypeMapping+DuckDB BulkCopyTests 153 pass / 6 skip / 0 fail; TypeMapping+ReflectionExtensions 33/33 Release on net10.0 and net462.
+- G-02: n/a — no emitted-SQL change by construction (reflection lookups only; every SQL-path site identical by construction per U-10); local runs used worktree-test.ps1, which does not diff baselines, so CI's baselines PR is the confirmation.
+- G-03: pass — 6 new `LinqToDB.Internal.Extensions.ReflectionExtensions` members in `PublicAPI.Unshipped.txt` (+6 lines, no deletions), each with XML doc stating D-1/D-3/D-5 contract; each exercised by ReflectionExtensionsTests or via TypeMapper/ConvertBuilder tests.
+- G-04: n/a — no shipped member removed or re-signatured (behaviour change of `GetMethodEx(string, params Type[])` / `GetPublicInstanceMethodEx` only); CompatibilitySuppressions untouched; package validation runs at release.
+- G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release` all 5 TFMs (net462, ns2.0, net8.0, net9.0, net10.0): 0 warnings, 0 errors; CLI, EF10, EF9 Release: 0/0. TO-6a/b/c control: temporary `typeof(string).GetMethod("Contains", [typeof(char)])` in Source/LinqToDB → RS0030 on all 5 TFMs, file removed. Ban coverage: banned-api-overloads.ps1 on net10.0 ref pack lists only name-only `GetMethod`/`GetProperty` overloads as gaps; all 18 entries resolve. Re-run after the G-09 `Select` fix: `Source/LinqToDB` Release all 5 TFMs 0/0. One test-only suppression: `#pragma warning disable CA1061` on `ReflectionExtensionsTests.MixedDerived.Mixed(object)`, whose base-hiding shape is the test input.
+- G-06: pass — `git diff --stat` line-for-line with the planned sites after restoring 12 BOMs stripped by the scripted rename and a whitespace-only line in `MappingTests.cs` (lone tab, flagged by G-09); MappingTests is +85/−0.
+- G-07: pass — no files under `Tests/Tests.Playground/` changed.
+- G-09: pass — `code-reviewer` (2026-10-26) over `git diff origin/master` of the uncommitted worktree, rubricModules rubric-tests + rubric-tooling: 0 BLK / 0 MAJ / 1 MIN + 2 out-of-scope observations, each walked with the user. MIN001 (D-5 `Select` replaced any more-derived candidate regardless of signature and cleared a recorded tie) — fixed here within E-1, tests within E-24 (G-01). Observation: branch one commit behind `origin/master` (4e6f16bb3, #6149, only `Tests/Base/TestProgressReporter.cs`, no overlap) — sync right before push. Observation: stripped tab in `MappingTests.cs` — restored (G-06).
 
 ## P10 Adjudicated (M/L)
 
