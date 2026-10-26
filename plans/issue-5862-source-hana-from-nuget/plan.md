@@ -18,13 +18,13 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - SC-1 net8.0/net9.0 builds of Tests.csproj and Tests.Playground take the HANA client from `Sap.Data.Hana.Net.v8.0` 2.30.27, and net10.0 from `Sap.Data.Hana.Net.v10.0` 2.30.27, natives included. `Redist/SapHana/v8.0/*` and `libadonetHDB*.pdb` are deleted, and SapHana.Native suites pass on net8.0 and net10.0 → TO-1, TO-3
 - SC-2 the net8+ linq2db build loads `Sap.Data.Hana.Net.v10.0` when it is the only client present, and maps provider name `Sap.Data.Hana.Net.v10.0` to the native provider → TO-1, TO-2
 - SC-3 the produced `linq2db.SapHana` / `linq2db.t4models` nupkgs contain no `Sap.Data.Hana*` file, `sap-hana-client` and its licence text are gone from `Build/licenses`, and `third-party-notices.ps1 -Action check` / `-Action verify` pass → TO-6, TO-7
-- SC-4 the unchanged paths stay working: net462 SapHana.Native via the kept 2.23.27 natives, SapHana.Odbc, and the x86 `X86STUBS` publish → TO-4, TO-5, TO-8
+- SC-4 the unchanged paths stay working: net462 SapHana.Native via the kept 2.23.27 natives, SapHana.Odbc, and the x86 `X86STUBS` publish → TO-4, TO-5, TO-8 (pre-A-1), TO-10 (after A-1, where x86 carries the real client)
 
 ## P3 Constraints & anti-goals
 
 - No public API change outside `LinqToDB.Internal.*`. `SapHanaProviderAdapter.UnmanagedAssemblyNames` is `static readonly IEnumerable<string>` in `LinqToDB.Internal.DataProvider.SapHana` (`PublicAPI.Shipped.txt:15814`); only its value changes, and `PublicAPI.*.txt` is untouched.
-- No SQL, baseline or query-cache change; nothing under `SqlQuery/` or `Translation/`.
-- The CI HANA leg is unchanged. It runs only `SapHana.Odbc`, Linux, net8/9/10 (`Build/Azure/pipelines/templates/test-matrix.yml:282-294`, `Build/Azure/scripts/hana2.sh:75-106`).
+- No SQL or query-cache change; nothing under `SqlQuery/` or `Translation/`. Existing baselines are unchanged; A-2 adds a new `SapHana.Native` baselines tree (G-02).
+- Before A-2, the CI HANA leg ran only `SapHana.Odbc`, Linux, net8/9/10 (`Build/Azure/pipelines/templates/test-matrix.yml:282-294`, `Build/Azure/scripts/hana2.sh:75-106`). A-2 (D-12) adds `SapHana.Native` to the same leg; ODBC coverage must not shrink.
 - `Redist/SapHana/hdbsql.exe` (`Data/Setup Scripts/saphana2.cmd:17`), `Redist/SapHana/v4.5/*` and `Redist/SapHana/libadonetHDB{,32}.dll` stay. The net462 tests still reference them (`Tests.csproj:14-18`).
 - Anti-goal from the #5731 plan (`.claude/plans/issue-5731-third-party-license-notices/plan.md:34`): do not drop the SAP client *silently*. The T4 behaviour change is stated in the PR body and in `NuGet/README.md`.
 - Do not touch the already-stale XML doc at `Source/LinqToDB/DataProvider/SapHana/SapHanaProvider.cs:13`; this change does not falsify it.
@@ -37,7 +37,7 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - U-4 API drift 2.23.27 → 2.30.27. Measured with `fuget-api-diff.ps1` against the local fuget: v8.0 2.27.23→2.30.27 is +22/-0 and v10.0 2.28.17→2.30.27 is +20/-0. The additions are pool statistics, `HanaInstrumentation(Options)`, `HanaLogging.UseLoggerFactory`, and the v8.0 `ProxyRegion`/`ReplicationRole`. A decompiled public-line diff covers the 2.23.27 → 2.27.23 → 2.30.27 gap the fuget run cannot: the only removals are members of internal types (`HanaConnectionPool`, `HanaInternalConnection`, a P/Invoke `Unmanaged_Init` overload, `StatementHash`). Every member the adapter uses (`GetDateTimeOffset`, `GetTimeSpan`, `GetHanaDecimal`, `ClearAllPools`, `HanaDbType.RealVector`, bulk copy) is still present. Nothing new serves the adapter TODOs — resolved-by probe
 - U-5 Whether the `TryLoadAssembly` factory fallback (`Tools.cs:104-138`, `DbProviderFactories.GetFactory("Sap.Data.Hana")`) can mask the v10.0 red. Scout: `RegisterFactory|DbProviderFactories` over `Tests/` finds only SqlCe (`TestsInitialization.cs:267`) and the DB2/Informix netfx hooks (`:178-195`), so with only v10.0 present master should throw. Reasoned; TO-1 is the proof — resolved-by scout
 - U-6 How a netfx T4 user reaches `Sap.Data.Hana.v4.5` once it is not packed. Measured on this box: a HANA client install registers `invariant="Sap.Data.Hana"` → `Sap.Data.Hana.HanaFactory, Sap.Data.Hana.v4.5, Version=2.23.27.0` in `Framework64\v4.0.30319\Config\machine.config`, and puts seven `Sap.Data.Hana.v4.5` versions in `GAC_MSIL`. The `TryLoadAssembly` factory fallback therefore resolves it on netfx, and T4 templates default to `SapHanaProvider.Unmanaged` (`NuGet/SapHana/LinqToDB.SapHana.ttinclude:84,89,99,105`). Without an installed client the bundled managed dll could not connect anyway, because no `libadonetHDB` is packed. TO-7 proves the load path — resolved-by probe
-- U-7 Whether CI exercises SapHana.Native. Scout: no. The only HANA leg is `h_SAPHANA2`, Linux, net8/9/10, `SapHana.Odbc` only (`Build/Azure/pipelines/templates/test-matrix.yml:282-294`, `Build/Azure/scripts/hana2.sh:75-106`). So native proof is local, against the `hana2` container, which exists (status Exited); starting it needs the user's go-ahead — resolved-by scout
+- U-7 Whether CI exercises SapHana.Native. Scout: no. The only HANA leg is `h_SAPHANA2`, Linux, net8/9/10, `SapHana.Odbc` only (`Build/Azure/pipelines/templates/test-matrix.yml:282-294`, `Build/Azure/scripts/hana2.sh:75-106`). So native proof was local, against the `hana2` container, which exists (status Exited); starting it needs the user's go-ahead. After A-2, Linux native runs in the GitHub `h_SAPHANA2` leg (D-12, TO-14) — resolved-by scout
 - U-8 Restore-time traps. Scout: CPM is on (`Directory.Packages.props:3`), so `PackageVersion` entries are needed; `packageSourceMapping` is `*` → nuget.org (`nuget.config:3-11`); there is no lock file and transitive pinning is off (`Directory.Packages.props:4`); NuGetAudit is default-on with warnings-as-errors, and the packages have no dependencies (U-3). That `requireLicenseAcceptance` does not prompt in `dotnet restore` is reasoned, unprobed; the first restore settles it, and a prompt or error stops implementation for a re-plan — resolved-by scout
 - U-9 Who gains the reference by placement. Scout: `Tests/linq2db.Providers.props` is imported by `Tests/linq2db.TestProjects.props:4` (→ Tests.csproj, Tests.Playground, Tests.T4) and directly by `Tests/Tests.Benchmarks/linq2db.Benchmarks.csproj:2`. Tests.T4 and Benchmarks use no HANA client (D-2) — resolved-by scout
 - U-10 How LINQPad uses the list. Scout: `Source/LinqToDB.LINQPad/DatabaseProviders/SapHanaProvider.cs:57-60,79-85,104-106,119-126` iterates `UnmanagedAssemblyNames`. `TryGetDefaultPath` derives `v10.0` from the new name and probes `%ProgramFiles%\sap\hdbclient\dotnetcore\v10.0\Sap.Data.Hana.Net.v10.0.dll`. The driver is `net8.0-windows7.0` and loads the net8.0 linq2db build, so a NET10-only entry would never reach it (D-5). The SAP installer folder name is unverified and affects only the default-path suggestion — resolved-by scout
@@ -47,6 +47,11 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - U-14 Whether the +65 MB-per-TFM native payload is accepted or trimmed (D-8, measured). User, 2026-10-26: accept; the CI HANA leg proves it fits — resolved-by user answer
 - U-15 Whether v10.0 itself carries the mechanisms U-1/U-2/U-4 measured on v8.0. Critic, measured by string search of `Sap.Data.Hana.Net.v10.0.dll` 2.30.27: `HanaDecimal`, `GetHanaDecimal`, `GetRealVector`, `GetTimeSpan`, `GetDateTimeOffset`, `HanaBulkCopyColumnMappingCollection`, `HanaRowsCopiedEventHandler`, `ClearAllPools`, `SearchNativeDlls`, `CheckDllVersion`, `HDBDOTNETCORE_NOVERSION` and `runtimes` are all present, matching v8.0 2.30.27 — resolved-by probe
 - U-16 What a .NET 8 LINQPad host does with a v10.0 default path. Critic, reasoned, unprobed: a `lib/net10.0` assembly fails to bind on .NET 8. Made unreachable by D-5: the net8 build no longer lists v10.0 — resolved-by probe (design: D-5 gate)
+- U-18 (A-1) Whether the HANA native search can find a LINQPad-provisioned package's natives. Measured by decompiling 2.30.27 `SearchNativeDlls` to its end; the order is (1) `<assembly dir>/runtimes/<rid>/native`, (2) the assembly dir and its subdirectories, (3) the current dir and its subdirectories, (4) the entry and executing assembly dirs and their subdirectories, (5) `HDBDOTNETCORE` (process, then user, then machine), (6) later, the installed-client paths. With a NuGet-cache layout, `lib/net8.0/<asm>.dll` sits beside `../../runtimes/<rid>/native`, so steps 1–4 miss the natives and only step 5 can reach them. LINQPad's real cache layout, and whether it shadow-copies the assembly, is unmeasured; the user answered that the proof is the user's manual LINQPad check — resolved-by user answer
+- U-19 (A-1) Whether an x86 netcore test process loads the package's `win-x86/native/libadonetHDB32.dll`. A RID-specific `-a x86` publish flattens `runtimes/win-x86/native` into the output root (step 2 of U-18), and the managed assembly is AnyCPU (U-3). TO-10 runs it — resolved-by probe
+- U-20 (A-1) The native failure of the two split gates. Measured on master c82e21c35 and on the branch, net10.0, SapHana.Native: `TestBinaryParameterSelect` → `LinqToDB.Common.LinqToDBConvertException: Mapping of column ':1' value failed` (inner `FormatException`, Base-64); `CalculationViewLinqQuery` → `Sap.Data.Hana.HanaException: invalid table name` — resolved-by probe
+- U-21 (A-1, round-2 critic) What `HDBDOTNETCORE` holds on a machine with a HANA client. Measured on this box (the TO-13 host): Machine scope `C:\Program Files\sap\hdbclient\dotnetcore`, set by the installer, holding `libadonetHDB.dll` 2.23.27; User scope empty; `HDBDOTNETCORE_NOVERSION` unset. SAP reads Process → User → Machine, version-checks each candidate and continues on a mismatch, then tries `…\hdbclient\ado.net` and every `PATH` entry, and finally throws `Cannot find a matching libadonetHDB.dll with version <v>` (decompile `:18326-18449`). So a "skip if already set" helper always skips on exactly the machines the native provider's existing users have, and the 2.30.27 client then finds only 2.23.27 natives. The helper must override the Process value — resolved-by probe
+- U-22 (A-1) Whether provisioning the HANA package in LINQPad's "all packages" branch is acceptable (35 173 652-byte nupkg, measured by the critic). User: accept — resolved-by user answer
 - U-17 TO-2's master result. Critic: `DataConnection.Configuration.cs:157-164` falls through to `defaultDataProvider`, and no test sets `DefaultDataProvider` (grep `DefaultDataProvider\s*=` over `Tests/**/*.cs` finds none). So the master red is `null` — resolved-by scout
 
 ## P5 Decisions
@@ -112,6 +117,48 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - **why this:** `verify` reads only produced nupkg/lpx/publish artifacts, and Tests/ are not among them (scout, `third-party-notices.ps1:826-828`).
 - **failure mode of the choice:** none known; `verify` fails loudly if a `Sap.Data.Hana*` file is still packed.
 
+### D-9 (A-1, supersedes D-4) — Drop the HANA x86 stubs
+- **chosen:** remove `HANASTUBS` from the `X86STUBS` defines, delete `Tests/Base/X86Stubs/HanaStubs.cs`, and reference the HANA packages on x86 too. The x86 builds keep `DB2STUBS`.
+- **rejected:** keep the stub (D-4). Its only reason, an x64-only managed assembly, is gone (U-3, U-13).
+- **failure mode of the choice:** an x86 process may fail to load `libadonetHDB32` through the flattened layout. TO-10 runs native HANA on x86 to rule that out.
+
+### D-10 (A-1) — Per-provider gates
+- **chosen:** split each of the two `AllSapHana` gates into a `SapHana.Odbc` gate (unchanged: `OdbcException` plus its message) and a `SapHana.Native` gate carrying the measured native failure (U-20).
+- **rejected:** widen one gate to accept either type. A gate pins one failure, and two failures on two clients are two facts.
+- **issue for the native defect (user, round 2) → superseded by a probe:** the plan was to treat the native `TestBinaryParameterSelect` failure as a fixable linq2db defect and file an issue. `/create-issue`'s verification step probed it instead: with the 2.30.27 native client, `SELECT :p FROM DUMMY` with a `DbType.Binary` parameter reports `GetFieldType` = `System.String` / `varchar`, returning the bytes as characters. That is a server typing limit on a bare select-list parameter in raw SQL, which linq2db cannot cast. The user chose a `no-issue:` gate, which `testing.md` permits for a probed server limit, and no issue is filed. The ODBC gates and the native `CalculationViewLinqQuery` gate (an unprovisioned view: an environment gap) stay `no-issue:`.
+- **failure mode of the choice:** none known beyond the issue's own resolution.
+
+### D-11 (A-1) — LINQPad provisions the native HANA client
+- **chosen:** on the `!NETFRAMEWORK` driver, `GetNuGetPackages(SapHanaNative)` returns `Sap.Data.Hana.Net.v8.0` at the version of `Directory.Packages.props` (a new `NuGetPackageVersions.Sap_Data_Hana_Net_v8_0` constant).
+  - Its `lib/net8.0` runs on LINQPad 8 and 9 hosts, and the driver's TFM expands only the net8-compatible `PackageVersion` entry (`LinqToDB.LINQPad.csproj:170-176`).
+  - The native provider stops supporting a provider path: `IsProviderPathSupported`, `GetProviderAssemblyNames`, `TryGetDefaultPath` and `RegisterProviderFactory` fall back to the base defaults.
+  - One idempotent helper sets the **Process-scope** `HDBDOTNETCORE` to the package's `runtimes/<rid>/native`. It derives that from the `Sap.Data.Hana.Net.v8.0` assembly's location (`<asm dir>/../../runtimes/<rid>/native`; RID from OS + `ProcessArchitecture`). It sets the variable **unconditionally** whenever that folder exists, overriding any inherited value (round-2 critic, U-21), and does nothing only when the folder is missing.
+  - The trigger is an `AppDomain.CurrentDomain.AssemblyLoad` handler, subscribed once when `SapHanaProvider` is constructed. Construction happens at driver init, in the driver process, through the static `DatabaseProviders` registry. The handler fires when `Sap.Data.Hana.Net.v8.0` loads; the subscription also checks the already-loaded set, in case the assembly was loaded first.
+    - Why this trigger: SAP's native search runs in `static HanaConnection()` (→ `HanaUnmanagedDll.Instance`), and a failed type initialiser is sticky for the process. `AssemblyLoad` fires before any type in the assembly initialises, so it covers every path that loads the client: dynamic `GetDataProvider`, `GetProviderFactory` → `HanaFactory.CreateConnection`, `ClearAllPools`, and a **static context's** own first query (`StaticLinqToDBDriver.cs:115-118`).
+    - Round 3: the round-2 three-call-site list covered dynamic paths only. `class:` every path that loads the client into the process.
+  - An assembly that never loads (package not resolvable), and a missing `runtimes/<rid>/native` folder, both leave the variable untouched.
+  - Accepted cost (user, U-22): the "all packages" branch (`DriverHelper.cs:379-384`, a connection being created or a static context naming no database) now also downloads the 35 MB package (80 MB extracted).
+  - The LINQPad 5 (`net472`) path is unchanged.
+- **rejected:** keep the provider path as an optional override. `DriverHelper.cs:272-277` makes a path mandatory whenever one is supported, and a user-picked assembly loaded with `LoadFrom` next to the provisioned package would put two `Sap.Data.Hana.Net.v8.0` copies in one process.
+- **rejected:** provision v10.0 on .NET 10 hosts. The driver is a single `net8.0-windows7.0` build, so a per-host choice would need a runtime package decision the version constants cannot express. v8.0 runs on both hosts.
+- **failure mode of the choice:**
+  - LINQPad's cache layout may not keep `runtimes/` beside `lib/` (U-18, unmeasured). The native connection would then fail with SAP's "cannot find libadonetHDB" error, and the fallback is a re-plan.
+  - A saved native connection's `ProviderPath` is still passed through `DatabaseProviders.GetDataProvider:134-135`, but `RegisterProviderFactory` is now the base no-op, so it is ignored.
+  - Users whose server needs an older client lose the path override.
+
+### D-12 (A-2) — SapHana.Native on the Linux CI leg
+- **chosen (user):** run `SapHana.Native` beside `SapHana.Odbc` in the existing `h_SAPHANA2` leg (Azure, plus the GitHub twin through the same `hana2.sh`; Linux; net8/9/10). It gets one connection in `AzureConnectionStrings` and one provider-list entry per TFM in the generated `HanaDataProviders.json`.
+  - The test binaries are portable publishes, so they carry `runtimes/linux-x64/native/libadonetHDB.so`, which SAP's step 1 finds.
+  - On non-Windows the version check is off (decompile `:18205-18208`).
+- **rejected:** a separate native leg. It pays a second HANA container start, which is minutes per TFM.
+- **failure mode of the choice:**
+  - The native provider has never run in CI, and most HANA `[ActiveIssue]` gates were measured on ODBC only. The first run will surface native-only failures (two are already measured on Windows, U-20). Each is triaged: fix, or a per-provider gate with its measured failure. The budget is two CI rounds; then stop and ask.
+  - The leg's test phase roughly doubles. Its duration is recorded in G-11.
+
+### D-13 (A-2) — macOS for the LINQPad 8+ driver
+- **chosen:** no platform gate exists for SAP HANA (`IsPlatformSupported` defaults to `true`). The native provider was unusable on macOS only because it needed a Windows-shaped client path. With D-11's package and `HDBDOTNETCORE` handler, macOS works when the handler maps `osx-x64` / `osx-arm64` and the `.dylib` name. The handler derives the RID from `RuntimeInformation` OS plus `ProcessArchitecture` for `win`, `linux` and `osx`. README's macOS section says so.
+- **failure mode of the choice:** unmeasured. There is no Mac here, so this is TO-13's macOS cell, the user's manual check.
+
 ## P6 Edit-points
 
 - E-1 `Directory.Packages.props:providers group` — add `Sap.Data.Hana.Net.v8.0` 2.30.27 (`!IsTargetFrameworkCompatible(net10.0)`) and `Sap.Data.Hana.Net.v10.0` 2.30.27 (`=='net10.0'`)
@@ -134,6 +181,19 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - E-18 `Redist/Readme.md` — v4.5 no longer redistributed; v8.0 now from nuget; natives kept for net462 only
 - E-19 `NuGet/README.md:23` — `LinqToDBT4SapHanaClientPath`: the package no longer carries the SAP client; native T4 needs an installed HANA client (machine.config factory) or the property pointed at a folder that contains `Sap.Data.Hana.v4.5.dll`
 - E-20 `Tests/Linq/DataProvider/SapHanaTests.cs` — new test: provider name `Sap.Data.Hana.Net.v10.0` resolves to the native provider (TO-2)
+- E-21 `Tests/Directory.Build.props:7` — drop `HANASTUBS` from the `X86STUBS` defines (A-1, D-9)
+- E-22 `Tests/Base/X86Stubs/HanaStubs.cs` — delete (A-1, D-9; supersedes E-10)
+- E-23 `Tests/Linq/Tests.csproj`, `Tests/Tests.Playground/Tests.Playground.csproj` — HANA `PackageReference`s lose the `X86STUBS != True` condition; drop the stub comment (A-1, D-9; amends E-2/E-3)
+- E-24 `Tests/Linq/DataProvider/SapHanaTests.cs:TestBinaryParameterSelect,CalculationViewLinqQuery` — split each `AllSapHana` gate into an ODBC gate and a native gate (A-1, D-10)
+- E-25 `Tests/Tests.T4.Nugets/Templates/Hana.ODBC.tt:11` — pass `LinqToDB.DataProvider.SapHana.SapHanaProvider.ODBC` (A-1)
+- E-26 `Source/LinqToDB.LINQPad/DatabaseProviders/SapHanaProvider.cs` — provision `Sap.Data.Hana.Net.v8.0` for native, drop the native provider-path members, set the Process-scope `HDBDOTNETCORE` from an `AssemblyLoad` handler (A-1, D-11)
+- E-27 `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj:GenerateNuGetPackageVersions` — add the `Sap_Data_Hana_Net_v8_0` constant (A-1, D-11)
+- E-29 `DataProviders.json:AzureConnectionStrings` — add `SapHana.Native` (`Provider: Sap.Data.Hana`, `Server=localhost:39017;Current Schema=TESTDB;UserID=SYSTEM;Password=Passw0rd;`) beside `SapHana.Odbc` (A-2, D-12)
+- E-30 `Build/Azure/scripts/hana2.sh:HanaDataProviders.json` — add `SapHana.Native` to the NET80/NET90/NET100 `Providers` lists (A-2, D-12)
+- E-31 `Source/LinqToDB.LINQPad/README.md:51-53` — macOS section: SAP HANA native now works through the provisioned package (A-2, D-13). The PR leaves draft only after TO-13's macOS cell is checked (round-4 objection 7).
+- E-32a (A-2, measured 2026-10-26, Windows, net10.0, hana2) — the banner-anchored gates were red on **every** host but Linux ODBC. `DeleteTests.cs:606,651` and `DateTimeFunctionsTests.cs:2676,2707` pinned `[SAP AG][LIBODBCHDB SO][HDBODBC]`, but Windows ODBC says `LIBODBCHDB DLL` and native carries no banner; the server text is identical everywhere. They are re-anchored on `sql syntax error: incorrect syntax near "("` and `TIMESTAMP and PARAMETER are invalid for addition operator`, which is the gates' own stated "type-less, both drivers" intent. `SapHanaTypeTests.cs:164` drops `ErrorTypeName` (native raises `HanaException` with the same text). `IssueTests.cs:1022` already matches native, because its text is native-side.
+- E-32 `Tests/**` native gates and fixes (A-2, D-12). Known now by inspection (round 4), each to be measured on Windows native before the first CI round: `Tests/Linq/Update/DeleteTests.cs:606,651` and `Tests/Linq/Linq/DateTimeFunctionsTests.cs:2676,2707` (`AllSapHana` gates pinning the ODBC banner `[SAP AG][LIBODBCHDB SO][HDBODBC]`), `Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:164` (unscoped `OdbcException`), `Tests/Linq/Linq/IssueTests.cs:1022` (ODBC-side text). Then whatever the first Linux native CI run demands: one gate or fix per measured failure, each confirmed by a local Windows native run that fixes `Platforms` (Linux-only vs Any) and the message form (`testing.md:81`), and added here by name as triage lands. Budget: two CI rounds, then stop and ask.
+- E-28 `Source/LinqToDB.LINQPad/README.md:20` — SAP HANA native no longer needs an installed client on LINQPad 8+; keep the qualifiers that stay true (LINQPad 5 native, and ODBC, still need the installed client or driver) (A-1, D-11)
 
 ## P7 Impact map
 
@@ -149,8 +209,8 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - `Tests/Linq/Tests.csproj:14-31,55-60`, `Tests/Tests.Playground/Tests.Playground.csproj:15-37` (HintPath and native copy) — searched `Redist[\\/]SapHana|libadonetHDB` — covered by E-2, E-3
 - `Tests/linq2db.Providers.props` / `Tests/linq2db.TestProjects.props:4` / `Tests/Tests.Benchmarks/linq2db.Benchmarks.csproj:2` / `Tests/Tests.T4/Tests.T4.csproj:2` (importers) — searched `linq2db\.Providers\.props|linq2db\.TestProjects\.props` — out-of-scope by D-2 (no edit; nothing new reaches T4 or Benchmarks)
 - `Tests/Directory.Build.props:7` (`HANASTUBS` define), `Tests/Base/X86Stubs/HanaStubs.cs:1-13` (stub `HanaDecimal`), `Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:8,47-158` (its only compile-time consumer) — searched `HANASTUBS|X86STUBS` — covered by E-10 (comment only, D-4); the package stays behind the X86STUBS condition, so there is no CS0433 clash with the stub
-- `.github/workflows/tests.yml:274,286,288,324,327,424-429` and `Build/Azure/pipelines/templates/build-job.yml:108-142,360-377` (Tests build/publish; net8+ portable, net462 `-a x64`, x86 `-a x86` + `X86STUBS` on netcore) — searched `dotnet (build|publish|test)|-a |-r |X86STUBS` — out-of-scope: no edit. A portable publish keeps `runtimes/` (U-1), and x86 netcore stays stubbed (D-4)
-- `Build/Azure/pipelines/templates/test-workflow-linux.yml:159-168`, `Build/CI/run-provider-tests.sh:145` (portable binaries run on Linux) — searched `linq2db\.Tests\.dll` — out-of-scope: HANA runs ODBC only there (U-7); the native is never loaded
+- `.github/workflows/tests.yml:274,286,288,324,327,424-429` and `Build/Azure/pipelines/templates/build-job.yml:108-142,360-377` (Tests build/publish; net8+ portable, net462 `-a x64`, x86 `-a x86` + `X86STUBS` on netcore) — searched `dotnet (build|publish|test)|-a |-r |X86STUBS` — out-of-scope: no edit. A portable publish keeps `runtimes/` (U-1). After A-1 (D-9), the x86 netcore publishes (`tests.yml:424-426`, `build-job.yml:363-365`) carry `Sap.Data.Hana.Net.v8.0.dll` plus the flattened `libadonetHDB32.dll` — about two 35 MB restores more on a job whose margin is thin (KB `areas/BUILD/INDEX.md:173`); proven by G-10
+- `Build/Azure/pipelines/templates/test-workflow-linux.yml:159-168`, `Build/CI/run-provider-tests.sh:145` (portable binaries run on Linux) — searched `linq2db\.Tests\.dll` — before A-2: HANA ran ODBC only there (U-7). After A-2: native runs there too, finding `runtimes/linux-x64/native/libadonetHDB.so` at SAP step 1 — covered by E-29, E-30 (TO-14)
 - `Tests/Linq/TestsInitialization.cs:44-105,167-195` (native or assembly resolvers) — searched `libadonetHDB|NativeLibrary|SetDllImportResolver|AssemblyResolve|HDB` — out-of-scope: no HANA resolver; nothing loads `libadonetHDB` from the output root
 - `NuGet/NuGet.csproj:46-49`, `NuGet/SapHana/linq2db.SapHana.csproj:37`, `NuGet/t4models/linq2db.t4models.csproj:114` (staging and pack) — searched `Sap\.Data\.Hana\.v4\.5|ToolsPath` — covered by E-11, E-12, E-13
 - `Directory.Build.props:224,236` (`LinqToDBT4SharedTools` / `LinqToDBT4SapHanaClientPath`), `NuGet/SapHana/linq2db.SapHana.props:4`, `NuGet/t4models/linq2db.t4models.props:15` (client path → `tools\`), `NuGet/SapHana/LinqToDB.SapHana.ttinclude:1` (the only `<#@ assembly`: `System.Data.Odbc.dll`) — searched `LinqToDBT4SapHanaClientPath|<#@ assembly` — out-of-scope: unchanged; the folder simply no longer holds the SAP dll (U-11). Doc covered by E-19
@@ -171,9 +231,16 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - TO-5 net10.0 `SapHanaTests` on ODBC: symmetry guard on the unchanged ODBC path through the same detector — providers: SapHana.Odbc — proof: characterization
 - TO-6 `dotnet pack` of `NuGet/SapHana/linq2db.SapHana.csproj` and `NuGet/t4models/linq2db.t4models.csproj` (Release): no `Sap.Data.Hana*` entry in either nupkg, and `third-party-notices.ps1 -Action check` and `-Action verify -PackagesDir .build/package/release` pass. Control mutation: restore E-11's `<None>` and the E-13 `<Reference>` while keeping E-14, and `verify` must fail with "maps to no component" for `tools/Sap.Data.Hana.v4.5.dll` — providers: none — proof: control
 - TO-7 netfx resolution without a bundled copy, on this box (HANA client installed, U-6). Windows PowerShell 5.1 (a netfx host) loads the Release net462 `linq2db.dll` from `.build/bin/NuGet/Release/net462` (E-13 applied, so no `Sap.Data.Hana.v4.5.dll` beside it). It calls `LinqToDB.Internal.Common.Tools.TryLoadAssembly("Sap.Data.Hana.v4.5", "Sap.Data.Hana")` and must get a non-null assembly from the GAC through the machine.config factory. Its location is recorded — providers: none — proof: characterization (documents the user path D-6 relies on; no DB)
-- TO-8 `dotnet publish Tests/Linq/Tests.csproj -f net8.0 -a x86 -p:X86STUBS=True` builds, and the produced test assembly loads and lists tests, so no `Sap.Data.Hana*` assembly is in the output — providers: none — proof: characterization
+- TO-8 `dotnet publish Tests/Linq/Tests.csproj -f net8.0 -a x86 -p:X86STUBS=True` builds, and the produced test assembly loads and lists tests, so no `Sap.Data.Hana*` assembly is in the output. **Superseded by TO-10 after A-1**: D-9 puts the client on x86, so this row's "no `Sap.Data.Hana*`" assertion describes the pre-A-1 tree only — providers: none — proof: characterization
 
-E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-5, E-6 → TO-1, TO-2, TO-5. E-11, E-12, E-13, E-14, E-15, E-16 → TO-6, TO-7. E-20 → TO-2. Waived, with no TO-n:
+- TO-9 (A-1) The `SapHanaTests` suite on SapHana.Native and SapHana.Odbc, net10.0: `TestBinaryParameterSelect` and `CalculationViewLinqQuery` end Inconclusive (gate matched) on both providers, where before A-1 they failed on native. Discriminating input: the native failure types of U-20 — providers: SapHana.Native, SapHana.Odbc — proof: red→green (red = the measured G-01 native failures)
+- TO-10 (A-1) `dotnet publish Tests/Linq/Tests.csproj -f net8.0 -a x86 -p:X86STUBS=True`: the output holds `Sap.Data.Hana.Net.v8.0.dll` and `libadonetHDB32.dll`. The x86 exe run on `SapHanaTests` with `--provider SapHana.Native` passes the suite except the two gated tests, so the 32-bit native loads — providers: SapHana.Native — proof: characterization
+- TO-11 (A-1) The LINQPad driver builds on both channels (`net472` and `net8.0-windows7.0`, Release). The generated `NuGetPackageVersions` carries `Sap_Data_Hana_Net_v8_0 = "2.30.27"` — providers: none — proof: characterization
+- TO-12 (A-1, rewritten after round 2) The `HDBDOTNETCORE` override, on a NuGet-cache layout and with this box's Machine `HDBDOTNETCORE=…\hdbclient\dotnetcore` (2.23.27) inherited. A net8 probe process opens a `HanaConnection` to `hana2` (green). Setup: (1) the probe loads `Sap.Data.Hana.Net.v8.0` 2.30.27 by path from the global-packages folder (`lib/net8.0`, no `runtimes/` sibling), not through a `PackageReference`, and asserts `typeof(HanaConnection).Assembly.Location` is that path; (2) it applies the E-26 handler logic; (3) its cwd and entry-assembly dir are pinned to a scratch tree that holds no 2.30.27 native, because SAP's steps 2–4 search those dirs recursively before step 5. Mutation: the same process with the handler skipped must fail with `Cannot find a matching libadonetHDB.dll with version 2.30.27`, and that arm's "Searched paths and results" list is recorded, naming the step that matched (red). Discriminating input: the inherited 2.23.27 Machine value — providers: SapHana.Native — proof: control
+- TO-14 (A-2, revised after round 4) The GitHub `h_SAPHANA2` leg runs SapHana.Native on Linux. A PR run covers net10 only: `testing.yml` offloads the leg to GitHub (`full_run: false`, `offload_linux_to_github: true`), and the main suite there is net10-only (`tests.yml:595-600`). net8/net9 need one `tests.yml` `workflow_dispatch` with `surface: [saphana.all]`, `full_run: true` and the branch ref. Positive observation (round-4 objection 2): the trx must contain `CreateDatabase(SapHana.Native)` and a `(SapHana.Native)` case count comparable to `(SapHana.Odbc)`, because a config that does not take would otherwise be a green ODBC-only run. Every native test passes or ends Inconclusive under a per-provider gate; the first run's native failures are the red, and the triage commits are the green — providers: SapHana.Native — proof: red→green
+- TO-13 (A-1, A-2) The real LINQPad 8/9 native HANA connection — a dynamic connection and a static context naming SAP HANA on this box (Machine `HDBDOTNETCORE` → 2.23.27), plus a macOS cell (D-13, recording time to first native connection and any permission prompt, because SAP step 3 searches a Finder-launched app's cwd `/` recursively) — providers: SapHana.Native — proof: characterization (manual: the user's LINQPad check, U-18; not run by the agent)
+
+E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-23 → TO-10. E-24 → TO-9. E-26, E-27 → TO-11, TO-12, TO-13. E-25, E-28: waived. The `.tt` fix can only be exercised by the release T4 track (a VS T4 host against `hana2`), and its committed `Hana.ODBC.generated.cs` stays as generated until that track regenerates it; E-28 is prose. E-5, E-6 → TO-1, TO-2, TO-5. E-11, E-12, E-13, E-14, E-15, E-16 → TO-6, TO-7. E-20 → TO-2. Waived, with no TO-n:
 - E-7, E-8, E-9 (CLI probe path and help strings). No fixture pins the CLI HANA probe list (`Sap\.Data\.Hana` over `Tests/` hits only `[ThrowsForProvider]` strings), and the release CLI scaffold track skips SapHana by default (`release-test-cli-scaffold.ps1:70-72`). They are verified by the Release build and by reading the diff.
 - E-10, E-17, E-18, E-19 (comments and prose). Verified by reading the diff.
 
@@ -190,17 +257,29 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-5, E-6 → TO
   - TO-7: Windows PowerShell 5.1 (CLR 4.0.30319.42000, x64) loaded `.build/bin/LinqToDB/Release/net462/linq2db.dll`, which has no SAP dll beside it. `Tools.TryLoadAssembly("Sap.Data.Hana.v4.5","Sap.Data.Hana")` → `Sap.Data.Hana.v4.5, Version=2.23.27.0` from `GAC_MSIL`.
   - TO-8: the net8.0 x86 `X86STUBS` publish has no HANA files, and `--list-tests` discovered 963 tests with no load error.
   - The two 30/32 residuals, `CalculationViewLinqQuery` and `TestBinaryParameterSelect`, are pre-existing: master c82e21c35 with the Redist 2.23.27 client fails both the same way on SapHana.Native net10.0 (baseline worktree run). See P10.
-- G-02: n/a locally — no SQL path changed. The CI HANA leg (ODBC) and the baselines PR should show no SapHana diff; confirm at CI.
+- G-01 (A-1/A-2): pass for the locally runnable obligations; all runs are local, net10.0, against `hana2` unless stated.
+  - TO-9: `SapHanaTests` plus the E-32a set — SapHana.Native 53 cases, 0 failed, 23 gated; SapHana.Odbc 50 cases, 0 failed, 23 gated. One ODBC TearDown `connect timeout expired` on `TestBinaryFromDb` passed on rerun, a capacity transient (P10).
+  - TO-10: x86 net8.0 publish carries `Sap.Data.Hana.Net.v8.0.dll` and `libadonetHDB32.dll` 2.30.27; the x86 exe `--provider SapHana.Native` on `SapHanaTests` gives 28 passed, 0 failed, 2 gated.
+  - TO-11: LINQPad Release on `net472` and `net8.0-windows7.0` builds; `Sap_Data_Hana_Net_v8_0 = "2.30.27"`.
+  - TO-12: green arm connected; control arm `FileNotFoundException … version 2.30.27` with only 2.23.27 candidates searched.
+  - TO-13: pending, the user's manual LINQPad check (dynamic, static, macOS).
+  - TO-14: pending CI.
+  - `test-diff-sweep.ps1 -IncludeWorkingTree`: 0 chains, 0 nested chains. One narrowed set, `SapHanaTests.cs:814` `[IncludeDataSources(ProviderName.SapHanaNative)]` on `ClientProviderNameResolvesToNativeProvider`, which tests the native provider name by definition.
+  - The native `TestBinaryParameterSelect` gate is `no-issue:` per the probe in D-10 and the user's answer.
+- G-02: n/a locally — no SQL path changed. Confirm at CI that the baselines PR shows no diff under `SapHana.Odbc/`. After A-2 it gains a new `SapHana.Native/` tree (~3.9k files, the native mirror of `SapHana.Odbc/`). Review it via `baselines-reviewer` as a cross-provider comparison against `SapHana.Odbc/` (differences are expected only in parameter syntax).
 - G-03: n/a — no new public surface. Only the value of `UnmanagedAssemblyNames` (in `LinqToDB.Internal`) changes, and the Release net10.0 build (RS0016/RS0017) is clean.
 - G-04: n/a — no `CompatibilitySuppressions.xml` change; the Release pack of the two T4 packages succeeded.
 - G-05: pass — `Source/LinqToDB` Release `-f netstandard2.0`, `-f net462` and `-f net10.0`; `Source/LinqToDB.CLI` Release (all TFMs); `Tests/Linq` Release `-f net10.0` (analyzers on the test edit); `Tests.Playground` Debug net8.0. All exit 0.
 - G-06: pass — the diff touches only E-1…E-20 lines (`-Action reconcile`: unplanned []).
 - G-07: pass — no Playground scratch; the only Playground change is E-3 csproj structure.
 - G-09: — (pending) `/code-review` or `/review-pr` before the PR leaves draft
+- G-11: blocked — awaits the post-A-2 GitHub runs (A-2). The `h_SAPHANA2` leg is green with SapHana.Native included and its native case count present (TO-14): net10 on the PR run, net8/net9 on a `workflow_dispatch` `full_run`. There is no Azure HANA leg on PR runs. Its duration is recorded against the GitHub HANA job of run 40353552174 (ODBC-only) and the 180-min PR cap (`tests.yml:514`).
+- G-10: blocked — awaits the post-A-1 CI run (A-1). A measurement, not a colour. The margin on `build_x86_job` is time (`build-job.yml:314-319`), so on Azure it is `azp-job-durations.ps1` on the post-A-1 branch run versus the pre-A-1 run 24753, comparing `build_x86_job`'s finish against `build_job` + `create_baselines_branch`. GitHub's `build_x86` runs only on a surface that selects an Access leg (`tests.yml:385,393`), so the gate also needs a green GitHub run on such a surface. Record both run ids.
 
 ## P10 Adjudicated
 
-- **The net10 client is tested only locally.** CI never runs SapHana.Native (U-7), so TO-1…TO-4 run locally against the `hana2` container, and CI covers only the build/pack/notices gates and the Linux ODBC leg. Adding a native CI leg is outside #5862.
+- **Windows native is tested locally; Linux native is tested in CI.** TO-1…TO-4 run locally against the `hana2` container. A-2 (D-12) adds Linux native to the GitHub `h_SAPHANA2` leg: net10 on PR runs, net8/net9 via `workflow_dispatch` `full_run`. Windows native and the netfx client stay local-only, because no Windows HANA leg exists.
+- **A HANA resource error or a container death on the shared leg is a capacity problem, not a native defect (A-2, round 4).** Examples: an out-of-memory statement, an exit-137 container, a lane timeout while `SapHana.Native` and `SapHana.Odbc` lanes hit one memory-tuned HANA express (`Tests/Base/DatabaseLaneStrategy.cs:14-28`, `hana2.sh:47-73`). Such a failure gets no `ActiveIssue`. It is fixed in the leg (serialise the two providers, tune memory) or escalated to the user.
 - **Hana.ODBC.tt defaulting to native is pre-existing.** `Tests/Tests.T4.Nugets/Templates/Hana.ODBC.tt:11` defaults to `SapHanaProvider.Unmanaged` (U-12). This change does not alter it; it is proposed as a follow-up issue rather than fixed here.
 - **`HANASTUBS` is kept although the package is AnyCPU** (D-4). Dropping it is proposed as a follow-up issue.
 - **The LINQPad driver still does not provision the HANA package** through `GetNuGetPackages`. Now that `Sap.Data.Hana.Net.v8.0` exists on nuget.org it could; proposed as a follow-up issue.
@@ -210,7 +289,12 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-5, E-6 → TO
 
 ## P11 Amendments
 
-_None._
+- A-1 (2026-10-26, user: "fix 3 here" — do the four proposed follow-ups in this PR; for LINQPad, option A: implement with the `HDBDOTNETCORE` pointer, proof by the user's manual LINQPad check). Adds E-21…E-28, D-9 (supersedes D-4), D-10, D-11, U-18…U-20 and TO-9…TO-13. Approval of the original E-1…E-20 stands; E-21…E-28 need approval after the delta critique.
+  re-derives: P2 (SC-4), P4 (U-13), P5 (D-4), P6 (E-2, E-3, E-10), P7 (HANASTUBS row, CI publish row, LINQPad row, Tests.T4.Nugets row), P8 (TO-8), P9 (G-10), P10 (HANASTUBS, gate, LINQPad, Hana.ODBC entries)
+  conventions: embedded `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*; swept with `test-diff-sweep.ps1` on the implemented tree (counts in G-01)
+- A-2 (2026-10-26, user: the package ships macOS/Linux natives, so LINQPad 7+ (the `!NETFRAMEWORK` driver) should offer native HANA on macOS, and a Linux CI leg must run the native provider; user picked "same leg"). Adds E-29…E-32, D-12, D-13, TO-14, G-11, and a macOS cell in TO-13.
+  re-derives: P3 (the CI HANA leg is no longer ODBC-only), P4 (U-7), P7 (CI rows `test-matrix.yml:282-294` / `hana2.sh`, the Linux-run row), P8 (TO-13), P10 (the "net10 client tested only locally" entry — native now runs on Linux CI)
+  conventions: as A-1; E-32 gates follow `testing.md` → *Gating an assertion failure* and *A narrowed provider set is a claim*
 
 ## P12 Critic verdict
 
@@ -231,3 +315,37 @@ What the critic searched:
 - Strings in the v10.0 dll, both `machine.config`s, the netfx-only `AssemblyResolve`, the T4 projects (not run on CI) and the packed readmes.
 
 Its strongest-point note: the P7 sweep was complete. No re-dispatch, because the revision narrows D-5 (it removes v10.0 from the net8 build) and adds no edit-point.
+
+**Round 2 (A-1 delta) — `refuted`** (plan-critic, `fable`). Objections, and what changed:
+
+1. **Refuted.** D-11's "does nothing when `HDBDOTNETCORE` is already set" fails on the TO-13 host, where the installer sets Machine `HDBDOTNETCORE` to a 2.23.27 native (re-measured by the author, U-21). Accepted: the helper now overrides the Process value unconditionally, and TO-12 is rewritten to run with that Machine value present.
+2. **Lead.** `GetProviderFactory` and `ClearAllPools` reach `HanaConnection`'s static initialiser without `GetDataProvider`, and a failed cctor is sticky. Accepted: the helper is called from all three entry points.
+3. **Weak.** The LINQPad "all packages" branch adds a 35 MB download for every user in that state. Put to the user, who accepted it (U-22).
+4. **Weak.** D-10 gated a fixable linq2db defect `no-issue:`, against `testing.md`. Put to the user: an issue is drafted via `/create-issue`, and the native gate cites it.
+5. **Weak.** `re-derives:` missed the P7 CI publish row and SC-4/TO-8, and the CI x86 path had no gate. Accepted: both rows are re-derived, TO-8 is marked superseded, and G-10 is added.
+6. **Minor.** E-28 should keep the README qualifiers for LINQPad 5 and ODBC. Accepted.
+
+Re-dispatched on the revision (round 3) per the one-revision cap.
+
+**Round 3 (A-1 revision) — `weak`** (plan-critic, `fable`). Carried forward visibly; all four folded in:
+
+1. **The three call sites were instance-closed.** A static LINQPad context reaches `static HanaConnection()` through none of them. Accepted: D-11/E-26 now use an `AssemblyLoad` handler (class-closed), and TO-13 gains a static-context cell.
+2. **G-10's "observed green" could not see a time-margin failure, and GitHub `build_x86` is surface-gated.** Accepted: G-10 is now a duration measurement against run 24753, plus a GitHub run on an Access surface.
+3. **TO-12's red arm could pass at SAP step 3** (cwd recursive search, from TO-3's build output). Accepted: cwd and entry dir are pinned, `Assembly.Location` is asserted, and the searched-paths list is recorded.
+4. **An unloadable assembly as a second no-op input was unstated.** Accepted: stated in D-11.
+
+Its strongest-point note: U-21 and TO-12 line up with the decompiled search order and failure text. The cap of one revision round is reached: no further dispatch, and the verdict stands at `weak` with the objections above.
+
+**Round 4 (A-2 delta) — `weak`** (plan-critic, `fable`). All seven objections are folded in:
+
+1. **PR CI has no Azure HANA leg, and GitHub runs net10 only.** TO-14 and G-11 are rewritten: net10 on the PR run, net8/net9 via `workflow_dispatch` `full_run`.
+2. **There was no negative for a config that does not take.** TO-14 now requires the native case count.
+3. **CI-only gates cannot decide `Platforms`.** E-32 now requires a local Windows native confirmation per gate.
+4. **Five native gate mismatches are decidable now.** They are named in E-32 and measured locally first.
+5. **G-02 and P3 contradicted the new baselines tree.** Both are re-derived.
+6. **Stale text.** P3, U-7, the P7 Linux row and the P10 entry are rewritten.
+7. **The E-31 macOS claim was unproven.** It is now gated on TO-13's macOS cell before the PR leaves draft.
+
+The two leads are recorded as well. The lane-concurrency lead is a P10 capacity rule. The macOS lead (cwd `/` recursive search) is added to TO-13's macOS cell.
+
+The A-1 rounds' cap applied per amendment. A-2 had one round, `weak`, so it is carried forward visibly without re-dispatch.
