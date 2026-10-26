@@ -26,6 +26,9 @@ Two questions this answers that nothing else does:
      its assembly changes what `DatabaseFacade.ProviderName` and friends report,
      which is a code change, not just a package swap.
 
+For packages you built locally, comparing a before/after pack entry by entry, use
+`nupkg-diff.ps1` instead.
+
 Contract
 --------
 

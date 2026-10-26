@@ -39,6 +39,10 @@ Input (-ManifestFile <path>; JSON):
 
 Use "\r\n" in `from` / `to` for multi-line anchors in CRLF files.
 
+A mutation that drops a private member's only call, or orphans a guarded field, fails the build
+(`IDE0051` / `CS0169` under `TreatWarningsAsErrors`) and reports `buildFailed`, not a red: mutate the
+condition instead. See evidence-discipline.md -> *The same goes for a private method*.
+
 Output (stdout, JSON):
   {
     "ok": true,                       // green (if run) had 0 failures, every mutation applied, every expectRed caught
