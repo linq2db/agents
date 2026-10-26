@@ -115,6 +115,7 @@ Deriving a rule's model from source rather than hardcoding it is worth the troub
 - `EnableConcurrentExecution()` + `ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None)`.
 - Resolve target symbols **once** in `RegisterCompilationStartAction` (cache the `INamedTypeSymbol`s); bail immediately if the linq2db assembly isn't referenced.
 - Register the narrowest callback (`RegisterOperationAction(…, OperationKind.Invocation)`); cheap string-name gate **before** any `SymbolEqualityComparer`/containing-type resolution; no full-tree walks, no LINQ/regex allocations on the hot path.
+- Inside a per-symbol loop (`LookupSymbols`), gate on the symbol's **type** before any semantic-model call (`AnalyzeDataFlow`, `GetTypeInfo`), and compute a per-operation analysis once, not per candidate. (#6145: 0.40 % → 0.63 % of `LinqToDB`'s analyzer CPU with the checks first, 0.20 % with the gate first.)
 - **Measure it** — the checklist above is a set of habits, not evidence. See the next section.
 
 ## Measuring a rule's build-time cost
@@ -259,14 +260,19 @@ Measure the criterion against a census of the real sites before implementing: li
 
 **A census proves fit to today's tree only — list each clause's equivalent spellings too.** The next site will be written in a spelling the tree does not contain yet. For every trigger, exclusion and drift anchor, enumerate the C# forms that mean the same thing, and give each a fixture or a stated limit:
 
-- a capture: field / auto-property / `out` parameter / any assignment target (the target of the read's own assignment is no source);
+- a capture: field / auto-property / `out` parameter / any assignment target — and a carrier is any symbol **definitely assigned at the read**, so the statement holding the read makes nothing a source, whatever the target kind and however deep the read sits in it;
 - a getter: `=> x` / `get => x;` / `get { return x; }`;
 - a receiver: chain head / mid-chain / after `?.` or `!`;
-- a carrier: in scope / definitely assigned (pattern and `out` variables are scoped to the block but assigned only on one path);
+- a carrier: in scope / definitely assigned (pattern and `out` variables are scoped to the block but assigned only on one path) / **capturable** (a `static` lambda or local function sees no outer variable);
+- a carrier's nullability: from **flow state**, not the declared annotation — a `var` local is always annotated;
 - a source: every type the carrier clause names, in every clause that uses it;
-- an anchor: the types the rule resolves, **and** the member names its triggers match by string — a renamed member switches a trigger off silently.
+- an anchor: the types the rule resolves, **and** the member names its triggers match by string — a renamed member switches a trigger off silently;
+- a suggestion: every form the diagnostic tells the author to write goes into a fixture and must be silent (fixpoint);
+- triggers **compose**: a branch that judges one trigger (a definition site) does not end the search for another (a carrier among the constructor's parameters).
 
 (#6145 review round 1: six of nine analyzer findings were a clause stated in one spelling — the field capture but not the auto-property, `=>` but not an accessor body, the chain head but not mid-chain, `IBuildContext` but not `ContextRefExpression`, in scope but not definitely assigned, type anchors but not member names. The census was exact, and every one of them still got through.)
+
+(#6145 review round 2: five of six analyzer findings sat in the properties above — a nested read in an `out` assignment, a static lambda offered outer variables, every `var` local suggested the nullable form, the suggested `Prop ?? read` reported itself, and a constructor handed the source's schema stayed silent — four of them in branches round 1's fix had just added.)
 
 ## Registration
 

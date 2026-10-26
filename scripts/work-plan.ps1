@@ -844,7 +844,7 @@ function Invoke-GapReport {
     $rows  = @()
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $t = $lines[$i].Trim()
-        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*\s*[-—]+\s*(.+)$') { continue }
+        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\([^)]*\))?\s*[-—]+\s*(.+)$') { continue }
         $id   = $Matches[1]
         $rest = $Matches[2]
 
