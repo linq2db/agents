@@ -320,10 +320,10 @@ $deduped = $rows | Sort-Object fixture, test, args, provider, verdict, actual -U
 if ($Verdict) { $deduped = $deduped | Where-Object { $Verdict -contains $_.verdict } }
 
 $jsonPath = Join-Path $WriteDir 'ci-test-verdicts.json'
-$deduped | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $jsonPath -Encoding utf8
+ConvertTo-Json -InputObject @($deduped) -Depth 4 | Set-Content -LiteralPath $jsonPath -Encoding utf8
 
 if ($Format -eq 'json') {
-    $deduped | ConvertTo-Json -Depth 4
+    ConvertTo-Json -InputObject @($deduped) -Depth 4
     return
 }
 

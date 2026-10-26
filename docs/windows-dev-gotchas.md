@@ -141,6 +141,8 @@ Recovery is just re-running it correctly. Prefer `refs/pull/<n>/head` above when
 
 **The short source form isn't just useless — it can be destructive.** Fetching a **named branch** as `git fetch origin <branch>:refs/remotes/origin/<branch>` (source side without the `refs/heads/` prefix) can resolve the source to nothing and report `- [deleted] (none) -> origin/<branch>`, *deleting* the destination tracking ref, while `git ls-remote origin "refs/heads/<branch>"` shows the branch alive at the expected SHA. Always fully qualify both sides: `git fetch origin refs/heads/<branch>:refs/remotes/origin/<branch>`. (Surfaced on #5720 fetching `feature/bundle-analyzers-into-core`, whose head SHA `gh pr view` had just reported.)
 
+**Enforced by `.claude/hooks/require-qualified-fetch-refspec.js`** (wire it under `PreToolUse`, matcher `Bash|PowerShell`, as [`claude-setup.md`](claude-setup.md) describes for the other hooks). It blocks a `git fetch` refspec whose source is not `refs/…`, `HEAD`, a SHA or empty. The rule above was already written down when #5942 (2026-10-25) deleted both `origin/feature/net11-support` and `origin/master` this way, leaving `origin/HEAD` dangling.
+
 ## Finding whether an open PR adds a token (`gh search code` indexes only `master`)
 
 `gh search code "<token>" --repo <o>/<r>` searches the **default branch only**, so a token that exists only on an unmerged PR branch (a new convention, a renamed symbol) returns zero matches even though the PR adds it. Two consequences:
