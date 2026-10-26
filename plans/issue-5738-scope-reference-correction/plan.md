@@ -115,13 +115,13 @@ Building the `JoinTests.StackOverflow` shape (`Tests/Tests.Benchmarks/Benchmarks
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: pass (local) — TO-5: 342 tests (U-1 filter + `JoinOptimizeTests`, SQLite.MS / Northwind.SQLite.MS + LinqService), Debug build so the D-4 guard is live, 0 failed (`.build/.agents/5738-gates/to5/`); TO-4: `LoadWithTests.LoadWithAndFilteredProperty` green in that run. TO-1: branch QE visits 24,150 / 52,090 / 84,830 at d=40/80/120 (master-equivalent probe 38,910 / 110,410 / 215,510), d120/d80 = ×1.63, measured with a temporary counter that was then reverted (`5738-gates/branch/counts.txt`). TO-3 local control: a temporary mutation widening the skip to the level's own tables and joins made the guard throw in `JoinTests.StackOverflow` and 12 of 23 tests fail (`5738-gates/control/`), then reverted. CI half of TO-2/TO-3 pending.
+- G-02: blocked — needs the CI test-all baselines PR of #6158 (Azure 24738, GitHub run 40327916991) to contain no changed file; locally the benchmark SQL is byte-identical at d=40/80/120 (`5738-gates/sql-compare.txt`)
+- G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` 0 warnings / 0 errors; also `-c Testing` and `-c Release -f net10.0` (analyzers) 0 / 0 (`5738-impl/`).
+- G-06: pass — `git diff --stat`: only `SelectQueryOptimizerVisitor.cs`, +165 / −2, no line outside the edit-points touched.
+- G-07: n/a — no `Tests/Tests.Playground/` change.
+- G-08: blocked — needs CI test-all (Azure configuration, BUGCHECK guard live) on #6158: Azure 24738, GitHub run 40327916991 (TO-3)
+- G-09: blocked — the adversarial read of the diff has not run; the draft PR #6158 was opened on the user's go-ahead before it
 
 ## P10 Adjudicated (M/L)
 
@@ -132,7 +132,7 @@ Building the `JoinTests.StackOverflow` shape (`Tests/Tests.Benchmarks/Benchmarks
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-26, TO-4 asked for the methods to be pinned before implementation) — the refusal-logging probe run with test names (`.build/.agents/5738-gates/refusal/`, 50 `LoadWithTests.LoadWith*` tests on SQLite.MS) put all 6 refusals in `Tests/Linq/Linq/LoadWithTests.cs` `LoadWithAndFilteredProperty`; TO-4 is that test. No edit-point changes.
 
 ## P12 Critic verdict (M/L)
 
