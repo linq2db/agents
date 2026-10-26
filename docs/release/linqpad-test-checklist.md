@@ -72,20 +72,18 @@ Some content in the `tools/` directory of a scaffold nuget (notably `clidriver/`
 
 evaluates the glob at project-load (when `$(ToolsPath)/clidriver/` doesn't exist yet), matches zero files, and silently ships an empty section. `dotnet pack` reports success — but the nupkg is missing the entire native folder. Symptom (downstream): `DllNotFoundException: db2app64.dll` when the IBM provider is instantiated.
 
-**The fix:** inject items into Pack's internal `_PackageFiles` collection from a Target that runs after the build but before pack's content gathering:
+**The fix:** declare the same `<None>` item inside a Target that runs after the build but before pack's content gathering, with a sentinel `<Error>` so an empty folder fails the pack instead of shipping silently:
 
 ```xml
 <Target Name="IncludeClidriverInPack" BeforeTargets="_GetPackageFiles">
+    <Error Condition="!Exists('$(ToolsPath)/clidriver/bin/db2cli.dll')" Text="'$(ToolsPath)/clidriver' holds no IBM clidriver - build NuGet/NuGet.csproj first." />
     <ItemGroup>
-        <_PackageFiles Include="$(ToolsPath)\clidriver\**\*">
-            <BuildAction>None</BuildAction>
-            <PackagePath>tools\clidriver\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
-        </_PackageFiles>
+        <None Include="$(ToolsPath)/clidriver/**" Pack="true" PackagePath="tools/clidriver" Visible="false" />
     </ItemGroup>
 </Target>
 ```
 
-`BeforeTargets="_GetPackageFiles"` is the canonical hook — `_GetPackageFiles` is what runs the content collection. `_PackageFiles` is Pack's internal item; populating it inside a Target gets dynamic evaluation. The static `<None>` approach with `Pack="true"` doesn't work even from inside a Target — by the time the Target runs, Pack's collection is already closed for `<None>` items, but `_PackageFiles` is still open.
+`BeforeTargets="_GetPackageFiles"` is the canonical hook — `_GetPackageFiles` collects `None Pack="true"` items, so a `None` declared in the Target is still picked up (measured on #5861: DB2 / Informix / t4models / SqlCe packed entry- and hash-identical cold and warm). Don't write `_PackageFiles` directly: an unqualified `%(RecursiveDir)` in its metadata batches over every `_PackageFiles` item already present, so a second such target in one project mis-paths its files (`NU5118`, #5861).
 
 Verify post-pack:
 
