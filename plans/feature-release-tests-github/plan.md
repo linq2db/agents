@@ -128,6 +128,7 @@ The capability that is missing today: a PR into `release` gets the complete full
 - `Build/Azure/pipelines/templates/test-jobs.yml:65-93` — `create_baselines_branch` is gated on `enabled` and so disappears from release-PR `default` builds — searched `create_baselines_branch` — covered by E-5
 - `Build/Azure/pipelines/templates/test-jobs.yml:124,143` — the only Azure readers of `enable_os_windows` / `win_tfms_always` — searched `full_run|enable_os_windows` in `Build/Azure/pipelines/**` — covered by E-4
 - `Build/Azure/pipelines/templates/test-workflow-windows.yml:3,245-252` and `test-workflow-linux.yml:3,157` — `full_run` consumers, unchanged — searched `full_run` — out-of-scope
+- (A-2) `Build/Azure/pipelines/templates/test-workflow-windows.yml:246,250` and `Build/CI/run-provider-tests.ps1:161` — the only runners of `<tfm>\main\<arch>\linq2db.Tests.exe` on windows (Azure / GitHub); with arch x64 they now start the `-a x64` net462 exe. The x86 Access legs read the `build_x86` / `build_x86_job` artifacts, which are unchanged — searched `net462_x64|_x64|main/x64|linq2db\.Tests\.exe` in `Build/` and `.github/` — covered by E-2, E-8 (verified by TO-10)
 - `Build/Azure/README.md:13-17,69` — stale prose — searched `default\.yml|full_run`-conditional — covered by E-7
 - `Build/Azure/pipelines/testing.yml:38-39`, `test-matrix.yml:6,114-121`, `test-jobs.yml:43-47,121-123,191-194` — stale "release keeps every leg on Azure" prose — searched `default\.yml` in `Build/` — covered by E-3, E-4, E-6
 - `Build/Azure/scripts/ensure-baselines-branch.ps1:45,56,100-116,133` — called from a new host (ubuntu GitHub) without `-EmitOutputs` — searched script header and `$Env:` — covered by E-2
@@ -137,6 +138,7 @@ The capability that is missing today: a PR into `release` gets the complete full
 - `.claude/skills/release-publish/SKILL.md:92,184-186,204-206,226,230,332-353,373` — describes the release run as the Azure `default` run, plus the throwaway-PR recovery and `azp-build-info.ps1 -Pr` — searched `default\.yml|'default'|release PR` in `.claude/` — deferred: corpus follow-up after the linq2db PR merges (user rule: defer `.claude` docs until merge)
 - `.claude/skills/release-postpublish/SKILL.md:143` — "the release PR's still-running provider matrix" queueing Azure `build` — same search — deferred: corpus follow-up after merge
 - `.claude/docs/ci-tests.md:41,46,134,136,182-199,253,338,358` — Azure-default release-run text, "GitHub test runs are invisible to PR-scoped queries", Windows DuckDB note — same search — deferred: corpus follow-up after merge
+- (A-2) `.claude/docs/ci-tests.md:144` ("the GHA Access and SqlCe legs are net462 x86" — SqlCe now runs x64) and `:264-268` (calls the invocation path `net462\main\x64\…` authoritative and links a `testing.md` heading that no longer exists; corpus `899d00a` made the PE header authoritative, `testing.md:225`) — searched `x86|reports assembly arch|is authoritative` in `.claude/docs/` (critic round 2) — deferred: corpus follow-up after merge
 - `.claude/docs/github-actions.md:24,29,34,84` — `default` context and the quoted conditional — same search — deferred: corpus follow-up after merge
 - `.claude/docs/review-rubric/rubric-ci-infra.md:15`, `.claude/docs/windows-dev-gotchas.md:544` — `default.yml` triggers / test-all leg prose — same search — deferred: corpus follow-up after merge
 - `.claude/scripts/gh-leg-history.ps1:59-60,87-95` — hardcodes workflow id 350529502 and reads the PR from the `authorize` job, so release runs are invisible to it — searched `350529502|tests-comment` in `.claude/scripts/` — deferred: corpus follow-up after merge
@@ -159,7 +161,7 @@ The capability that is missing today: a PR into `release` gets the complete full
 
 ## P9 Verification gates
 
-One row per obligation follows. All results are dated 2026-10-24, measured on the working tree over `9516c1cb8`, which was then committed unchanged in its selector logic as `dc7935f47`. Only the comment and README wording changed after the G-09 review. The harness is `.build/.agents/release-tests-selection.ps1`, which extracts `prepare`'s Python from each `tests.yml` and runs it locally (Python 3.8.2, PyYAML 6.0.3); mutations are in `release-tests-selection-mutations.ps1`, run on scratch copies.
+One row per obligation follows. All results are dated 2026-10-24, measured on the working tree over `9516c1cb8`, which was then committed unchanged in its selector logic as `dc7935f47`. Only the comment and README wording changed after the pre-PR diff review recorded below. The harness is `.build/.agents/release-tests-selection.ps1`, which extracts `prepare`'s Python from each `tests.yml` and runs it locally (Python 3.8.2, PyYAML 6.0.3); mutations are in `release-tests-selection-mutations.ps1`, run on scratch copies.
 
 - G-01 TO-1: pass — branch `[all]` + `all_legs` + `full_run` selects exactly the 15 linux and 15 windows names in TO-1, exit 0. Master's script with the same env selects 15 linux and only g r s v x z windows. That is the red half: a d e f l m n o w are absent.
 - G-01 TO-2: pass — all 18 surfaces at `full_run=false`: `linux` / `windows` / `any` / `windows_any` / `windows_x86` / `matched` and the exit code are identical to master. At `full_run=true` (hand dispatch, no `all_legs`) the selection is still identical. Only `matched` is +1 on `[all]`, `[db2.all]`, `[duckdb.all]` and `[informix.all]`, because Windows DuckDB is now visible but stays unselected. `matched` feeds only the "no leg matches" guard (`tests.yml` step after `select`), which is non-zero either way.
@@ -169,6 +171,7 @@ One row per obligation follows. All results are dated 2026-10-24, measured on th
   - Local: on 2026-10-25, `dotnet publish Tests/Linq/Tests.csproj -f net462 -c Azure -a x64` exited 0. `linq2db.Tests.exe` has header `Amd64, ILOnly, StrongNameSigned` with no `Requires32Bit`, and the root `e_sqlite3.dll` and `SqlServerSpatial170.dll` are `Amd64` (`.build/.agents/release-tests-corflags.ps1`). The red half is master's state: a Debug net462 MTP exe reads `I386, Requires32Bit`, and the CI summaries in 40129849637 and 24621 show `(net462|x86)`.
   - CI, GitHub: release run [40146065334](https://github.com/linq2db/linq2db/actions/runs/40146065334) on `bd7455b77`. The netfx main-suite summary of all 10 non-Access windows legs (g s a d e f l m n o) reads `net462\main\x64\linq2db.Tests.exe (net462|x64)`, all `Passed!`. That includes l, m and n, which lost their netfx run to the x86 `OutOfMemoryException` in 40129849637. The 4 Access legs stay `(net462|x86)`.
   - CI, Azure: `test-sqlserver` [24695](https://dev.azure.com/linq2db/0dcc414b-ea54-451e-a54f-d63f05367c4b/_build/results?buildId=24695) on `bd7455b77` succeeded. Its netfx main runs on a d e f o read `(net462|x64)`, all `Passed!`. On a non-full run l m n skip their netfx main, and g s are not Azure legs in development, so the GitHub run covers those.
+  - Mutation "drop `-a x64`" is master's state, so no separate mutant run: measured red as `(net462|x86)` on every non-Access windows leg in 40129849637 (with l m n lost to `OutOfMemoryException`) and in Azure 24621.
 - G-01 TO-4: pass — Azure `test-all` [24648](https://dev.azure.com/linq2db/0dcc414b-ea54-451e-a54f-d63f05367c4b/_build/results?buildId=24648) on #6128 (`dc7935f47`) compiled a bare `Lin` job and the windows legs `a d e f l m n o`, with no `w_DB2InformixDuckDB`. That is the same job set as the previous completed `test-all` 24634.
 - G-01 TO-5: PR arm pass. The true arm is skipped, so the `run_tests: true` compile is unverified.
   - PR arm: Azure `default` [24644](https://dev.azure.com/linq2db/0dcc414b-ea54-451e-a54f-d63f05367c4b/_build/results?buildId=24644) on the scratch release PR #6129 ran only `Build` and `Nugets Generation`. The test jobs were absent from the timeline rather than shown as skipped, `Build (win-x86)` included, because `with_tests` is false.
@@ -235,10 +238,13 @@ One row per obligation follows. All results are dated 2026-10-24, measured on th
     - SQLite: an x64 `e_sqlite3` comes with the RID, as for EF3.
     - IBM: the x64 DB2/Informix references are chosen when `PlatformTarget != 'x86'` (`linq2db.Providers.props:28-33,70-75`). DB2/Informix do not run on windows legs.
   - **Coverage change:** the netfx main suite of g_SqlCE, s_SQLite and the 8 SQL Server windows legs moves from x86 to x64. That is a user-visible CI delta.
-  - Approval for E-8 was given by the user this turn ("b"). No critic round: Tier M, and the change is one RID flag on a publish step whose x86 twin already works.
-  re-derives: P6 (E-2, E-8), P8 (TO-10), P3 (user-visible deltas)
+  - Approval for E-8 was given by the user this turn ("b"). The critic round on A-2 ran after the fact, on 2026-10-26 (P12 round 2).
+  re-derives: P6 (E-2, E-8), P7 (the A-2 consumer row), P8 (TO-10), P3 (user-visible deltas)
+  conventions: n/a — E-8 edits a CI publish step that names `Tests/Linq`; no file under `Tests/` changes (`git diff --name-only origin/master...origin/pr/6128 -- Tests` is empty).
 
 ## P12 Critic verdict (M/L)
+
+**Current verdict: weak** (round 2; both rounds' objections are answered below).
 
 **Round 1 — `weak`** (`fable`, on the plan as first authored, branch at `9516c1cb8`).
 
@@ -278,3 +284,21 @@ One row per obligation follows. All results are dated 2026-10-24, measured on th
 | H | TO-5 says "skipped", U-8 is corrected, and E-2 spells out the new `if:` |
 
 All eight objections are answered by these changes. The design itself (D-1..D-5) is unchanged. No round-2 delta was run: the fold-ins narrow claims and add one concurrency block, and they introduce no new mechanism.
+
+**Round 2 — `weak`** (`fable`, 2026-10-26, retroactive, scoped to A-2 at head `2f0a5c748`).
+
+**Objections:**
+
+- **A. A-2's corpus siblings had no P7 row.** `ci-tests.md:144` still calls the GHA SqlCe leg net462 x86, and `ci-tests.md:264-268` still calls the invocation path authoritative and links a removed `testing.md` heading.
+- **B. Nit: the publish comments state the SDK default unconditionally.** The SDK picks `win-x86` only for a .NET Framework exe with copy-local native assets, and resets to AnyCPU otherwise (`Microsoft.NET.RuntimeIdentifierInference.targets`). `Tests/Linq` has those assets (e_sqlite3, `SqlServerSpatial170`, SNI), so the conclusion holds here.
+
+**What the critic searched:** consumers of the main netfx artifact repo-wide (exactly `test-workflow-windows.yml:246,250` and `run-provider-tests.ps1:161`); `arch` derivation for x86 entries and the separate `-a x86` publishes; windows local setup scripts; bitness branches, `PlatformTarget` / `Prefer32Bit` and arch-keyed skips in `Tests/`, `Source/`, `Build/`; arch keys in log parsers and configs; `linq2db.Providers.props` `PlatformTarget` conditions (evaluated empty under both the old default and `-a x64`).
+
+**Changed in response:**
+
+| Objection | Change |
+|---|---|
+| A | P7 gains the `(A-2)` `ci-tests.md` row, `deferred:` to the post-merge corpus follow-up |
+| B | Not adopted: the stated conclusion is true for this project, and the comment carries no claim about other projects |
+
+**Residual, unmeasured:** the Azure fallback full run of the x64 netfx main suite on l m n, on 7 GB agents. It sits behind TO-5's unverified true arm.

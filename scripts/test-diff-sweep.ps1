@@ -32,7 +32,8 @@ Contract
   -Base  <ref>     default 'origin/master'; diffed as `<Base>...` (merge base), committed changes only
   -Ref   <ref>     sweep `<Base>...<Ref>` instead of the checkout's HEAD (a PR head, a pushed branch)
   -Path  <path>    default 'Tests/'
-  -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`); not with -Ref
+  -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`) and untracked
+                       files under -Path, every line counted as added; not with -Ref
 
 `chains` holds statement-level chains. A chain nested inside parentheses or braces - a call argument,
 `new X(new DataOptions().UseConfiguration(...))`, an object initializer - goes to `nestedChains`:
@@ -68,6 +69,17 @@ if ($LASTEXITCODE -ne 0) {
 	Exit-WithError "git diff $range failed in $Repo" -NextAction "fetch $Base, or pass -Base <ref> that exists in the repo"
 }
 
+# `git diff` never shows untracked files, and a new test file is the commonest thing to sweep (#4314)
+if ($IncludeWorkingTree) {
+	$diff = @($diff)
+	foreach ($u in @(git -C $Repo ls-files --others --exclude-standard -- $Path)) {
+		if ($u -notmatch '\.(cs|vb|fs)$') { continue }
+		$diff += "+++ b/$u"
+		$diff += '@@ -0,0 +1 @@'
+		foreach ($t in (Get-Content -LiteralPath (Join-Path $Repo $u))) { $diff += "+$t" }
+	}
+}
+
 $file   = ''
 $line   = 0
 $recent = [System.Collections.Generic.List[string]]::new()
@@ -75,9 +87,15 @@ $chains = @()
 $nested = @()
 $sets   = @()
 
+# `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
+function Remove-Operands([string] $text) {
+	return [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
+}
+
 # bracket depth at each `).Member(` on the line, string literals blanked first; 0 = statement level
 function Get-ChainDepths([string] $text) {
 	$t = [regex]::Replace($text, '"(?:[^"\\]|\\.)*"', { param($m) '"' + (' ' * ($m.Length - 2)) + '"' })
+	$t = Remove-Operands $t
 	$depths = @()
 	foreach ($m in [regex]::Matches($t, '\)\s*\.\s*[A-Z]\w*\s*\(')) {
 		$d = 0
@@ -111,7 +129,7 @@ foreach ($l in $diff) {
 		$text = $l.Substring(1)
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
-		if ($text -match '\)\s*\.\s*[A-Z]\w*\s*\(' -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
+		if ((Remove-Operands $text) -match '\)\s*\.\s*[A-Z]\w*\s*\(' -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
 			$hit = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if (@(Get-ChainDepths $text | Where-Object { $_ -le 0 }).Count -gt 0) { $chains += $hit } else { $nested += $hit }
 		}
