@@ -130,13 +130,13 @@ Measured on master (worktree at `72d9e049c`, local `ydb` container): `JoinTests.
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: local, `worktree-test.ps1` (new tests absent from the primary clone): YDB + YDB.LinqService `JoinTests` / `AssociationTests` / `InheritanceTests` / `Issue2832Tests` / `Issue1813*` / `Coalesce4` / `SubQueryTests.Test3` — 554 total, 538 passed, 16 skipped, 0 failed (`269d68fd9`); SQLite.MS fix tests 41/41. Red→green observed for TO-1..TO-6b, TO-2b, TO-10, A-3 tests (pre-fix measured). CI full run pending.
+- G-02: — (pending: baselines are produced by the PR's CI run)
+- G-05: `Source/LinqToDB` Release `netstandard2.0` and `Tests/Linq` Release `net10.0` (0 warnings) on `269d68fd9`.
+- G-06: diff limited to `MoveJoinConditionsToWhere` (+ two local helpers), the flag's XML doc, and the test files; the de-indented push block is the restructured branch body.
+- G-07: no `Tests/Tests.Playground/` changes.
+- G-08: cross-cutting core (`SelectQueryOptimizerVisitor`), effective only where `IsComplexJoinConditionSupported = false` (YDB); resting on red→green tests, not reasoning.
+- G-09: `/code-review high` over `71c37cf24` — 10 findings, all fixed or recorded (A-3); re-verified by tests on `269d68fd9`.
 
 ## P10 Adjudicated (M/L)
 
@@ -146,6 +146,7 @@ _None yet._
 
 - A-1 (2026-10-25, user-approved) — SC-2 / TO-2 unreachable by D-1: the fold emitted `CASE WHEN p.ParentID <> 2 THEN ch.ChildID ELSE NULL END = g.ChildID` and YDB rejected it, `JOIN: each equality predicate argument must depend on exactly one JOIN input` (measured, both legs) — YDB counts each table as an input, U-1 had probed a single-table CASE only. D-1 picker narrowed: a key is picked only if the tables its outer side reads cover every table the folded predicates read (`QueryHelper.CollectUsedSources`); otherwise D-4 applies. SC-2 becomes "YDB rejects instead of returning wrong rows"; TO-2 gated `[ThrowsForProvider("Ydb.Sdk.Ado.YdbException", TestProvName.AllYdb)]`. Added TO-2b `JoinTests.LeftJoinOuterOnlyPredicateOnKeyTable` (predicate on the key's own preceding table, `ch.ParentID != 2` beside `ch.ChildID == g.ChildID`) — red→green expected. Rejected: substituting an equivalent key through preceding INNER join equalities (`p.ParentID = ch.ParentID`) — multi-join equality reasoning, out of proportion for this fix.
 - A-2 (2026-10-26) — TO-7 surfaced `AssociationTests.Issue1614Test` (YDB, both legs): association predicate `a_AssociationTypeCode.Type = 'us'` (reads `Lookup`) beside key `a_User.Id = t1.AssociatedObjectId` (reads `Resource`) — A-1 keeps it in ON, YDB rejects `each equality predicate argument must depend on exactly one JOIN input`. Pre-fix SQL measured: predicate moved to WHERE (silent row loss; the test has no data and no assert, so it was green). D-4 failure mode, inside the P3 user-visible delta; test gated `[ThrowsForProvider("Ydb.Sdk.Ado.YdbException", TestProvName.AllYdb, ErrorMessage = …)]`.
+- A-3 (2026-10-26, user-dispositioned per finding) — `/code-review` round on `71c37cf24`, fixed in `269d68fd9`: (1) a LEFT conjunct reading a nested join's table (`join.Table.Joins`) stays in ON — the derived table wraps the joined source only (no LINQ shape found to test it); (5) D-5 replaced: the CASE `ELSE` is raw SQL `NULL` (`SqlExpression`, not evaluable — `QueryHelper.Evaluate.cs:596-610`; the `IS NULL` rewrites at `SqlPredicate.cs:407-414` / `SqlExpressionOptimizerVisitor.cs:1754-1762` fire on `SqlValue` only), so a parameter-decided false condition renders `NULL = key` (measured: YDB rejects, never wrong rows) — `IsFoldSafe` deleted, which also resolves (2) value-converted parameters, (4) string / LIKE / IN parameters and (8); the reviewer's global alternative (skip the `Reduce` rewrite when `UnknownAsValue == null`) rejected — `MakeWithoutNulls` and `CorrectComparisonForJoin` produce that marker everywhere, it would break C#-semantics null parameter comparison; (3)+(9) each outer-only predicate folds into the first key covering its tables, source sets computed once; (7) flag doc rewritten as best-effort; (10) TPH repro moved onto the shared `InheritanceChild` table; (6) behaviour change goes in the PR body. New tests `LeftJoinOuterOnlyPredicateWithStringParameter`, `LeftJoinOuterOnlyPredicatesOnSeveralKeys`, red pre-fix (several keys 27 vs 30; TPH `[2]` vs `[null, 2, null]`); parameter-false cells gated by value (`AlsoWhenParameter`).
 
 ## P12 Critic verdict (M/L)
 
