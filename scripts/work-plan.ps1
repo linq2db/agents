@@ -429,6 +429,16 @@ function Invoke-Validate {
         if ($inG01) { $g01Rows += $row }
     }
     $g01 = $g01Rows -join "`n"
+    # `TO-6a/6b/6c` and `TO-4a/b` name every listed obligation, not only the first (#4314)
+    $g01 = [regex]::Replace($g01, 'TO-(\d+)([a-z])((?:/(?:\d+)?[a-z])+)', {
+        param($m)
+        $n   = $m.Groups[1].Value
+        $ids = @("TO-$n$($m.Groups[2].Value)")
+        foreach ($part in $m.Groups[3].Value.Split('/', [StringSplitOptions]::RemoveEmptyEntries)) {
+            $ids += if ($part -match '^\d') { "TO-$part" } else { "TO-$n$part" }
+        }
+        $ids -join ' '
+    })
     if ($g01 -match '\b(pass|fail)\b' -and $g01 -notmatch '\(pending\)') {
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
@@ -771,20 +781,22 @@ function Invoke-Reconcile {
     }
     $changed = @($r.stdout -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
 
-    # An empty diff against a plan with edit-points is a wrong tree, not a clean branch: the primary clone on
-    # master reports zero and reads as "nothing unplanned". (#5983 round 3.)
-    if ($changed.Count -eq 0 -and $authorized.Count -gt 0) {
-        Exit-WithError -Message "no changes between $Base and $Head in $RepoRoot, but the plan authorizes $($authorized.Count) edit-points" `
-                       -NextAction 'pass -RepoRoot <worktree>, or -Head origin/pr/<n> after fetching the PR ref'
-    }
-
-    $w = if ($Head -eq 'HEAD') { Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain') } else { $null }
+    # Fold in the working tree before the emptiness check: the exit checks run before the first commit, when
+    # every change is still uncommitted (#4314).
+    $w = if ($Head -eq 'HEAD') { Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'status', '--porcelain', '--untracked-files=all') } else { $null }
     if ($w -and $w.ok) {
         foreach ($l in @($w.stdout -split "`r?`n")) {
             if ($l.Trim() -eq '') { continue }
             $p = $l.Substring(3).Trim()
             if ($p -ne '' -and $changed -notcontains $p) { $changed += $p }
         }
+    }
+
+    # An empty diff against a plan with edit-points is a wrong tree, not a clean branch: the primary clone on
+    # master reports zero and reads as "nothing unplanned". (#5983 round 3.)
+    if ($changed.Count -eq 0 -and $authorized.Count -gt 0) {
+        Exit-WithError -Message "no changes between $Base and $Head in $RepoRoot, but the plan authorizes $($authorized.Count) edit-points" `
+                       -NextAction 'pass -RepoRoot <worktree>, or -Head origin/pr/<n> after fetching the PR ref'
     }
 
     # The corpus is a separate repo; a plan edit is never linq2db work. Match the
