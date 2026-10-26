@@ -179,13 +179,23 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-5, E-6 → TO
 
 ## P9 Verification gates
 
-- G-01: — (pending) TO-1…TO-5 via `/test` against `hana2` (local only, U-7); TO-8 discovery
-- G-02: — (pending) expected no SQL change; HANA CI leg runs ODBC only, baselines PR must show no SapHana diff
-- G-03: — (pending) expected none: `UnmanagedAssemblyNames` value change only (P3); CLI help strings are not API
-- G-04: — (pending) expected no `CompatibilitySuppressions.xml` change; confirm on the Release pack (TO-6)
-- G-05: — (pending) `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net462`; Release `linq2db.slnx` build
-- G-06: — (pending)
-- G-07: — (pending)
+- G-01: pass — all runs local against `hana2` via `worktree-test.ps1` (Tests/Linq, Debug).
+  - TO-1 red: net10.0, clean output holding only `Sap.Data.Hana.Net.v10.0.dll` 2.30.27 plus `runtimes/*/native`, engine unfixed. 31/32 failed with `Cannot load assembly by name(s) Sap.Data.Hana.Net.v8.0, Sap.Data.Hana.Net.v6.0, Sap.Data.Hana.Core.v2.1`.
+  - TO-2 red: the v10.0 case failed `provider should not be null but was`.
+  - TO-1/TO-2 green: after E-5/E-6, 30/32 passed, including both `ClientProviderNameResolvesToNativeProvider` cases.
+  - TO-3: net8.0, 30/32.
+  - TO-4: net462, 30/32 on the kept 2.23.27 natives.
+  - TO-5: net10.0 SapHana.Odbc, 27 passed / 0 failed / 2 skipped.
+  - TO-6: both Release nupkgs have no `Sap.Data.Hana*` / `libadonetHDB` entry. `-Action check` OK (22 texts, all referenced). `-Action verify` OK (SapHana: 3 components; t4models: 29; 0 unmapped). Control: restoring the E-11 `<None>` and E-13 `<Reference>` failed verify with `'tools/Sap.Data.Hana.v4.5.dll' maps to no component`; reverted.
+  - TO-7: Windows PowerShell 5.1 (CLR 4.0.30319.42000, x64) loaded `.build/bin/LinqToDB/Release/net462/linq2db.dll`, which has no SAP dll beside it. `Tools.TryLoadAssembly("Sap.Data.Hana.v4.5","Sap.Data.Hana")` → `Sap.Data.Hana.v4.5, Version=2.23.27.0` from `GAC_MSIL`.
+  - TO-8: the net8.0 x86 `X86STUBS` publish has no HANA files, and `--list-tests` discovered 963 tests with no load error.
+  - The two 30/32 residuals, `CalculationViewLinqQuery` and `TestBinaryParameterSelect`, are pre-existing: master c82e21c35 with the Redist 2.23.27 client fails both the same way on SapHana.Native net10.0 (baseline worktree run). See P10.
+- G-02: n/a locally — no SQL path changed. The CI HANA leg (ODBC) and the baselines PR should show no SapHana diff; confirm at CI.
+- G-03: n/a — no new public surface. Only the value of `UnmanagedAssemblyNames` (in `LinqToDB.Internal`) changes, and the Release net10.0 build (RS0016/RS0017) is clean.
+- G-04: n/a — no `CompatibilitySuppressions.xml` change; the Release pack of the two T4 packages succeeded.
+- G-05: pass — `Source/LinqToDB` Release `-f netstandard2.0`, `-f net462` and `-f net10.0`; `Source/LinqToDB.CLI` Release (all TFMs); `Tests/Linq` Release `-f net10.0` (analyzers on the test edit); `Tests.Playground` Debug net8.0. All exit 0.
+- G-06: pass — the diff touches only E-1…E-20 lines (`-Action reconcile`: unplanned []).
+- G-07: pass — no Playground scratch; the only Playground change is E-3 csproj structure.
 - G-09: — (pending) `/code-review` or `/review-pr` before the PR leaves draft
 
 ## P10 Adjudicated
@@ -194,6 +204,7 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-5, E-6 → TO
 - **Hana.ODBC.tt defaulting to native is pre-existing.** `Tests/Tests.T4.Nugets/Templates/Hana.ODBC.tt:11` defaults to `SapHanaProvider.Unmanaged` (U-12). This change does not alter it; it is proposed as a follow-up issue rather than fixed here.
 - **`HANASTUBS` is kept although the package is AnyCPU** (D-4). Dropping it is proposed as a follow-up issue.
 - **The LINQPad driver still does not provision the HANA package** through `GetNuGetPackages`. Now that `Sap.Data.Hana.Net.v8.0` exists on nuget.org it could; proposed as a follow-up issue.
+- **Two `[ActiveIssue]` gates fail on SapHana.Native, and that predates this change.** `Tests/Linq/DataProvider/SapHanaTests.cs:243` (`TestBinaryParameterSelect`) and `:658` (`CalculationViewLinqQuery`) are scoped to `AllSapHana` but declare `ErrorTypeName = "System.Data.Odbc.OdbcException"`, because they were measured on CI, which runs ODBC only. On native they meet `LinqToDBConvertException` (Base-64 `FormatException`) and `Sap.Data.Hana.HanaException` (`invalid table name`). Measured identical on master c82e21c35 with the 2.23.27 Redist client, so the package swap does not cause them. Proposed as a follow-up: split each gate per provider.
 - **About 65 MB more natives per net8/9/10 test output and CI artifact is accepted** (D-8, user answer U-14).
 - **The netfx natives stay checked in** (D-3, measured U-2). Removing `Redist/SapHana` entirely needs a nuget source for the netfx client, and none exists.
 
