@@ -596,12 +596,25 @@ function Invoke-Validate {
         if ($null -eq $verdict) {
             # A round heading carries that round's verdict; prose inside a round can name any verdict word, so the
             # any-line scan below misread a two-round `weak` plan as `holds` (feature-release-tests-github).
-            $rounds = @($p12.lines | Where-Object { $_ -match '^\*\*Round \d+' })
+            # A bold round (`**Round 2 (delta) — holds** (prose…)`) carries its verdict inside the bold span; a
+            # markdown-heading round (`### Round 1 — <scope> — weak (note)`) after the heading's last dash. Heading
+            # rounds used to fall through to the any-line scan, which read `holds` from "census holds" (#5906). The
+            # highest-numbered round wins, not the last in file order: rounds are not always appended.
+            $rounds   = @($p12.lines | Where-Object { $_ -match '^(\*\*|#{2,6}\s+)Round \d+' })
+            $topRound = -1
             foreach ($l in $rounds) {
-                if ($l -match '^\*\*Round \d+\s*[—-]+\s*`(holds|weak|refuted)`') { $verdict = $Matches[1] }
+                $null = $l -match 'Round (\d+)'
+                $n    = [int]$Matches[1]
+                $v    = $null
+                if     ($l -match '^\*\*Round \d+[^*]*[—-]\s*`?(holds|weak|refuted)\b')           { $v = $Matches[1] }
+                elseif ($l -match '^#{2,6}\s+Round \d+.*[—-]\s*`?(holds|weak|refuted)\b[^—]*$')   { $v = $Matches[1] }
+                if ($null -ne $v -and $n -ge $topRound) { $verdict = $v; $topRound = $n }
             }
             if ($rounds.Count -ge 2) {
                 $warnings += 'P12 : several critic rounds but no `**Current verdict: <word>**` line -- add one at the top of P12'
+            }
+            if ($rounds.Count -ge 1 -and $null -eq $verdict) {
+                $warnings += 'P12 : round headings found but none ends in a verdict word -- the verdict below is guessed from prose'
             }
         }
 
