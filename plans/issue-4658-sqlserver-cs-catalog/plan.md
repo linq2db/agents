@@ -1,0 +1,221 @@
+# Work plan: issue-4658-sqlserver-cs-catalog — Merge custom SQL Server test modes onto 2025 + case-sensitive catalog mode
+
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-10-26 (E-1..E-24, critic round 1 weak)  ·  **Branch:** issue/4658-sqlserver-cs-catalog
+**Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
+
+## P1 Problem
+
+[#4658](https://github.com/linq2db/linq2db/issues/4658): no SQL Server test database has a case-sensitive (CS) **catalog**, so a wrongly-cased identifier (table, column, system view) in linq2db or in the tests is never caught. The only CS setup is the main SQL Server 2019 DB: `CREATE DATABASE TestData COLLATE Latin1_General_CS_AS WITH CATALOG_COLLATION = SQL_Latin1_General_CP1_CI_AS` (`Build/Azure/scripts/sqlserver.2017_2019.sh:65-66`, `.cmd:10-11`, `Data/Setup Scripts/sqlserver2019.cmd:17-18`) — CS data, CI catalog. The comments claiming "windows: both db and catalog are case sensitive" (`Tests/Base/TestBase.Utils.cs:86-88,104-108`, `sqlserver.2017_2019.cmd:8-9`) are stale: the Windows 2019 leg had a CS catalog from #2758 (2021) until #4676 (`b7de32bf4`, 2024-12-20) added `WITH CATALOG_COLLATION = SQL_Latin1_General_CP1_CI_AS` to `Build/Azure/scripts/sqlserver.2019.cmd` without a recorded reason (U-13); Linux never had one. Concrete casing bugs already present and invisible under a CI catalog (scout, primary-clone sweep re-checked in the worktree): `Tests/Linq/Linq/ParameterTests.SqlServer.cs:16-38` maps `VarBinaryDataType`/`VarcharDataType`/`NVarcharDataType` against `varbinaryDataType`/`varcharDataType`/`nvarcharDataType` (`Data/Create Scripts/SqlServer.sql:444,449,454`); `Tests/Linq/Linq/ParameterTests.cs:201-208` nested `AllTypes` (`DecimalDataType`, `BinaryDataType`, …); `Tests/Linq/Linq/CachingTests.cs:100-126` queries the Oracle/DB2 `ALLTYPE` model (table `ALLTYPES`, column `TIMEDATATYPE`) against SQL Server's `AllTypes`/`timeDataType`.
+
+Secondary (user decision): the custom SQL Server modes are spread over three setups — CS data on the main 2019 DB, `SqlServer.SA[.MS]` (sequential access) and `SqlServer.Contained[.MS]` on a 2019 EXTRAS container (`Build/Azure/scripts/sqlserver.extras.sh:3`, `test-matrix.yml:372-388`). Fold them into the fewest SQL Server 2025 configs that do not conflict.
+
+## P2 Success criteria
+
+- SC-1 A test config `SqlServer.CS[.MS]` runs against a 2025 DB whose catalog is CS: a mapping `[Table("person")]` over table `Person` fails there, and its DB reports `catalog_collation_type_desc = DATABASE_DEFAULT`, `_CS_` collation, containment NONE, and resolves the `SqlServer.2025` dialect. → TO-1
+- SC-2 `SqlServer.Contained[.MS]` runs against a 2025 contained DB (`containment_desc = PARTIAL`) with CS data collation, resolving the `SqlServer.2025` dialect. → TO-2
+- SC-3 Sequential-access mode is preserved, now carried by `SqlServer.CS[.MS]` (contexts get `OptimizeForSequentialAccess` + the `SequentialAccessCommandInterceptor`), and `SqlServer.Contained` does not carry it. → TO-1, TO-2, TO-7
+- SC-4 CS-data coverage is preserved: `IsCaseSensitiveDB` / `IsCaseSensitiveComparison` answer true for both new configs and the CS-dependent assertions pass there. → TO-8
+- SC-5 The three known casing bugs in P1 are fixed and red→green on `SqlServer.CS.MS`, with no regression on another provider that runs the same tests. → TO-4, TO-5, TO-6
+- SC-6 CI: the `Tests/Linq` main suites on the 4 new configs (GitHub Linux EXTRAS leg, net8/9/10) show no failure beyond those present on `SqlServer.2025[.MS]` in the same run; the 2017+2019 lane stays green with plain DBs. The Azure Windows EF.Core legs only prove the Windows setup script runs (EF tests use their own `EnsureCreated` databases — P10). → TO-10, TO-11
+- SC-7 The local and CI setup scripts create the 4 DBs, and `CreateData.CreateDatabase` succeeds on each. → TO-3
+- SC-8 Every exclusion on the CS-data group is measured on both new configs, not inherited. → TO-9
+- SC-9 Exact-name gates for `SqlServer.2025.MS` that apply to the moved configs are widened, so a known driver refusal does not turn red on them. → TO-12
+
+## P3 Constraints & anti-goals (M/L)
+
+- No public API change; no `Source/` edit is authorized up front. A product bug the new mode surfaces is fixed only through a `P11` amendment adding its `E-n` and a red→green `TO-n`; anything outside the SQL Server provider (`Source/LinqToDB/**/SqlServer/**`) is raised to the user first.
+- Generated SQL for other providers changes only by identifier casing in the tests E-17/E-18 touch (baseline drift there is expected and reviewed).
+- `Data/Create Scripts/SqlServer.sql` object/column **definitions** keep their casing — tests are fixed to the script, never the reverse. A wrongly-cased *reference* inside the script (as #2758 fixed at `:136`/`:969`) may be fixed.
+- Matrix keys are not renamed (job names feed history and possibly required checks); only titles/filters/scripts change.
+- No third-party / other-family test config (SQLite MiniProfiler) is touched.
+- Lane count and per-lane provider count for netfx stay as today (4 providers in EXTRAS) — no new memory exposure (see U-4).
+
+## P4 Unknowns (M/L)
+
+- U-1 Does `CREATE DATABASE X COLLATE Latin1_General_CS_AS` (no `CATALOG_COLLATION`) on 2025 give a CS catalog? — resolved-by probe (measured 2026-10-26, local `sql2025`, 17.0.1000.7, server `SQL_Latin1_General_CP1_CI_AS`): `catalog_collation_type_desc = DATABASE_DEFAULT`; after `CREATE TABLE Person`, `OBJECT_ID('person')` is NULL.
+- U-2 Can contained and CS catalog share one DB? — resolved-by probe (measured): `CONTAINMENT = PARTIAL COLLATE Latin1_General_CS_AS` gives `collation_name = Latin1_General_CS_AS`, `catalog_collation_type_desc = Latin1_General_100_CI_AS_KS_WS_SC`, `OBJECT_ID('person')` finds `Person`; adding `WITH CATALOG_COLLATION = DATABASE_DEFAULT` fails `Msg 12845 … cannot specify both CONTAINMENT = PARTIAL and CATALOG_COLLATION`. Hence two configs (D-1).
+- U-3 Can the modes fold into the 2022+2025 lane? — resolved-by probe (measured, GitHub Linux legs): run 40309652927 EXTRAS 24.9 min, 2022_2025 27.0 min, 2017_2019 26.9 min; run 40197526905 EXTRAS 25.3, 2022_2025 28.6, 2017_2019 27.0. Folding gives a ~50 min lane ≈ 2× the slowest SQL Server lane → keep the EXTRAS lane, re-point it at 2025 (D-2). Azure test-all (24716/24728/24731) runs only the Windows EF.Core legs for these lanes, 5.0–5.6 min each.
+- U-4 netfx memory: `Tests/Linq/TestsInitialization.cs:146` notes the netfx x64 EXTRAS leg ran out of memory without the query-cache cap — resolved-by D-2: EXTRAS keeps exactly 4 providers per process, as today (scout, `Build/Azure/*/sqlserver.extras.json:4-7`).
+- U-5 Do year-less names resolve the 2025 dialect? — resolved-by scout: `SqlServerProviderDetector.cs:90-98` matches a year substring of the configuration string first; none matches `SqlServer.CS` / `SqlServer.Contained`, so `:100-106` queries the server version (as SA/Contained do on 2019 today); asserted at runtime by TO-1/TO-2.
+- U-6 Does the Windows image `linq2db/linq2db:win-mssql-2025` accept contained auth + CS collation? — resolved-by probe on the first CI run: Linux image measured (U-1/U-2); the Windows script failing there is a red `script_win_global` step in the EXTRAS Windows leg, recorded under G-01 with the CI run id, fallback is to report and stop (no gate-around).
+- U-7 Does CS/Contained `-- SKIP` matching cover the new names? — resolved-by scout: `Tests/Linq/Create/CreateData.cs:42` matches `SKIP {configString} BEGIN` by ordinal substring of the full name, so `SKIP SqlServer.2025 BEGIN` never removes text for `SqlServer.CS`, and every config needs its own markers. The SA/Contained markers at `SqlServer.sql:483-486/507-510` sit on the JSON/VECTOR block (2025-only) and must be **removed** for the moved configs; `:545-548/581-584` and `:788-791/827-830` (old datetime2 / old `LinqDataTypes`) are retargeted.
+- U-8 Which tests branch on the 2019 group the modes leave? — resolved-by scout (`TestProvName.AllSqlServer2019\b` across `Tests/`) + critic correction: 4 are `ThrowsForProvider`-style exclusions in `WindowFunctionsTests.{Lead:143,LastValue:109,Lag:122,FirstValue:141}` (configs move to 2025, which those tests do not exclude and already run on `SqlServer.2025[.MS]`); 1 is an **inclusion** — `SelectTests.cs:221-222` `MultipleSelect11` `IncludeDataSources(AllSqlServer2008, AllSqlServer2012, AllSqlServer2019, …)` — so the moved configs stop running it (P10).
+- U-9 Which tests name the retired groups? — resolved-by scout: `AllSqlServerSequentialAccess` at `TestBase.Context.cs:73,79,121,129,170,187,221,229` and `DynamicResultTests.cs:33,57,83`; `SqlServerSequentialAccessMS` at `SqlServerTests.cs:1443`; `AllSqlServerCS` at `TestBase.Utils.cs:91,109`, `CreateTempTableTests.cs:604`; `AllSqlServerContained` nowhere outside `TestProvName.cs`. The driver lists (`AllSqlServerMS` / `AllSqlServerSystem` / `AllSqlServer2016PlusMS` / `AllSqlServer2025PlusMS` / `AllSqlServer2019Minus*`) have 51 uses across 7 files — the new names join the driver list matching their client (`.MS` ↔ Microsoft.Data.SqlClient).
+- U-10 Do any tests match provider names by substring (`Contains("SqlServer…")`, `.CS`, `.SA`)? — resolved-by scout: `(Contains|StartsWith|EndsWith)\("(SqlServer|\.CS|CS|\.SA|SA|Contained)` across `Tests/` — no matches.
+- U-11 Why does `CreateTempTableTests.cs:604` exclude `AllSqlServerCS`? — resolved-by scout (`git log -S`, 467da32b2, #3962): a temp table (tempdb, server collation CI) joined to `Person.FirstName` (DB collation CS) — a collation conflict. Under a contained DB, temp-table columns take the DB collation, so the exclusion may be stale for `SqlServer.Contained`: reasoned, unprobed → TO-9 measures it.
+- U-13 Why did #4676 make the Windows 2019 catalog CI? — resolved-by scout: `git show b7de32bf4 -- Build/Azure/scripts/sqlserver.2019.cmd` changes only the two `CREATE DATABASE` lines (aligning Windows with the Linux `.sh`); PR #4676's body lists 31 fixed issues and other changes with no mention of collation/catalog, and `gh api …/issues/4676/comments` filtered on `collation|case.sensitiv|catalog` returns nothing. `CachingTests.TestSqlQueryDependent_Time` was added by the same PR (critic, `git log -S`). Reading: a casing backlog may have accumulated since Dec 2024 and the static sweep is not exhaustive — TO-10 is the census; every failure it finds is fixed via `P11` before the PR leaves draft.
+- U-14 Are type names resolved case-insensitively under a CS catalog (the create script's `JSON`/`VECTOR(5)` at `SqlServer.sql:488-489`, builder literals `SqlServer2025SqlBuilder.cs:35`, `SqlServerSqlBuilder.cs:355,364,434`)? — resolved-by probe (measured on local `TestDataCS`): `CREATE TABLE t4658 (j JSON NULL, v VECTOR(5) NULL, x Json NULL, y Vector(3) NULL)` succeeds; control `DECLARE @s SYSNAME` succeeds; `DECLARE @g GEOGRAPHY; @h HIERARCHYID; @n NVarChar(10); @u UniqueIdentifier; @v Sql_Variant` succeed. No type-name casing failure on 2025.
+- U-15 Which exact-name gates name a 2025 config the moved configs now share a list with? — resolved-by scout (critic, `ProviderName\.SqlServer2025\b|TestProvName\.SqlServer2025MS\b|"SqlServer\.2025(\.MS)?"` over `Tests/` minus `TestProvName.cs`): one — `Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:154` `[ActiveIssue(Configuration = TestProvName.SqlServer2025MS, …"Unsupported Vector type 'System.Half'")]` on `TestHalfVectorType([IncludeDataSources(AllSqlServer2025Plus)])` (`#if !NETFRAMEWORK`); the refusal is Microsoft.Data.SqlClient's, so it fires on every `.MS` 2025 config → E-22.
+- U-12 Do 2025-only features interact with sequential access / contained (JSON/VECTOR columns now created for these configs, contained temp tables)? — resolved-by TO-10's triage rule: unknowable without running the suite; each failure becomes a test fix or a `P11` product fix with its own red→green.
+
+## P5 Decisions (M/L; rejected alternatives mandatory at L)
+
+### D-1 — Two configs, not one
+
+- **chosen:** `SqlServer.CS[.MS]` = CS data + CS catalog + sequential access; `SqlServer.Contained[.MS]` = contained + CS data (CI catalog). Both 2025.
+- **rejected:** one config with everything — contained cannot have a CS catalog (U-2, `Msg 12845`, measured). One config without contained — drops contained coverage (#2922: temp-table PK naming).
+- **why this:** covers both catalog states with CS data; user-approved split.
+- **failure mode of the choice:** two configs = two full suites per TFM per driver; acceptable because they replace the four SA/Contained suites one-for-one.
+
+### D-2 — Re-point the EXTRAS lane at a 2025 container
+
+- **chosen:** `sqlserver.extras.{sh,cmd}` run `linq2db/linq2db:mssql-2025` / `win-mssql-2025` on host port 1433 (Azure connection strings stay `Server=localhost`), creating the 4 DBs; filter tag `[sqlserver.2019]` → `[sqlserver.2022]`; title stays "SQL Server EXTRAS".
+- **rejected:** fold into `m_SqlServer2022_2025` — measured ~50 min lane (U-3) and 8 providers per netfx process (U-4). A new dedicated lane — same effect as re-pointing with more wiring.
+- **why this:** keeps lane timing and netfx provider count unchanged; the user's "2022+2025 lane" choice was conditioned in the session plan on this measurement.
+- **failure mode of the choice:** the matrix key keeps the stale name `n_SqlServer2019Extras` (P10); the Windows image is unprobed for contained (U-6).
+
+### D-3 — Sequential access on `SqlServer.CS`
+
+- **chosen:** CS config carries SA (user choice).
+- **rejected:** SA on Contained — equivalent coverage; user picked CS.
+- **why this:** SA is client-side and orthogonal to both DB shapes.
+- **failure mode of the choice:** a CS-catalog failure and an SA failure on the same test are both attributed to `SqlServer.CS`; triage must separate them (run the failing test once with `suppressSequentialAccess: true`).
+
+### D-4 — Year-less config names
+
+- **chosen:** `SqlServer.CS`, `SqlServer.CS.MS` (database `TestDataCS` / `TestDataMSCS`); keep `SqlServer.Contained[.MS]` names and DB names.
+- **rejected:** `SqlServer.2025.CS` — dialect by name, but breaks the SA/Contained naming pattern and the Contained baselines folder name.
+- **why this:** consistency; existing Contained baselines/config names survive.
+- **failure mode of the choice:** dialect depends on runtime server-version detection (U-5) — asserted by TO-1/TO-2.
+
+### D-5 — Keep the SA constants as aliases
+
+- **chosen:** `SqlServerSequentialAccess = SqlServerCaseSensitive`, `SqlServerSequentialAccessMS = SqlServerCaseSensitiveMS`, `AllSqlServerSequentialAccess = AllSqlServerCaseSensitiveCatalog`; the SA aliases are not added to any aggregate list (only the CS names are).
+- **rejected:** delete the SA constants and rewrite the 12 use sites (U-9) — churn with no behaviour change, and `TestBase.Context.cs` reads better keyed on intent.
+- **why this:** zero edits to the 12 SA use sites.
+- **failure mode of the choice:** a reader may think `SqlServer.SA` still exists — the XML doc on each alias says it resolves to the CS config.
+
+### D-6 — Main 2019 DBs become plain
+
+- **chosen:** `CREATE DATABASE TestData` / `TestDataMS` without collation clauses on 2019 (CI and local); the CS-data group (D-9) = CS + Contained configs.
+- **rejected:** keep 2019 CS data too — duplicates coverage the user asked to merge.
+- **why this:** user decision ("merge all test configs in one").
+- **failure mode of the choice:** CS-data coverage of the 2017/2019 SQL builder dialect is lost; only the 2025 dialect sees CS data. Accepted in P10.
+
+### D-7 — Fix test models to the create script's casing
+
+- **chosen:** explicit `[Column("varcharDataType")]`-style names (or switch the test to the SQL Server model) in E-17/E-18/E-19.
+- **rejected:** changing `SqlServer.sql` casing — other tests and every provider's script follow it.
+- **why this:** the script is the source of truth.
+- **failure mode of the choice:** E-18's tests run on several providers (`ParameterTests.cs:212,225` `DataSources` minus SqlCe/Sybase/HANA/PG/Oracle/DB2/Firebird/Informix/ClickHouse/YDB); their SQL baselines change by casing and each remaining provider's create script must use the same casing — checked per provider before editing (TO-5 symmetry).
+
+### D-9 — Name the two CS groups by what they select
+
+- **chosen:** `AllSqlServerCaseSensitiveData` (CS + Contained — data collation is CS) replaces `AllSqlServerCS` at its 3 readers; `AllSqlServerCaseSensitiveCatalog` (the `SqlServer.CS` pair) is new; `AllSqlServerSequentialAccess` aliases the catalog group.
+- **rejected:** keep `AllSqlServerCS` beside a new `AllSqlServerCaseSensitive` — two names one abbreviation apart selecting different sets (critic); the next exclusion picks the wrong one.
+- **why this:** each name states its selection criterion.
+- **failure mode of the choice:** 3 extra edited lines (`TestBase.Utils.cs:91,109`, `CreateTempTableTests.cs:604`); out-of-tree users of `AllSqlServerCS` (none known — `CustomizationSupport` reads provider names, not this constant) would break at compile time, not silently.
+
+### D-8 — Collation `Latin1_General_CS_AS`
+
+- **chosen:** same collation as the old 2019 CS DBs.
+- **rejected:** `Latin1_General_100_CS_AS_SC_UTF8` — adds UTF-8/SC dimensions (and changes `SqlServerTests.TestString`'s `_SC` branch) at the same time as the catalog change.
+- **why this:** one new dimension per change.
+- **failure mode of the choice:** UTF-8 collation stays untested (out of scope).
+
+## P6 Edit-points
+
+- E-1 `Tests/Base/TestProvName.cs:150-191` — add config constants SqlServerCaseSensitive / SqlServerCaseSensitiveMS and group AllSqlServerCaseSensitiveCatalog; rename AllSqlServerCS → AllSqlServerCaseSensitiveData (= CS + Contained configs, D-9); SA constants become aliases (D-5); move CS + Contained from AllSqlServer2019 to AllSqlServer2025; add/remove in AllSqlServerSystem, AllSqlServerMS, AllSqlServer2016PlusMS, AllSqlServer2025PlusMS, AllSqlServer2019MinusSystem, AllSqlServer2019MinusMS.
+- E-2 `Tests/Base/TestBase.Utils.cs:82-122` — rewrite the CS comments to the new layout; AllSqlServerCS → AllSqlServerCaseSensitiveData at :91, :109; no logic change.
+- E-3 `Tests/Base/TestBase.cs:199` — comment naming `SqlServer.SA`.
+- E-4 `Data/Create Scripts/SqlServer.sql` — remove SA/Contained markers at `:483-486,507-510`; retarget :545-548, :581-584, :788-791, :827-830 to SqlServer.CS, SqlServer.CS.MS, SqlServer.Contained, SqlServer.Contained.MS.
+- E-5 `DataProviders.json` — local: remove SA (`:153-154`), Contained → `localhost,1425`, add CS (`TestDataCS`/`TestDataMSCS`, `localhost,1425`); Azure (`:213-216`): remove SA, add CS (`Server=localhost`); `All.Providers` (`:287-290`).
+- E-6 `UserDataProviders.json.template` — the same in the 4 TFM buckets (`:46-49,177-180,304-307,431-434`) and connections (`:591-606`); the rewritten Contained lines get the missing `Server=` and `;`.
+- E-7 `Build/Azure/scripts/sqlserver.extras.sh` — image linq2db/linq2db:mssql-2025; contained auth; create + tune TestDataCS, TestDataMSCS, TestDataContained, TestDataMSContained (CS collation); drop SA DBs.
+- E-8 `Build/Azure/scripts/sqlserver.extras.cmd` — same on win-mssql-2025 with -C.
+- E-9 `Build/Azure/netfx/sqlserver.extras.json`, `Build/Azure/net80/sqlserver.extras.json`, `Build/Azure/net90/sqlserver.extras.json`, `Build/Azure/net100/sqlserver.extras.json` — provider list → the 4 new configs.
+- E-10 `Build/Azure/scripts/sqlserver.2017_2019.sh`, `Build/Azure/scripts/sqlserver.2017_2019.cmd` — plain `CREATE DATABASE TestData` / `TestDataMS` on 2019; fix the CS comments and the `:68-69` SA/Contained comment.
+- E-11 `Build/Azure/pipelines/templates/test-matrix.yml` — EXTRAS entry filters `[sqlserver.2019]` → `[sqlserver.2022]`, comment lines; `:49-50` filter docs.
+- E-12 `Data/Setup Scripts/sqlserver2025.cmd`, `Data/Setup Scripts/sqlserver2025-win.cmd` — contained auth + the 4 DBs + tuning.
+- E-13 `Data/Setup Scripts/sqlserver2019.cmd` — plain `TestData`/`TestDataMS`; remove SA/Contained DBs and contained auth.
+- E-14 `Data/Setup Scripts/readme.md` — describe where the modes live.
+- E-15 `Build/Azure/README.md:194-197` — provider table rows.
+- E-16 `Tests/Linq/DataProvider/SqlServerTests.cs` — new guard tests for TO-1/TO-2.
+- E-17 `Tests/Linq/Linq/ParameterTests.SqlServer.cs:16-38` — column names to script casing.
+- E-18 `Tests/Linq/Linq/ParameterTests.cs:201-208` — nested `AllTypes` column names to script casing.
+- E-19 `Tests/Linq/Linq/CachingTests.cs:100-126` — `TestSqlQueryDependent_Time` against a SQL Server-cased model/column.
+- E-20 `Tests/Linq/Update/CreateTempTableTests.cs:604` — AllSqlServerCS → AllSqlServerCaseSensitiveCatalog if TO-9 measures Contained green, else → AllSqlServerCaseSensitiveData.
+- E-22 `Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:154` — widen the `ActiveIssue` Configuration from SqlServer2025MS to the three 2025-dialect `.MS` configs (SqlServer2025MS, SqlServerCaseSensitiveMS, SqlServerContainedMS).
+- E-23 `Tests/Linq/Linq/SelectTests.cs:1923` — comment "the SqlServer .SA lane" → the CS config.
+- E-24 `Tests/Base/TestBase.Context.cs:185,219` — comments "other sql2017/2019 providers" → other SQL Server providers.
+- E-21 corpus `.claude/docs/test-databases.md:67` (+ table), `.claude/docs/baselines-repo-layout.md:22`, `.claude/docs/testing.md:1169`, `.claude/docs/test-review-checklist.md:142`, `.claude/docs/review-rubric/rubric-tests.md:14` — mode names/locations (committed in the agents repo, not on the linq2db branch).
+
+## P7 Impact map (M/L)
+
+- `Tests/Base/TestBase.Context.cs:73,79,121,129,170,187,221,229` — SA wiring keyed on `AllSqlServerSequentialAccess`, now the CS config — covered by E-1 (alias, D-5)
+- `Tests/Linq/Linq/DynamicResultTests.cs:33,57,83`, `Tests/Linq/DataProvider/SqlServerTests.cs:1443` — SA-only tests now run on `SqlServer.CS[.MS]` — covered by E-1 (alias); exercised by TO-7
+- `Tests/Base/TestBase.Utils.cs:91,109` — `AllSqlServerCS` readers, renamed — covered by E-1/E-2; exercised by TO-8
+- `Tests/Linq/Update/CreateTempTableTests.cs:604` — `AllSqlServerCS` exclusion now covers CS + Contained and stops covering 2019 — covered by E-20 / TO-9; 2019 now runs it on a plain DB (characterization in TO-11)
+- `Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:154` — exact-name `ActiveIssue` on `SqlServer2025MS` for a driver refusal the moved `.MS` configs hit too (U-15) — covered by E-22 / TO-12
+- `Tests/Linq/Linq/SelectTests.cs:221-222` `MultipleSelect11` — inclusion list names `AllSqlServer2019`; moved configs drop out, their `SqlServer.Contained*` baseline keys for it go stale — out-of-scope (P10)
+- `Tests/Linq/Linq/SelectTests.cs:1923`, `Tests/Base/TestBase.Context.cs:185,219` — comments the move falsifies — covered by E-23, E-24
+- `Tests/Linq/Linq/ParameterTests.cs:1503` — historical note citing a past `SqlServer.Contained.LinqService` CI measurement (build 22810) — out-of-scope (a dated record, still true of that build)
+- `Tests/EntityFrameworkCore/TestBase.cs:178-198`, `ContextTestBase.cs:59-65` — EF tests use `<db>.{DB_SUFFIX}` catalogs made by `EnsureCreated` with server defaults, so no mode reaches them; `Tests/EntityFrameworkCore/Tests/ToolsTests.cs:649,662,675,688` `WHERE CategoryId = {0}` vs `CategoriesMap.cs:19` `HasColumnName("CategoryID")` is a latent casing bug no configured DB can catch — out-of-scope (P10)
+- `Tests/Base/TestConfiguration.cs:226` (`AllSqlServer` → `Providers` → CreateDatabase, `"+++"`), `:264` (`AllSqlServer2016PlusMS` → EF providers) — new names must be reachable from `AllSqlServer` and the EF list — covered by E-1
+- `Tests/Linq/Create/CreateData.cs:42` — SKIP markers by exact name — covered by E-4
+- `Tests/Base/BaselinesWriter.cs:38` — baselines folder = provider name; new `SqlServer.CS*` folders, Contained SQL moves to 2025 dialect, SA folders orphaned — out-of-scope (expected baseline output, P10)
+- `Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderDetector.cs:90-106` — dialect for year-less names via server version — out-of-scope (unchanged; asserted by TO-1/TO-2)
+- 5 exclusion sites on `AllSqlServer2019` (U-8) — configs move to 2025, which those tests already run on — out-of-scope (no edit; covered by TO-10)
+- 51 uses of the driver lists in 7 files (U-9: `Tests/Base/TestConfiguration.cs`, `Tests/Linq/Mapping/SetUseMappingSchemaTests.cs`, `Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs`, `Tests/Linq/DataProvider/SqlServerVectorTypeTests.cs`, `Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs`, `Tests/Linq/Linq/PredicateTests.cs`) — new names join the driver list of their client — covered by E-1
+- `Tests/Linq/TestsInitialization.cs:146` — comment about the netfx EXTRAS leg's memory — out-of-scope (still the EXTRAS leg, still 4 providers)
+- `Build/Azure/pipelines/templates/test-matrix.yml:184` — comment listing `n_SqlServer2019Extras` — out-of-scope (key unchanged, P3)
+- `.github/workflows/tests.yml`, `.github/workflows/tests-release.yml` — searched `(?i)extras|SqlServer2019Extras` across the worktree excluding `.claude`/`.build`: no hard-coded lane names; they consume `test-matrix.yml` — out-of-scope
+- `linq2db.slnx:78,108,138,157,203-204` — lists the extras json/scripts, file names unchanged — out-of-scope
+- `Build/Azure/scripts/sqlserver.2022_2025.{sh,cmd}`, `Build/Azure/*/sqlserver.2022_2025.json` — untouched under D-2 — out-of-scope
+- Test models whose casing mismatches the script beyond E-17/E-18/E-19 — static sweep of `Tests/Model`, `Tests/Base`, `Tests/Linq` mapping attributes and raw SQL found none (scout, not exhaustive over ~151 SQL Server test files) — deferred: TO-10 surfaces the rest on CI, fixed via `P11`
+- Source catalog references (`SqlServerSchemaProvider.cs` sys/INFORMATION_SCHEMA casing, `SqlServerSqlBuilder.cs:323,469` `OBJECT_ID(N'…')`, bulk copy, `SqlServerSqlBuilder.cs:340-434` type names, `OUTPUT INSERTED/DELETED`, `LinqToDB.Tools` `Schemas.generated.cs`) — scout found consistent casing; live behaviour of `json`/`vector`/`sysname`/`INSERTED` under a CS catalog unprobed — deferred: TO-10 triage
+- Schema-provider C# comparers `GetSchemaOptions.cs:63`, `SchemaProviderBase.cs:104-105,372` (`OrdinalIgnoreCase` defaults) — no current test object exposes them — out-of-scope (P10)
+
+## P8 Test obligations (M/L)
+
+- TO-1 `SqlServerTests.CaseSensitiveCatalogConfiguration`: `sys.databases` row for `DB_ID()` has `catalog_collation_type_desc = 'DATABASE_DEFAULT'`, `collation_name` containing `_CS_`, `containment_desc = 'NONE'`; querying a `[Table("person")]` entity throws with a message containing "Invalid object name" (asserted on the message: `.MS` throws `Microsoft.Data.SqlClient.SqlException`, the other `System.Data.SqlClient.SqlException`); the context's provider name is `SqlServer.2025`; the `DataConnection` has `OptimizeForSequentialAccess` set — discriminating input: the same assertions on a CI-catalog DB fail at the first assertion — providers: SqlServer.CS, SqlServer.CS.MS — proof: control (mutation: point `SqlServer.CS.MS` at `Database=TestDataMS` locally → red on `catalog_collation`/`person` assertions; restore → green)
+- TO-2 `SqlServerTests.ContainedConfiguration`: `containment_desc = 'PARTIAL'`, `collation_name` containing `_CS_`, provider name `SqlServer.2025`, `OptimizeForSequentialAccess` not set — providers: SqlServer.Contained, SqlServer.Contained.MS — proof: control (mutation: point `SqlServer.Contained.MS` at `TestDataMSCS` → red on containment)
+- TO-3 `CreateData.CreateDatabase` on each new config after running the updated `sqlserver2025.cmd` DB lines — providers: SqlServer.CS, SqlServer.CS.MS, SqlServer.Contained, SqlServer.Contained.MS — proof: characterization (proves the scripts and SKIP markers, no product behaviour)
+- TO-4 `ParameterTests` methods using `AllTypesWithLength` / `AllTypesCustom` / `AllTypesCustomWithLength` (`ParameterTests.SqlServer.cs`): red on SqlServer.CS.MS before E-17 ("Invalid column name"), green after — providers: SqlServer.CS.MS — proof: red→green
+- TO-5 `ParameterTests.ExposeSqlDecimalParameter`, `ExposeSqlBinaryParameter` and the `ParameterTests.SqlServer.cs:183,196` users of the nested `AllTypes`: red on SqlServer.CS.MS before E-18, green after; symmetry guard on an unchanged-path provider the tests also cover (SQLite.MS) stays green — providers: SqlServer.CS.MS, SQLite.MS — proof: red→green (SqlServer.CS.MS) + characterization (SQLite.MS)
+- TO-6 `CachingTests.TestSqlQueryDependent_Time`: red on SqlServer.CS.MS before E-19 ("Invalid object name 'ALLTYPES'"), green after — providers: SqlServer.CS.MS — proof: red→green
+- TO-7 `DynamicResultTests.*`, `SelectTests.SequentialAccessTest*`, `SqlServerTests.GetSqlDecimalAttributeTest` pass on the CS config — providers: SqlServer.CS.MS — proof: characterization (the SA wiring itself is pinned by TO-1's `OptimizeForSequentialAccess` assertion)
+- TO-8 `StringFunctionTests` cases reading `IsCaseSensitiveComparison` (`:353-354,654-655,1586-1704`) and `QueryableAssociationTests.cs:1076-1077` pass — providers: SqlServer.CS.MS, SqlServer.Contained.MS — proof: characterization (both answer true via `AllSqlServerCaseSensitiveData`; a wrong answer fails the CS-expected branch)
+- TO-9 `CreateTempTableTests.CreateTableEnumerableWithNameAndDescriptionAsyncTest` with the exclusion lifted locally: measured red on SqlServer.CS.MS (collation conflict) keeps it excluded there; on SqlServer.Contained.MS green → E-20 uses `AllSqlServerCaseSensitiveCatalog`, red → `AllSqlServerCaseSensitiveData` — providers: SqlServer.CS.MS, SqlServer.Contained.MS — proof: control
+- TO-10 CI breadth: `/azp run test-sqlserver-2022` (after E-11 it selects the EXTRAS lane) + the GitHub `Lin n_SqlServer2019Extras` leg; every failure on a new config not also present on `SqlServer.2025[.MS]` in the same run is triaged as a test bug (fixed in-branch) or a product bug (`P11` amendment + its own red→green TO) — providers: SqlServer.CS, SqlServer.CS.MS, SqlServer.Contained, SqlServer.Contained.MS — proof: characterization (breadth; not itself a proof of a fix)
+- TO-11 The 2017+2019 lane runs on plain DBs and stays green, including `CreateTempTableTests:604` now running on `SqlServer.2019[.MS]` — run by `/azp run test-sqlserver-2019` + the GitHub `Lin l_SqlServer2017_2019` leg (`test-sqlserver-2022` no longer selects it) — providers: SqlServer.2017, SqlServer.2017.MS, SqlServer.2019, SqlServer.2019.MS — proof: characterization
+- TO-12 `SqlServerTypeTests.TestHalfVectorType` on SqlServer.CS.MS and SqlServer.Contained.MS: before E-22 red with `NotSupportedException` "Unsupported Vector type 'System.Half'", after E-22 reported as the expected ActiveIssue failure, not a red — providers: SqlServer.CS.MS, SqlServer.Contained.MS — proof: red→green
+
+## P9 Verification gates
+
+- G-01: — (pending)
+- G-02: — (pending)
+- G-06: — (pending)
+- G-07: — (pending)
+- G-09: — (pending)
+
+## P10 Adjudicated (M/L)
+
+- Matrix key `n_SqlServer2019Extras` keeps its name although the lane is now 2025 — renaming changes job names that history (and possibly required checks) key on (P3).
+- CS-data coverage of the 2017/2019 dialect is dropped (D-6) — user decision to merge the modes.
+- Orphaned `SqlServer.SA*` baselines folders and 2019→2025 dialect drift in `SqlServer.Contained*` baselines — expected output of the move, not findings.
+- `UserDataProviders.json.template` Northwind connection strings lacking `Server=` — pre-existing, lines not touched.
+- Schema-provider case-insensitive default comparers (`GetSchemaOptions.cs:63`, `SchemaProviderBase.cs:104-105,372`) — behaviour unchanged unless TO-10 exposes a failing test.
+- UTF-8 / `_SC` collations not covered (D-8).
+- `SelectTests.MultipleSelect11` stops running on the moved configs (its `IncludeDataSources` names `AllSqlServer2019` but no 2025 group, U-8); its `SqlServer.Contained*` baseline keys go stale. Adding 2025 to an inclusion list chosen for a 2014 perf regression widens a test's scope beyond this task.
+- EF.Core tests never exercise the modes: they run on `<db>.{DB_SUFFIX}` catalogs created by `EnsureCreated` with server defaults (`Tests/EntityFrameworkCore/TestBase.cs:178-198`, `ContextTestBase.cs:59-65`) — true for today's SA/Contained EF runs as well. The latent `CategoryId` vs `CategoryID` mismatch in `ToolsTests.cs:649,662,675,688` is therefore unreachable by this mode; recorded, not fixed here.
+
+## P11 Amendments (M/L)
+
+_None._
+
+## P12 Critic verdict (M/L)
+
+**Round 1 — weak** (plan-critic on `fable`, 2026-10-26; fable did not contribute design ideas earlier in this session). Searched the worktree at c82e21c35: SA/Contained/2019-image tokens across all non-corpus files; `(?i)extras` across `Build/`; `git log -S CATALOG_COLLATION`, `-S AllTypesWithLength`, `-S TestSqlQueryDependent_Time`, `-S "WHERE CategoryId = {0}"`; `AllSqlServer2019\b|SqlServer2019MS\b|AllSqlServerCS\b|IsCaseSensitiveDB\(` and `ProviderName\.SqlServer2025\b|TestProvName\.SqlServer2025MS\b` across `Tests/`; `TestProvName\.\w+` and raw-SQL calls across `Tests/EntityFrameworkCore`; SKIP markers and a definition-vs-reference census of `SqlServer.sql`; `sys\.[A-Z]|INFORMATION_SCHEMA\.[a-z]` and type-name literals across `Source/**/SqlServer/**`; `SqlServerProviderDetector.cs:74-192`; lowercase `[Table("…")]` across `Tests/Linq`, `Tests/Model`; the AllTypes column casing across every create script (D-7 symmetry holds). Confirmed: U-1/U-2/D-1, U-7, D-5 against `TestBase.Context.cs`, the year-less dialect chain (U-5).
+
+Objections and responses:
+1. P1 history wrong — the Windows CS catalog was removed by #4676, not lost; backlog unmeasured. → P1 corrected; U-13 added (rationale unrecorded: script diff + PR body + comment search); TO-10 is the census, fixes via `P11` before the PR leaves draft.
+2. `SqlServerTypeTests.cs:154` exact-name gate goes red on the moved `.MS` configs. → U-15, E-22, TO-12, P7 row.
+3. Azure Windows EF.Core legs cannot say no (EF uses `EnsureCreated` catalogs); latent `ToolsTests` `CategoryId` bug. → SC-6 reworded to the `Tests/Linq` main suites; P7 row + P10 entry; `ToolsTests` recorded, not fixed (unreachable by any configured DB).
+4. U-8 misreported `SelectTests.cs:221` as an exclusion (it is an inclusion). → U-8 corrected; P7 row; P10 entry (not widened).
+5. Unprobed `JSON`/`VECTOR` type-name casing under a CS catalog. → probed, U-14: all succeed on 2025, `SYSNAME` control too.
+6. TO-11 had no command once EXTRAS is retagged. → TO-11 names `/azp run test-sqlserver-2019` + the GitHub 2017_2019 leg; TO-10 names the EXTRAS leg.
+7. `AllSqlServerCS` beside `AllSqlServerCaseSensitive` naming hazard. → D-9: `AllSqlServerCaseSensitiveData` / `AllSqlServerCaseSensitiveCatalog`.
+8. Minor: stale comments (`SelectTests.cs:1923`, `TestBase.Context.cs:185,219`, `ParameterTests.cs:1503`), TO-1 should assert the message, P3 should say *definitions*. → E-23, E-24; `ParameterTests.cs:1503` left as a dated record (P7); TO-1 and P3 amended.
+
+Still open from the critic's view: U-6 (Windows image accepting contained auth + CS collation) is unprobed until the first CI run.
