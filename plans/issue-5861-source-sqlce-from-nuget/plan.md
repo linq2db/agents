@@ -114,7 +114,7 @@ All rows 2026-10-26 against the tree committed as e323e3192 (SQL CE switch) + e4
 - G-06: pass — `git diff` reviewed: only E-1..E-12 lines changed, no reformatting.
 - G-07: pass — no `Tests/Tests.Playground/` change.
 - G-09: pass — `/code-review medium` over the uncommitted diff, 6 findings walked one per turn with the user; dispositions and fixes in P11 A-3 (finding 1's observed missing `amd64/` was residue of the TO-2 mutation build — a plain rebuild restored 9 files).
-- G-10 (A-1 CI parity): — (pending) blocked — PR CI build; compare the CI-produced `linq2db.SqlCe` / `linq2db.t4models` / `linq2db.Informix` / `linq2db.DB2` nupkgs with `5861-compare.ps1` against the master dumps. The local warm re-pack (CI order: build, then pack) is recorded under TO-5; CI itself is unmeasured until then.
+- G-10 (A-1 CI parity): pass — GitHub `build` run [40352655985](https://github.com/linq2db/linq2db/actions/runs/40352655985) on b4b108ee5 (`Build and pack` green), `nugets` artifact (`6.6.0-dev.971`) vs master dumps with `5861-compare.ps1`: `linq2db.SqlCe` 58/58 (10 hashed, 0 diff), `linq2db.t4models` 388/388 (234, 0), `linq2db.Informix` 272/272 (223, 0), `linq2db.DB2` 272/272 (223, 0); only-before / only-after 0 everywhere. Non-hashed differences are the first-party `tools/linq2db*.dll` + `.nuspec` (version / SourceLink commit) and the regenerated notices.
 
 ## P10 Adjudicated (M/L)
 
