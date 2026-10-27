@@ -86,6 +86,8 @@ Derive any `ErrorMessage` you write from the trx's — or the log's — raw mess
 
 **`[ActiveIssue]` is `AllowMultiple=true`.** To add a provider to a test that already carries a gate, add a **second attribute** with its own `Configuration`, issue reference and expected failure — don't fold two providers' reasons into one `Details`. Single provider → `Configuration = TestProvName.AllX`; multiple that share one reason → `Configurations = new[] { ProviderName.Sybase, TestProvName.AllYdb }`. (The `Configuration`/`Configurations` setters split on commas, so either form accepts grouped names.)
 
+**A gate's provider set must stay inside the configs where the body reaches the failing call.** A test body often branches on its own provider predicate (`msClient = context.IsAnyOf(TestProvName.AllSqlServerMS)`), and on a config that predicate excludes the failing call never runs, so the case passes and the gate reports *"Test passed but is marked"*. Before widening a gate, or switching it to a group, check every config in the new set against each `IsAnyOf` on the path to the failing call. The groups are not aligned with each other. (#6161: switching `TestHalfVectorType`'s gate to `AllSqlServer2025PlusMS` took in `SqlServer.Azure.MI.MS`, which `AllSqlServerMS` did not list.) The TFM form of the same trap: [`review-rubric/rubric-tests.md`](review-rubric/rubric-tests.md) rule 22.
+
 **A gate meant to cover several drivers anchors on the server's error text, never on a driver banner.** Driver prefixes differ per driver and per OS. SAP HANA's Linux ODBC driver says `[SAP AG][LIBODBCHDB SO][HDBODBC]`, the Windows one `[LIBODBCHDB DLL]`, and the native client has no banner at all. A gate pinned on the banner therefore holds only where it was measured, while the server text that follows is identical on every host. When a `Details` says "type-less because the drivers raise their own", the `ErrorMessage` must be server text such as `TIMESTAMP and PARAMETER are invalid for addition operator`. (#6162: four `AllSapHana` gates measured on Linux CI's ODBC leg were red on Windows ODBC and on native.)
 
 **`[ActiveIssue]` runs the test and rewrites its outcome — it no longer hides it from discovery.** [#5882](https://github.com/linq2db/linq2db/pull/5882) has landed and `[ActiveIssueNew]` took the old attribute's name, so there is one attribute again and it is the run-and-verify one: **Inconclusive** when the test fails as the attribute declares, **Failure** when it passes (the issue is fixed, the gate must go) or fails some other way (a regression, or a moved error message). Five consequences:
@@ -202,6 +204,25 @@ dotnet build Tests/Tests.FpuJit/Tests.FpuJit.csproj -c Release -p:RunApiAnalyzer
 Exit 0 = clean, 1 = JIT faults (`FAIL` lines name the methods), 2 = an environment or coverage error (`ERROR` lines), 3 = harness failure.
 
 **A shipped Source project gaining or losing a .NET Framework target changes the sweep's input list, and nothing fails when it is missed.** That covers a new project on the default TFMs (`Directory.Build.props` includes `net462`), an explicit `net4x` added to an existing one, or one dropped. Update both lists in the same PR: the `ProjectReference` in `Tests/Tests.FpuJit/Tests.FpuJit.csproj` and the assembly name in `ExpectedAssemblies` in `Tests/Tests.FpuJit/Program.cs`. The harness fails when an assembly it expects is missing. It cannot know about an assembly nobody listed: an unlisted project is simply not swept, and the gate stays green (#6051, plan P10). The LINQPad driver (net472) is the one deliberate exclusion.
+
+## The WASM runtime tests (`Tests/Tests.Wasm`)
+
+`Tests/Tests.Wasm` hosts an in-process HttpClient remote server and runs the `Tests/Tests.Wasm.App` browser-wasm bundle against it under Node, once per publish mode (`Debug`, `TrimPartial`, `TrimFull`, `NoReflectionJson`), for every configuration in `Tests/Tests.Wasm/ProviderMatrix.cs`. CI runs it in the `WASM runtime tests` job of `.github/workflows/build.yml` (ubuntu, Node 24), which is not a required check. `/test` does not run it. It is an MTP host, so `--test-progress` is accepted, but the assembly carries no `[assembly: TestProgressReporter]`, so no heartbeat file is written and `/test-progress` sees nothing. Locally it needs Node on `PATH`, and no `wasm-tools` workload:
+
+```bash
+pwsh -NoProfile -File Tests/Tests.Wasm/publish-wasm-bundles.ps1
+dotnet build Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug
+dotnet test --project Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug --no-build --test-progress
+```
+
+The bundles land in `.build/wasm/<mode>/`. Publishing all four takes about 3 minutes warm (and on CI), over 10 minutes cold; the test run takes under a minute.
+
+- **Re-publish after any `Source/` edit.** Each bundle carries its own `linq2db.dll`, so `dotnet test` after a source change runs the old library, and the #6167 / #6168 gates still read "failing as expected".
+- **`-Mode` publishes a subset and deletes the other modes' bundles**, which the host then reports missing: filter the run to the published modes.
+- **Check the build's exit code before trusting `--no-build`.** After a failed build it runs the previous binary and can report green.
+- **The empty `[SetUp]` in `WasmRuntimeTests` is load-bearing**: `[ActiveIssue]` rewrites an outcome only when a SetUp/TearDown command beneath it has turned the exception into a result (#6174).
+
+Adding or removing a provider changes the matrix: [`adding-provider.md`](adding-provider.md) → *The WASM runtime matrix lists every provider name and client library*.
 
 ## BUGCHECK-gated tests
 
