@@ -149,6 +149,18 @@ not. The replacement lives on a dedicated `DbContext` and fails identically alon
 The same caution applies to a **filtered sweep**: a subset run has its own ordering, so a `PASSED` cell
 harvested from one is not interchangeable with either a solo run or a full-suite run.
 
+**The reverse — red in a run, green alone — is a shared-cache collision before it is a stale binary.**
+Check the order first: which test ran before the red ones, and what it shares with them. A common case
+is two fresh `MappingSchema`s that map one entity type differently. A schema's identity is built from its
+attributes' `GetObjectID()`, and expression-bearing attributes key their lambdas through
+`IdentifierBuilder.GetObjectID(Expression)`, which prints a captured closure value by type, not value. So
+two mappings that differ only in a captured value (`v => v.AddHours(hours)` built by one helper) still
+share an identity, and whichever schema reaches the entity-descriptor cache first maps the entity for
+both. Give each mapping variant its own entity type, or write the differing lambdas with literals.
+(#6181: a refusal test mapping `Issue5975Row.Date` with `AddHours(2)` sorted first and turned every later
+positive cell red. "Stale build" was the first, wrong diagnosis. Instance converters were not keyed at all
+until #6189; captured values and delegates of one lambda still collide.)
+
 ## Running the analyzer tests (`Tests/Tests.Analyzers`)
 
 The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:
