@@ -577,6 +577,17 @@ function Invoke-Validate {
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
+
+        # An amendment answering a review finding fixes the instance it was shown unless it enumerates the class
+        # (plan-critic.md vector 8). #6178 round 3: A-6 moved the route into the contract file and updated one of
+        # the two comments describing that file. Warn from 2026-10-28; older entries predate the rule.
+        foreach ($e in $entries) {
+            if ($e.text -notmatch '(?i)/review-pr|/verify-review|/code-review|review round') { continue }
+            if ($e.text -match '(?im)^\s*class:') { continue }
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if (-not ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-28')) { continue }
+            $warnings += "P11 : $($e.id) answers a review finding but has no class: line -- name the search that enumerates every sibling and close or carry each"
+        }
     }
 
     # P12 verdict — an error at Tier L, a warning at Tier M.
@@ -875,7 +886,10 @@ function Invoke-GapReport {
         }
         elseif ($rest -match '(GAP-\d+)') {
             $cls = $Matches[1]
-            if ($rest -match '(G-\d+)')                              { $gate        = $Matches[1] }
+            # The gate is the segment just before `preventable:`, which may carry a note (`G-02 (never ran)`); a G-nn
+            # cited in the reasoning is not it (#6178: rows with gate `—` reported G-01).
+            if ($rest -match '\s[-—]+\s+\(?(G-\d+[a-z]*)(?:(?!\s[-—]+\s).)*\s[-—]+\s+preventable:') { $gate = $Matches[1] }
+            elseif ($rest -match '\bGate:\s*(G-\d+[a-z]*)')                                    { $gate = $Matches[1] }
             if ($rest -match 'preventable:\s*(yes|partly|no)')       { $preventable = $Matches[1] }
 
             # The spec keeps the gate and verdict on the row line, but a row that moved them into an indented
