@@ -203,6 +203,25 @@ Exit 0 = clean, 1 = JIT faults (`FAIL` lines name the methods), 2 = an environme
 
 **A shipped Source project gaining or losing a .NET Framework target changes the sweep's input list, and nothing fails when it is missed.** That covers a new project on the default TFMs (`Directory.Build.props` includes `net462`), an explicit `net4x` added to an existing one, or one dropped. Update both lists in the same PR: the `ProjectReference` in `Tests/Tests.FpuJit/Tests.FpuJit.csproj` and the assembly name in `ExpectedAssemblies` in `Tests/Tests.FpuJit/Program.cs`. The harness fails when an assembly it expects is missing. It cannot know about an assembly nobody listed: an unlisted project is simply not swept, and the gate stays green (#6051, plan P10). The LINQPad driver (net472) is the one deliberate exclusion.
 
+## The WASM runtime tests (`Tests/Tests.Wasm`)
+
+`Tests/Tests.Wasm` hosts an in-process HttpClient remote server and runs the `Tests/Tests.Wasm.App` browser-wasm bundle against it under Node, once per publish mode (`Debug`, `TrimPartial`, `TrimFull`, `NoReflectionJson`), for every configuration in `Tests/Tests.Wasm/ProviderMatrix.cs`. CI runs it in the `WASM runtime tests` job of `.github/workflows/build.yml` (ubuntu, Node 24), which is not a required check. `/test` does not run it. It is an MTP host, so `--test-progress` works. Locally it needs Node on `PATH`, and no `wasm-tools` workload:
+
+```bash
+pwsh -NoProfile -File Tests/Tests.Wasm/publish-wasm-bundles.ps1
+dotnet build Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug
+dotnet test --project Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug --no-build --test-progress
+```
+
+The bundles land in `.build/wasm/<mode>/`. Publishing all four takes about 3 minutes, and the test run under a minute.
+
+- **Re-publish after any `Source/` edit.** Each bundle carries its own `linq2db.dll`, so `dotnet test` after a source change runs the old library, and the #6167 / #6168 gates still read "failing as expected".
+- **`-Mode` publishes a subset and deletes the other modes' bundles**, which the host then reports missing: filter the run to the published modes.
+- **Check the build's exit code before trusting `--no-build`.** After a failed build it runs the previous binary and can report green.
+- **The empty `[SetUp]` in `WasmRuntimeTests` is load-bearing**: `[ActiveIssue]` rewrites an outcome only when a SetUp/TearDown command beneath it has turned the exception into a result (#6174).
+
+Adding or removing a provider changes the matrix: [`adding-provider.md`](adding-provider.md) → *The WASM runtime matrix lists every provider name and client library*.
+
 ## BUGCHECK-gated tests
 
 Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that drive `#if BUGCHECK`-gated test hooks on the core library — e.g. `QueryCacheEvictionTests` driving `QueryCache.RunSweepNow` / `BucketCount`) only compile in **Debug / Testing / Azure** configurations. `BUGCHECK` is defined in `Source/LinqToDB/LinqToDB.csproj` and mirrored into `Tests/Directory.Build.props` so the test project sees the same symbol. Consequences:
