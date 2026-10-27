@@ -266,7 +266,7 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
   - TO-10: x86 net8.0 publish carries `Sap.Data.Hana.Net.v8.0.dll` and `libadonetHDB32.dll` 2.30.27; the x86 exe `--provider SapHana.Native` on `SapHanaTests` gives 28 passed, 0 failed, 2 gated.
   - TO-11: LINQPad Release on `net472` and `net8.0-windows7.0` builds; `Sap_Data_Hana_Net_v8_0 = "2.30.27"`.
   - TO-12: green arm connected; control arm `FileNotFoundException … version 2.30.27` with only 2.23.27 candidates searched.
-  - TO-13: pending, the user's manual LINQPad check (dynamic, static); macOS cell waived (A-4).
+  - TO-13: pass (2026-10-27, user's manual check on LINQPad 8/9 with `linq2db.LINQPad` 6.6.0-local.4 from `651ab4ce7`, against `hana2`, Machine `HDBDOTNETCORE` → 2.23.27): the dynamic native connection queries; the static cell queries through a scratch net8.0 `DataConnection` context (`SapHana.Native`, no SAP assembly in its output, database set to SAP HANA). macOS cell waived (A-4).
   - TO-14: pending CI.
   - `test-diff-sweep.ps1 -IncludeWorkingTree`: 0 chains, 0 nested chains. One narrowed set, `SapHanaTests.cs:814` `[IncludeDataSources(ProviderName.SapHanaNative)]` on `ClientProviderNameResolvesToNativeProvider`, which tests the native provider name by definition.
   - The native `TestBinaryParameterSelect` gate is `no-issue:` per the probe in D-10 and the user's answer.
