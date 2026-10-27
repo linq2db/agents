@@ -92,16 +92,20 @@ same holds for a version anchor ([`adding-provider-version.md`](adding-provider-
     otherwise `Generates`.
   - `LoadsProviderAssembly` — `true` when the client-side mapping schema or optimizer loads the driver
     assembly (#6167); measured, not guessed.
-  - `UnavailableOn` + `UnavailableReason` — the runner OSes where the *server-side* provider cannot
-    construct (a Redist / net462-only or unreferenced driver). `UnavailableOnRunner` requires that
-    failure to be `Cannot load assembly`.
+  - `UnavailableOn` + `UnavailableAssembly` + `UnavailableReason` — the runner OSes where the
+    *server-side* provider cannot construct (a Redist / net462-only or unreferenced driver), and the
+    assembly it misses, taken from the provider adapter's assembly-name constant. `UnavailableOnRunner`
+    requires that failure to be `Cannot load assembly` *and* to name that assembly;
+    `ProviderNamesAreCovered` requires the field on every unavailable row.
 - **Removing:** delete the row and any alias. A removed constant or enum value is a compile error in
   `ProviderMatrix.cs`.
 
 What no guard catches, so the author and reviewer check it by reading: a client-library variant with no
 `ProviderName` constant of its own (`ProviderNamesAreCovered` checks constants only — a new SqlServer
 version with its `.MS` row missing stays green); a concrete name parked in `Aliases`; the `Merge` flag of
-a row gated on #6167 (its init fails first); and `UnavailableOn` for an OS no run covers — CI runs
+a row gated on #6167 (its init fails first); the version or dialect an unavailable row's factory asks for
+(two rows missing the same assembly, `Oracle.11.Native` and `Oracle.Native`, fail identically); and
+`UnavailableOn` for an OS no run covers — CI runs
 ubuntu only, a local run covers Windows, macOS nothing.
 
 The one gate is the GitHub `WASM runtime tests` job. It is not a required check, and `Tests.Wasm` is
