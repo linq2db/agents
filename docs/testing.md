@@ -207,7 +207,7 @@ Exit 0 = clean, 1 = JIT faults (`FAIL` lines name the methods), 2 = an environme
 
 ## The WASM runtime tests (`Tests/Tests.Wasm`)
 
-`Tests/Tests.Wasm` hosts an in-process HttpClient remote server and runs the `Tests/Tests.Wasm.App` browser-wasm bundle against it under Node, once per publish mode (`Debug`, `TrimPartial`, `TrimFull`, `NoReflectionJson`), for every configuration in `Tests/Tests.Wasm/ProviderMatrix.cs`. CI runs it in the `WASM runtime tests` job of `.github/workflows/build.yml` (ubuntu, Node 24), which is not a required check. `/test` does not run it. It is an MTP host, so `--test-progress` works. Locally it needs Node on `PATH`, and no `wasm-tools` workload:
+`Tests/Tests.Wasm` hosts an in-process HttpClient remote server and runs the `Tests/Tests.Wasm.App` browser-wasm bundle against it under Node, once per publish mode (`Debug`, `TrimPartial`, `TrimFull`, `NoReflectionJson`), for every configuration in `Tests/Tests.Wasm/ProviderMatrix.cs`. CI runs it in the `WASM runtime tests` job of `.github/workflows/build.yml` (ubuntu, Node 24), which is not a required check. `/test` does not run it. It is an MTP host, so `--test-progress` is accepted, but the assembly carries no `[assembly: TestProgressReporter]`, so no heartbeat file is written and `/test-progress` sees nothing. Locally it needs Node on `PATH`, and no `wasm-tools` workload:
 
 ```bash
 pwsh -NoProfile -File Tests/Tests.Wasm/publish-wasm-bundles.ps1
@@ -215,7 +215,7 @@ dotnet build Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug
 dotnet test --project Tests/Tests.Wasm/Tests.Wasm.csproj -c Debug --no-build --test-progress
 ```
 
-The bundles land in `.build/wasm/<mode>/`. Publishing all four takes about 3 minutes, and the test run under a minute.
+The bundles land in `.build/wasm/<mode>/`. Publishing all four takes about 3 minutes warm (and on CI), over 10 minutes cold; the test run takes under a minute.
 
 - **Re-publish after any `Source/` edit.** Each bundle carries its own `linq2db.dll`, so `dotnet test` after a source change runs the old library, and the #6167 / #6168 gates still read "failing as expected".
 - **`-Mode` publishes a subset and deletes the other modes' bundles**, which the host then reports missing: filter the run to the published modes.
