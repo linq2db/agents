@@ -112,6 +112,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a Firebird `ConvertDefaultValue` override to add `+00:00`. `PreferClientCalculationTests.OffsetDefaultIsReadIndependentlyOfFirebirdSessionTimeZone` pins the behaviour. (#5983 round 4)
 
+## PROV-FIREBIRD: fixing a cancelled token's stray server cancel inside linq2db (#6012)
+
+**Tried:** four in-library fixes for FirebirdClient 10.3.4 sending `fb_cancel_raise` for a cancelled token, which fails the next call on the attachment. That failure leaves a dead transaction in the `FbCommand`, the reused command half-writes a packet, and the next pooled user hangs. The fixes were: (a) a provider switch so `DataConnection` never reuses its `DbCommand`; (b) `ThrowIfCancellationRequested()` before the provider's async execute; (c) evicting the connection from the pool on `OperationCanceledException`; (d) detecting "the token was cancelled when the driver call returned" at each operation boundary, then `DisableCancel()` + `EnableCancel()` and dropping the command.
+
+**Failed because:** (a) removes only the hang — the stray cancel still fails the next call, on this or another pooled user. (b) cannot close a cancel that lands during the call. (c) has no race-free API: `FbConnection.Close` returns a connection to the pool unless `Database.ConnectionBroken`, and `ClearPool` drops idle connections only, so close-then-clear lets another thread take it; also, a token cancelled as a call *succeeds* still sends the cancel, with no OCE. (d) is sound on paper (the server clears a pending raise on disable, `jrd.cpp` R2_5_9:1712, v5.0.0:9767), but linq2db passes tokens to the provider at ~81 sites, so the user judged it too invasive for an unreported issue.
+
+**Don't re-attempt** without a user report or movement on [FirebirdSQL/NETProvider#1281](https://github.com/FirebirdSQL/NETProvider/issues/1281); the chosen response is a user-side workaround posted on #6012. Probe harness: a hung FirebirdClient connection also hangs process exit (the shutdown pool cleanup blocks in `Detach`), so kill the probe by PID rather than relying on its own exit.
+
 ## REMOTE: "Signal/R's default JSON protocol escapes non-ASCII as `\uXXXX`"
 
 **Tried:** a review finding that the Signal/R client's request-size check over-rejects because it measures with a default `JsonHubProtocol`, assumed to write every non-ASCII character as a 6-byte escape, while a client with a relaxed encoder writes UTF-8. Probed with a `LinqToDBSignalRConnection` configured via `AddJsonProtocol(o => o.PayloadSerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping)` sending 10 000 Cyrillic characters under a 32 KB limit.
