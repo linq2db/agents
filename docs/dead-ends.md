@@ -239,3 +239,9 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** (1) misses the real defect. A build-time value the optimizer folds out of the SQL (`true AND p.ID = 2` → `p.ID = 2`) loses its compare, so a mutated array, a `static readonly` holder's field and a fresh placeholder-constant object all replay stale SQL whatever `EqualsToX` does. It also bypasses `NpgsqlPath.Equals` and any `object`-typed collection's own `Equals`. (2) is correct, but in a 509-test census 2,426 of 3,774 registrations were dropped and almost all are already compared by the key (bare scalar constants, `Default`, duplicates of a surviving accessor), so it compiles a needless delegate per cached query.
 
 **Don't re-attempt:** either. Restore a dropped compare unless the key provably covers it (`IsCoveredByCacheKey`, #5843).
+
+**Also tried (#5843 A-2), on which constants a compare takes out of the key (`nonComparable`):** (3) keeping every constant of a restored compare in the key; (4) an `IsCoveredByCacheKey` guard that never skips a constant already in `nonComparable`.
+
+**Failed because:** (3) an array kept in the key is reference-compared, so `FoldedConstantArray*HitsOnEqualArray` / `FoldedConstantArrayLength` miss on an equal fresh array. (4) a Skip/Take literal becomes a parameter and its dropped bare registration is then compared by value, so `Skip(1)` / `Skip(2)` stop sharing a query (14 `TakeSkipTests` reds). Both measured.
+
+**Don't re-attempt:** either. Per compare, take out only the constants the key cannot compare by value (`PrepareComparedAccessor` / `IsComparedByValueInKey`); leave parameter entries as they are.

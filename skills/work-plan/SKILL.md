@@ -195,6 +195,7 @@ One `Agent` call to `plan-critic`, **passing the model explicitly on the dispatc
 ```
 
 - **`criticModel`** — keyed by host tool, because the right answer differs per tool. Three answers, offered as three options: **a specific model**, **`never`**, or **`ask`** (decide per run). For Claude Code the suggested model is `fable`; under another host the choice is the user's. A model id must be **from a different family than the author's** — a same-model critic re-derives the same blind spots.
+  - **The configured model is out of quota mid-run:** re-dispatch the same brief on another model that is not the author's, and record the substitution beside the verdict in `P12`. Don't wait out the quota or skip the round. (#5843 round 5: `fable` hit its limit before reporting; the round re-ran on `sonnet`.)
 - **`criticTiming`** — `before` | `after` | `ask`. Not keyed by tool: it is a workflow preference, not a capability. See below. **Skip this question entirely when the answer to `criticModel` is `never`** — there is no pass to time — and write only `criticModel`.
 
 Ask both in the **same** prompt when both are missing — don't make the user answer two turns for one setup.
