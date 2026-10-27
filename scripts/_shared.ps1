@@ -237,7 +237,8 @@ function ConvertFrom-UnifiedDiffHunks {
             continue
         }
         if ($line.StartsWith('+++ ')) {
-            if ($line -match '^\+\+\+ b/(.+)$') {
+            # git ends the header with a TAB when the path contains a space
+            if ($line -match '^\+\+\+ b/(.+?)\t?$') {
                 $current = $Matches[1]
                 if (-not $hunks.ContainsKey($current)) { $hunks[$current] = @() }
             }
