@@ -554,8 +554,9 @@ function Invoke-Validate {
             if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
 
             $missing = @()
-            $reDerives = [regex]::Match($e.text, '(?i)re-derives:[^\n]*')
-            if (-not ($reDerives.Success -and $reDerives.Value -match '\b(P4|P7|U-\d+|R-\d+)\b')) { $missing += 'a P4/P7 row in its re-derives: line' }
+            # any occurrence counts: prose in the entry may mention the token before the real line (#6162 A-5)
+            $reDerives = [regex]::Matches($e.text, '(?i)re-derives:[^\n]*') | Where-Object { $_.Value -match '\b(P4|P7|U-\d+|R-\d+)\b' }
+            if (-not $reDerives) { $missing += 'a P4/P7 row in its re-derives: line' }
             if ($p12Text -notmatch $idPattern) { $missing += 'a P12 critic round naming it' }
             if ($missing.Count -eq 0) { continue }
 

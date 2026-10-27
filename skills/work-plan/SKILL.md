@@ -300,6 +300,8 @@ Run all three (`-Validate`, `-Gates`, `-Reconcile`) and report — with `-Valida
 
 **Run it again after addressing a review, and before every push once the plan is approved.** Review-response commits are where the branch drifts from its plan unnoticed: they are small, they feel like follow-through rather than design, and nobody re-opens the plan for them. A doc-only edit to a public member's documented contract — an option's XML summary — is an edit-point like any other, and its `P11` entry is checked against `P10`, which usually already lists the exceptions the new prose must not promise away. (#5983: four commits after the plan's last update, among them a `LinqOptions` doc rewrite, went in unreconciled; two review findings were that doc contradicting the branch's own adjudicated limits.)
 
+**After merging master into a planned branch, re-run `P7`'s recorded searches over what the merge brought in.** A file that arrives with the merge was never swept, and the branch's change can falsify it. List `git diff --name-only <pre-merge> <merge>`, re-run each `P7` row's `searched` pattern over those files, and give each hit a `P7` row plus an `E-n` under a new `A-n`, before review. (#6162: `Tests/Tests.Wasm/ProviderMatrix.cs` arrived with #6178 and called the HANA client a Redist assembly, which the branch had made false; the review found it.)
+
 ## Don'ts
 
 - **Do not write product code.** The skill's scope ends at an approved plan.
