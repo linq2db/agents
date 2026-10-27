@@ -223,6 +223,14 @@ Confirmation prompt should spell out the expected cost (startup time / memory) s
 
 `DB2` and `Informix.DB2` go through `IBM.Data.Db2`, which fails on a Windows box with the UTF-8 code page unless `DB2CODEPAGE=1208` is set: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *IBM.Data.Db2 on Windows with the UTF-8 code page*.
 
+**SAP HANA's native client** (`Sap.Data.Hana.Net.v8.0` / `v10.0` packages, measured against 2.30.27 on #6162):
+- **How it finds the native.** It locates `libadonetHDB{,32}` itself, without going through deps.json. The search tries, in order: `<assembly dir>/runtimes/<rid>/native`, then the assembly dir, the current dir and the entry dir (each recursively), then `HDBDOTNETCORE` (Process → User → Machine), then the installed client.
+- **Exact version match on Windows.** The native's FileVersion major.minor.build must equal the managed assembly's, unless `HDBDOTNETCORE_NOVERSION` is set. So the netfx `Sap.Data.Hana.v4.5` keeps its own matching natives.
+- **The installer's machine-wide `HDBDOTNETCORE`.** A HANA client install sets it to its own `dotnetcore` folder. A newer packaged client then finds only mismatched natives unless the process value is overridden.
+- **`HanaDecimal` by default.** `GetValue` and `GetProviderSpecificValue` return `HanaDecimal` for DECIMAL columns, because `return hanadecimal` defaults to true.
+- **Bare select-list parameters are `VARCHAR`.** In raw SQL (`SELECT :p FROM DUMMY`) the server types the parameter as `VARCHAR` whatever its bound type.
+- **One schema per provider in parallel runs.** `SapHana.Native` and `SapHana.Odbc` run in parallel lanes, so in one run they need separate schemas. With a shared one, their `CreateDatabase` destroys each other's data. CI uses `TESTDB` and `TESTDBNATIVE`.
+
 ## Docker lifecycle (for `/test-providers`)
 
 Canonical sequence for `/test-providers` to bring a non-SQLite provider's container up before `/test` runs against it. No other skill or agent is expected to drive this directly. Container scope is `docker start` / `docker stop` / `docker create` / `docker ps` only — never `docker container inspect` or `docker image inspect` (per `agent-rules.md` → *Docker containers: start/stop/create only*).
