@@ -44,6 +44,10 @@ When a task fails through an external tool (a formatter, driver, build step, SDK
 
 **A build that breaks on a toolchain bump: name the upstream change before proposing a fix.** Diff the artifact between the two toolchain versions (for an assembly: its `TargetFramework` attribute and assembly references), then trace that file's packaging history upstream to the PR that changed it and read its stated rationale. The fix is then chosen against the intended new behaviour, not just the symptom. (#5942: RC2 broke `netstandard2.0` F# compiles; the cause was dotnet/fsharp#20555, which packs the `net10.0` FSharp.Core into the SDK.)
 
+## A driver defect nobody reported — post a workaround, don't build an invasive or racy fix
+
+When the root cause is in an external driver and no user has reported the issue, an in-library fix that is invasive or still leaves a race is not offered as the answer. Report it upstream, post a measured user-side workaround on our issue, say we will not implement a fix without a user request, and wait for the upstream fix. Present a partial fix ("removes the hang, not the trigger") only as context for that decision, never as a recommended scope. (#6012: four in-library designs for FirebirdClient's stray cancel were each incomplete, racy or ~81 call sites wide — [`dead-ends.md`](dead-ends.md) → *PROV-FIREBIRD: fixing a cancelled token's stray server cancel*.)
+
 ## A .NET Framework crash only inside a native host — suspect the FPU control word
 
 Delphi and C++Builder start with FP overflow, divide-by-zero and invalid-operation exceptions unmasked. .NET code called from such a host inherits that per-thread state.
