@@ -223,3 +223,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** each assembly binds its UDT types to one client — 1.5.0 to System.Data.SqlClient, 170.x to `Microsoft.SqlServer.Server` (MDS 5+; SDS then fails `InvalidUdtException … no UDT attribute`), 2.5.0 to MDS 4.0 (`CS7069` / `TypeLoadException` against MDS 7). SDS and MDS contexts share the test process, and only one `Microsoft.SqlServer.Types` loads. The official package's native spatial library is also `win-*` only, while the SQL Server 2017+ net8+ suites run on Linux.
 
 **Don't re-attempt:** a single-assembly swap. Un-gating MDS needs SDS dropped from the net8+ matrix or a separate test process per client. (#5730)
+
+## LINQ: fixing query-cache misses on collection constants at `EqualsToVisitor`, or by restoring every dropped compare
+
+**Tried:** for #5843, (1) content equality in `EqualsToVisitor.EqualsToX(ConstantExpression)`; (2) removing the `sqlValues.Contains(value)` filter in `ExpressionCacheManager.BuildQueryCacheCompareInfo` entirely.
+
+**Failed because:** (1) misses the real defect. A build-time value the optimizer folds out of the SQL (`true AND p.ID = 2` → `p.ID = 2`) loses its compare, so a mutated array, a `static readonly` holder's field and a fresh placeholder-constant object all replay stale SQL whatever `EqualsToX` does. It also bypasses `NpgsqlPath.Equals` and any `object`-typed collection's own `Equals`. (2) is correct, but in a 509-test census 2,426 of 3,774 registrations were dropped and almost all are already compared by the key (bare scalar constants, `Default`, duplicates of a surviving accessor), so it compiles a needless delegate per cached query.
+
+**Don't re-attempt:** either. Restore a dropped compare unless the key provably covers it (`IsCoveredByCacheKey`, #5843).
