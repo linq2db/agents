@@ -192,7 +192,11 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - E-30 `Build/Azure/scripts/hana2.sh:HanaDataProviders.json` — add `SapHana.Native` to the NET80/NET90/NET100 `Providers` lists (A-2, D-12)
 - E-31 `Source/LinqToDB.LINQPad/README.md:51-53` — macOS section: SAP HANA native now works through the provisioned package (A-2, D-13). The PR leaves draft only after TO-13's macOS cell is checked (round-4 objection 7).
 - E-32a (A-2, measured 2026-10-26, Windows, net10.0, hana2) — the banner-anchored gates were red on **every** host but Linux ODBC. `DeleteTests.cs:606,651` and `DateTimeFunctionsTests.cs:2676,2707` pinned `[SAP AG][LIBODBCHDB SO][HDBODBC]`, but Windows ODBC says `LIBODBCHDB DLL` and native carries no banner; the server text is identical everywhere. They are re-anchored on `sql syntax error: incorrect syntax near "("` and `TIMESTAMP and PARAMETER are invalid for addition operator`, which is the gates' own stated "type-less, both drivers" intent. `SapHanaTypeTests.cs:164` drops `ErrorTypeName` (native raises `HanaException` with the same text). `IssueTests.cs:1022` already matches native, because its text is native-side.
+- E-32b (A-2, CI round 1, GitHub 40386381883 net8 and 40387388875 net10, 2026-10-26) — `Build/Azure/scripts/hana2.sh` and `DataProviders.json` give SapHana.Native its own schema `TESTDBNATIVE`. With one shared `TESTDB` the two parallel lanes' `CreateDatabase` destroyed each other's data (run 40377212660: ~3.9k failures on both providers); the separate schema follows the SQL Server `.MS` precedent. After the split, net8 had 19 285 cases and 1 failure, so native ran in full. Two remaining native failures:
+  - `Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs:SapHanaProviderSpecificReadMatrix`: the native client returns `HanaDecimal` from both `GetProviderSpecificValue` and `GetValue` (its `return hanadecimal` option defaults to true, already in 2.23.27). The expected type is now per provider, measured locally on Windows native (string `123.45` unchanged).
+  - `Tests/Linq/Linq/QueryGenerationTests.cs:ToSqlQuery_WithParametersDeduplication(SapHana.Native.LinqService, False)`: remote baseline ≠ direct, reproduced locally. Direct emits `:"firstName"` and `:"firstName_1"`; remote emits `:"firstName"` twice. Cause: `RemoteDataContextBase.QueryRunner.cs:81` renders with `NoopQueryParametersNormalizer`, while direct uses the provider's `UniqueParametersNormalizer` (`DataProviderBase.cs:505`), and HANA native is order-dependent, so the reused parameter is duplicated. This is the Access OleDb entry already tracked in #5169, so HANA native joins that test's existing `DisableBaseline`.
 - E-32 `Tests/**` native gates and fixes (A-2, D-12). Known now by inspection (round 4), each to be measured on Windows native before the first CI round: `Tests/Linq/Update/DeleteTests.cs:606,651` and `Tests/Linq/Linq/DateTimeFunctionsTests.cs:2676,2707` (`AllSapHana` gates pinning the ODBC banner `[SAP AG][LIBODBCHDB SO][HDBODBC]`), `Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:164` (unscoped `OdbcException`), `Tests/Linq/Linq/IssueTests.cs:1022` (ODBC-side text). Then whatever the first Linux native CI run demands: one gate or fix per measured failure, each confirmed by a local Windows native run that fixes `Platforms` (Linux-only vs Any) and the message form (`testing.md:81`), and added here by name as triage lands. Budget: two CI rounds, then stop and ask.
+- E-33 `NuGet/SapHana/CopyMe.SapHana.tt.txt:10` — the starter template notes that the native provider needs the SAP HANA client installed (A-3, review finding 8)
 - E-28 `Source/LinqToDB.LINQPad/README.md:20` — SAP HANA native no longer needs an installed client on LINQPad 8+; keep the qualifiers that stay true (LINQPad 5 native, and ODBC, still need the installed client or driver) (A-1, D-11)
 
 ## P7 Impact map
@@ -273,8 +277,17 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - G-06: pass — the diff touches only E-1…E-20 lines (`-Action reconcile`: unplanned []).
 - G-07: pass — no Playground scratch; the only Playground change is E-3 csproj structure.
 - G-09: — (pending) `/code-review` or `/review-pr` before the PR leaves draft
-- G-11: blocked — awaits the post-A-2 GitHub runs (A-2). The `h_SAPHANA2` leg is green with SapHana.Native included and its native case count present (TO-14): net10 on the PR run, net8/net9 on a `workflow_dispatch` `full_run`. There is no Azure HANA leg on PR runs. Its duration is recorded against the GitHub HANA job of run 40353552174 (ODBC-only) and the 180-min PR cap (`tests.yml:514`).
-- G-10: blocked — awaits the post-A-1 CI run (A-1). A measurement, not a colour. The margin on `build_x86_job` is time (`build-job.yml:314-319`), so on Azure it is `azp-job-durations.ps1` on the post-A-1 branch run versus the pre-A-1 run 24753, comparing `build_x86_job`'s finish against `build_job` + `create_baselines_branch`. GitHub's `build_x86` runs only on a surface that selects an Access leg (`tests.yml:385,393`), so the gate also needs a green GitHub run on such a surface. Record both run ids.
+- G-11: pass (2026-10-27, head `b8f85e430`) — TO-14 is green.
+  - GitHub `workflow_dispatch` full run [40401830136] (`[saphana.all]`, `full_run`), `h_SAPHANA2` main suite, 0 failed throughout: net8.0 19 285 cases (19 020 passed, 265 skipped); net9.0 19 329 (19 064 / 265); net10.0 19 365 (19 100 / 265).
+  - PR run [40401874022]: net10.0 19 365 cases, 0 failed, and `h_SAPHANA2` green inside its 180-min cap.
+  - Native and ODBC case mentions are comparable (1 437 vs 1 425 gated/skipped lines), so the native config took.
+  - Two rounds were used. Round 1 found the shared-schema collision and two test expectations (E-32b), all fixed.
+- G-11 (original wording): blocked — awaits the post-A-2 GitHub runs (A-2). The `h_SAPHANA2` leg is green with SapHana.Native included and its native case count present (TO-14): net10 on the PR run, net8/net9 on a `workflow_dispatch` `full_run`. There is no Azure HANA leg on PR runs. Its duration is recorded against the GitHub HANA job of run 40353552174 (ODBC-only) and the 180-min PR cap (`tests.yml:514`).
+- G-10: pass (2026-10-27).
+  - Azure (`azp-job-durations.ps1`, 24753 → 24771): `Build (win-x86)` 15.1 → 14.9 min, still ending about 3 min before `Build` (18.6 → 17.9 min); `Create Test Baselines Branch` ends at +18.9 min.
+  - GitHub: `Build test artifacts (win-x86)` green in PR runs 40387388875 and 40401874022, both of which carry Access legs.
+  - Azure 24771 and 24776 both succeeded (14/14 jobs).
+- G-10 (original wording): blocked — awaits the post-A-1 CI run (A-1). A measurement, not a colour. The margin on `build_x86_job` is time (`build-job.yml:314-319`), so on Azure it is `azp-job-durations.ps1` on the post-A-1 branch run versus the pre-A-1 run 24753, comparing `build_x86_job`'s finish against `build_job` + `create_baselines_branch`. GitHub's `build_x86` runs only on a surface that selects an Access leg (`tests.yml:385,393`), so the gate also needs a green GitHub run on such a surface. Record both run ids.
 
 ## P10 Adjudicated
 
@@ -295,6 +308,15 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - A-2 (2026-10-26, user: the package ships macOS/Linux natives, so LINQPad 7+ (the `!NETFRAMEWORK` driver) should offer native HANA on macOS, and a Linux CI leg must run the native provider; user picked "same leg"). Adds E-29…E-32, D-12, D-13, TO-14, G-11, and a macOS cell in TO-13.
   re-derives: P3 (the CI HANA leg is no longer ODBC-only), P4 (U-7), P7 (CI rows `test-matrix.yml:282-294` / `hana2.sh`, the Linux-run row), P8 (TO-13), P10 (the "net10 client tested only locally" entry — native now runs on Linux CI)
   conventions: as A-1; E-32 gates follow `testing.md` → *Gating an assertion failure* and *A narrowed provider set is a claim*
+- A-3 (2026-10-27, `/code-review` walk, user dispositions). Nine leads: 1, 3, 6 and 7 dropped (adjudicated by U-18/U-22/D-2/D-6/U-11); 2, 4, 5, 8 and 9 fixed.
+  - Finding 2: HANA package references and the v10.0 `PackageVersion` use `IsTargetFrameworkCompatible` so future TFMs inherit them (E-1/E-2/E-3).
+  - Finding 4: `PointToPackageNatives` uses `RuntimeInformation.RuntimeIdentifier` instead of a hand-built RID; that is SAP's own first candidate.
+  - Finding 5: the handler matches on `FullName` and unsubscribes after the first match (E-26).
+  - Finding 8: the starter template notes the client requirement (new E-33).
+  - Finding 9: the PR body's false claim about `LinqToDBT4SapHanaClientPath` is corrected (PR text, not a repo file).
+  - Also from the baselines review: the native `ToSqlQuery_WithParametersDeduplication` exemption is narrowed to `!inlineParameters` (`b0c9c6eb5`).
+  - No critic re-dispatch: the delta is review fixes inside existing edit-points plus one template comment line (E-33), with no new design.
+  re-derives: P6 (E-1, E-2, E-3, E-26, E-33)
 
 ## P12 Critic verdict
 
