@@ -32,10 +32,18 @@ Input (-ManifestFile <path>; JSON):
         "file":      "Source/.../YdbMemberTranslator.cs",  // required; relative to worktree
         "from":      "exact text",                    // required; must occur exactly once in the file
         "to":        "replacement text",              // required
-        "expectRed": ["Round33"]                      // optional; test-name prefixes that must fail
+        "expectRed": ["Round33"],                     // optional; test-name prefixes that must fail
+        "prepare": {                                  // optional; a step the test run depends on, run after the
+          "script": "Tests/Tests.Wasm/publish-wasm-bundles.ps1", // mutation is applied (e.g. republishing an artifact
+          "args":   ["-Mode", "Debug"]                // the tests load) and again after the file is restored, so
+        }                                             // the artifact never stays built from the mutant
       }
     ]
   }
+
+A failed `prepare` on the mutant reports `prepareFailed` (and no red); a failed `prepare` after the
+restore sets `restored: false`, because the artifact on disk may still hold the mutant. `prepare`
+runs `pwsh -NoProfile -File <script> <args...>`, so a list-valued argument arrives as one string.
 
 Use "\r\n" in `from` / `to` for multi-line anchors in CRLF files.
 
@@ -95,6 +103,20 @@ foreach ($mu in $mutations) {
     if ($text.IndexOf([string]$mu.from, $first + 1, [System.StringComparison]::Ordinal) -ge 0) {
         Exit-WithError "mutation '$($mu.name)': 'from' occurs more than once in $($mu.file)" -NextAction 'extend the anchor with surrounding text until it is unique'
     }
+    if ($mu.prepare -and -not (Test-Path -LiteralPath (Join-Path $wt ([string]$mu.prepare.script)))) {
+        Exit-WithError "mutation '$($mu.name)': prepare script not found: $($mu.prepare.script)"
+    }
+}
+
+function Invoke-Prepare($mu, [string]$phase) {
+    if (-not $mu.prepare) { return $true }
+
+    $script = Join-Path $wt ([string]$mu.prepare.script)
+    $plog   = Join-Path $logDir "mutation-$($mu.name)-prepare-$phase.log"
+    $pargs  = @(@($mu.prepare.args) | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
+
+    & pwsh -NoProfile -File $script @pargs *> $plog
+    return ($LASTEXITCODE -eq 0)
 }
 
 function Invoke-Run([string]$name) {
@@ -141,7 +163,14 @@ foreach ($mu in $mutations) {
 
     try {
         [System.IO.File]::WriteAllText($path, $text.Replace([string]$mu.from, [string]$mu.to), [System.Text.UTF8Encoding]::new($bom))
-        $r = Invoke-Run $mu.name
+
+        if (Invoke-Prepare $mu 'mutated') {
+            $r = Invoke-Run $mu.name
+        }
+        else {
+            $r = [ordered]@{ name = $mu.name; prepareFailed = $true; buildFailed = $true; failedTests = @()
+                             logPath = (Join-Path $logDir "mutation-$($mu.name)-prepare-mutated.log") }
+        }
     }
     finally {
         [System.IO.File]::WriteAllBytes($path, $bytes)
@@ -149,6 +178,8 @@ foreach ($mu in $mutations) {
 
     $after = [System.IO.File]::ReadAllBytes($path)
     if (-not [System.Linq.Enumerable]::SequenceEqual([byte[]]$bytes, [byte[]]$after)) { $restored = $false; $ok = $false }
+
+    if (-not (Invoke-Prepare $mu 'restored')) { $restored = $false; $ok = $false }
 
     $r['mutated'] = $true
     if ($mu.expectRed) {
