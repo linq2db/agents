@@ -160,7 +160,11 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - **failure mode of the choice:** unmeasured. No Mac is available, so TO-13's macOS cell is waived and the README marks macOS native HANA untested (A-4).
 
 ### D-14 (A-5) — No SAP HANA in a Windows ARM64 LINQPad process
-- **chosen (user):** `SapHanaProvider.IsPlatformSupported` is false when the process runs on Windows with `ProcessArchitecture == Arm64`. The connection dialogs then hide the database and `DatabaseProviders` provisions no client for it. An x64 LINQPad under emulation on ARM reports `X64` and keeps SAP HANA. README's SAP HANA line says so.
+- **chosen (user):** `SapHanaProvider.IsPlatformSupported` is false when the process runs on Windows with `ProcessArchitecture == Arm64`. The connection dialogs then hide the database for new connections, and `GetAllNuGetPackages` (`DatabaseProviders.cs:90`) skips it. A saved SAP HANA connection is still listed (`DynamicConnectionModel.cs:17`, `StaticConnectionModel.cs:179`). It still provisions the package through the direct `GetNuGetPackages` calls (`DriverHelper.cs:366,369,377`) and then fails at connect time, the same as Access on macOS. The `AssemblyLoad` handler then finds no `win-arm64` folder and sets nothing. README's SAP HANA line says the database is not available there.
+  - reasoned, unprobed: an x64 LINQPad under emulation on ARM reports `ProcessArchitecture == X64`, and so keeps SAP HANA.
+  - reasoned, unprobed: an ARM64 process cannot load the x64 SAP ODBC driver. The only evidence that no ARM64 ODBC driver exists is the download page.
+  - reasoned, unprobed: on the net472 `.lpx` (LINQPad 5), `Platform.IsWindows` is constant `true`, and its process is presumably x86/x64, so the gate is likely inert there.
+  - Only a manual run on an ARM64 Windows host can prove the gate. None is available, and no test covers `IsPlatformSupported`.
   - measured 2026-10-28 (SAP download page): the SAP HANA Client 2.0 downloads, both the install package and the components (.NET Core, ODBC, ADO.NET), list only "Windows x64" for Windows.
   - measured (restored package): `Sap.Data.Hana.Net.v8.0` 2.30.27 ships no `runtimes/win-arm64`.
   - Neither the native nor the ODBC provider can load a client in an ARM64 process.
@@ -311,7 +315,7 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - **The LINQPad driver still does not provision the HANA package** through `GetNuGetPackages`. Now that `Sap.Data.Hana.Net.v8.0` exists on nuget.org it could; proposed as a follow-up issue.
 - **Two `[ActiveIssue]` gates fail on SapHana.Native, and that predates this change.** `Tests/Linq/DataProvider/SapHanaTests.cs:243` (`TestBinaryParameterSelect`) and `:658` (`CalculationViewLinqQuery`) are scoped to `AllSapHana` but declare `ErrorTypeName = "System.Data.Odbc.OdbcException"`, because they were measured on CI, which runs ODBC only. On native they meet `LinqToDBConvertException` (Base-64 `FormatException`) and `Sap.Data.Hana.HanaException` (`invalid table name`). Measured identical on master c82e21c35 with the 2.23.27 Redist client, so the package swap does not cause them. Proposed as a follow-up: split each gate per provider.
 - **About 65 MB more natives per net8/9/10 test output and CI artifact is accepted** (D-8, user answer U-14).
-- **SAP HANA is not offered in a Windows ARM64 LINQPad process** (D-14, user, A-5). SAP ships no Windows ARM64 client, which was measured on SAP's download page and in the package's `runtimes/`. An x64 LINQPad under emulation keeps it.
+- **SAP HANA is not offered in a Windows ARM64 LINQPad process** (D-14, user, A-5). SAP ships no Windows ARM64 client, which was measured on SAP's download page and in the package's `runtimes/`. An x64 LINQPad under emulation keeps it. The gate is unproven: the emulation and ODBC claims in D-14 are reasoned and unprobed, and only a manual ARM64 host run can prove it.
 - **The netfx natives stay checked in** (D-3, measured U-2). Removing `Redist/SapHana` entirely needs a nuget source for the netfx client, and none exists.
 
 ## P11 Amendments
@@ -414,3 +418,14 @@ What the critic searched:
 - The merge's conflicted files and the notices numbering.
 
 Strongest point: A-3's `RuntimeInformation.RuntimeIdentifier` matches SAP's own first candidate, measured by decompile.
+
+**Round 6 (A-5, D-14 only) — `weak`** (plan-critic, model `sonnet`, because `fable` was still at its usage limit. Sonnet is not the author's model). It was dispatched fresh with the plan and f9c41202f. Objections, and what changed:
+
+1. **D-14 said `DatabaseProviders` provisions no client.** That covers only `GetAllNuGetPackages`. A saved connection still provisions the package through `DriverHelper.cs:366,369,377` and fails at connect time. D-14 is reworded. README `:20` stays: "not available" is true of a saved connection too.
+2. **The handler stays subscribed on an unsupported host.** It is benign, because no `win-arm64` folder exists and so nothing is set. D-14 now states the interaction.
+3. **Three host claims were stated as fact**: emulation reports `X64`, ODBC is x64-only, and the `.lpx` evaluates the gate. Each is now marked `reasoned, unprobed` in D-14, and P10 names a manual ARM64 run as the only proof.
+4. **No test covers `IsPlatformSupported`.** Accepted, because neither input can be faked. P10 says the gate is unproven.
+
+What the critic searched: `IsPlatformSupported` (4 consumers, no sibling missed); `GetNuGetPackages|GetAllNuGetPackages`; `ARM64|Arm64|emulat` over `Source/LinqToDB.LINQPad`. It also read `SapHanaProvider.cs`, `Platform.cs` and `DatabaseProviders.cs:60-140`.
+
+Strongest point: the revised D-11 and D-14 are consistent. The gate follows the Access / SqlCe precedent, including keep-if-configured.
