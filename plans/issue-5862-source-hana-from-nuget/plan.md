@@ -196,6 +196,7 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
   - `Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs:SapHanaProviderSpecificReadMatrix`: the native client returns `HanaDecimal` from both `GetProviderSpecificValue` and `GetValue` (its `return hanadecimal` option defaults to true, already in 2.23.27). The expected type is now per provider, measured locally on Windows native (string `123.45` unchanged).
   - `Tests/Linq/Linq/QueryGenerationTests.cs:ToSqlQuery_WithParametersDeduplication(SapHana.Native.LinqService, False)`: remote baseline ≠ direct, reproduced locally. Direct emits `:"firstName"` and `:"firstName_1"`; remote emits `:"firstName"` twice. Cause: `RemoteDataContextBase.QueryRunner.cs:81` renders with `NoopQueryParametersNormalizer`, while direct uses the provider's `UniqueParametersNormalizer` (`DataProviderBase.cs:505`), and HANA native is order-dependent, so the reused parameter is duplicated. This is the Access OleDb entry already tracked in #5169, so HANA native joins that test's existing `DisableBaseline`.
 - E-32 `Tests/**` native gates and fixes (A-2, D-12). Known now by inspection (round 4), each to be measured on Windows native before the first CI round: `Tests/Linq/Update/DeleteTests.cs:606,651` and `Tests/Linq/Linq/DateTimeFunctionsTests.cs:2676,2707` (`AllSapHana` gates pinning the ODBC banner `[SAP AG][LIBODBCHDB SO][HDBODBC]`), `Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:164` (unscoped `OdbcException`), `Tests/Linq/Linq/IssueTests.cs:1022` (ODBC-side text). Then whatever the first Linux native CI run demands: one gate or fix per measured failure, each confirmed by a local Windows native run that fixes `Platforms` (Linux-only vs Any) and the message form (`testing.md:81`), and added here by name as triage lands. Budget: two CI rounds, then stop and ask.
+- E-33 `NuGet/SapHana/CopyMe.SapHana.tt.txt:10` — the starter template notes that the native provider needs the SAP HANA client installed (A-3, review finding 8)
 - E-28 `Source/LinqToDB.LINQPad/README.md:20` — SAP HANA native no longer needs an installed client on LINQPad 8+; keep the qualifiers that stay true (LINQPad 5 native, and ODBC, still need the installed client or driver) (A-1, D-11)
 
 ## P7 Impact map
@@ -307,6 +308,15 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - A-2 (2026-10-26, user: the package ships macOS/Linux natives, so LINQPad 7+ (the `!NETFRAMEWORK` driver) should offer native HANA on macOS, and a Linux CI leg must run the native provider; user picked "same leg"). Adds E-29…E-32, D-12, D-13, TO-14, G-11, and a macOS cell in TO-13.
   re-derives: P3 (the CI HANA leg is no longer ODBC-only), P4 (U-7), P7 (CI rows `test-matrix.yml:282-294` / `hana2.sh`, the Linux-run row), P8 (TO-13), P10 (the "net10 client tested only locally" entry — native now runs on Linux CI)
   conventions: as A-1; E-32 gates follow `testing.md` → *Gating an assertion failure* and *A narrowed provider set is a claim*
+- A-3 (2026-10-27, `/code-review` walk, user dispositions). Nine leads: 1, 3, 6 and 7 dropped (adjudicated by U-18/U-22/D-2/D-6/U-11); 2, 4, 5, 8 and 9 fixed.
+  - Finding 2: HANA package references and the v10.0 `PackageVersion` use `IsTargetFrameworkCompatible` so future TFMs inherit them (E-1/E-2/E-3).
+  - Finding 4: `PointToPackageNatives` uses `RuntimeInformation.RuntimeIdentifier` instead of a hand-built RID; that is SAP's own first candidate.
+  - Finding 5: the handler matches on `FullName` and unsubscribes after the first match (E-26).
+  - Finding 8: the starter template notes the client requirement (new E-33).
+  - Finding 9: the PR body's false claim about `LinqToDBT4SapHanaClientPath` is corrected (PR text, not a repo file).
+  - Also from the baselines review: the native `ToSqlQuery_WithParametersDeduplication` exemption is narrowed to `!inlineParameters` (`b0c9c6eb5`).
+  - No critic re-dispatch: the delta is review fixes inside existing edit-points plus one template comment line (E-33), with no new design.
+  re-derives: P6 (E-1, E-2, E-3, E-26, E-33)
 
 ## P12 Critic verdict
 
