@@ -136,7 +136,7 @@ Every row carries exactly one verdict: `covered by E-n` | `deferred: <reason>` |
 One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
 
 - `red→green` — fails against the unfixed code **for the right reason**, then passes. Proven by running it, never by reading it.
-- `control` — for an added guard: the same input accepted under the lenient path, rejected under the enforced one.
+- `control` — for an added guard: the same input accepted under the lenient path, rejected under the enforced one. Each arm is a committed test that passes: the rejecting arm asserts the rejection (the throw, the file written). An arm whose expected outcome is "the test fails" can only be a scratch mutation, so it discharges nothing; see `G-01` under *P9* (#6061 MIN001).
 - `characterization` — behaviour-preserving; say plainly that it proves no new behaviour.
 
 Where an `E-n` touches a helper reachable from more than one path, one obligation must be a **symmetry guard on the unchanged path**.
