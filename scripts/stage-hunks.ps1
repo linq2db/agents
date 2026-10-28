@@ -60,6 +60,13 @@ in the index content; the start marker must not occur there yet. The index versi
 git's own eol / attribute conversion, so a CRLF working tree over an LF index needs no handling. (#5943 A-11:
 a test file whose two new methods went to two commits and whose remaining edits went to a third.)
 
+`-Add '<start>|||<end>|||<anchor>'` splits the two roles when the text after the span exists only in the
+working tree - the span is interleaved with a later commit's additions, so nothing that follows it is in the
+index yet. The span runs from `<start>` up to, not including, `<end>` (both in the working tree, `<end>`
+after `<start>`), and is inserted before `<anchor>` in the index content. (#6181: the earlier commit's test
+block sat between two later-commit blocks; it was staged by hand with `hash-object` / `update-index` before
+this form existed.)
+
 **Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
 the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
 naming a hunk that does not exist. See `script-authoring.md`.
@@ -120,18 +127,22 @@ if ($AddFile -or $Add) {
 
     foreach ($span in $Add) {
         $markers = $span -split '\|\|\|'
-        if ($markers.Count -ne 2) { throw "malformed -Add '$span' - expected '<start>|||<anchor>'" }
+        if ($markers.Count -notin 2, 3) { throw "malformed -Add '$span' - expected '<start>|||<anchor>' or '<start>|||<end>|||<anchor>'" }
 
-        $s = $work.IndexOf($markers[0], [System.StringComparison]::Ordinal)
-        if ($s -lt 0) { throw "start marker not found in the working tree's ${AddFile}: $($markers[0])" }
-        if ($work.IndexOf($markers[0], $s + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "start marker not unique in the working tree's ${AddFile}: $($markers[0])" }
-        $e = $work.IndexOf($markers[1], $s, [System.StringComparison]::Ordinal)
-        if ($e -lt 0) { throw "anchor not found after the start marker in the working tree's ${AddFile}: $($markers[1])" }
+        $start  = $markers[0]
+        $end    = $markers[1]
+        $anchor = $markers[$markers.Count - 1]
 
-        if ($text.IndexOf($markers[0], [System.StringComparison]::Ordinal) -ge 0) { throw "start marker already in the index content of ${AddFile}: $($markers[0])" }
-        $i = $text.IndexOf($markers[1], [System.StringComparison]::Ordinal)
-        if ($i -lt 0) { throw "anchor not found in the index content of ${AddFile}: $($markers[1])" }
-        if ($text.IndexOf($markers[1], $i + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "anchor not unique in the index content of ${AddFile}: $($markers[1])" }
+        $s = $work.IndexOf($start, [System.StringComparison]::Ordinal)
+        if ($s -lt 0) { throw "start marker not found in the working tree's ${AddFile}: $start" }
+        if ($work.IndexOf($start, $s + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "start marker not unique in the working tree's ${AddFile}: $start" }
+        $e = $work.IndexOf($end, $s, [System.StringComparison]::Ordinal)
+        if ($e -lt 0) { throw "end marker not found after the start marker in the working tree's ${AddFile}: $end" }
+
+        if ($text.IndexOf($start, [System.StringComparison]::Ordinal) -ge 0) { throw "start marker already in the index content of ${AddFile}: $start" }
+        $i = $text.IndexOf($anchor, [System.StringComparison]::Ordinal)
+        if ($i -lt 0) { throw "anchor not found in the index content of ${AddFile}: $anchor" }
+        if ($text.IndexOf($anchor, $i + 1, [System.StringComparison]::Ordinal) -ge 0) { throw "anchor not unique in the index content of ${AddFile}: $anchor" }
 
         $text = $text.Insert($i, $work.Substring($s, $e - $s))
     }

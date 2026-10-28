@@ -132,7 +132,7 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - **chosen:** on the `!NETFRAMEWORK` driver, `GetNuGetPackages(SapHanaNative)` returns `Sap.Data.Hana.Net.v8.0` at the version of `Directory.Packages.props` (a new `NuGetPackageVersions.Sap_Data_Hana_Net_v8_0` constant).
   - Its `lib/net8.0` runs on LINQPad 8 and 9 hosts, and the driver's TFM expands only the net8-compatible `PackageVersion` entry (`LinqToDB.LINQPad.csproj:170-176`).
   - The native provider stops supporting a provider path: `IsProviderPathSupported`, `GetProviderAssemblyNames`, `TryGetDefaultPath` and `RegisterProviderFactory` fall back to the base defaults.
-  - One idempotent helper sets the **Process-scope** `HDBDOTNETCORE` to the package's `runtimes/<rid>/native`. It derives that from the `Sap.Data.Hana.Net.v8.0` assembly's location (`<asm dir>/../../runtimes/<rid>/native`; RID from OS + `ProcessArchitecture`). It sets the variable **unconditionally** whenever that folder exists, overriding any inherited value (round-2 critic, U-21), and does nothing only when the folder is missing.
+  - One idempotent helper sets the **Process-scope** `HDBDOTNETCORE` to the package's `runtimes/<rid>/native`. It derives that from the `Sap.Data.Hana.Net.v8.0` assembly's location (`<asm dir>/../../runtimes/<rid>/native`; RID = `RuntimeInformation.RuntimeIdentifier` since A-3). It sets the variable **unconditionally** whenever that folder exists, overriding any inherited value (round-2 critic, U-21), and does nothing only when the folder is missing. A-5 (critic round 5): the handler unsubscribes only after it has set the variable. `AssemblyLoad` and `GetAssemblies()` cover every load context in the process, so a copy without package natives must not end the subscription before the provisioned copy loads in another context. Examples of such a copy: an installed client's dll that a static context references by HintPath, or a byte-loaded copy. A-3 had unsubscribed on the first `FullName` match. LINQPad's load-context layout is unprobed.
   - The trigger is an `AppDomain.CurrentDomain.AssemblyLoad` handler, subscribed once when `SapHanaProvider` is constructed. Construction happens at driver init, in the driver process, through the static `DatabaseProviders` registry. The handler fires when `Sap.Data.Hana.Net.v8.0` loads; the subscription also checks the already-loaded set, in case the assembly was loaded first.
     - Why this trigger: SAP's native search runs in `static HanaConnection()` (→ `HanaUnmanagedDll.Instance`), and a failed type initialiser is sticky for the process. `AssemblyLoad` fires before any type in the assembly initialises, so it covers every path that loads the client: dynamic `GetDataProvider`, `GetProviderFactory` → `HanaFactory.CreateConnection`, `ClearAllPools`, and a **static context's** own first query (`StaticLinqToDBDriver.cs:115-118`).
     - Round 3: the round-2 three-call-site list covered dynamic paths only. `class:` every path that loads the client into the process.
@@ -156,8 +156,20 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
   - The leg's test phase roughly doubles. Its duration is recorded in G-11.
 
 ### D-13 (A-2) — macOS for the LINQPad 8+ driver
-- **chosen:** no platform gate exists for SAP HANA (`IsPlatformSupported` defaults to `true`). The native provider was unusable on macOS only because it needed a Windows-shaped client path. With D-11's package and `HDBDOTNETCORE` handler, macOS works when the handler maps `osx-x64` / `osx-arm64` and the `.dylib` name. The handler derives the RID from `RuntimeInformation` OS plus `ProcessArchitecture` for `win`, `linux` and `osx`. README's macOS section says so.
+- **chosen:** no platform gate exists for SAP HANA (`IsPlatformSupported` defaults to `true`). The native provider was unusable on macOS only because it needed a Windows-shaped client path. With D-11's package and `HDBDOTNETCORE` handler, macOS should work: the handler takes the folder name from `RuntimeInformation.RuntimeIdentifier` (A-3; SAP's own first candidate), and the package ships `osx-x64` / `osx-arm64` natives, which SAP's loader picks by file name itself. README's macOS section marks it untested (A-4).
 - **failure mode of the choice:** unmeasured. No Mac is available, so TO-13's macOS cell is waived and the README marks macOS native HANA untested (A-4).
+
+### D-14 (A-5) — No SAP HANA in a Windows ARM64 LINQPad process
+- **chosen (user):** `SapHanaProvider.IsPlatformSupported` is false when the process runs on Windows with `ProcessArchitecture == Arm64`. The connection dialogs then hide the database for new connections, and `GetAllNuGetPackages` (`DatabaseProviders.cs:90`) skips it. A saved SAP HANA connection is still listed (`DynamicConnectionModel.cs:17`, `StaticConnectionModel.cs:179`). It still provisions the package through the direct `GetNuGetPackages` calls (`DriverHelper.cs:366,369,377`) and then fails at connect time, the same as Access on macOS. The `AssemblyLoad` handler then finds no `win-arm64` folder and sets nothing. README's SAP HANA line says the database is not available there.
+  - reasoned, unprobed: an x64 LINQPad under emulation on ARM reports `ProcessArchitecture == X64`, and so keeps SAP HANA.
+  - reasoned, unprobed: an ARM64 process cannot load the x64 SAP ODBC driver. The only evidence that no ARM64 ODBC driver exists is the download page.
+  - reasoned, unprobed: on the net472 `.lpx` (LINQPad 5), `Platform.IsWindows` is constant `true`, and its process is presumably x86/x64, so the gate is likely inert there.
+  - Only a manual run on an ARM64 Windows host can prove the gate. None is available, and no test covers `IsPlatformSupported`.
+  - measured 2026-10-28 (SAP download page): the SAP HANA Client 2.0 downloads, both the install package and the components (.NET Core, ODBC, ADO.NET), list only "Windows x64" for Windows.
+  - measured (restored package): `Sap.Data.Hana.Net.v8.0` 2.30.27 ships no `runtimes/win-arm64`.
+  - Neither the native nor the ODBC provider can load a client in an ARM64 process.
+- **rejected:** hide only the native provider. The ODBC driver is x64-only too, and `ProviderInfo.IsHidden` exists for retired provider names, not for platform gating.
+- **failure mode of the choice:** a future SAP Windows ARM64 client would stay hidden until this gate is lifted. The LINQPad 5 `.lpx` (net472) reads the same check.
 
 ## P6 Edit-points
 
@@ -197,6 +209,8 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
   - `Tests/Linq/Linq/QueryGenerationTests.cs:ToSqlQuery_WithParametersDeduplication(SapHana.Native.LinqService, False)`: remote baseline ≠ direct, reproduced locally. Direct emits `:"firstName"` and `:"firstName_1"`; remote emits `:"firstName"` twice. Cause: `RemoteDataContextBase.QueryRunner.cs:81` renders with `NoopQueryParametersNormalizer`, while direct uses the provider's `UniqueParametersNormalizer` (`DataProviderBase.cs:505`), and HANA native is order-dependent, so the reused parameter is duplicated. This is the Access OleDb entry already tracked in #5169, so HANA native joins that test's existing `DisableBaseline`.
 - E-32 `Tests/**` native gates and fixes (A-2, D-12). Known now by inspection (round 4), each to be measured on Windows native before the first CI round: `Tests/Linq/Update/DeleteTests.cs:606,651` and `Tests/Linq/Linq/DateTimeFunctionsTests.cs:2676,2707` (`AllSapHana` gates pinning the ODBC banner `[SAP AG][LIBODBCHDB SO][HDBODBC]`), `Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:164` (unscoped `OdbcException`), `Tests/Linq/Linq/IssueTests.cs:1022` (ODBC-side text). Then whatever the first Linux native CI run demands: one gate or fix per measured failure, each confirmed by a local Windows native run that fixes `Platforms` (Linux-only vs Any) and the message form (`testing.md:81`), and added here by name as triage lands. Budget: two CI rounds, then stop and ask.
 - E-33 `NuGet/SapHana/CopyMe.SapHana.tt.txt:10` — the starter template notes that the native provider needs the SAP HANA client installed (A-3, review finding 8)
+- E-34 `Tests/Tests.Wasm/ProviderMatrix.cs:163` — the `SapHana.Native` row's `UnavailableReason` says the client comes from SAP's NuGet packages, not `Redist` (A-5; the file arrived with the master merge of #6178). E-7 and E-8 also qualify the v10.0 entry as "(.NET 10+)" in the not-found error and in the `--provider-location` help, following the code's `NET10_0_OR_GREATER` gate (A-5, review MIN001, wording per critic round 5).
+- E-35 `Source/LinqToDB.LINQPad/DatabaseProviders/SapHanaProvider.cs` — `IsPlatformSupported` is false for a Windows ARM64 process (D-14), and `PointToPackageNatives` returns true only after it sets `HDBDOTNETCORE` (D-11 as of A-5). `Source/LinqToDB.LINQPad/README.md:20` notes the ARM64 gap (A-5).
 - E-28 `Source/LinqToDB.LINQPad/README.md:20` — SAP HANA native no longer needs an installed client on LINQPad 8+; keep the qualifiers that stay true (LINQPad 5 native, and ODBC, still need the installed client or driver) (A-1, D-11)
 
 ## P7 Impact map
@@ -224,6 +238,9 @@ Issue [#5862](https://github.com/linq2db/linq2db/issues/5862), base `origin/mast
 - `.github/workflows/build.yml:134-140`, `Build/Azure/pipelines/templates/build-job.yml:259-273` (notices `check` + `verify` on every PR) — searched `third-party-notices` — out-of-scope: unchanged gate that proves E-11…E-16 (TO-6)
 - `nuget.config:3-11` (`packageSourceMapping` `*`), `Directory.Packages.props:3-4` (CPM on, transitive pinning off) — searched `packageSourceMapping|ManagePackageVersionsCentrally|TransitivePinning` — covered by E-1 (no config change)
 - `linq2db.docs` repo `source/articles/cli-help.txt:69` (carries the E-8 help text verbatim) and its T4 articles, plus the GitHub wiki (structurally unreachable from this branch) — searched `Sap\.Data\.Hana` in the sibling `linq2db.docs` clone (critic) — deferred: the docs repo is updated by the release docs PR (`/release-postpublish`); release notes are drafted per PR by `/release-notes`, not here
+- `Tests/Tests.Wasm/ProviderMatrix.cs:163` (the WASM matrix's `SapHana.Native` `UnavailableReason` naming `Redist`; `:90` `NotOnNet` is Informix/Oracle only) — searched `(?i)redist|hana` over `Tests/Tests.Wasm` on the merged head 5ab7af3b9 — covered by E-34 (A-5)
+- `Source/LinqToDB.CLI/**` v10.0 mentions (`ScaffoldCommand.Execute.cs:173,290`, `ScaffoldCommand.Options.cs:125`, `McpInfoTool.cs:48`) — searched `Sap\.Data\.Hana\.Net\.v10\.0|provider-location` over `Source/LinqToDB.CLI` — covered by E-7, E-8, E-9; after A-5 every user-facing mention qualifies v10.0 as .NET 10 only. `SKILL.md` names no HANA assembly.
+- `Source/LinqToDB.LINQPad/**` macOS prose (`README.md:3,51-62`, `UI/Notification.cs:19,39`, `DB2Provider.cs:50`) — searched `(?i)macos|osx` over `Source/LinqToDB.LINQPad` — covered by E-31 (A-4: only `README.md:53` names SAP HANA; the rest are unrelated)
 - `.claude/docs/review-rubric/rubric-packaging.md:12`, `.claude/knowledge-base/areas/T4-TEMPLATES/INDEX.md:134`, `areas/PROV-SAPHANA/INDEX.md:61` (corpus or KB prose naming the bundled SAP client or the v8.0 list) — searched `(?i)hana` over `.claude/` — deferred: a corpus commit for the rubric line after merge; the KB refreshes through `/kb-refresh`
 
 ## P8 Test obligations
@@ -276,7 +293,7 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - G-05: pass — `Source/LinqToDB` Release `-f netstandard2.0`, `-f net462` and `-f net10.0`; `Source/LinqToDB.CLI` Release (all TFMs); `Tests/Linq` Release `-f net10.0` (analyzers on the test edit); `Tests.Playground` Debug net8.0. All exit 0.
 - G-06: pass — the diff touches only E-1…E-20 lines (`-Action reconcile`: unplanned []).
 - G-07: pass — no Playground scratch; the only Playground change is E-3 csproj structure.
-- G-09: — (pending) `/code-review` or `/review-pr` before the PR leaves draft
+- G-09: pass — `/code-review` on 35af4f3e5 (A-3), then `/review-pr` on 5ab7af3b9 (A-5). Three passes covered code correctness, packaging / native loading / cross-TFM, and API and tests. They returned MIN001 and NIT001, both fixed on the branch, plus one D-11 wording observation. Baselines pass skipped by the user: 4,520 files added under `SapHana.Native/`, 0 modified, 0 deleted.
 - G-11: pass (2026-10-27, head `b8f85e430`) — TO-14 is green.
   - GitHub `workflow_dispatch` full run [40401830136] (`[saphana.all]`, `full_run`), `h_SAPHANA2` main suite, 0 failed throughout: net8.0 19 285 cases (19 020 passed, 265 skipped); net9.0 19 329 (19 064 / 265); net10.0 19 365 (19 100 / 265).
   - PR run [40401874022]: net10.0 19 365 cases, 0 failed, and `h_SAPHANA2` green inside its 180-min cap.
@@ -298,6 +315,7 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
 - **The LINQPad driver still does not provision the HANA package** through `GetNuGetPackages`. Now that `Sap.Data.Hana.Net.v8.0` exists on nuget.org it could; proposed as a follow-up issue.
 - **Two `[ActiveIssue]` gates fail on SapHana.Native, and that predates this change.** `Tests/Linq/DataProvider/SapHanaTests.cs:243` (`TestBinaryParameterSelect`) and `:658` (`CalculationViewLinqQuery`) are scoped to `AllSapHana` but declare `ErrorTypeName = "System.Data.Odbc.OdbcException"`, because they were measured on CI, which runs ODBC only. On native they meet `LinqToDBConvertException` (Base-64 `FormatException`) and `Sap.Data.Hana.HanaException` (`invalid table name`). Measured identical on master c82e21c35 with the 2.23.27 Redist client, so the package swap does not cause them. Proposed as a follow-up: split each gate per provider.
 - **About 65 MB more natives per net8/9/10 test output and CI artifact is accepted** (D-8, user answer U-14).
+- **SAP HANA is not offered in a Windows ARM64 LINQPad process** (D-14, user, A-5). SAP ships no Windows ARM64 client, which was measured on SAP's download page and in the package's `runtimes/`. An x64 LINQPad under emulation keeps it. The gate is unproven: the emulation and ODBC claims in D-14 are reasoned and unprobed, and only a manual ARM64 host run can prove it.
 - **The netfx natives stay checked in** (D-3, measured U-2). Removing `Redist/SapHana` entirely needs a nuget source for the netfx client, and none exists.
 
 ## P11 Amendments
@@ -316,9 +334,18 @@ E-n → TO-n map: E-1, E-2, E-3, E-4 → TO-1, TO-3, TO-4, TO-8. E-21, E-22, E-2
   - Finding 9: the PR body's false claim about `LinqToDBT4SapHanaClientPath` is corrected (PR text, not a repo file).
   - Also from the baselines review: the native `ToSqlQuery_WithParametersDeduplication` exemption is narrowed to `!inlineParameters` (`b0c9c6eb5`).
   - No critic re-dispatch: the delta is review fixes inside existing edit-points plus one template comment line (E-33), with no new design.
-  re-derives: P6 (E-1, E-2, E-3, E-26, E-33)
+  re-derives: P6 (E-1, E-2, E-3, E-26, E-33), P7 (the `nuget.config` / `Directory.Packages.props` CPM row for the `IsTargetFrameworkCompatible` conditions, the LINQPad row for the handler, the `LinqToDBT4SapHanaClientPath` / T4 template rows for E-33; re-walked in A-5, critic round 5)
 - A-4 (2026-10-27, user: no Mac is available; "mark untested"). TO-13's macOS cell is waived, and E-31's README sentence now says SAP HANA native on macOS is untested instead of claiming it works. D-13's design is unchanged and stays unmeasured. The PR can leave draft after TO-13's dynamic and static cells pass. No critic re-dispatch: it is a prose downgrade of an unproven claim, with no new design.
-  re-derives: P5 (D-13 failure mode), P6 (E-31), P8 (TO-13)
+  re-derives: P5 (D-13 failure mode), P6 (E-31), P7 (the `Source/LinqToDB.LINQPad/**` macOS-prose row, added in A-5), P8 (TO-13)
+- A-5 (2026-10-28, `/review-pr` walk on 5ab7af3b9, the master merge of #6163 / #6178 / #6161 / #6171; user dispositions). Three passes, two findings and one observation, all handled on the branch.
+  - MIN001: the CLI not-found error and the `--provider-location` help offered `Sap.Data.Hana.Net.v10.0.dll` on the net8/net9 builds, which neither probe nor load it. Both now say ".NET 10 only", matching `McpInfoTool.cs:48` (inside E-7/E-8).
+  - NIT001: `Tests/Tests.Wasm/ProviderMatrix.cs:163`, which arrived with #6178, still called the native client a `Redist` assembly. New E-34 rewords it.
+  - Observation: `PointToPackageNatives` unsubscribed on a name match even when it set nothing. The walk chose a D-11 rewording. Critic round 5 then showed the safety argument was per load context, while the handler is process-wide. The user chose to change the code: the handler now unsubscribes only after it sets the variable (E-35).
+  - Critic round 5, Windows ARM64 lead: the user decided not to offer SAP HANA there. SAP ships no Windows ARM64 client, which was measured. New D-14 / E-35 add the gate, and README `:20` notes it.
+  - Critic round 5, plan text: D-11's RID text and D-13's macOS text went stale after A-3 / A-4. Both are now re-derived. E-34's string no longer claims only Tests/Linq references the packages, because Tests.Playground does too.
+  - The same amendment completes the A-3 and A-4 re-derivation lines. Critic round 5 covers A-3…A-5 together; D-14 itself was added in response to round 5 and has not been attacked.
+  re-derives: P5 (D-11, D-13 text, new D-14), P6 (E-7, E-8, E-34, E-35), P7 (new `Tests/Tests.Wasm` row, including the E-5 → `WasmRuntimeTests.cs:127` interaction; new `Source/LinqToDB.CLI/**` v10.0-mention row), P10 (Windows ARM64)
+  conventions: embedded `testing.md` → *Test layout*, *A narrowed provider set is a claim*. `test-diff-sweep.ps1 -IncludeWorkingTree` on the worktree found 0 chains, 0 nested chains and 1 narrowed set: `SapHanaTests.cs:814` `[IncludeDataSources(ProviderName.SapHanaNative)]` on `ClientProviderNameResolvesToNativeProvider`, which is native by design because it asserts the native mapping (E-20). E-34 changes one string. Its row also asserts `error.ShouldContain(row.UnavailableAssembly)` (`WasmRuntimeTests.cs:127`), and E-5 changes that value on net10 from `Sap.Data.Hana.Net.v8.0`, as #6178 was written, to `v10.0`. measured: the GitHub `WASM runtime tests` leg passed on 5ab7af3b9 (run 40597691679), which already carries E-5, so the interaction holds. E-34's string itself is not asserted.
 
 ## P12 Critic verdict
 
@@ -373,3 +400,32 @@ Its strongest-point note: U-21 and TO-12 line up with the decompiled search orde
 The two leads are recorded as well. The lane-concurrency lead is a P10 capacity rule. The macOS lead (cwd `/` recursive search) is added to TO-13's macOS cell.
 
 The A-1 rounds' cap applied per amendment. A-2 had one round, `weak`, so it is carried forward visibly without re-dispatch.
+
+**Round 5 (A-3, A-4, A-5 delta) — `weak`** (plan-critic, model `opus`, by user choice after fable hit its usage limit). `opus` is also the author's model, so this round is not an independent channel. It was dispatched fresh with the plan, the commits 35af4f3e5 / 651ab4ce7 and the A-5 working-tree diff. Objections, and what changed:
+
+1. **D-11's A-5 safety argument was scoped to one load context, while the handler is process-wide.** A copy without natives could end the subscription before the provisioned copy loads. Code changed: the handler unsubscribes only after it sets the variable (E-35). D-11 is rewritten.
+2. **D-11 and D-13 text went stale after A-3, and A-4's README contradicted D-13 "macOS works".** Both are re-derived against the code and the README.
+3. **Lead: Windows ARM64 has no native client.** Measured on SAP's download page (Windows x64 only, ODBC included) and in the package (no `win-arm64`). User decision: new D-14 / E-35 hide SAP HANA in a Windows ARM64 LINQPad process, README `:20` says so, and a P10 entry records it. D-14 has not been attacked.
+4. **E-34's string was inaccurate, because Tests.Playground also references the packages, and the E-5 → `WasmRuntimeTests.cs:127` interaction was unrecorded.** The string is reworded and the interaction recorded. The `WASM runtime tests` leg on 5ab7af3b9 or later is its run.
+5. **MIN001's ".NET 10 only" pins one TFM and rests on an unprobed load failure.** Reworded to "(.NET 10+)", which follows the code's `NET10_0_OR_GREATER` probe gate.
+
+What the critic searched:
+- `git show` of 35af4f3e5 / 651ab4ce7 and the A-5 diff.
+- `AssemblyLoadContext|LoadFrom|LoadFile|AssemblyResolve` over the LINQPad driver; no HANA `LoadFrom` is left.
+- `Sap\.Data\.Hana\.Net\.v10` across the worktree; the CLI sweep is complete.
+- `UnavailableReason|UnavailableAssembly` over `Tests/Tests.Wasm`.
+- `IsTargetFrameworkCompatible` over props/csproj; A-3 Finding 2 holds.
+- The merge's conflicted files and the notices numbering.
+
+Strongest point: A-3's `RuntimeInformation.RuntimeIdentifier` matches SAP's own first candidate, measured by decompile.
+
+**Round 6 (A-5, D-14 only) — `weak`** (plan-critic, model `sonnet`, because `fable` was still at its usage limit. Sonnet is not the author's model). It was dispatched fresh with the plan and f9c41202f. Objections, and what changed:
+
+1. **D-14 said `DatabaseProviders` provisions no client.** That covers only `GetAllNuGetPackages`. A saved connection still provisions the package through `DriverHelper.cs:366,369,377` and fails at connect time. D-14 is reworded. README `:20` stays: "not available" is true of a saved connection too.
+2. **The handler stays subscribed on an unsupported host.** It is benign, because no `win-arm64` folder exists and so nothing is set. D-14 now states the interaction.
+3. **Three host claims were stated as fact**: emulation reports `X64`, ODBC is x64-only, and the `.lpx` evaluates the gate. Each is now marked `reasoned, unprobed` in D-14, and P10 names a manual ARM64 run as the only proof.
+4. **No test covers `IsPlatformSupported`.** Accepted, because neither input can be faked. P10 says the gate is unproven.
+
+What the critic searched: `IsPlatformSupported` (4 consumers, no sibling missed); `GetNuGetPackages|GetAllNuGetPackages`; `ARM64|Arm64|emulat` over `Source/LinqToDB.LINQPad`. It also read `SapHanaProvider.cs`, `Platform.cs` and `DatabaseProviders.cs:60-140`.
+
+Strongest point: the revised D-11 and D-14 are consistent. The gate follows the Access / SqlCe precedent, including keep-if-configured.

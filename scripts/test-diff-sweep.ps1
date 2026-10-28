@@ -118,7 +118,7 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*)')   { $file = $Matches[1]; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
 	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); continue }
 	if ($l.StartsWith('-'))            { continue }

@@ -554,8 +554,9 @@ function Invoke-Validate {
             if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
 
             $missing = @()
-            $reDerives = [regex]::Match($e.text, '(?i)re-derives:[^\n]*')
-            if (-not ($reDerives.Success -and $reDerives.Value -match '\b(P4|P7|U-\d+|R-\d+)\b')) { $missing += 'a P4/P7 row in its re-derives: line' }
+            # any occurrence counts: prose in the entry may mention the token before the real line (#6162 A-5)
+            $reDerives = [regex]::Matches($e.text, '(?i)re-derives:[^\n]*') | Where-Object { $_.Value -match '\b(P4|P7|U-\d+|R-\d+)\b' }
+            if (-not $reDerives) { $missing += 'a P4/P7 row in its re-derives: line' }
             if ($p12Text -notmatch $idPattern) { $missing += 'a P12 critic round naming it' }
             if ($missing.Count -eq 0) { continue }
 
@@ -576,6 +577,17 @@ function Invoke-Validate {
             $msg = "P11 : $($e.id) adds test edit-points but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+        }
+
+        # An amendment answering a review finding fixes the instance it was shown unless it enumerates the class
+        # (plan-critic.md vector 8). #6178 round 3: A-6 moved the route into the contract file and updated one of
+        # the two comments describing that file. Warn from 2026-10-28; older entries predate the rule.
+        foreach ($e in $entries) {
+            if ($e.text -notmatch '(?i)/review-pr|/verify-review|/code-review|review round') { continue }
+            if ($e.text -match '(?im)^\s*class:') { continue }
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if (-not ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-28')) { continue }
+            $warnings += "P11 : $($e.id) answers a review finding but has no class: line -- name the search that enumerates every sibling and close or carry each"
         }
     }
 
@@ -875,7 +887,10 @@ function Invoke-GapReport {
         }
         elseif ($rest -match '(GAP-\d+)') {
             $cls = $Matches[1]
-            if ($rest -match '(G-\d+)')                              { $gate        = $Matches[1] }
+            # The gate is the segment just before `preventable:`, which may carry a note (`G-02 (never ran)`); a G-nn
+            # cited in the reasoning is not it (#6178: rows with gate `—` reported G-01).
+            if ($rest -match '\s[-—]+\s+\(?(G-\d+[a-z]*)(?:(?!\s[-—]+\s).)*\s[-—]+\s+preventable:') { $gate = $Matches[1] }
+            elseif ($rest -match '\bGate:\s*(G-\d+[a-z]*)')                                    { $gate = $Matches[1] }
             if ($rest -match 'preventable:\s*(yes|partly|no)')       { $preventable = $Matches[1] }
 
             # The spec keeps the gate and verdict on the row line, but a row that moved them into an indented
