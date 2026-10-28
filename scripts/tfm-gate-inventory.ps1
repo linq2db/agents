@@ -66,7 +66,7 @@ if ($Base) {
 
     $file = $null; $lineNo = 0
     foreach ($l in $diff) {
-        if ($l -match '^\+\+\+ b/(.+)$')                 { $file = $Matches[1]; continue }
+        if ($l -match '^\+\+\+ b/(.+?)\t?$')             { $file = $Matches[1]; continue }
         if ($l -match '^@@ -\S+ \+(\d+)')                { $lineNo = [int]$Matches[1]; continue }
         if ($l.StartsWith('+') -and -not $l.StartsWith('+++')) {
             $text = $l.Substring(1)

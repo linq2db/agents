@@ -104,6 +104,10 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
+# `pwsh -File … -Pipeline a,b` binds one string 'a,b'. Posted as one `/azp run a,b`, Azure starts both
+# but tests-comment.yml reads only the first token and skips the GitHub legs (#6161).
+$Pipeline = @($Pipeline | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
 # Returns the checks currently on the PR as { name, url }. Empty on any gh failure: the caller treats that
 # as "not seen yet" and keeps polling, so a transient gh hiccup does not read as a failed trigger.
 function Get-Checks {

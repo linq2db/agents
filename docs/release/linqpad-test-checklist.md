@@ -167,6 +167,18 @@ Same as above plus:
 - [ ] Nuget installs from the local test feed (recorded path in [`external-repos.md`](./external-repos.md)).
 - [ ] Schema browser does not throw for any enabled provider.
 
+## Static-context test assembly
+
+A static-context check needs a context assembly. Build a scratch one under `.build/.agents/<name>/`:
+
+- **Isolate it from the repo build.** Add an empty `Directory.Build.props` (`<Project />`), a `Directory.Packages.props` with `ManagePackageVersionsCentrally=false`, and a `nuget.config` that clears the sources and lists the local feed plus nuget.org.
+- **Reference the driver build under test.** A `net8.0` library with `<PackageReference Include="linq2db" Version="<ver>-local.<N>" />`.
+- **The context class must not be `sealed`.** LINQPad compiles each query as a `UserQuery` that derives from it; a sealed context fails every query with `CS0509`. Use a `DataConnection` subclass with a parameterless constructor that sets the provider and connection string, plus one `ITable<T>` property.
+- **Keep the database client out of the output.** If the scratch output holds no client assembly, a working query proves the driver provisioned the client itself.
+- In the connection dialog, set **Database** to the provider's database so only its clients are provisioned; leave the configuration name empty.
+
+(2026-10-27, #6162 TO-13: the first build was `sealed` and failed with `CS0509`.)
+
 ## Targeted-change rows
 
 Filled in per release when changes touch the LINQPad driver, scaffold library, or provider surface.

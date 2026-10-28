@@ -25,6 +25,7 @@ When adding `PostgreSQL.<nn>`, grep-and-extend every site below. The general cat
 | Test DB create-script SKIP markers | `Data/Create Scripts/<Provider>.sql` (see the dedicated section below) | runtime `CreateDatabase(<new version>)` failure — duplicate columns or two statements in one command (`Dynamic SQL Error` / `Token unknown`) |
 | CLI T4 scaffold templates | `Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata,T4}.tt` → each `RunCliTool("<Provider>", "<Provider>.<prev>", …)` entry | new version never scaffolded by the CLI matrix |
 | Azure CI docs tables | `Build/Azure/README.md` → provider support matrix row + `TestProvName` table row | docs omit the new version |
+| WASM runtime provider matrix | `Tests/Tests.Wasm/ProviderMatrix.cs` → `Rows` (a SqlServer version needs two rows: `SqlServer.20xx` and `SqlServer.20xx.MS`) — see [`adding-provider.md`](adding-provider.md) → *The WASM runtime matrix* | `ProviderNamesAreCovered` red, but only in the GitHub `WASM runtime tests` job, which is not a required check; a missing `.MS` row is not caught at all |
 
 There may be more for other providers (SQL builder feature flags gated on specific version names, mapping-schema type registrations, etc.). Treat the table as a starting point, not an exhaustive list.
 

@@ -40,6 +40,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** either form. Keep the hint only when `TrackingPath` is not a `MemberExpression` and the `SqlColumn` chain does not end at a `SqlField` (`AliasHint`), and measure any change here with `baselines-capture-compare.ps1 -AllCaptured` over the set-operation suites — the drift lands outside the PR's baselines delta. (#6091, `01c5dc3de`)
 
+## EXPR-TRANS: matching a multi-column null test when merging a `(T?)null` set-operation branch
+
+**Tried:** extending `MergeProjectionHelper.ReadsNullColumnsAsNull` (#6159) from a single `column != null` test to an `AndAlso` chain, for the null test Access builds over a `DefaultIfEmpty()` entity with no non-nullable column (`IsAccessBuggyLeftJoinConstantNullability` makes every column a not-null condition, `DefaultIfEmptyBuilder.cs:33-38`). It was a review proposal, refuted by a probe before anyone coded it.
+
+**Failed because:** that test never reaches the merge as a `BinaryExpression`. It is projected as one boolean column (`[g].[ParentID] IS NOT NULL AND [g].[ChildID] IS NOT NULL AND [g].[GrandChildID] IS NOT NULL as [G_1]`), so the merge falls through to `TryMergeViaDifferencePredicate`. The object branch selects `False` where the null branch selects `NULL`. On Access.Ace.OleDb and Access.Ace.Odbc with `GrandChild`, Union gives 32 rows where 29 are correct, Intersect 0 where 3 are, and `objects.Except(nulls)` 25 where 22 are. The results are identical on master `12bc7fe14` and on #6159 `e22c849f6`.
+
+**Don't re-attempt:** widening the conditional pattern. This is the boolean-column class of #6183, so fix it with that issue's presence-marker column. Probe on Access, not SQLite: SQLite takes the single `not_null` path and passes.
+
 ## SQL-PROVIDER: an IN-list value keeping its own type beside any computed column value
 
 **Tried:** widening `BasicSqlBuilder.GetInListValueType` so a captured IN-list value keeps its own type beside any computed operand (MIN/MAX, COALESCE, value window functions, a CASE) that reaches a column without a value converter, not only a coarse date/time one. The aim was `[1.004m].Contains(MAX(Decimal64(18,2)))` writing `1.004` rather than `1.00` on ClickHouse.
@@ -239,3 +247,9 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** (1) misses the real defect. A build-time value the optimizer folds out of the SQL (`true AND p.ID = 2` → `p.ID = 2`) loses its compare, so a mutated array, a `static readonly` holder's field and a fresh placeholder-constant object all replay stale SQL whatever `EqualsToX` does. It also bypasses `NpgsqlPath.Equals` and any `object`-typed collection's own `Equals`. (2) is correct, but in a 509-test census 2,426 of 3,774 registrations were dropped and almost all are already compared by the key (bare scalar constants, `Default`, duplicates of a surviving accessor), so it compiles a needless delegate per cached query.
 
 **Don't re-attempt:** either. Restore a dropped compare unless the key provably covers it (`IsCoveredByCacheKey`, #5843).
+
+**Also tried (#5843 A-2), on which constants a compare takes out of the key (`nonComparable`):** (3) keeping every constant of a restored compare in the key; (4) an `IsCoveredByCacheKey` guard that never skips a constant already in `nonComparable`.
+
+**Failed because:** (3) an array kept in the key is reference-compared, so `FoldedConstantArray*HitsOnEqualArray` / `FoldedConstantArrayLength` miss on an equal fresh array. (4) a Skip/Take literal becomes a parameter and its dropped bare registration is then compared by value, so `Skip(1)` / `Skip(2)` stop sharing a query (14 `TakeSkipTests` reds). Both measured.
+
+**Don't re-attempt:** either. Per compare, take out only the constants the key cannot compare by value (`PrepareComparedAccessor` / `IsComparedByValueInKey`); leave parameter entries as they are.

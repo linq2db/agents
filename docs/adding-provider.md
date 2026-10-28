@@ -72,6 +72,47 @@ it, and the leg goes red on every release run rather than occasionally. A job co
 TFM-scoped section is deviating from what every other job does — comment it, or a later edit will
 quietly normalize it away.
 
+## The WASM runtime matrix lists every provider name and client library
+
+`Tests/Tests.Wasm/ProviderMatrix.cs` holds one `MatrixRow` per remote configuration the WASM client is
+run against, plus an `Aliases` table for names that resolve only through detection. Adding or removing
+a `ProviderName` constant, a provider version, or a client library changes it **in the same PR** — the
+same holds for a version anchor ([`adding-provider-version.md`](adding-provider-version.md)).
+
+- **Adding:** one row per configuration — `Configuration` (the name the client sends; no `/`, #6176),
+  `ProviderName`, and an explicit factory (`<X>Tools.GetDataProvider(version, provider)`, never
+  detection). A client library that shares its sibling's `ProviderName` gets its own row with a distinct
+  configuration: the SqlServer rows are `SqlServer.20xx` (System.Data.SqlClient) and `SqlServer.20xx.MS`,
+  and `MatrixRowsConstructTheirProvider` reads the client from that suffix. A family name, or a version
+  without a client library, goes to `Aliases` with its reason instead.
+- **The three flags.** Set them from the source, then let a run correct them — each is checked in both
+  directions:
+  - `Merge` — `Throws` when the provider's SQL builder refuses MERGE client-side
+    (`doesn't support SQL MERGE statement`: Access, ClickHouse, MySql/MariaDB, SQLite, SqlCe, YDB),
+    otherwise `Generates`.
+  - `LoadsProviderAssembly` — `true` when the client-side mapping schema or optimizer loads the driver
+    assembly (#6167); measured, not guessed.
+  - `UnavailableOn` + `UnavailableAssembly` + `UnavailableReason` — the runner OSes where the
+    *server-side* provider cannot construct (a Redist / net462-only or unreferenced driver), and the
+    assembly it misses, taken from the provider adapter's assembly-name constant. `UnavailableOnRunner`
+    requires that failure to be `Cannot load assembly` *and* to name that assembly;
+    `ProviderNamesAreCovered` requires the field on every unavailable row.
+- **Removing:** delete the row and any alias. A removed constant or enum value is a compile error in
+  `ProviderMatrix.cs`.
+
+What no guard catches, so the author and reviewer check it by reading: a client-library variant with no
+`ProviderName` constant of its own (`ProviderNamesAreCovered` checks constants only — a new SqlServer
+version with its `.MS` row missing stays green); a concrete name parked in `Aliases`; the `Merge` flag of
+a row gated on #6167 (its init fails first); the version or dialect an unavailable row's factory asks for
+(two rows missing the same assembly, `Oracle.11.Native` and `Oracle.Native`, fail identically); and
+`UnavailableOn` for an OS no run covers — CI runs
+ubuntu only, a local run covers Windows, macOS nothing.
+
+The one gate is the GitHub `WASM runtime tests` job. It is not a required check, and `Tests.Wasm` is
+excluded from the Azure / Release / Testing solution builds (`linq2db.slnx`), so a missing row, or a
+compile break from a removed constant, leaves every required check green. Look at that job before
+merging, or run it locally: [`testing.md`](testing.md) → *The WASM runtime tests*.
+
 ## A new provider owes a type-coverage fixture
 
 `Tests/Linq/DataProvider/Types/` holds one `<Provider>TypeTests : TypeTestsBase` per provider, and
