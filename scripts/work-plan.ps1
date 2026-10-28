@@ -880,11 +880,17 @@ function Invoke-GapReport {
                        -NextAction 'run review-gap-attributor after a review and write its output there'
     }
 
-    $lines = @([System.IO.File]::ReadAllLines($gapsPath))
-    $rows  = @()
+    $lines    = @([System.IO.File]::ReadAllLines($gapsPath))
+    $rows     = @()
+    $unparsed = @()
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $t = $lines[$i].Trim()
-        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\([^)]*\))?\s*[-—]+\s*(.+)$') { continue }
+        # The label may hold one level of nested parentheses (`DisableBaseline(disable: false)`); a row the pattern
+        # still misses is reported, not dropped (#6061: two such rows vanished from the aggregate without a word).
+        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\((?:[^()]|\([^()]*\))*\))?\s*[-—]+\s*(.+)$') {
+            if ($lines[$i] -match '^-\s+\*\*[A-Za-z0-9-]+\*\*') { $unparsed += $t }
+            continue
+        }
         $id   = $Matches[1]
         $rest = $Matches[2]
 
@@ -965,6 +971,7 @@ function Invoke-GapReport {
         calibrationSignal  = $signal
         counts             = @($counts)
         rows               = @($rows)
+        unparsedRows       = @($unparsed)
     })
 }
 
