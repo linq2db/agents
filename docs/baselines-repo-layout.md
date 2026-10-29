@@ -89,6 +89,16 @@ scope or TFM, and an instrumented CI probe on the PR's own head showed the trace
 content came from legs a macOS-drop / TFM-trim commit had removed from the matrix; the next `test-all`
 regenerated the delta from 47 net-positive files to zero.)
 
+### A block's `-- <Config> <Dialect>` header names who traced it, not the folder
+
+Each statement block in a baseline starts with `-- <ConfigurationString> <dialect>`, written by the
+`DataConnection` that executed it. A test or setup step that builds its own `DataConnection` (a
+`CreateDataConnection(DbConnection)`, a `.Data` script run) writes its own header, and that header can name a
+different provider than the file's folder. Read it as the evidence for which provider emitted a line. A header
+that disagrees with the folder means the line came from a different provider's builder and `SetParameter`, not
+the context under test. (#6198: `SQLite.MS/…CreateDatabase(SQLite.MS).sql` line 440 reads
+`-- SQLite.Classic SQLite`, so the detector had picked Classic for an MDS connection: #6204.)
+
 ### A "modified" cluster your PR can't explain — diff against the *pre-collision* baselines-master state
 
 A branch's baselines are recreated on top of whatever baselines master holds at run time, so any *other* PR whose baselines merged in the interim shifts the comparison point. Your branch then shows that PR's files as "modified" — not because it changed them, but because it faithfully reproduced the values master used to have. The cluster looks alarming and unattributable: large, spread across tests the PR never touches, and untouched by any file in the diff.
