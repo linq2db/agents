@@ -144,6 +144,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a close assertion over a caller-owned handler. Hand the handler to the channel (`DisposeHttpClient = true`, one handler per context), as `GrpcDataContextTests.DisposedContextClosesItsConnection` does. (#6020)
 
+## REMOTE: racing two Signal/R calls' cancellations through one `CancellationTokenSource`
+
+**Tried:** one CTS for both the slot holder and a queued call, cancelled once, to race the holder's slot release against the queued call's cancelled limiter wait (`SignalRTransportTests.QueuedCallCancelledAsTheSlotIsReleasedNeverRuns`).
+
+**Failed because:** the order in which the server sees the two cancellations is not fixed. On net462 the holder's arrived first, so the queued call legitimately got the slot before its own cancellation reached the server, and the test failed with the fix in place (68 calls for 50).
+
+**Don't re-attempt:** a shared source. Give each call its own CTS and cancel the queued call's first, then the holder's; that version is red under the mutation on net10.0 and green with the fix on net10.0 and net462. (#6014)
+
 ## BUILD: regenerating `CompatibilitySuppressions.xml` for a field→property change
 
 **Tried:** turning a **shipped** public static field into a property of the same name and type (`Configuration.OptimizeForSequentialAccess`), then regenerating suppressions with `dotnet pack -p:ApiCompatGenerateSuppressionFile=true`, expecting a new suppression for the removed field.
