@@ -471,7 +471,7 @@ function Invoke-Validate {
     # On a planned branch that edited Tests/, G-01 records test-diff-sweep.ps1's counts on the implemented tree
     # (definition-of-done.md). #6061: the sweep first ran after two review rounds, which drew four layout findings.
     # Not keyed on a pass/fail word in G-01: that plan's rows said "green" and "passed".
-    $p6TestRows = if ($null -ne $p6) { @($p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' }) } else { @() }
+    $p6TestRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' } })
     if ($g01Rows.Count -gt 0 -and $p6TestRows.Count -gt 0 -and $g01 -notmatch 'test-diff-sweep') {
         $msg = "P9 : P6 edits Tests/ but G-01 records no test-diff-sweep.ps1 counts on the implemented tree -- run it before the commit and cite its counts"
         if ($Done) { $errors += $msg } else { $warnings += $msg }
