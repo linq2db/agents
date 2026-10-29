@@ -121,6 +121,7 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 - `DECLARE`-line tooling — searched `DECLARE` in `.claude/scripts/`, `Tests/Base/`, `Build/`: `.claude/scripts/baselines-pr-scan.ps1:153` counts `^\s*DECLARE\s` lines (added = removed for an in-place edit) and `:323` treats `DECLARE`/`SET` lines verbatim — out-of-scope
 - MiniProfiler-wrapped commands — `Tests/Linq/Data/MiniProfilerTests.cs:596-609` run SQLite under `ConnectionType` wrappers; `DynamicDataProviderBase.TryGetProviderParameter` (`Source/LinqToDB/Internal/DataProvider/DynamicDataProviderBase.cs:161-164`) type-checks and returns null for a foreign parameter, which falls back to base — covered by E-2
 - ClickHouse MySqlConnector adapter — `ClickHouseProviderAdapter(MySqlProviderAdapter)` `ClickHouseProviderAdapter.cs:103-117` copies members from `MySqlProviderAdapter.GetInstance(MySqlProvider.MySqlConnector)` (`:189`), whose `GetDbType` is public (`MySqlProviderAdapter.cs:95`) — covered by E-3
+- `TypeMapper` wrapper registrations (A-2, D-8) — new `[Wrapper]` types `SqliteParameter` / `SqliteType` (`SQLiteProviderAdapter`), `ClickHouseDbParameter` (ClickHouse.Driver), `ClickHouseParameter` / `ClickHouseDbType` (Octonica); searched `RegisterTypeWrapper` in both adapters: each registered once, names match the driver types (`TypeMapper.cs:47-83`), enum values match the decompiled drivers so `BuildEnumConverters` (`:85-125`) casts by value (critic round 4) — covered by E-1, E-3
 - Remote / direct baseline comparison — `Tests/Base/BaselinesWriter.cs:62-79`; both sides print server-side provider parameters (U-7) — Localized — searched `WriteTraceLine` / `LogQuery` in `Tests/Base`, single source `TestBase.cs:69-74`, no emitted-SQL change.
 - Baselines repo — every P1 file on SQLite / DuckDB / ClickHouse changes `DECLARE` lines only (P3) — deferred: CI baselines PR review (G-02)
 
@@ -157,12 +158,25 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 ## P9 Verification gates
 
 - G-01: pass — red: product changes stashed, `worktree-test.ps1` net10.0 on SQLite.Classic / SQLite.MS / DuckDB (+ `.LinqService`) and the no-database cases: 28 of 42 failed, every red→green row with master's empty type (`DECLARE @p  -- <DbType>`), the 14 characterization / control rows passed. Green after A-1 and the analyzer fixes: 63/63 (new tests + `DataExtensionsTests.TestDataParameterMapping3` + `ParameterTests.Issue1189Test` on SQLite.Classic, SQLite.MS, DuckDB, ClickHouse.Octonica / Driver / MySql against the local `clickhouse` container). TO-6 detailed log: Driver `DECLARE @p Nullable(Nothing) -- Int64`, MySql and Octonica `DECLARE @p Int64`, SQLite `DECLARE @p Integer -- Int64`. TO-5 control: removing the D-5 `catch` turned `ParameterTypeNameSQLiteMSUnmappedValue` red with `InvalidOperationException : No mapping exists from object type System.Object…`; restored, green. D-7 discriminator: before A-1 Octonica printed `Int64(38, 9)` (U-11). `test-diff-sweep.ps1 -IncludeWorkingTree` on the implemented tree: 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above).
-- G-02: blocked — baselines regenerate on CI; the delta (P3, P7 census) is reviewed on the baselines PR.
+  - CI on `cc6dc6151` (2026-10-29): Azure `test-all` 24894 green (all legs), GitHub `tests [all]` run 40886958965 "All legs passed" (net462 leg included), Azure `build` 24893 green (Release, analyzers).
+  - TO-1a/1b/1c/1d/1e/1f/1m: pass — `ParameterTypeNameSQLiteMS(Int32|DateTime|Guid|Boolean|Double|NullInt32|GuidAsText)`.
+  - TO-1n: pass — `ParameterTypeNameSQLiteMSObject`.
+  - TO-1g/1h/1i/1j: pass — `ParameterTypeNameSQLiteClassic(Int32|Boolean|Guid|Double)`.
+  - TO-1o: pass — `ParameterTypeNameSQLiteClassicObject`.
+  - TO-1k/1l/1p: pass — `ParameterTypeNameDuckDB(Int32|Boolean|BigInteger)`.
+  - TO-1q: pass — `ParameterTypeNameDuckDBObject`.
+  - TO-2: pass — `ParameterTypeNameSQLiteMS(String|Binary|Decimal)`, `ParameterTypeNameSQLiteClassic(DateTime|String|Binary|Decimal)`, `ParameterTypeNameDuckDB(String|Binary|Decimal)`.
+  - TO-3: pass — `ParameterTypeNameInTrace` on `TestProvName.AllSQLite` + DuckDB, incl. `.LinqService`.
+  - TO-4a/4b/4c: pass — `ParameterTypeNameClickHouse(Octonica|Driver|MySqlConnector, Value)`.
+  - TO-4d: pass — `ParameterTypeNameClickHouse(Octonica|Driver|MySqlConnector, Null)`.
+  - TO-5: pass — `ParameterTypeNameSQLiteMSUnmappedValue` (control: red with the `catch` removed, see above).
+  - TO-6: pass — `DataExtensionsTests.TestDataParameterMapping3` on ClickHouse.Octonica / Driver / MySql (local server; CI baselines below).
+- G-02: pass — baselines PR linq2db.baselines#2240 (`baselines/pr_6198`, `baselines-pr-scan.ps1` 2026-10-29): 8092 M / 5 A / 0 D, 0 inherited; every one of the 34,043 removed lines is an empty-type `DECLARE` line, no named `DECLARE` line removed, no empty-type line added; the 5 added files are `ParameterTypeNameInTrace`. Remaining empty-type lines on the branch: DuckDB 34 `-- Object` (P3 exception) and 2 SQLite.MS `CreateDatabase` `@uniqueidentifierDataType  -- Guid` — `SQLiteTools.CreateDataConnection(DbConnection)` picks SQLite.Classic for an MDS connection (`SQLiteProviderDetector.cs:93`, block header `-- SQLite.Classic SQLite`), so `TryGetProviderParameter` falls back (P10); detector bug filed as #6204. ClickHouse `TestDataParameterMapping3`: Driver `Nullable(Nothing) -- Int64`, Octonica / MySql `Int64` (TO-6).
 - G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0`: 0 warnings, 0 errors. net462 test compile not built locally (the `#if !NETFRAMEWORK` blocks are the only TFM-specific code; `System.Numerics` qualified inline so no using goes unused) — CI net462 leg verifies.
 - G-06: pass — `git diff --stat`: 7 files, additions only plus the `SQLiteProviderAdapter` constructor signature; no unrelated lines touched.
 - G-07: pass — no `Tests/Tests.Playground/` change (`git status`).
 - G-08: pass — no cross-cutting core file changed (`-Action reconcile`: 7 files, all P6, 0 unplanned); per-provider builder / adapter only, proven by the TO rows above.
-- G-09: blocked — no `/code-review` pass yet; PR #6198 opened as draft (2026-10-29, eb8239cc8) on user request, stays draft until the user's own review. Critic round 3 read the implemented diff, but that is a plan pass, not this gate.
+- G-09: pass — `/code-review` walk 2026-10-29 (1 fixed, 7 dropped, P10) and `/review-pr` 2026-10-29 on `cc6dc6151` (one `focus: all` pass): no code defect; 2 comment findings fixed in `506783fb2`; nothing posted. PR stays draft until the user's own review.
 
 ## P10 Adjudicated (M/L)
 
@@ -187,7 +201,7 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 - A-1 (2026-10-29, green run measured driver-reported facets, U-11) — SQLite.MS keeps the base length suffix (expectations of TO-1b/1c/1m updated); ClickHouse moves from a `GetProviderTypeName` override to a `PrintParameterType` override that prints a client-reported name without facets (D-7); the PublicAPI entry follows. User decision "a". Approval of E-4 / E-7 is void until re-earned.
   re-derives: P2 (SC-1), P3, P4 (U-11), P5 (D-7), P6 (E-4, E-7), P8 (TO-1b, TO-1c, TO-1m, TO-4a), P10
 - A-2 (2026-10-29, user review on #6198: "for adapters we don't use reflection to map members - we use type wrappers") — the SQLite and ClickHouse adapter getters move from `Expression` / `GetProperty` to `TypeMapper` wrappers (D-8). No behaviour change intended; every TO-1 / TO-4 / TO-5 row re-runs as the gate. Approval of E-1 / E-3 is void until re-earned.
-  re-derives: P5 (D-6 → D-8), P6 (E-1, E-3)
+  re-derives: P5 (D-6 → D-8), P6 (E-1, E-3), P7 (`TypeMapper` wrapper registrations row)
   conventions (A-1 and A-2): embedded `testing.md` → *Test layout* (rule 1, one call per line) and *A narrowed provider set is a claim*; swept `git diff origin/master -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree`: first pass 29 one-line `new TestCaseData(…).SetArgDisplayNames(…)` chains + 1 nested `new DataOptions().UseConnectionString` chain, rewritten through a `ParameterTypeCase` helper; second pass 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above: ClickHouse inlines LINQ parameters, `ClickHouseSqlBuilder.cs:36`).
 
 ## P12 Critic verdict (M/L)
