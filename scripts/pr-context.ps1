@@ -56,8 +56,11 @@ Output (stdout, single JSON object): see the review skills' expected shape —
     closingIssues, linkedRefs, linkedIssues, diffStat, nameStatus, commits,
     baseRef, headRef, headSha }
 With -OutFile that object goes to the file, and stdout carries one line:
-  { ok, outFile, bytes, headSha, reviews, reviewComments, reviewThreads,
+  { ok, outFile, bytes, headSha, bodyFile, reviews, reviewComments, reviewThreads,
     issueComments, changedFiles, commits } (the last six are counts).
+-OutFile also writes the PR body as plain text to `bodyFile` (the out-file path
+with `.body.md` for its extension). In the JSON it is one long string line,
+which `Grep` reports as an omitted long line.
 
 `reviewComments[]` carry `node_id` (the GraphQL id a `replyComments[]` entry's
 `inReplyTo` needs) and `in_reply_to_id` (null on a thread's first comment, the
@@ -618,6 +621,12 @@ $issueComments = foreach ($c in $issueCommentsRaw) {
     }
 }
 
+$bodyFile = $null
+if ($outFile) {
+    $bodyFile = [System.IO.Path]::ChangeExtension($outFile, '.body.md')
+    [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($bodyFile), [string]$prMeta.body, [System.Text.UTF8Encoding]::new($false))
+}
+
 Write-JsonOutput ([pscustomobject]@{
     pr = $prMeta
     currentUser = $currentUser
@@ -636,6 +645,7 @@ Write-JsonOutput ([pscustomobject]@{
     headSha = $headSha
 }) -OutFile $outFile -Summary ([ordered]@{
     headSha        = $headSha
+    bodyFile       = $bodyFile
     reviews        = @($reviews).Count
     reviewComments = @($reviewComments).Count
     reviewThreads  = @($reviewThreads).Count
