@@ -136,6 +136,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** an over-rejection finding built on default-encoder escaping. The JSON-vs-MessagePack gap that remains is only `"`, `\` and control characters (2–6 bytes in JSON, 1 in MessagePack) — a narrow window, unprobed because the test projects reference no MessagePack protocol. (#6014)
 
+## REMOTE: observing a gRPC context's disposal by the server-side connection close over a caller-owned `SocketsHttpHandler`
+
+**Tried:** asserting that disposing an address-based `GrpcDataContext` (or a caller's `GrpcChannel`) closes its connection, by counting Kestrel `ConnectionContext.ConnectionClosed` on the test host, with the tests' shared `SocketsHttpHandler` passed as `GrpcChannelOptions.HttpHandler` and `DisposeHttpClient` unset.
+
+**Failed because:** disposing the channel leaves the connection open in the caller's handler pool: 0 of 1 closed within 30 s, on the unmutated code.
+
+**Don't re-attempt:** a close assertion over a caller-owned handler. Hand the handler to the channel (`DisposeHttpClient = true`, one handler per context), as `GrpcDataContextTests.DisposedContextClosesItsConnection` does. (#6020)
+
 ## BUILD: regenerating `CompatibilitySuppressions.xml` for a field→property change
 
 **Tried:** turning a **shipped** public static field into a property of the same name and type (`Configuration.OptimizeForSequentialAccess`), then regenerating suppressions with `dotnet pack -p:ApiCompatGenerateSuppressionFile=true`, expecting a new suppression for the removed field.
