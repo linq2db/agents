@@ -178,10 +178,12 @@ function Get-RefusedBuild([string]$name, [datetime]$since) {
 function Get-DispatchRun([datetime]$since) {
     for ($attempt = 0; $attempt -lt 6; $attempt++) {
         if ($attempt -gt 0) { Start-Sleep -Seconds 5 }
-        $json = gh run list --repo $Repo --workflow tests-comment.yml --limit 10 --json databaseId,createdAt,status,conclusion 2>$null
+        # The azure-pipelines bot's "started" reply is itself an issue_comment and dispatches a run that ends skipped,
+        # but is still queued or in authorize when we look; only a human-triggered run can be ours.
+        $json = gh api "repos/$Repo/actions/workflows/tests-comment.yml/runs?per_page=10" --jq '[.workflow_runs[] | {databaseId: .id, createdAt: .created_at, status, conclusion, actor: .triggering_actor.login}]' 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
         $runs = @(@($json | ConvertFrom-Json) |
-            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' } |
+            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' -and $_.actor -notlike '*`[bot`]' } |
             Sort-Object { [datetime]$_.createdAt })
         # A queued run may still end `skipped`; prefer one that has started.
         $live = @($runs | Where-Object { $_.status -eq 'in_progress' -or $_.status -eq 'completed' })
