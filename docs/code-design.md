@@ -288,6 +288,10 @@ For a per-provider capability use a `SqlProviderFlags` bool (`dc.SqlProviderFlag
 
 Engine code shared across providers must not hard-code provider SQL syntax — parameter prefixes (`@`, `:`, `$`), positional `?`, identifier quoting. Ask the builder (`ConvertInline(name, ConvertType.NameToQueryParameter)` and the other `ConvertType`s) and `SqlProviderFlags` (`IsParameterOrderDependent`); a provider that accepts an alternate syntax overrides a virtual on its builder. (#6003: an unreferenced-argument check matched a fixed `@`/`:`/`?` list; reworked to `BasicSqlBuilder.IsParameterReferenced`, with PostgreSQL adding Npgsql's `@name`.)
 
+### Dialect operator precedence goes through the builder's precedence hook
+
+When a provider ranks an operator differently from `Precedence.cs` (SQLite and Firebird bind `||` above arithmetic), override the precedence the builder reads for that node, `BasicSqlBuilder.GetPrecedence(ISqlExpression)`, which drives both the wrap decision and the operand precedence. Don't copy a base emit loop into a provider `*SqlBuilder` just to change its precedence argument. Per-database precedence is tracked in #5527; this hook is where it lands. The hook is `private static` until #6146 (or a follow-up) makes it `protected virtual`. (#6146: the SQLite `||` fix overrode `BuildSqlConcatExpression`; review redirected it to the hook, which also covers Firebird.)
+
 ### A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test
 
 When a feature needs to know whether a provider supports something, expose it as a `SqlProviderFlags` bool set per-provider **and** add a test that probes the provider's actual runtime behaviour and asserts the flag equals the probe result. An unenforced flag is rejected — maintainer: *"adding flag when it is not enforced on implementation is not a good idea"* — because a bool nothing verifies drifts as providers change, silently. The probing test makes divergence fail loudly.
