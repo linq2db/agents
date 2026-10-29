@@ -172,6 +172,10 @@ The failure shape is what makes this expensive: the direct half of the suite is 
 
 The test-side counterpart is already covered — see [`testing.md`](testing.md) → *`[ThrowsForProvider]` covers the `.LinqService` context, and tolerates the remote wrapper*.
 
+### Provider adapters read driver members through `TypeMapper` wrappers, never reflection
+
+A `*ProviderAdapter` reaches a driver member by declaring a `[Wrapper]` class — plus a `[Wrapper]` enum for a driver enum, members and values copied from the driver — and building the accessor with `typeMapper.Type<W>().Member(p => p.X).BuildGetter<DbParameter>()` / `BuildSetter`. Not a hand-built `Expression.Property` over `Type.GetProperty(name)`, and no other reflection. Precedents: `SqlCeProviderAdapter`, `MySqlProviderAdapter`, `YdbProviderAdapter`. (Maintainer review on #6198.)
+
 ### A TFM gate may withhold a feature, never recognition of unchanged source
 
 The `netstandard2.0` asset is not only a .NET Framework / legacy build. **Modern runtimes load it too**, in two ways:
