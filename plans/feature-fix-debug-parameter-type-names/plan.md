@@ -86,6 +86,13 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 - **why this:** follows the existing `GetDbType` adapter pattern (MySQL `MySqlProviderAdapter.cs:95`, Ydb `YdbProviderAdapter.cs:210`) without enum wrappers.
 - **failure mode of the choice:** a property missing in some driver version throws while building the adapter; mitigated by reading `GetProperty(...)` and leaving the delegate null when absent (all versions in `Directory.Packages.props` have the properties, U-1/U-4/U-5).
 
+### D-8 — Driver members are read through `TypeMapper` wrappers (A-2, supersedes D-6's mechanism)
+
+- **chosen:** `[Wrapper]` parameter classes and wrapper enums, read with `typeMapper.Type<W>().Member(p => p.X).BuildGetter<DbParameter>()`: `SQLiteProviderAdapter.SqliteParameter` + `SqliteType` (Integer 1, Real 2, Text 3, Blob 4 — decompiled 10.0.12), `OctonicaWrappers.ClickHouseParameter` + `ClickHouseDbType` (all 42 members of 4.1.6), `DriverWrappers.ClickHouseDbParameter.QueryForm`; MySqlConnector keeps `MySqlProviderAdapter.GetDbType` (already wrapper-based).
+- **rejected:** D-6's hand-built `Expression.Property` getters over `Type.GetProperty(name)` — user review on #6198: "for adapters we don't use reflection to map members - we use type wrappers"; also the code-review finding that `GetProperty` can throw `AmbiguousMatchException` during adapter construction and that the two getters duplicate each other.
+- **why this:** the repo's adapter convention (`SqlCeProviderAdapter.cs:100-102`, `MySqlProviderAdapter.cs:180-181`, `YdbProviderAdapter.cs:101`); member names are compile-checked against the wrapper and validated by the mapper.
+- **failure mode of the choice:** an enum value the wrapper does not declare is cast by value and prints as a number (`TypeMapper.BuildEnumConverters`, `TypeMapper.cs:85-125`); a driver version without the member fails adapter creation, as every other wrapped member does.
+
 ### D-7 — ClickHouse prints a client-reported name without facets (A-1)
 
 - **chosen:** `ClickHouseSqlBuilder` overrides `PrintParameterType`: when the base names nothing and the client reports a name, print `<name>` plus ` -- <DbType>` when the two differ, and stop; otherwise call the base. The client name is read by a private helper the override uses (no `GetProviderTypeName` override).
@@ -95,9 +102,9 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 
 ## P6 Edit-points
 
-- E-1 `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs:SQLiteProviderAdapter` — add `internal Func<DbParameter, object>? GetSqliteType`, built for Microsoft.Data.Sqlite only.
+- E-1 `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs:SQLiteProviderAdapter` — add `internal Func<DbParameter, SqliteType>? GetSqliteType`, built for Microsoft.Data.Sqlite only through `[Wrapper]` `SqliteParameter` / `SqliteType` (A-2, D-8).
 - E-2 `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteSqlBuilder.cs:GetProviderTypeName` — new override: base, then MS getter (non-null value) or the D-2 `DbType` map, under D-5.
-- E-3 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs:ClickHouseProviderAdapter` — add `internal Func<DbParameter, string?>? GetParameterTypeName`, set in `CreateOctonicaAdapter`, `CreateDriverAdapter` and the MySqlConnector constructor.
+- E-3 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs:ClickHouseProviderAdapter` — add `internal Func<DbParameter, string?>? GetParameterTypeName`, set in `CreateOctonicaAdapter`, `CreateDriverAdapter` and the MySqlConnector constructor; Octonica / ClickHouse.Driver members read through new `OctonicaWrappers.ClickHouseParameter` / `ClickHouseDbType` and `DriverWrappers.ClickHouseDbParameter` wrappers (A-2, D-8).
 - E-4 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:PrintParameterType` — new override (A-1, D-7): when `base.GetProviderTypeName` is `null` and the adapter getter (under D-5) returns a name, print it with no facets; otherwise the base.
 - E-5 `Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs:GetProviderTypeName` — new override: base, then the D-4 map.
 - E-6 `Tests/Linq/Linq/ParameterTests.cs` — TO-1 … TO-5.
@@ -165,12 +172,23 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 - Null values: SQLite.MS falls back to the `DbType` map, ClickHouse.Driver prints `Nullable(Nothing)` (D-2 vs D-3): Microsoft.Data.Sqlite sends an untyped NULL, ClickHouse.Driver sends a `Nullable(Nothing)`-typed placeholder.
 - Size / precision suffix on a new SQLite / DuckDB name (SQLite.MS `Text(23) -- DateTime`, P3): `PrintParameterType`'s existing behaviour for every provider override (`BasicSqlBuilder.cs:4973-4984`); user decision 2026-10-29 ("we have this behavior for long time … we don't need precise type here currently"). Suppressed only for ClickHouse client names (D-7). Octonica *base-named* parameters (a string or binary `DataParameter`) still print the driver's default `(38, 9)` (`OctonicaParameter.cs:257-307`, `BasicSqlBuilder.cs:4980-4984`) — pre-existing, unchanged by this branch, no baseline row has the shape (critic round 3).
 - DuckDB `-- Object` rows stay unnamed (34 interval rows, P3, D-4): `DbType.Object` carries no type to translate.
+- `/code-review` on #6198 (2026-10-29), dropped by the user in the walk:
+  - DuckDB `VarNumeric` → `BIGNUM` although HUGEINT columns bind the value: D-4 translates `DbType`; matches the `SET … ::BIGNUM` literal and `DuckDBSqlBuilder.cs:120`.
+  - Octonica base-named `(38, 9)`: pre-existing, no baseline row (see the size / precision entry above).
+  - SQLite.MS null printed with the `DbType` storage class: D-2 decision; no PR-body note wanted.
+  - SQLite override returns `null` when `TryGetProviderParameter` fails: same gate as every provider override; no wrapper in the matrix substitutes the parameter type.
+  - SQLite.Classic map assumes default connection flags: D-2 failure mode; no bound type to read.
+  - Move the suffix rule into `BasicSqlBuilder`: rejected in D-7 (cross-provider baseline churn).
+  - `GetProviderTypeName` computed twice on the ClickHouse base path: trivial switch on a debug path.
+  - Fixed instead: duplicated `Expression` getters and `GetProperty` ambiguity (A-2, `516bbe15c`); `GetParameterTypeName` doc comment reworded for the MySqlConnector path.
 
 ## P11 Amendments (M/L)
 
 - A-1 (2026-10-29, green run measured driver-reported facets, U-11) — SQLite.MS keeps the base length suffix (expectations of TO-1b/1c/1m updated); ClickHouse moves from a `GetProviderTypeName` override to a `PrintParameterType` override that prints a client-reported name without facets (D-7); the PublicAPI entry follows. User decision "a". Approval of E-4 / E-7 is void until re-earned.
   re-derives: P2 (SC-1), P3, P4 (U-11), P5 (D-7), P6 (E-4, E-7), P8 (TO-1b, TO-1c, TO-1m, TO-4a), P10
-  conventions: embedded `testing.md` → *Test layout* (rule 1, one call per line) and *A narrowed provider set is a claim*; swept `git diff origin/master -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree`: first pass 29 one-line `new TestCaseData(…).SetArgDisplayNames(…)` chains + 1 nested `new DataOptions().UseConnectionString` chain, rewritten through a `ParameterTypeCase` helper; second pass 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above: ClickHouse inlines LINQ parameters, `ClickHouseSqlBuilder.cs:36`).
+- A-2 (2026-10-29, user review on #6198: "for adapters we don't use reflection to map members - we use type wrappers") — the SQLite and ClickHouse adapter getters move from `Expression` / `GetProperty` to `TypeMapper` wrappers (D-8). No behaviour change intended; every TO-1 / TO-4 / TO-5 row re-runs as the gate. Approval of E-1 / E-3 is void until re-earned.
+  re-derives: P5 (D-6 → D-8), P6 (E-1, E-3)
+  conventions (A-1 and A-2): embedded `testing.md` → *Test layout* (rule 1, one call per line) and *A narrowed provider set is a claim*; swept `git diff origin/master -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree`: first pass 29 one-line `new TestCaseData(…).SetArgDisplayNames(…)` chains + 1 nested `new DataOptions().UseConnectionString` chain, rewritten through a `ParameterTypeCase` helper; second pass 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above: ClickHouse inlines LINQ parameters, `ClickHouseSqlBuilder.cs:36`).
 
 ## P12 Critic verdict (M/L)
 
@@ -189,3 +207,4 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 - Round 3 (2026-10-29, delta on A-1 and the implemented diff, same agent resumed): **weak**. Searched: every `git diff` hunk; `override …(GetTypeName|GetUdtTypeName|PrintParameterType)` across providers (only SqlServer + the new ClickHouse override — D-7's "skips nothing" measured); PublicAPI spellings vs `Shipped.txt:16634`; both `GetStorageClass` tables vs the decompiled binder; Microsoft.Data.Sqlite 3.1.32 `Size` (EF31 leg same suffixes); Octonica facets; ClickHouse baselines (no base-named row); `QueryForm` prefix parse; net462 compile of the test usings; `IsAnyOf` stripping `.LinqService`. Objections and response:
   - TO-2 listed DuckDB `Decimal` but the test had no such row → `Decimal` row added to `DuckDBParameterTypeCases()`. The critic's expected `Decimal(18, 3)` (from `DuckDBDataProvider.cs:165-169`) was refuted by the run: `DuckDBParameter` overrides neither `Precision` nor `Scale` (decompiled `DuckDBParameter.cs`), so the `DbParameter` no-op setters drop them and the base prints the value's own `Decimal(2, 1)` — master's rule on this unchanged path (DuckDB master baseline `ExposeSqlDecimalParameter`: `DECLARE $p Decimal(6, 3)` for `123.456m`). Expected set to `Decimal(2, 1)`.
   - Octonica base-named `(38, 9)` → P10 note (pre-existing).
+- Round 4 (2026-10-29, delta on A-2 / D-8, same agent resumed): **holds**, no objections. Searched: every rewrite hunk; `TypeMapper.RegisterTypeWrapper` name / duplicate rules (`TypeMapper.cs:47-83`) against each new wrapper (registered and declared once, names match the driver types); `BuildEnumConverters` (`:85-125`) against decompiled `SqliteType` (10.0.12 and 3.1.32) and Octonica `ClickHouseDbType` (4.1.6) — names and values identical, so the by-value cast applies; `BuildGetter<TBase>` (`:1081-1119`) and the MySql / SqlCe precedents; `QueryForm` getter in ClickHouse.Driver 0.9.0 and 1.4.0; D-5 gating unchanged. Not checked: test run and Release builds (gates).
