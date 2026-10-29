@@ -9,7 +9,7 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 
 ## P2 Success criteria
 
-- SC-1 SQLite.MS prints the driver's bound storage class (`SqliteParameter.SqliteType`) for every parameter the base leaves unnamed: `Int32` value `1` → `Integer -- Int32`; `DateTime` (converted to string by `SQLiteDataProvider.SetParameter`, `SQLiteDataProvider.cs:289-294`) → `Text -- DateTime`; `DataType.Guid` (default branch converts to `byte[]`, `:275-283`) → `Blob -- Guid`; `Guid` under a text `DataType` (`:262-271` keeps a string value) → `Text -- Guid`; `Boolean` → `Integer -- Boolean`; `Double` → `Real -- Double`; `Object` + `1` → `Integer -- Object`; a null `Int32` → `Integer -- Int32` (D-2 null fallback).  → TO-1
+- SC-1 SQLite.MS prints the driver's bound storage class (`SqliteParameter.SqliteType`) for every parameter the base leaves unnamed: `Int32` value `1` → `Integer -- Int32`; `DateTime` (converted to string by `SQLiteDataProvider.SetParameter`, `SQLiteDataProvider.cs:289-294`) → `Text(23) -- DateTime`; `DataType.Guid` (default branch converts to `byte[]`, `:275-283`) → `Blob(16) -- Guid`; `Guid` under a text `DataType` (`:262-271` keeps a string value) → `Text(36) -- Guid` (length suffixes per U-11, A-1); `Boolean` → `Integer -- Boolean`; `Double` → `Real -- Double`; `Object` + `1` → `Integer -- Object`; a null `Int32` → `Integer -- Int32` (D-2 null fallback).  → TO-1
 - SC-2 SQLite.Classic prints the storage class System.Data.SQLite binds (D-2): `Int32` → `Integer -- Int32`, `Boolean` → `Integer -- Boolean`, `Guid` → `Blob -- Guid`, `Double` → `Real -- Double`, `Object` + `1` → `Integer -- Object` (the binder re-derives `Object` from the value).  → TO-1
 - SC-3 DuckDB prints the D-4 name for the parameter's `DbType`: `Int32` → `INTEGER -- Int32`, `Boolean` → `BOOLEAN -- Boolean`, `VarNumeric` (BigInteger) → `BIGNUM -- VarNumeric`.  → TO-1, TO-3
 - SC-4 ClickHouse prints the driver's parameter type (D-3): an `Int64` parameter prints `DECLARE @p Int64` on Octonica and MySqlConnector for both `1L` and `null`, and on ClickHouse.Driver `Int64` for `1L` and `Nullable(Nothing) -- Int64` for `null` (what that driver sends).  → TO-4
@@ -24,7 +24,8 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 - Other providers' output unchanged (their builders already override `GetProviderTypeName`).
 - Base names for string / decimal / binary kept on all three providers (user choice "a", 2026-10-29): the new name fills only where `base.GetProviderTypeName` returns `null`.
 - Expected baseline delta: every `DECLARE` line with an empty type in the P1 census gains a type name, except DuckDB's 34 `-- Object` lines (all `DuckDBInterval` values from `DuckDBTypeTests.TestInterval`, critic census), which stay empty because `DbType.Object` names no type (D-4). No `DECLARE` line is added or removed, no SQL text changes. The three `TestDataParameterMapping3` lines (one per ClickHouse driver, null value) become `Nullable(Nothing) -- Int64` on ClickHouse.Driver and `Int64` on Octonica and MySqlConnector.
-- A parameter with an explicit `Size` / `Precision` now prints a suffix on the new name (`BasicSqlBuilder.cs:4973-4984`), e.g. `Integer(10) -- Int32` — the base behaviour every other provider's override already has (P10).
+- SQLite / DuckDB: a non-zero `Size` / `Precision` the driver reports prints a suffix on the new name (`BasicSqlBuilder.cs:4973-4984`) — the base behaviour every other provider's override already has. Microsoft.Data.Sqlite reports `Size` as the value's length for a string / `byte[]` value (U-11), so SQLite.MS prints `Text(23) -- DateTime`, `Blob(16) -- Guid`, `Text(36) -- Guid` (P10, A-1).
+- ClickHouse: a name the client reports is printed without facets (D-7, A-1); base-named parameters keep today's output.
 
 ## P4 Unknowns (M/L)
 
@@ -37,6 +38,7 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 - U-7 Are the parameters printed for baselines provider parameters (so `TryGetProviderParameter` succeeds) on both direct and remote cases? — resolved-by scout (baselines come only from `DataConnection.WriteTraceLine` `BeforeExecute`, `Tests/Base/TestBase.cs:69-74`; `TraceInfo.SqlText` prints `Command.Parameters`, `Source/LinqToDB/Data/TraceInfo.cs:144-145`; a `.LinqService` case's trace is the server-side `DataConnection`'s, per `testing.md` → *Asserting on a parameter's declared type*). Both sides print the same provider parameters, so the direct/remote comparison (`Tests/Base/BaselinesWriter.cs:62-79`) sees identical text.
 - U-8 Is anything inside `PrintParameters` guarded against an exception? — resolved-by scout (`TraceInfo.cs:144-145` calls `PrintParameters` unguarded; `BasicSqlBuilder.PrintParameters` `:5005-5030` has no try). A throwing getter therefore aborts the trace → D-5.
 - U-10 Which `DbType` does a DuckDB parameter carry after `SetParameter`? — resolved-by probe (`DuckDBDataProvider.SetParameter` sets `Value` first and then `SetParameterType` — "must be called after value set!", `Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBDataProvider.cs:159-163` — so linq2db's mapped `DbType` wins over the value-derived one `DuckDBParameter.Value`'s setter writes, `DuckDBParameter.cs:30-37`; `:176` maps `DataType.VarNumeric → DbType.Decimal`. Only `DataType`s `SetParameterType` does not map (Interval, Int128, BitArray, Json, Undefined) keep the value-derived `DbType`, `Object` for an unmapped CLR type. Critic census on baselines: DuckDB `-- Object` 34 (all `DuckDBInterval`), `-- VarNumeric` 42 (all `DuckDBTypeTests.TestHugeInt` / `TestUHugeInt`: a HUGEINT column with values rendered `'…'::BIGNUM`, `DataType` outside the switch so `DbType` is value-derived), NULL rows keep linq2db's `DbType`, e.g. 1504 NULL `Int32`). measured by the critic; the `:159-163` order re-read by the author.
+- U-11 Which drivers report a `Size` / `Precision` nobody set? — resolved-by probe (green run 2026-10-29: `ParameterTypeNameSQLiteMS(DateTime|Guid|GuidAsText)` printed `Text(23)` / `Blob(16)` / `Text(36)`, `ParameterTypeNameClickHouse(Octonica, Value|Null)` printed `Int64(38, 9)`; decompiled `SqliteParameter.Size`, `SqliteParameter.cs:101-113`: value length for `string` / `byte[]`; Octonica `Precision` / `Scale`, `OctonicaParameter.cs:273-307`: 38 / 9 unless forced, for every non-`DateTime64` type; System.Data.SQLite, DuckDB.NET, ClickHouse.Driver and MySqlConnector rows printed no suffix in the same run). measured.
 - U-9 Can a test create each driver's parameter without a database? — resolved-by probe (decompiled public parameterless ctors: `SqliteParameter()` `SqliteParameter.cs:175`, Octonica `ClickHouseParameter()` `OctonicaParameter.cs:396`, `ClickHouseDbParameter` (implicit), `DuckDBParameter()` `DuckDBParameter.cs:55`; MySqlConnector / System.Data.SQLite parameters are standard ADO.NET types; all six packages are referenced by `Tests/linq2db.Providers.props`, Octonica and DuckDB only for `!= net462`, `:47-53`). measured by decompile; the test project compile is the confirmation.
 
 ## P5 Decisions (M/L; rejected alternatives mandatory at L)
@@ -84,15 +86,22 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 - **why this:** follows the existing `GetDbType` adapter pattern (MySQL `MySqlProviderAdapter.cs:95`, Ydb `YdbProviderAdapter.cs:210`) without enum wrappers.
 - **failure mode of the choice:** a property missing in some driver version throws while building the adapter; mitigated by reading `GetProperty(...)` and leaving the delegate null when absent (all versions in `Directory.Packages.props` have the properties, U-1/U-4/U-5).
 
+### D-7 — ClickHouse prints a client-reported name without facets (A-1)
+
+- **chosen:** `ClickHouseSqlBuilder` overrides `PrintParameterType`: when the base names nothing and the client reports a name, print `<name>` plus ` -- <DbType>` when the two differ, and stop; otherwise call the base. The client name is read by a private helper the override uses (no `GetProviderTypeName` override).
+- **rejected:** keep the base suffix (`Int64(38, 9)` on Octonica — a driver default, U-11, describing nothing); copy the base method into the override (~40 lines of duplication for a debug print); a seam in `BasicSqlBuilder` (cross-cutting change and new public surface for one provider); drop the Octonica name (loses the fix there).
+- **why this:** user decision "a", 2026-10-29 — keep the SQLite.MS length suffix (the base already prints value lengths for strings), suppress it for ClickHouse; the override skips only `GetTypeName` / `GetUdtTypeName`, which ClickHouse does not override (`Grep` over `Source/LinqToDB/Internal/DataProvider/ClickHouse`, no hit; base returns `null`, `BasicSqlBuilder.cs:4934-4942`).
+- **failure mode of the choice:** a future ClickHouse `GetTypeName` / `GetUdtTypeName` override, or a new base prefix in `PrintParameterType`, is skipped on the client-named path; a meaningful facet (Octonica `DateTime64` precision, a forced decimal scale) is not shown for client-named parameters.
+
 ## P6 Edit-points
 
 - E-1 `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs:SQLiteProviderAdapter` — add `internal Func<DbParameter, object>? GetSqliteType`, built for Microsoft.Data.Sqlite only.
 - E-2 `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteSqlBuilder.cs:GetProviderTypeName` — new override: base, then MS getter (non-null value) or the D-2 `DbType` map, under D-5.
 - E-3 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs:ClickHouseProviderAdapter` — add `internal Func<DbParameter, string?>? GetParameterTypeName`, set in `CreateOctonicaAdapter`, `CreateDriverAdapter` and the MySqlConnector constructor.
-- E-4 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:GetProviderTypeName` — new override: base, then the adapter getter, under D-5.
+- E-4 `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:PrintParameterType` — new override (A-1, D-7): when `base.GetProviderTypeName` is `null` and the adapter getter (under D-5) returns a name, print it with no facets; otherwise the base.
 - E-5 `Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs:GetProviderTypeName` — new override: base, then the D-4 map.
 - E-6 `Tests/Linq/Linq/ParameterTests.cs` — TO-1 … TO-5.
-- E-7 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — three `override …GetProviderTypeName(LinqToDB.IDataContext! dataContext, System.Data.Common.DbParameter! parameter) -> string?` entries (SQLite, ClickHouse, DuckDB builders are public, non-sealed; format as `PublicAPI.Shipped.txt:10074`).
+- E-7 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — `override …GetProviderTypeName(LinqToDB.IDataContext! dataContext, System.Data.Common.DbParameter! parameter) -> string?` for the SQLite and DuckDB builders and `override …ClickHouseSqlBuilder.PrintParameterType(LinqToDB.IDataContext! dataContext, System.Text.StringBuilder! sb, System.Data.Common.DbParameter! parameter) -> void` (A-1) (builders are public, non-sealed; format as `PublicAPI.Shipped.txt:10074`).
 
 ## P7 Impact map (M/L)
 
@@ -113,12 +122,12 @@ The trace / baseline `DECLARE` block prints an empty type for most parameters on
 Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directly" set `DbType` / `Value` on the parameter instead of calling `SetParameter`): the provider from `SQLiteTools` / `DuckDBTools` / `ClickHouseTools.GetDataProvider(...)`, a `DataConnection` over it with a placeholder connection string (never opened), a parameter from `Activator.CreateInstance(adapter.ParameterType)` populated by the provider's own `SetParameter(db, p, "p", dbDataType, value)`, printed with `dataProvider.CreateSqlBuilder(...).PrintParameters(db, sb, [p])`. One row per element below; the discriminating input for every red→green row is master's empty type (`DECLARE @p  -- <DbType>`, P1).
 
 - TO-1a SQLite.MS `Int32` `1` → `DECLARE @p Integer -- Int32` — providers: SQLite.MS driver (no database) — proof: red→green
-- TO-1b SQLite.MS `DateTime` → `DECLARE @p Text -- DateTime` — providers: SQLite.MS driver (no database) — proof: red→green
-- TO-1c SQLite.MS `Guid` → `DECLARE @p Blob -- Guid` — providers: SQLite.MS driver (no database) — proof: red→green
+- TO-1b SQLite.MS `DateTime` → `DECLARE @p Text(23) -- DateTime` (A-1) — providers: SQLite.MS driver (no database) — proof: red→green
+- TO-1c SQLite.MS `Guid` → `DECLARE @p Blob(16) -- Guid` (A-1) — providers: SQLite.MS driver (no database) — proof: red→green
 - TO-1d SQLite.MS `Boolean` `true` → `DECLARE @p Integer -- Boolean` — providers: SQLite.MS driver (no database) — proof: red→green
 - TO-1e SQLite.MS `Double` `1.5` → `DECLARE @p Real -- Double` — providers: SQLite.MS driver (no database) — proof: red→green
 - TO-1f SQLite.MS `Int32` `null` → `DECLARE @p Integer -- Int32` (D-2 null fallback; the driver alone would say `Text`) — providers: SQLite.MS driver (no database) — proof: red→green
-- TO-1m SQLite.MS `Guid` with `new DbDataType(typeof(Guid), DataType.Guid, "TEXT")` (the `(_, "TEXT")` arm, `SQLiteDataProvider.cs:262-271`, keeps a string value while `DataType.Guid` keeps `DbType.Guid`) → `DECLARE @p Text -- Guid`. (A text `DataType` such as `NVarChar` sets `DbType.String`, which the base already names — that is TO-2's path, not this one.) — providers: SQLite.MS driver (no database) — proof: red→green
+- TO-1m SQLite.MS `Guid` with `new DbDataType(typeof(Guid), DataType.Guid, "TEXT")` (the `(_, "TEXT")` arm, `SQLiteDataProvider.cs:262-271`, keeps a string value while `DataType.Guid` keeps `DbType.Guid`) → `DECLARE @p Text(36) -- Guid` (A-1). (A text `DataType` such as `NVarChar` sets `DbType.String`, which the base already names — that is TO-2's path, not this one.) — providers: SQLite.MS driver (no database) — proof: red→green
 - TO-1n SQLite.MS `DbType.Object` + `1` (parameter built directly, `DbType = Object`, `Value = 1`) → `DECLARE @p Integer -- Object` — providers: SQLite.MS driver (no database) — proof: red→green
 - TO-1o SQLite.Classic `DbType.Object` + `1` (same construction) → `DECLARE @p Integer -- Object` (binder re-derivation, U-3) — providers: System.Data.SQLite driver (no database) — proof: red→green
 - TO-1g SQLite.Classic `Int32` `1` → `DECLARE @p Integer -- Int32` — providers: System.Data.SQLite driver (no database) — proof: red→green
@@ -131,7 +140,7 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 - TO-1q DuckDB parameter built directly with `DbType = Object` and no value (a value would re-derive `DbType` in the setter, `DuckDBParameter.cs:30-37`; a null value leaves it, `:32`) → `DECLARE $p  -- Object` unchanged (P3 exception) — providers: DuckDB driver (no database) — proof: characterization
 - TO-2 Unchanged base names (symmetry guard on the unchanged path): SQLite.MS, SQLite.Classic and DuckDB `NVarChar` `"abc"` → `NVarChar(3) -- String`; SQLite.Classic `DateTime` → `VarChar(23) -- AnsiString`; `Binary` `byte[3]` → `Binary(3)`; `Decimal` `1.5m` → `Decimal(` — each must equal master's output — providers: SQLite.MS, System.Data.SQLite, DuckDB drivers (no database) — proof: characterization
 - TO-3 Real execution and trace: `var id = 1; db.Person.Where(p => p.ID == id).ToList()`, then `GetCurrentBaselines()` contains `DECLARE @id Integer -- Int32` (SQLite.*) / `DECLARE $id INTEGER -- Int32` (DuckDB); covers the `BeforeExecute` path and the server-side trace of `.LinqService` — providers: `TestProvName.AllSQLite`, `ProviderName.DuckDB`, `[IncludeDataSources(true, …)]` — proof: red→green
-- TO-4a ClickHouse Octonica `Int64` `1L` → `DECLARE @p Int64` (`!NETFRAMEWORK`) — providers: Octonica driver (no server) — proof: red→green
+- TO-4a ClickHouse Octonica `Int64` `1L` → `DECLARE @p Int64` (`!NETFRAMEWORK`; also the D-7 discriminator: without the override it prints `Int64(38, 9)`, measured U-11) — providers: Octonica driver (no server) — proof: red→green
 - TO-4b ClickHouse.Driver `Int64` `1L` → `DECLARE @p Int64` — providers: ClickHouse.Driver (no server) — proof: red→green
 - TO-4c ClickHouse MySqlConnector `Int64` `1L` → `DECLARE @p Int64` — providers: MySqlConnector driver (no server) — proof: red→green
 - TO-4d ClickHouse `Int64` `null` — the only shape the three ClickHouse baselines contain (`DataExtensionsTests.cs:285`): Octonica → `DECLARE @p Int64` (`!NETFRAMEWORK`), MySqlConnector → `DECLARE @p Int64`, ClickHouse.Driver → `DECLARE @p Nullable(Nothing) -- Int64` (D-3 null rule; the MySqlConnector value is unprobed until this row runs) — providers: all three ClickHouse drivers (no server) — proof: red→green
@@ -140,13 +149,13 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: pass — red: product changes stashed, `worktree-test.ps1` net10.0 on SQLite.Classic / SQLite.MS / DuckDB (+ `.LinqService`) and the no-database cases: 28 of 42 failed, every red→green row with master's empty type (`DECLARE @p  -- <DbType>`), the 14 characterization / control rows passed. Green after A-1 and the analyzer fixes: 63/63 (new tests + `DataExtensionsTests.TestDataParameterMapping3` + `ParameterTests.Issue1189Test` on SQLite.Classic, SQLite.MS, DuckDB, ClickHouse.Octonica / Driver / MySql against the local `clickhouse` container). TO-6 detailed log: Driver `DECLARE @p Nullable(Nothing) -- Int64`, MySql and Octonica `DECLARE @p Int64`, SQLite `DECLARE @p Integer -- Int64`. TO-5 control: removing the D-5 `catch` turned `ParameterTypeNameSQLiteMSUnmappedValue` red with `InvalidOperationException : No mapping exists from object type System.Object…`; restored, green. D-7 discriminator: before A-1 Octonica printed `Int64(38, 9)` (U-11). `test-diff-sweep.ps1 -IncludeWorkingTree` on the implemented tree: 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above).
+- G-02: blocked — baselines regenerate on CI; the delta (P3, P7 census) is reviewed on the baselines PR.
+- G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0`: 0 warnings, 0 errors. net462 test compile not built locally (the `#if !NETFRAMEWORK` blocks are the only TFM-specific code; `System.Numerics` qualified inline so no using goes unused) — CI net462 leg verifies.
+- G-06: pass — `git diff --stat`: 7 files, additions only plus the `SQLiteProviderAdapter` constructor signature; no unrelated lines touched.
+- G-07: pass — no `Tests/Tests.Playground/` change (`git status`).
+- G-08: pass — no cross-cutting core file changed (`-Action reconcile`: 7 files, all P6, 0 unplanned); per-provider builder / adapter only, proven by the TO rows above.
+- G-09: blocked — no `/code-review` pass yet; PR #6198 opened as draft (2026-10-29, eb8239cc8) on user request, stays draft until the user's own review. Critic round 3 read the implemented diff, but that is a plan pass, not this gate.
 
 ## P10 Adjudicated (M/L)
 
@@ -154,12 +163,14 @@ Harness for TO-1, TO-2, TO-4, TO-5 (no database, U-9; rows marked "built directl
 - SQLite.Classic and DuckDB names are predictions from `DbType`, not driver reports (D-2, D-4): neither driver exposes a bound type (U-3, U-6).
 - ClickHouse.Driver prints `QueryForm`'s type, which ignores a configured resolver / SQL type hint (D-3): the full resolution is internal to the driver (U-4).
 - Null values: SQLite.MS falls back to the `DbType` map, ClickHouse.Driver prints `Nullable(Nothing)` (D-2 vs D-3): Microsoft.Data.Sqlite sends an untyped NULL, ClickHouse.Driver sends a `Nullable(Nothing)`-typed placeholder.
-- Size / precision suffix on a new name (`Integer(10) -- Int32`, P3): `PrintParameterType`'s existing behaviour for every provider override (`BasicSqlBuilder.cs:4973-4984`); not specialised here.
+- Size / precision suffix on a new SQLite / DuckDB name (SQLite.MS `Text(23) -- DateTime`, P3): `PrintParameterType`'s existing behaviour for every provider override (`BasicSqlBuilder.cs:4973-4984`); user decision 2026-10-29 ("we have this behavior for long time … we don't need precise type here currently"). Suppressed only for ClickHouse client names (D-7). Octonica *base-named* parameters (a string or binary `DataParameter`) still print the driver's default `(38, 9)` (`OctonicaParameter.cs:257-307`, `BasicSqlBuilder.cs:4980-4984`) — pre-existing, unchanged by this branch, no baseline row has the shape (critic round 3).
 - DuckDB `-- Object` rows stay unnamed (34 interval rows, P3, D-4): `DbType.Object` carries no type to translate.
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-10-29, green run measured driver-reported facets, U-11) — SQLite.MS keeps the base length suffix (expectations of TO-1b/1c/1m updated); ClickHouse moves from a `GetProviderTypeName` override to a `PrintParameterType` override that prints a client-reported name without facets (D-7); the PublicAPI entry follows. User decision "a". Approval of E-4 / E-7 is void until re-earned.
+  re-derives: P2 (SC-1), P3, P4 (U-11), P5 (D-7), P6 (E-4, E-7), P8 (TO-1b, TO-1c, TO-1m, TO-4a), P10
+  conventions: embedded `testing.md` → *Test layout* (rule 1, one call per line) and *A narrowed provider set is a claim*; swept `git diff origin/master -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree`: first pass 29 one-line `new TestCaseData(…).SetArgDisplayNames(…)` chains + 1 nested `new DataOptions().UseConnectionString` chain, rewritten through a `ParameterTypeCase` helper; second pass 0 chains, 0 nested chains, 1 narrowed set (`ParameterTypeNameInTrace`, reason on the line above: ClickHouse inlines LINQ parameters, `ClickHouseSqlBuilder.cs:36`).
 
 ## P12 Critic verdict (M/L)
 
@@ -175,3 +186,6 @@ _None._
   - TO-1p / TO-1q "built directly" could go red for the wrong reason (`DuckDBParameter.Value` re-derives `DbType`) → TO-1p routed through `SetParameter` with `DataType.Undefined` + `BigInteger`; TO-1q states it relies on no value.
   - P3 ClickHouse line count wording → fixed.
   Not checked by the critic: no test run; `Int64Type` / `NothingType` literal text inferred from the parser key — TO-4b / TO-4d measure it.
+- Round 3 (2026-10-29, delta on A-1 and the implemented diff, same agent resumed): **weak**. Searched: every `git diff` hunk; `override …(GetTypeName|GetUdtTypeName|PrintParameterType)` across providers (only SqlServer + the new ClickHouse override — D-7's "skips nothing" measured); PublicAPI spellings vs `Shipped.txt:16634`; both `GetStorageClass` tables vs the decompiled binder; Microsoft.Data.Sqlite 3.1.32 `Size` (EF31 leg same suffixes); Octonica facets; ClickHouse baselines (no base-named row); `QueryForm` prefix parse; net462 compile of the test usings; `IsAnyOf` stripping `.LinqService`. Objections and response:
+  - TO-2 listed DuckDB `Decimal` but the test had no such row → `Decimal` row added to `DuckDBParameterTypeCases()`. The critic's expected `Decimal(18, 3)` (from `DuckDBDataProvider.cs:165-169`) was refuted by the run: `DuckDBParameter` overrides neither `Precision` nor `Scale` (decompiled `DuckDBParameter.cs`), so the `DbParameter` no-op setters drop them and the base prints the value's own `Decimal(2, 1)` — master's rule on this unchanged path (DuckDB master baseline `ExposeSqlDecimalParameter`: `DECLARE $p Decimal(6, 3)` for `123.456m`). Expected set to `Decimal(2, 1)`.
+  - Octonica base-named `(38, 9)` → P10 note (pre-existing).
