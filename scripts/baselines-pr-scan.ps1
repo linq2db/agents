@@ -30,6 +30,9 @@ Parameters
   -Clone <path>        default `../linq2db.baselines`, else the primary clone's
                        sibling (so it also resolves from a worktree)
   -BaseRef <ref>       default `origin/master`
+  -ParentPr <int>      for a stacked PR: the parent PR whose `baselines/pr_<parent>`
+                       branch carries deltas this branch inherits. See
+                       `parentInherited` below.
   -Signal <regex>      default `^\s*DECLARE\s` — the structural signal counted
                        per file on the added and removed sides. Override for a
                        mechanism whose fingerprint is not a parameter DECLARE
@@ -116,6 +119,17 @@ baselines master after this branch was cut, so they are not this PR's work.
 Subtract them before attributing the delta. A zero does NOT rule out lag on
 the PR-branch side (see review-pr step 8).
 
+`parentInherited` (only with -ParentPr; { parent, status, files, samples, own }) covers the
+same lag one level up. For a PR stacked on another, the branch also carries the parent's
+whole baselines delta. These are the delta paths, not already `inherited`, that are
+byte-identical between `baselines/pr_<parent>` and this branch. `own` holds the A/M/D counts
+left once both sets are subtracted. The per-file scans (lines, permutation, signal, casts,
+renames, aliases, wrapper, decimalFacets, statementParity) skip these paths too. `counts`,
+`providers` and `addedTests` still cover the whole delta. (#6194: 32,977 delta files,
+32,229 inherited, 394 from #6186, 354 its own, matching a hand-rolled set difference on the
+same refs.) `status: branch_missing` means the parent's
+branch was not found, so nothing was subtracted.
+
 `addedTests` covers every test that has at least one *added* file; the test
 name is the file name up to the first `(`. For each test it lists the
 providers that have no baseline for it anywhere in the branch tree, so a
@@ -150,7 +164,8 @@ param(
     [Parameter(Mandatory)][int] $Pr,
     [string]   $Clone,
     [string]   $BaseRef            = 'origin/master',
-    [string]   $Signal             = '^\s*DECLARE\s',
+    [int]      $ParentPr,
+    [string]   $Signal            = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
     [string]   $StripWrapper,
     [switch]   $NoFetch,
@@ -201,6 +216,7 @@ $deltaPaths = [System.Collections.Generic.List[string]]::new()
 $addedByTest   = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
 $addedUniverse = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $addedPaths    = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+$deltaStatus   = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
 
 foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -split "`n")) {
     if (-not $line.Trim()) { continue }
@@ -222,6 +238,7 @@ foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -spl
         'M' { $counts.modified++ }
     }
     $deltaPaths.Add($path)
+    $deltaStatus[$path] = $parts[0].Substring(0, 1)
     if (-not $providers.ContainsKey($p)) { $providers[$p] = 0 }
     $providers[$p]++
 }
@@ -233,6 +250,39 @@ foreach ($l in ((Git -GitArgs @('diff', '--name-only', $BaseRef, $remoteRef)).st
     if ($l.Trim()) { [void]$twoDot.Add($l.TrimEnd("`r")) }
 }
 $inherited = @($deltaPaths | Where-Object { -not $twoDot.Contains($_) })
+
+# ---- parentInherited: delta paths byte-identical to the parent PR's branch --
+$parentInherited = $null
+$parentExcluded  = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+if ($ParentPr) {
+    $parentRef = "origin/baselines/pr_$ParentPr"
+    if (-not $NoFetch) { [void](Git -GitArgs @('fetch', 'origin', "+refs/heads/baselines/pr_${ParentPr}:refs/remotes/$parentRef") -AllowFail) }
+
+    $pv = Git -GitArgs @('rev-parse', '--verify', '--quiet', $parentRef) -AllowFail
+    if ($pv.code -ne 0 -or -not $pv.stdout.Trim()) {
+        $parentInherited = [ordered]@{ parent = $ParentPr; status = 'branch_missing' }
+    } else {
+        $vsParent = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($l in ((Git -GitArgs @('diff', '--name-only', $parentRef, $remoteRef)).stdout -split "`n")) {
+            if ($l.Trim()) { [void]$vsParent.Add($l.TrimEnd("`r")) }
+        }
+
+        $own = [ordered]@{ added = 0; modified = 0; deleted = 0 }
+        foreach ($path in $deltaPaths) {
+            if (-not $twoDot.Contains($path)) { continue }
+            if (-not $vsParent.Contains($path)) { [void]$parentExcluded.Add($path); continue }
+            switch ($deltaStatus[$path]) { 'A' { $own.added++ } 'M' { $own.modified++ } 'D' { $own.deleted++ } }
+        }
+
+        $parentInherited = [ordered]@{
+            parent  = $ParentPr
+            status  = 'ok'
+            files   = $parentExcluded.Count
+            samples = @($parentExcluded | Select-Object -First 25)
+            own     = $own
+        }
+    }
+}
 
 # A test can gain a baseline on only some providers because it already had one elsewhere, e.g. a
 # provider exclusion was just dropped. Count every baseline the test has anywhere in the branch tree,
@@ -512,6 +562,7 @@ foreach ($line in ($diff -split "`n")) {
     if ($line.StartsWith('diff --git ')) {
         Flush-File -File $curFile -Added $add -Removed $del
         $curFile = ($line -split ' b/', 2)[-1]
+        if ($parentExcluded.Contains($curFile)) { $curFile = $null }
         $add = [System.Collections.Generic.List[string]]::new()
         $del = [System.Collections.Generic.List[string]]::new()
         continue
@@ -618,6 +669,7 @@ $result = [ordered]@{
         files   = $inherited.Count
         samples = @($inherited | Select-Object -First 25)
     }
+    parentInherited = $parentInherited
     addedTests = [ordered]@{
         universe = $addedUniverse.Count
         tests    = @($addedTests | Select-Object -First $MaxAddedTests)
@@ -657,4 +709,5 @@ Write-JsonOutput -InputObject $result -Depth 6 -OutFile $OutFile -Summary ([orde
     status    = 'ok'
     counts    = $result.counts
     inherited = $inherited.Count
+    parentInherited = if ($parentInherited) { [ordered]@{ files = $parentInherited.files; own = $parentInherited.own } } else { $null }
 })
