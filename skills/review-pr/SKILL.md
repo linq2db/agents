@@ -281,6 +281,8 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 - `Internal/Linq/ExpressionCacheManager.cs`
 - `Internal/Expressions/ExpressionVisitors/EqualsToVisitor.cs`
 - `Internal/Expressions/ExpressionEvaluator.cs`
+- `Source/LinqToDB/Expressions/ExpressionExtensions.cs` (the bool-returning `Visit` that cache-key walks use — not under `Internal/`)
+- `Internal/Linq/QueryCache.cs`. Say in the briefing that `Query.Compare`, the only reader of `CompareInfo`, is called only from `QueryCache.cs` (`:361,446` at #6185). `CompiledTable<T>` looks queries up by its own key, so a compare built for a compiled query is never consulted.
 
 Two near-miss paths return `exists: false` silently: `Internal/Linq/CompiledTable.cs` (the real file is `CompiledTable{T}.cs`) and `Internal/Linq/Builder/ExpressionCacheManager.cs` (the real file sits directly under `Internal/Linq/`). (Surfaced on #6003: all three passes went 11–15 calls over budget fetching these files, and the prep manifest had guessed both near-miss paths.)
 
