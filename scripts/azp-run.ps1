@@ -149,6 +149,8 @@ if (-not $AllowStale) {
     $behind = gh api "repos/$Repo/compare/master...$head" --jq .behind_by
     if ($LASTEXITCODE -eq 0 -and [int]$behind -gt 0) {
         [Console]::Error.WriteLine("azp-run: PR #$Pr head is $behind commit(s) behind master. Sync with master first (stacked PR: sync the parent, then merge it forward), push, then trigger again; -AllowStale to trigger anyway.")
+        gh api "repos/$Repo/compare/$head...master" --jq '.commits[] | "  " + .sha[0:9] + " " + (.commit.message | split("\n")[0])' |
+            ForEach-Object { [Console]::Error.WriteLine($_) }
         exit 3
     }
 }
@@ -178,10 +180,12 @@ function Get-RefusedBuild([string]$name, [datetime]$since) {
 function Get-DispatchRun([datetime]$since) {
     for ($attempt = 0; $attempt -lt 6; $attempt++) {
         if ($attempt -gt 0) { Start-Sleep -Seconds 5 }
-        $json = gh run list --repo $Repo --workflow tests-comment.yml --limit 10 --json databaseId,createdAt,status,conclusion 2>$null
+        # The azure-pipelines bot's "started" reply is itself an issue_comment and dispatches a run that ends skipped,
+        # but is still queued or in authorize when we look; only a human-triggered run can be ours.
+        $json = gh api "repos/$Repo/actions/workflows/tests-comment.yml/runs?per_page=10" --jq '[.workflow_runs[] | {databaseId: .id, createdAt: .created_at, status, conclusion, actor: .triggering_actor.login}]' 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
         $runs = @(@($json | ConvertFrom-Json) |
-            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' } |
+            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' -and $_.actor -notlike '*`[bot`]' } |
             Sort-Object { [datetime]$_.createdAt })
         # A queued run may still end `skipped`; prefer one that has started.
         $live = @($runs | Where-Object { $_.status -eq 'in_progress' -or $_.status -eq 'completed' })

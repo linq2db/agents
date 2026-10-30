@@ -72,6 +72,22 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a comparison shape. Project the value, then filter with a non-integral bound (`from d in … select Sql.Degrees((int)r.M)!.Value where d < 57.1 select d`), and prove it red under "revert the guard" before adding it. (#5943, `9f0c4fb08`)
 
+## SQL-PROVIDER: an Access boolean ORDER BY key rewritten as an expression
+
+**Tried:** making a boolean sort key (Yes/No column or predicate) sort false-first on Access by rendering it as an expression: `Abs(key)` (#6201, A-5), `IIF(key, 1, 0)`, and `-key` (#5969).
+
+**Failed because:** Jet/ACE stores True as -1, but native Jet/ACE also rejects any expression ORDER BY key under DISTINCT (*"ORDER BY clause (IIf(…)) conflicts with DISTINCT"*, measured on `Access.Ace.OleDb`). `SelectQueryOptimizerVisitor` can merge a DISTINCT subquery into the ordered query, so `Select(t => t.BoolValue).Distinct().OrderBy(b => b)` reaches the rewrite with DISTINCT and ORDER BY on one query and would start throwing.
+
+**Don't re-attempt:** an expression key. A non-nullable key keeps the bare column, parenthesized as an int-typed `({0})`, with the direction flipped; a nullable key gets an int-typed unary minus, except under DISTINCT (flip). The int type keeps the remote path's second convert pass idempotent. (#6203, port of #5969 `10f517d5f` + `817b052c2`)
+
+## SQL-PROVIDER: a YDB RETURNING column with an expression
+
+**Tried:** making `UpdateWithOutput(…, (d, i) => new { IsOther = i.ValueStr != "Str1" })` run on YDB by dropping the table qualifier inside output expressions (`YdbSqlBuilder.BuildFieldTableAlias => _buildTableName`, following ClickHouse).
+
+**Failed because:** the qualifier was only the first error. Without it YQL fails at the operator (`(9:10) mismatched input '<>' expecting {<EOF>, ';'}`): `RETURNING` takes column names only, as the comment in `YdbSqlBuilder.BuildOutputColumnExpressions` says.
+
+**Don't re-attempt:** a builder fix. Gate a test that outputs an expression through the fixture's `…WithExpressions` provider sets, which omit YDB (`InsertWithOutputTests`, `DeleteWithOutputTests`, and `UpdateWithOutputTests.FeatureUpdateOutputWithoutOldMultipleWithExpressions`). (#6201, `00d5b0652`)
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
@@ -135,6 +151,22 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** the request was sent with or without the relaxed encoder — the default `JsonHubProtocol` frame is UTF-8-sized for such text. The PR's own `NonAsciiRequestUnderTheLimitIsSent` (6000 × `é` under 32 KB) shows the same.
 
 **Don't re-attempt:** an over-rejection finding built on default-encoder escaping. The JSON-vs-MessagePack gap that remains is only `"`, `\` and control characters (2–6 bytes in JSON, 1 in MessagePack) — a narrow window, unprobed because the test projects reference no MessagePack protocol. (#6014)
+
+## REMOTE: observing a gRPC context's disposal by the server-side connection close over a caller-owned `SocketsHttpHandler`
+
+**Tried:** asserting that disposing an address-based `GrpcDataContext` (or a caller's `GrpcChannel`) closes its connection, by counting Kestrel `ConnectionContext.ConnectionClosed` on the test host, with the tests' shared `SocketsHttpHandler` passed as `GrpcChannelOptions.HttpHandler` and `DisposeHttpClient` unset.
+
+**Failed because:** disposing the channel leaves the connection open in the caller's handler pool: 0 of 1 closed within 30 s, on the unmutated code.
+
+**Don't re-attempt:** a close assertion over a caller-owned handler. Hand the handler to the channel (`DisposeHttpClient = true`, one handler per context), as `GrpcDataContextTests.DisposedContextClosesItsConnection` does. (#6020)
+
+## REMOTE: racing two Signal/R calls' cancellations through one `CancellationTokenSource`
+
+**Tried:** one CTS for both the slot holder and a queued call, cancelled once, to race the holder's slot release against the queued call's cancelled limiter wait (`SignalRTransportTests.QueuedCallCancelledAsTheSlotIsReleasedNeverRuns`).
+
+**Failed because:** the order in which the server sees the two cancellations is not fixed. On net462 the holder's arrived first, so the queued call legitimately got the slot before its own cancellation reached the server, and the test failed with the fix in place (68 calls for 50).
+
+**Don't re-attempt:** a shared source. Give each call its own CTS and cancel the queued call's first, then the holder's; that version is red under the mutation on net10.0 and green with the fix on net10.0 and net462. (#6014)
 
 ## BUILD: regenerating `CompatibilitySuppressions.xml` for a field→property change
 

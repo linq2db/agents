@@ -93,6 +93,10 @@ descriptor/alias-suppression scope break was verified real, its fix measured beh
 125 captured baselines with 208 tests green, and was proposed for posting at MIN. The maintainer's call was
 *"no reason to fix/keep it if it is not proved"*.)
 
+### On a branch without a plan, a finding's Fix names its class and its mutation
+
+When the PR has no work plan, the posted finding is the only design artifact its author receives, and a fix written to the instance shown tends to miss its siblings. So each finding's `Fix:` names two things: the **class** the fix must cover (the other bound of a range, the dependency's per-build behaviour, the sync sibling of an async change, every site building the same URL, every dispatch path to an overridable member), and the **mutation** its regression test must go red under. (#6014 round 2: 7 of 11 findings were gaps in the commits that fixed round-1 findings — signatures restored but not dispatch, the lower bound validated but not the upper, a test with no recorded mutation.)
+
 ### A finding's subject must be in-tree
 
 An inaccuracy in a **commit message** or a **review-thread reply** is not a finding, even when it is

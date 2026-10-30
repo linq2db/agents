@@ -39,16 +39,25 @@ Input (stdin, JSON)
     "threadResolves": [                                // optional — resolveReviewThread mutations
       "PRRT_kwDOAB09RM58JUqw"                         //   bare strings OR { "threadId": "...", "label": "MIN001" }
     ],
+    "checkboxFlips": [                                 // optional — tick a body finding's checkbox
+      { "reviewId": 4138820911, "findingId": "MIN007", "mark": "x" }   // mark: "x" (fixed) or "~" (partial)
+    ],
     "reviewBodyEdits": [                               // optional — PUT prior review body
       { "reviewId": 4138820911, "newBody": "<full replacement body>" }
     ],
     "concurrency": 6                                   // optional, default 6
   }
 
+checkboxFlips fetch the review body and replace `- [ ] **<findingId>**`, which
+must occur exactly once, so the caller never rebuilds a full body; flips on one
+review go out as one PUT. A flip whose box already carries the mark is skipped.
+A review may appear in checkboxFlips or reviewBodyEdits, not both.
+
 Output (stdout, single JSON object):
   {
     "commentPatches":  [ { commentId, ok, skipped?, error? } ],
     "threadResolves":  [ { threadId, label?, ok, isResolved?, error? } ],
+    "checkboxFlips":   [ { reviewId, ok, flipped[], skipped[], storedLength?, error? } ],
     "reviewBodyEdits": [ { reviewId, ok, storedLength?, error? } ]
   }
 
@@ -122,8 +131,25 @@ if ($m.reviewBodyEdits) {
     }
 }
 
-$totalJobs = $commentPatchJobs.Count + $threadResolveJobs.Count + $reviewBodyEditJobs.Count
-if ($totalJobs -eq 0) { Exit-WithError 'no work: at least one of commentPatches / threadResolves / reviewBodyEdits must be non-empty' }
+# --- Normalise checkboxFlips input (grouped per review) -------------------
+$checkboxFlipJobs = @()
+if ($m.checkboxFlips) {
+    $byReview = [ordered]@{}
+    foreach ($entry in @($m.checkboxFlips)) {
+        $obj = if ($entry -is [hashtable]) { [pscustomobject]$entry } else { $entry }
+        if (-not (Test-IsInteger $obj.reviewId)) { Exit-WithError "checkboxFlips: reviewId (integer) required" }
+        if (-not ([string]$obj.findingId -match '^(BLK|MAJ|MIN|SUG|NIT)\d{3}$')) { Exit-WithError "checkboxFlips[$($obj.reviewId)]: findingId like MIN007 required" }
+        if ([string]$obj.mark -notin @('x', '~')) { Exit-WithError "checkboxFlips[$($obj.findingId)]: mark must be 'x' or '~'" }
+        $rid = [long]$obj.reviewId
+        if (@($reviewBodyEditJobs | Where-Object { $_.reviewId -eq $rid }).Count -gt 0) { Exit-WithError "review $rid is in both checkboxFlips and reviewBodyEdits" }
+        if (-not $byReview.Contains($rid)) { $byReview[$rid] = @() }
+        $byReview[$rid] += [pscustomobject]@{ findingId = [string]$obj.findingId; mark = [string]$obj.mark }
+    }
+    foreach ($rid in $byReview.Keys) { $checkboxFlipJobs += [pscustomobject]@{ reviewId = $rid; flips = @($byReview[$rid]) } }
+}
+
+$totalJobs = $commentPatchJobs.Count + $threadResolveJobs.Count + $reviewBodyEditJobs.Count + $checkboxFlipJobs.Count
+if ($totalJobs -eq 0) { Exit-WithError 'no work: at least one of commentPatches / threadResolves / checkboxFlips / reviewBodyEdits must be non-empty' }
 
 $root = $PSScriptRoot
 
@@ -207,9 +233,57 @@ if ($reviewBodyEditJobs.Count -gt 0) {
 }
 if ($null -eq $reviewBodyEditResults) { $reviewBodyEditResults = @() }
 
+# --- Run checkboxFlips in parallel (GET body, flip every anchor, one PUT) --
+$checkboxFlipResults = @()
+if ($checkboxFlipJobs.Count -gt 0) {
+    $checkboxFlipResults = $checkboxFlipJobs | ForEach-Object -ThrottleLimit $concurrency -Parallel {
+        . "$using:root/_shared.ps1"
+        $job = $_
+        $rf = $using:repoFull
+        $pr = $using:pr
+        $rid = $job.reviewId
+
+        $getRes = Invoke-GhJson @('api',"repos/$rf/pulls/$pr/reviews/$rid")
+        if (-not $getRes.ok) {
+            return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "GET failed: $($getRes.error)" }
+        }
+        $body = [string]$getRes.data.body
+        $flipped = @()
+        $skipped = @()
+
+        foreach ($flip in $job.flips) {
+            $done = "- [$($flip.mark)] **$($flip.findingId)**"
+            if ($body.Contains($done)) { $skipped += $flip.findingId; continue }
+
+            $anchor = "- [ ] **$($flip.findingId)**"
+            $count = ([regex]::Matches($body, [regex]::Escape($anchor))).Count
+            if ($count -ne 1) {
+                return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'$anchor' occurs $count times; expected exactly once" }
+            }
+            $body = $body.Replace($anchor, $done)
+            $flipped += $flip.findingId
+        }
+
+        if ($flipped.Count -eq 0) {
+            return [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @(); skipped = @($skipped) }
+        }
+
+        $payload = [pscustomobject]@{ body = $body } | ConvertTo-Json -Depth 3 -Compress
+        $putRes = Invoke-GhJson -ArgumentList @(
+            'api','--method','PUT',"repos/$rf/pulls/$pr/reviews/$rid",'--input','-'
+        ) -StdinInput $payload
+        if (-not $putRes.ok) {
+            return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "PUT failed: $($putRes.error)" }
+        }
+        return [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @($flipped); skipped = @($skipped); storedLength = ([string]$putRes.data.body).Length }
+    }
+}
+if ($null -eq $checkboxFlipResults) { $checkboxFlipResults = @() }
+
 $out = [pscustomobject]@{
     commentPatches  = @($commentPatchResults)
     threadResolves  = @($threadResolveResults)
+    checkboxFlips   = @($checkboxFlipResults)
     reviewBodyEdits = @($reviewBodyEditResults)
 }
 Write-JsonOutput $out
@@ -217,6 +291,7 @@ Write-JsonOutput $out
 $anyFailed = @(
     @($commentPatchResults)  | Where-Object { -not $_.ok }
     @($threadResolveResults) | Where-Object { -not $_.ok }
+    @($checkboxFlipResults)  | Where-Object { -not $_.ok }
     @($reviewBodyEditResults) | Where-Object { -not $_.ok }
 ).Count -gt 0
 

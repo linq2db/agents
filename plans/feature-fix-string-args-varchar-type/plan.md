@@ -173,7 +173,18 @@ Rows below describe the tree committed as `6d74114457` (byte-identical to the me
 
 ## P12 Critic verdict (M/L)
 
-**Current verdict: weak (round 2, pass 2)**
+**Current verdict: weak (round 3, delta on the `padsTail` fold-in)**
+
+### Round 3 — `plan-critic` on `fable`, delta on the `padsTail` fold-in, PR head `160f40b165` — weak
+
+Dispatched from the #6194 review (2026-10-30), owed by G-09. No code defect: `padsTail` is right by construction and TO-3d / m16 separate it.
+
+1. `padsTail`'s NChar arm and the column-argument shape are reachable and untested: `a.NCharColumn.Replace(b.VarCharColumn, "x")` (and the Char twin) — master cast the argument to `NChar(50)`, the head leaves it uncast (the right form); no TO-n, no P10 line, P3 says "beside a Char column" only. Disposition: raised as a test-coverage finding on the #6194 review.
+2. The evidence cannot say no: no corpus test reaches a REPLACE beside a Char/NChar value on any provider (baselines census; the only fixed-length cast inside REPLACE is MySQL's `CAST(… AS CHAR(31))` spelling of a VarChar cast), so G-01 pass 2b's byte-identical re-run and matrix-wide CI measure nothing about `padsTail`; TO-3d on SQL Server is the whole evidence. Disposition: handed to the author — `/work-plan amend` G-01 pass 2b.
+3. D-4's "drop `EnsureType`" rejection is stale: after `padsTail` the separating set is VarChar/NVarChar/Text only, and its named input does not exist (`typeof(char)` → `NChar(1)`, `MappingSchema.cs:1451`, no provider override). Disposition: handed to the author — re-derive the D-4 line.
+4. A column declared only by `DbType = "char(50)"` resolves `DataType` from the member type (`NVarChar`), so D-2 lends it and `padsTail` is false — still padded, as on master; P3's "no longer padded" does not hold for DbType-only Char columns. Disposition: handed to the author — one-line P3 scope note.
+5. Seed row 3 not carried into P8: TO-3 is now `{(1, 1), (3, 3)}`, TO-5 `[1, 2, 3]` (tests green via `AssertQuery`; rows stale). Disposition: handed to the author — P8 rows.
+6. Out of delta: `e404d185c`, `f9ac8a306`, `812895b83` rewrote TO-2 (`[ActiveIssue(6195, AllDB2)]`, Access excluded from `[DataSources]` instead of P10 L-4's `ActiveIssue(6193)`, the `Sql.Like(col + suffix, NVarCharColumn)` arm replaced by `!Sql.Like(col + suffix, "%?%") → [1, 3]`) with no plan record. Disposition: handed to the author — P8 TO-2, P10 L-4, P11.
 
 ### Round 2 — `plan-critic` on `fable`, delta on pass 2 + `strargs-fix-pass2.patch` — weak
 

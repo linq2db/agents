@@ -32,7 +32,10 @@ Input (named parameters):
   -RepoRoot      <path>    required; the worktree root (absolute)
   -Project       <path>    required; test project, relative to RepoRoot
   -Tfm           <string>  optional; e.g. net10.0 - omit to build every TFM
-  -Filter        <string>  optional; passed through to --filter
+  -Filter        <string>  optional; passed through to --filter. Rejected (exit 1) when its terms are
+                           separated by whitespace instead of '|' / '&' - the usual PowerShell
+                           `'A|' + (...) -join '|'` precedence slip, which the test host otherwise
+                           reports as an unhandled TestPlatformFormatException at start.
   -Provider      <list>    optional; passed through to --provider (comma list)
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
@@ -215,6 +218,12 @@ $ErrorActionPreference = 'Stop'
 
 # -File passes `-ExpectTests A,B` as the single string "A,B".
 $ExpectTests = @($ExpectTests | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+# `'A|' + (@(...) | % { ... }) -join '|'` concatenates before it joins, so the terms arrive space-separated. The test
+# host then dies at start (TestPlatformFormatException, exit -532462766), which reads like a host crash (#6185).
+if ($Filter -match '[^\s|&(!]\s+(FullyQualifiedName|Name|ClassName|Category|TestCategory)[~=!]') {
+    Exit-WithError -Message "-Filter has terms separated by whitespace, not '|' or '&': $Filter" -NextAction "build the term list first, then join it: `$f = `$parts -join '|'"
+}
 
 # -PerProvider: one run, log and summary per provider, sequentially - a failure is attributed to its provider and each
 # provider's database is driven by one process at a time. The first run may build; the rest reuse its output.
@@ -483,6 +492,10 @@ if (Test-Path -LiteralPath $LogPath) {
     # Retrying cannot clear it: the broken package is re-extracted onto a DLL a shared build node holds.
     if ($lines | Where-Object { $_ -match 'NuGet\.targets.*error : Access to the path' }) {
         $hint = 'NuGet cache entry half-extracted and locked by a shared build node; do not retry. Restore into a private cache: .claude/docs/windows-dev-gotchas.md -> "A half-deleted package in the NuGet cache".'
+    }
+
+    if (-not $hint -and ($lines | Where-Object { $_ -match 'Incorrect format for TestCaseFilter' })) {
+        $hint = 'The test host rejected -Filter (TestPlatformFormatException) before running anything; this is not a host crash. Fix the filter syntax and rerun.'
     }
 
     $seenFailures  = [System.Collections.Generic.HashSet[string]]::new()
