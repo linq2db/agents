@@ -654,14 +654,46 @@ function Invoke-Validate {
         if ($planTier -eq 'L') { $errors += $msg } else { $warnings += $msg }
     }
 
+    # A design change recorded as still awaiting its critic round. A user decision that rewrites a D-n in place gets
+    # no A-n, so the A-n checks above cannot see it (#6197: D-5's final variant said "re-attacked by the next delta
+    # round", no round followed, and two review findings sat in exactly that design). work-plan.md -> P12.
+    # The explicit `Pending critic round:` marker errors under -Done; the free-prose forms only warn, because older
+    # rounds keep such prose after the round that answered it.
+    if ($null -ne $p12 -and $planTier -ne 'S') {
+        foreach ($l in $p12.lines) {
+            if ($l.Trim().StartsWith('<!--')) { continue }
+            $short = $l.Trim().Substring(0, [Math]::Min(120, $l.Trim().Length))
+            if ($l -match '^\s*(-\s+)?\**Pending critic round:') {
+                $msg = "P12 : design change awaiting its critic round -- run the delta round, then replace the marker with the round's heading -- $short"
+                if ($Done) { $errors += $msg } else { $warnings += $msg }
+            }
+            elseif ($l -match '(?i)\bnot yet attacked\b|re-attacked by the next (delta )?round') {
+                $warnings += "P12 : prose says a design change is not yet attacked -- if no later round answered it, mark it ``Pending critic round:`` -- $short"
+            }
+        }
+    }
+
     # Edit-point commits after the last critic-reviewed commit. A critic objection folded in after the verdict is
     # design no critic attacked, and it gets no A-n of its own (#5959 round 7: all four code findings sat in two
     # such fold-ins). Implementation commits look the same to git, so this lists them for the reader rather than
     # failing; work-plan.md -> P12 says how to record each one.
     if ($null -ne $p12 -and -not [string]::IsNullOrWhiteSpace($RepoRoot)) {
-        $reviewedSha = $null
+        # Rounds are not always appended, so the reviewed commit is the newest backticked sha by commit date, not the
+        # last one in file order (#6197: rounds were prepended and the oldest round's sha was picked).
+        $reviewedSha  = $null
+        $reviewedTime = [long]-1
+        $shas = @($p12.lines | ForEach-Object { [regex]::Matches($_, '`([0-9a-f]{7,40})`') | ForEach-Object { $_.Groups[1].Value } } | Sort-Object -Unique)
+        foreach ($sha in $shas) {
+            $t = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'log', '-1', '--format=%ct', $sha, '--')
+            if ($t.ok -and $t.stdout.Trim() -match '^\d+$' -and [long]$t.stdout.Trim() -gt $reviewedTime) {
+                $reviewedTime = [long]$t.stdout.Trim()
+                $reviewedSha  = $sha
+            }
+        }
         foreach ($l in $p12.lines) {
-            foreach ($m in [regex]::Matches($l, '`([0-9a-f]{7,40})`')) { $reviewedSha = $m.Groups[1].Value }
+            if ($l -match '^(#{2,6}\s+|\*\*)Delta round\b' -and $l -notmatch '`[0-9a-f]{7,40}`') {
+                $warnings += "P12 : round heading names no backticked reviewed sha -- the fold-in check cannot date it -- $($l.Trim().Substring(0, [Math]::Min(120, $l.Trim().Length)))"
+            }
         }
         $p6ForPaths = Get-Block -Blocks $blocks -Id 'P6'
         $paths = @()
