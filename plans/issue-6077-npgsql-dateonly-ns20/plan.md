@@ -134,6 +134,7 @@ Mechanism (scout, `ConvertBuilder.cs:483-522`, `:30`): `Converter.GetConverter(D
   - TO-7 `ConvertTests.DateOnlyToDateTime` — ns2.0: red before, green after; net10.0 green.
   - TO-8 `PostgreSQLTests.ReadDateAsString` — ns2.0: red before (`"12/12/2012"`), green after; net10.0 green.
   - TO-9 `ConvertTests.DateOnlyToString` — ns2.0: red before, green after; net10.0 green.
+  - `test-diff-sweep.ps1 -Ref origin/pr/6092` (head `53a96f126`): 0 chains, 0 nested chains, 4 narrowed sets — the four `[IncludeDataSources(…AllPostgreSQL)]` attributes in `PostgreSQLTests.cs`, intrinsic to the provider fixture.
 - G-02: n/a — read-side conversions only. No emitted-SQL change and no baselines path configured; the net10.0 results are identical before and after.
 - G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net10.0`, both exit 0.
 - G-06: pass — the diff touches only E-1…E-6 regions.
