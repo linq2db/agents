@@ -88,6 +88,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a builder fix. Gate a test that outputs an expression through the fixture's `…WithExpressions` provider sets, which omit YDB (`InsertWithOutputTests`, `DeleteWithOutputTests`, and `UpdateWithOutputTests.FeatureUpdateOutputWithoutOldMultipleWithExpressions`). (#6201, `00d5b0652`)
 
+## SQL-AST: an execution-stable ELSE for a folded LEFT JOIN key (Access, YDB)
+
+**Tried:** keeping `CASE WHEN P THEN outerKey ELSE … END = innerKey` outer-dependent when a parameter makes P false at execution, with ELSE = `CASE WHEN outerKey IS NULL THEN NULL ELSE NULL END` built from `SqlPredicate.IsNull(outerKey)`; with a raw-SQL condition and two NULL branches; and `CAST(NULL AS …)`.
+
+**Failed because:** `SqlExpressionOptimizerVisitor.VisitIsNullPredicate` folds IS NULL on a non-nullable key to false, so the ELSE collapses back to `NULL = innerKey`, which YDB and Jet reject. Jet cannot type `IIF(x, NULL, NULL)` ("Type mismatch in expression"). Jet has no CAST.
+
+**Don't re-attempt:** those forms. Use `SqlPredicate.IsNull(SqlNullabilityExpression.ApplyNullability(outerKey, true))` with `outerKey` as the true branch, only when the folded predicates carry a parameter. (#6157, `276839ffe`)
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.

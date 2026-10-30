@@ -126,6 +126,7 @@ The **authorized change surface**, not a prediction. One row per planned edit: `
 - **mirrored / parallel sites that must move in lockstep** — the dominant linq2db shape: sibling `*SqlBuilder` / `*SqlOptimizer` / `*MemberTranslator` classes, a base-class default overridden per provider, `Insert` and `Update` paths, read and write converters
 - serialized / wire shapes — `LinqService` remote contracts, serialized enums (append-only; see [`pr-and-push.md`](pr-and-push.md))
 - contract changes where a caller must tolerate a new value — a `throw` that becomes a `return null`, an added enum member a `switch` does not handle
+- a provider newly set on an existing flag — it joins every rewrite the flag gates, so search that provider's baselines for the SQL those rewrites change, and the tests that assert SQL shape (`EnumerateAccessibleSources`, source counts), `UserTests` included, not only the fixtures the original change touched (#6157: Access on `IsComplexJoinConditionSupported` broke `Issue2832Tests`)
 
 Every row carries exactly one verdict: `covered by E-n` | `deferred: <reason>` | `out-of-scope`. If a search finds nothing, write `Localized — searched <symbol> across <scope>, no callers or emitted-SQL change.` **A bare "localized" with no named search is invalid.**
 
