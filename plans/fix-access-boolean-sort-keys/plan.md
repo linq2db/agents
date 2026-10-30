@@ -93,7 +93,9 @@ Jet/ACE evaluate True as -1, so an ascending ORDER BY on a boolean key (Yes/No c
 ## P12 Critic verdict
 
 - Not run: the design is #5969's, already critiqued there (rounds 2–3) and by `feature-query-batches` round 7 against the alternative.
-- Round 1 (2026-10-30, A-1 / A-2 and the added P4 / P10 blocks, plan-critic on fable): **weak**. Searched: the branch diff vs `eb857b682`, the visitor vs #5969's `817b052c2` (no hunk in the ORDER BY block), the baselines delta (28 M Access-only), `GetColumnDescriptorCore`, `Factory.Negate` and both convert passes, `DefaultNullsOrdering` per provider, #5969's plan. Objections, open:
+**Round 1 (2026-10-30, A-1 / A-2 and the added P4 / P10 blocks, plan-critic on fable) — weak**
+
+Searched: the branch diff vs `eb857b682`, the visitor vs #5969's `817b052c2` (no hunk in the ORDER BY block), the baselines delta (28 M Access-only), `GetColumnDescriptorCore`, `Factory.Negate` and both convert passes, `DefaultNullsOrdering` per provider, #5969's plan. Objections, open:
   - O-1 A predicate key over a NULL operand always takes the flip arm (`SqlSearchCondition.CanBeNullable` is `false`, `SqlSearchCondition.cs:172`). Measured 2026-10-30 with a probe `Parent.OrderBy(p => p.Value1 > 1).ThenBy(p => p.ParentID)` (NULL `Value1` at 2 and 4): .NET `[1, 2, 4, 7, 3, 5, 6]`; ACE OleDb master `[2, 4, 3, 5, 6, 1, 7]`; ACE OleDb PR `[1, 7, 3, 5, 6, 2, 4]`; SQLite.MS `[2, 4, 1, 7, 3, 5, 6]`. Wrong on master and outside Access; the PR fixes true/false and moves the NULL rows from first to last. SC-1's "a predicate" and P10 entry 1 misstate this cell.
   - O-2 A-1's tests have no CI run on the Jet legs: `baselines/pr_6203` holds no `OrderByNullableBooleanColumn*` files; P9 needs a gate naming a run at the branch head.
   - O-3 P10 entry 2 suppresses the only test that tells the negate arm from the flip; an `[IncludeDataSources(TestProvName.AllAccess)]` outer-join test needs no other gates.
