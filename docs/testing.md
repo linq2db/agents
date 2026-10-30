@@ -242,6 +242,7 @@ Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that driv
 
 - Run them with `-c Testing` (net10.0-only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
+- **`QueryUtils.GetStatement()` returns the statement after `SqlOptimizer.Finalize`** (`ExpressionBuilder.cs:312`), so `SelectQueryOptimizerVisitor` re-run on its clone sees an already-flattened tree. A counter test for merge-time behaviour (`MoveSubQueryUp`, correction walks) builds the AST by hand: `SelectQueryOptimizationTests.BuildJoinChain`, `NullabilityContextTests`. (#6158)
 
 ## Repro blocked by a separate, known engine bug — gate on the blocker, defer the fix
 
