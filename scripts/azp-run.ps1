@@ -149,6 +149,8 @@ if (-not $AllowStale) {
     $behind = gh api "repos/$Repo/compare/master...$head" --jq .behind_by
     if ($LASTEXITCODE -eq 0 -and [int]$behind -gt 0) {
         [Console]::Error.WriteLine("azp-run: PR #$Pr head is $behind commit(s) behind master. Sync with master first (stacked PR: sync the parent, then merge it forward), push, then trigger again; -AllowStale to trigger anyway.")
+        gh api "repos/$Repo/compare/$head...master" --jq '.commits[] | "  " + .sha[0:9] + " " + (.commit.message | split("\n")[0])' |
+            ForEach-Object { [Console]::Error.WriteLine($_) }
         exit 3
     }
 }
