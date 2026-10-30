@@ -37,7 +37,8 @@ It stages the file's **working-tree** content with each span (start marker throu
 plus the blank line after it) removed, so everything except the later commit's parts goes in.
 Markers are literal text; `<path>` is relative to the worktree. A start marker that begins mid-line
 leaves that line's indentation behind, so include the leading tabs in it. The file's UTF-8 BOM, if any,
-is preserved.
+is preserved. A marker may span lines: pass a double-quoted PowerShell string with `` `r`n `` for a CRLF
+file. That is how to make a marker unique when its first line (`[Test]`, `/// <summary>`) repeats (#6194).
 
     .claude/scripts/stage-hunks.ps1 -Worktree <path> -CutFile docs/x.md -Cut '## New section|||last words.'
 
