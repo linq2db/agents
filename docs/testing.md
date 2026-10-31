@@ -69,6 +69,7 @@ The `--provider <Name>` flag (repeatable, comma- or space-separated) **replaces*
 
 - **Still failing** → `ResultState.Inconclusive`, which MTP prints under `skipped` and the `--test-progress` heartbeat counts as `inconclusive`, with the reason `[ActiveIssue] Known issue (<reference>), still failing as expected:` followed by **the observed failure**.
 - **Passing** → a red: `Test passed but is marked with [ActiveIssue] (<reference>). If the issue is fixed, remove the attribute; if it only passes for some providers, narrow Configuration.`
+- **Beside a `Throws*` attribute** → the `Throws*` decides the providers it governs and the gate defers there (`ActiveIssueAttribute.Decide`, `throwsGoverns`), so an unscoped gate can sit next to `[ThrowsCannotBeConverted([...])]` without turning its providers red. Precedent: `DistinctByMethodTests.DistinctByAfterLeftJoinThenGroupByInnerKey` (#6223).
 
 Two consequences. **`failed: 0` on its own proves nothing about a gate** — a test that never ran reports identically — so `Grep` the log for `^skipped <Test>` and read the reason; for a *non*-gated change, confirm execution from the baseline file's mtime instead. And a gate is a **two-sided** assertion: an over-broad `Configuration` goes red the moment a provider starts passing, which is how three `AllAccess`-keyed gates were caught on #5956 once LibRed did what Microsoft's Access drivers cannot.
 

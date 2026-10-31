@@ -26,12 +26,16 @@ Input (-ManifestFile <path>; JSON):
     "green":         true,                            // optional, default true: run the unmutated tree first
     "restartContainer": "ydb",                        // optional: `docker restart <name>` before every run
                                                       // (a degrading local container, e.g. ydb, otherwise times out)
+    "outputDetailed": false,                          // optional: pass -OutputDetailed to worktree-test.ps1, so a
+                                                      // passing run's SQL is in the log (read why a mutant survived)
     "mutations": [
       {
         "name":      "drop-precision-conjunct",       // required; names the log files
         "file":      "Source/.../YdbMemberTranslator.cs",  // required; relative to worktree
         "from":      "exact text",                    // required; must occur exactly once in the file
-        "to":        "replacement text",              // required
+        "to":        "replacement text",              // required, unless "edits" is given
+        "edits":     [{ "from": "...", "to": "..." }],// optional instead of from / to: several edits to the same file,
+                                                      // applied in order, each anchor unique in the original text
         "expectRed": ["Round33"],                     // optional; test-name prefixes that must fail
         "prepare": {                                  // optional; a step the test run depends on, run after the
           "script": "Tests/Tests.Wasm/publish-wasm-bundles.ps1", // mutation is applied (e.g. republishing an artifact
@@ -89,19 +93,27 @@ $tfm     = if ($m.tfm)           { $m.tfm }           else { 'net10.0' }
 $config  = if ($m.configuration) { $m.configuration } else { 'Testing' }
 $green   = if ($null -ne $m.green) { [bool]$m.green } else { $true }
 
+function Get-Edits($mu) {
+    if ($mu.edits) { return @($mu.edits) }
+    return @([pscustomobject]@{ from = $mu.from; to = $mu.to })
+}
+
 # validate every mutation before any build, so a bad anchor fails in seconds, not after a run
 $mutations = @($m.mutations)
 foreach ($mu in $mutations) {
-    if (-not $mu.name -or -not $mu.file -or $null -eq $mu.from -or $null -eq $mu.to) {
-        Exit-WithError "mutation entry needs name, file, from and to: $($mu | ConvertTo-Json -Compress)"
+    if (-not $mu.name -or -not $mu.file -or (-not $mu.edits -and ($null -eq $mu.from -or $null -eq $mu.to))) {
+        Exit-WithError "mutation entry needs name, file, and from / to or edits: $($mu | ConvertTo-Json -Compress)"
     }
     $path = Join-Path $wt $mu.file
     if (-not (Test-Path -LiteralPath $path)) { Exit-WithError "mutation '$($mu.name)': file not found: $($mu.file)" }
     $text  = [System.IO.File]::ReadAllText($path)
-    $first = $text.IndexOf([string]$mu.from, [System.StringComparison]::Ordinal)
-    if ($first -lt 0) { Exit-WithError "mutation '$($mu.name)': 'from' not found in $($mu.file)" -NextAction 'copy the anchor from the file; use \r\n for line breaks in a CRLF file' }
-    if ($text.IndexOf([string]$mu.from, $first + 1, [System.StringComparison]::Ordinal) -ge 0) {
-        Exit-WithError "mutation '$($mu.name)': 'from' occurs more than once in $($mu.file)" -NextAction 'extend the anchor with surrounding text until it is unique'
+    foreach ($edit in Get-Edits $mu) {
+        if ($null -eq $edit.from -or $null -eq $edit.to) { Exit-WithError "mutation '$($mu.name)': every edit needs from and to" }
+        $first = $text.IndexOf([string]$edit.from, [System.StringComparison]::Ordinal)
+        if ($first -lt 0) { Exit-WithError "mutation '$($mu.name)': 'from' not found in $($mu.file): $($edit.from)" -NextAction 'copy the anchor from the file; use \r\n for line breaks in a CRLF file' }
+        if ($text.IndexOf([string]$edit.from, $first + 1, [System.StringComparison]::Ordinal) -ge 0) {
+            Exit-WithError "mutation '$($mu.name)': 'from' occurs more than once in $($mu.file): $($edit.from)" -NextAction 'extend the anchor with surrounding text until it is unique'
+        }
     }
     if ($mu.prepare -and -not (Test-Path -LiteralPath (Join-Path $wt ([string]$mu.prepare.script)))) {
         Exit-WithError "mutation '$($mu.name)': prepare script not found: $($mu.prepare.script)"
@@ -126,6 +138,7 @@ function Invoke-Run([string]$name) {
     $runArgs = @('-NoProfile', '-File', $runner, '-RepoRoot', $wt, '-Project', $project, '-Tfm', $tfm,
         '-Configuration', $config, '-Filter', $m.filter, '-MaxFailures', '200', '-FailureLines', '4', '-LogPath', $log)
     if ($m.providers) { $runArgs += @('-Provider', ((@($m.providers)) -join ',')) }
+    if ($m.outputDetailed) { $runArgs += '-OutputDetailed' }
 
     $raw = & pwsh @runArgs 2>$null
     $res = $null
@@ -162,7 +175,9 @@ foreach ($mu in $mutations) {
     $text  = [System.IO.File]::ReadAllText($path)
 
     try {
-        [System.IO.File]::WriteAllText($path, $text.Replace([string]$mu.from, [string]$mu.to), [System.Text.UTF8Encoding]::new($bom))
+        $mutated = $text
+        foreach ($edit in Get-Edits $mu) { $mutated = $mutated.Replace([string]$edit.from, [string]$edit.to) }
+        [System.IO.File]::WriteAllText($path, $mutated, [System.Text.UTF8Encoding]::new($bom))
 
         if (Invoke-Prepare $mu 'mutated') {
             $r = Invoke-Run $mu.name
