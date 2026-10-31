@@ -101,7 +101,14 @@ Cause: `SelectQueryOptimizerVisitor.JoinMoveSubQueryUp` (`SelectQueryOptimizerVi
 - G-06: pass — diff is the E-1 guard + one comment line and the E-2 tests.
 - G-07: pass — nothing under `Tests/Tests.Playground/` changed.
 - G-08: blocked — CI test-all (Oracle 12+, Firebird 4+, SAP HANA, no-apply families) pending a push.
-- G-09: — (pending; adversarial diff read before the PR opens)
+- G-09: pass — `/code-review high` over the diff, 10 findings. Fixed: guard moved to the top of the non-inner block (cost), the outer-key test's expected value derived from `Child.ParentID`, branch rebased on `origin/master` (stale base). Declined with evidence:
+  - The guard is too wide for `CROSS APPLY` and nested `LEFT` — both measured red on master (MySQL 8; the TO-5 counterexample on SQL Server).
+  - Baseline churn — the U-4 census found 0 cases, and the sweeps show 0 failures.
+  - `#5413` lift now unused — the `UpdateFromSubquery` tests pass on SqlServer.2022.MS / SQLite.MS (P10).
+  - Builder-level fix — D-1 rejected alternative.
+  - `DefaultIfEmpty` never null-extends and `Take(1)` has no order — both mirror the issue's shape over the shared data's invariants.
+  - `FullApply` / `RightApply` — no producer measured.
+  - Extend the guard to providers without APPLY — probed: SQLite TO-5 went green, `EagerLoadingTests.TestSelectGroupBy` went red, Access red either way (master too).
 
 ## P10 Adjudicated (M/L)
 
