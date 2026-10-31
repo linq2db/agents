@@ -19,3 +19,26 @@ No plan on the branch (flag: no-plan). Each finding is attributed to the block a
 - GAP-03 × 1 → the scout brief in `work-plan/SKILL.md` step 5. Extend the read/write-pair bullet at `:86`: when the change narrows or alters one mode of a shared lookup (a `forTyping`-style flag, a strict/lenient overload pair), census the callers of **every** mode and classify them by what they do with the result. A caller that uses the unchanged mode for the changed purpose gets a `P7` row and a `P4` probe. Name call-site routing, not just call text: sequence `Contains` vs IN-list `Contains`.
 - GAP-07 × 1 (NIT001) → `definition-of-done.md:11`. Drop "On a planned branch" from the `test-diff-sweep.ps1` clause in `G-01`, so any branch that edits `Tests/` runs the sweep before push. The DoD walk is plan-independent and the rule exists; only the scoping kept it from running here.
 - GAP-07 × 1 (SUG001) → `code-design.md`, beside `:341`. Generalize the author-facing reuse rule past the nullable helpers: before spelling an enum-membership predicate inline (`DataType is A or B or C`), grep for an existing spelling. A private local copy elsewhere is an extraction candidate, which moves to `QueryHelper` beside `IsDecimal`.
+
+## Round 2 — reviewed HEAD cf4421037
+
+No plan on the branch (flag: no-plan). Findings measured on SQL Server 2022, master `965f63450` vs PR head; MIN001 was rejected in the walk (DbType facets are not inferred, `code-design.md:78`) and is kept here only for the attribution.
+
+### Attribution
+
+- **MAJ003** — GAP-03 — needed a `P7` row for `ExpressionBuildVisitor.ConvertInPredicate`: a read-path `QueryHelper.GetColumnDescriptor(expr)` caller that types the IN items, exactly the "caller uses the unchanged mode for the changed purpose" shape at `work-plan/SKILL.md:86`, with one sub-row per item route (captured array → parameter; inline literal / row reference → literal). The rule landed (`38ef4b2`, 2026-10-30 01:41) about 19 hours before the fix round and round 1 already named `:5577`, but the fix round ran without a plan, so the census never ran against it (second class GAP-07). Second class GAP-05: `ConcatInListKeepsUnicode` covers one of the two item routes. — — — preventable: yes
+- **MAJ004** — GAP-02 — the `ContainsBuilder` fallback ("read path only when the typing lookup is null") rested on the unchecked premise that a non-null typing result names the column the read path converts through. The PR's own concat arm breaks it: for a mixed concat the typing lookup returns the Unicode operand, the read path the first column. Needed a `P4` row asking whether the two modes can name different columns for one expression, and a `TO-n` at the separating input (converted VarChar + NVarChar). `d8f014c8f` tested single-column shapes only (second class GAP-05). — — — preventable: yes
+- **MIN001** (rejected) — GAP-07 — reviewer rule `code-reviewer.md:73` (a guard on `DbDataType.DataType` alone misreads a DbType-only column) conflicts with author-facing `code-design.md:78` (don't parse `DbType`); the maintainer upheld `:78`. — — — preventable: partly
+
+### Aggregate
+
+3 findings, 2 accepted, both residuals of round-1 MAJ001 introduced by the review-fix round rather than the original design. None is GAP-10. The every-mode census rule from round 1 was applied to `/work-plan` but lives only in its scout brief, and a review-fix commit on a no-plan branch never reaches it.
+
+### Recommended durable fixes
+
+- GAP-03 + GAP-02 (MAJ003, MAJ004) → `acting-on-findings.md`, extending the rule at `:13`: a fix that edits a two-mode shared lookup reruns the every-mode caller census (enumerated by route) and adds one test at an input where the modes return different descriptors — whether or not the branch has a plan.
+- GAP-07 (MIN001) → reconcile `code-reviewer.md:73` with `code-design.md:78`: a type predicate over `DbDataType` is not a finding for a DbType-only column, since DbType facets are a deferred known gap.
+
+### Continuity
+
+- Round-1 MAJ001 recurs twice (MAJ003, MAJ004). Its recommendation was applied (`work-plan/SKILL.md:86`) and was still the right fix — it did not bind because the round-1 fixes were made outside `/work-plan`. The recommendation was aimed at the plan step; the miss was in the fix step.
