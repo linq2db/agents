@@ -95,13 +95,13 @@ Cause: `SelectQueryOptimizerVisitor.JoinMoveSubQueryUp` (`SelectQueryOptimizerVi
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+- G-01: pass — `worktree-test.ps1` net10.0 post-fix: TO-1/TO-2/TO-4/TO-5 green on SqlServer.2022.MS, SqlCe, MySqlConnector.8.0, PostgreSQL.17 (+ LinqService), red→green observed on SqlServer.2022.MS / SqlCe (TO-1, TO-2, TO-5) and MySqlConnector.8.0 (all four); SQLite.MS / DuckDB green with TO-5 gated (6 passed / 2 skipped, 8 passed). Sweep `AssociationTests|QueryableAssociationTests|LoadWithTests|EagerLoadingTests|JoinTests|ApplyJoinTests`: SqlCe 531 (0 failed, 6 skipped), SqlServer.2022.MS 649 (0 failed, 4 skipped).
+- G-02: skipped — local `linq2db.bls` is not a git repo and the canonical baselines clone is empty, so no pre/post diff; post-fix SqlServer.2022.MS / SqlCe SQL read by hand (the 5.4.1.9 shape: join inside the APPLY subquery). Unverified: baseline moves on PostgreSQL / DuckDB / Firebird 4+ / Oracle 12+ / HANA — read on the CI baselines PR.
+- G-05: pass — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` exit 0.
+- G-06: pass — diff is the E-1 guard + one comment line and the E-2 tests.
+- G-07: pass — nothing under `Tests/Tests.Playground/` changed.
+- G-08: blocked — CI test-all (Oracle 12+, Firebird 4+, SAP HANA, no-apply families) pending a push.
+- G-09: — (pending; adversarial diff read before the PR opens)
 
 ## P10 Adjudicated (M/L)
 
