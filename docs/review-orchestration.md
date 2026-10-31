@@ -36,6 +36,8 @@ Offer the user three paths:
 
 Carry the choice forward (a fresh re-review still walks `initial`-mode normally). This is orientation, not a hard gate — proceed on the user's pick. (Surfaced on PR #5525: "review 5525" targeted a HEAD identical to the prior `currentUser` review's commit with three findings still open.)
 
+**Only a review posted on the PR triggers this shortcut.** A work plan's pre-PR review (its G-09 gate), a self-review in the authoring session, or a review saved to a state file and never posted is not a prior review, and never replaces the `/review-pr` subagent passes. (#6155: the relayed review skipped `code-reviewer` because the plan's G-09 pass "had covered this diff". The full passes, run a turn later, found MIN001, a behaviour regression the G-09 pass missed.)
+
 **If `currentUser` already has a PENDING draft review on the PR**, a fresh `post-pr-review.ps1` will collide — GitHub allows only one pending review per user per PR. Surface the delivery choice before posting: **replace** (verify the old review is still `PENDING` via `--jq '{state,submitted_at}'`, then `gh api -X DELETE …/reviews/<id>`, then post fresh — carry over any still-relevant observations from the old draft yourself, since the delete drops them), **append** (add only the new findings as `replyComments[]` / comments onto the existing draft), or **report-only** (hand the findings to the user, no GitHub write). (Surfaced on PR #5681: a pre-existing PENDING draft over unchanged code forced a delete-first replace.)
 
 ### Loading PR context
