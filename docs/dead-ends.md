@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## SQL-AST: refusing the APPLY lift in `JoinMoveSubQueryUp` on providers without APPLY
+
+**Tried:** widening the #6208 guard (refuse lifting a subquery's joins into an `OUTER APPLY` / `CROSS APPLY`) to providers with `IsApplyJoinSupported = false`, to fix #6224's SQLite `no such column` — first for both apply kinds, then `OUTER APPLY` everywhere and `CROSS APPLY` only with APPLY support.
+
+**Failed because:** refusing `CROSS APPLY` made SQLite throw `Provider does not support CROSS/OUTER/LATERAL joins` for the `CanBeNull = false` twin; the `OUTER APPLY`-only split fixed #6224's shape but turned `EagerLoadingTests.TestSelectGroupBy` red on SQLite (`GuardGrouping` exception). Access fails all four #6208 tests with the CROSS/OUTER error either way, master included. Without APPLY the lifted shape is what the `ROW_NUMBER` emulation in `OptimizeApplyJoin` consumes.
+
+**Don't re-attempt:** widening that guard for providers without APPLY. #6224 belongs in the emulation path. (#6208, #6229, #6224)
+
 ## MAPPING: inputs that do not separate a handle's schema from the live one
 
 **Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):
