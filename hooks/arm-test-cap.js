@@ -14,6 +14,9 @@
 //   # test-cap:off     no watcher (an over-cap run the user asked for in that turn)
 //   # test-cap:5000    a different cap for this run
 //
+// A stop is invisible in the run's own output - it reads as a silent native crash, exit -1 - so the watcher also
+// leaves a per-session notice that report-test-cap.js (PostToolUse) relays; wire both.
+//
 // Wire in .claude/settings.local.json (gitignored) under hooks.PreToolUse with matcher "Bash|PowerShell".
 // Payload (stdin JSON): { session_id, cwd, tool_name, tool_input: { command }, ... }.
 
@@ -52,6 +55,7 @@ process.stdin.on('end', () => {
 
         fs.writeFileSync(argsFile, JSON.stringify({
             anchorPid: process.ppid,
+            sessionId: data.session_id || null,
             filter: f ? (f[1] || f[2] || f[3]) : null,
             max: override ? Number(override[1]) : null,
             logDir: dir,
