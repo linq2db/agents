@@ -139,6 +139,10 @@ passes. When solo and suite disagree, that difference is the finding: the test i
 cannot serve as a regression test until it is made deterministic, usually by giving it its own context or
 model so it shares no cached state.
 
+The same holds for a failure: an order-dependent failure cannot be gated. `[ActiveIssue]` asserts that the
+test still fails, so the solo run, which passes, reports Failure. Make the test deterministic first, then
+gate a separate repro that fails on its own (#6185 → #6235).
+
 To find *what* masks it, bisect the fixture rather than guessing: run the target alongside halves of the
 sibling set until a minimal masking set remains. (Measured on #4669: `ToolsTests.TestGlobalQueryFilters`
 passes in its 64-test fixture and fails alone with `System.Diagnostics.UnreachableException`.
