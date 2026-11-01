@@ -42,3 +42,26 @@ No plan on the branch (flag: no-plan). Findings measured on SQL Server 2022, mas
 ### Continuity
 
 - Round-1 MAJ001 recurs twice (MAJ003, MAJ004). Its recommendation was applied (`work-plan/SKILL.md:86`) and was still the right fix — it did not bind because the round-1 fixes were made outside `/work-plan`. The recommendation was aimed at the plan step; the miss was in the fix step.
+
+## Round 3 — reviewed HEAD 5444b1a00
+
+No plan on the branch (flag: no-plan); no P9 results. The round-2 rule `acting-on-findings.md:15` (corpus `d02aafc`, 2026-10-31 16:36) landed ~5 hours before `5444b1a00` (21:30), so it was in force for this fix round. MAJ001 measured on SQLite.MS (+ `.LinqService`): red on `5444b1a00`, green on master `781df74ab`; fixed in `52d5df463`. SUG001 fixed in `aedb296e8`.
+
+### Attribution
+
+- **MAJ001** — GAP-02 — needed a `P4` row probing the premise of `QueryHelper.GetColumnDescriptorForComparedValue` (`QueryHelper.cs:277-283`, introduced in `ff3be077e`/`678140771`, widened to `SuggestColumnDescriptor` by `5444b1a00`): that the typing descriptor is safe to take whole when the read-path descriptor carries no converter. False whenever the typing lookup names a *different* column that does carry one (`Plain + Conv`: read → Plain, typing → Conv with its converter) — round-2 MAJ004's premise inverted. Second class GAP-05: `5444b1a00` followed `acting-on-findings.md:15` to the letter with one test at a divergent input (`ComparedConcatOfConvertedAndUnicodeColumnKeepsConverter`, `Conv + Title`), the direction that cannot go red for this defect. Not GAP-10: the mirror operand order was on the branch when the fix was written. — — — preventable: yes
+- **SUG001** — GAP-07 — `testing.md:521-524` (widen to bare `[DataSources]`; a pre-emptive gate on a provider never run is a guess) is scoped to "when a change **removes** a provider-conditional path"; the always-applicable `testing.md:536` accepts a stated mechanism as the reason without requiring it to have been run, so the unrun "Cyrillic literals run on these two only" comments satisfy the rule as written. `test-diff-sweep.ps1` surfaced the attributes but cannot tell a measured reason from a guessed one. Partly GAP-01: no rule requires an exclusion's reason to be measured. — G-01 — preventable: partly
+
+### Aggregate
+
+2 findings, both traced to blocks a Tier M plan would have required; none GAP-10. MAJ001 is the third consecutive round on the same mechanism — two-mode `GetColumnDescriptor` divergence — now inside the helper that combines the modes. Each fix round tested the one direction of divergence the triggering report named, never the mirror. The preventing change is a 2×2 obligation: {converter on the read-path column, converter on the typing-path column} × {operand order}, for every helper that picks one mode's descriptor over the other.
+
+### Recommended durable fixes
+
+- GAP-02 × 1 (MAJ001) → `acting-on-findings.md:15`: replace "one test at an input where the two modes name different columns" with one test per direction of divergence — converter on the read-path column only, and on the typing-path column only (both operand orders for a concat); a helper choosing one mode's descriptor also needs a test where the descriptor it did *not* choose carries the converter. Cite #6186 round 3.
+- GAP-07 × 1 (SUG001) → `testing.md:536`: lift the measured-reason clause out of the removal-scoped `:521-524`; a narrowed provider set's stated reason must be a failure measured on at least one excluded provider, otherwise widen to `[DataSources]` and let a real red justify each exclusion.
+
+### Continuity
+
+- Round-1 MAJ001 → round-2 MAJ003/MAJ004 → round-3 MAJ001: three rounds on one lookup pair. Round 2's recommendation landed (`acting-on-findings.md:15`, `d02aafc`) before `5444b1a00` and was applied as written; this time the rule itself was underspecified (one divergent input, not both directions).
+- Round-1 NIT001's DoD change landed (`definition-of-done.md:11`); SUG001 is not a recurrence of it — the sweep surfaced the attributes, the gap is in what counts as a valid reason.
