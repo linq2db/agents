@@ -545,14 +545,43 @@ function Invoke-Validate {
         # such amendments brought in without re-walking P4/P7/P8.
         $p6Lines = (Get-Block -Blocks $blocks -Id 'P6')
         $p6Lines = if ($null -ne $p6Lines) { $p6Lines.lines } else { @() }
-        foreach ($e in $entries) {
+        $p6Text  = $p6Lines -join "`n"
+
+        # An amendment also adds edit-points when it names a `Source/…` / `Tests/…` path P6 never lists: without
+        # that, an amendment escapes every check below just by not adding its E-n row (#6157 A-4 / A-5).
+        $unlistedPaths = {
+            param($text, [string]$prefix = '(?:Source|Tests)/')
+            @([regex]::Matches($text, '`(' + $prefix + '[^`\s:]+)`') |
+                ForEach-Object { $_.Groups[1].Value } |
+                Where-Object { $p6Text -notmatch [regex]::Escape($_) } |
+                Select-Object -Unique)
+        }
+        # Returns 'cited' (a P6 row cites the entry), 'path' (it only names an unlisted path) or $null. The path
+        # trigger is newer, so it fails only entries dated from 2026-11-02 and warns before that.
+        $addsEditPoints = {
+            param($e, [string]$prefix = '(?:Source|Tests)/')
             $idPattern = "\b$([regex]::Escape($e.id))\b"
-            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
+            $cited = $p6Lines | Where-Object {
+                $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern -and ($prefix -eq '(?:Source|Tests)/' -or $_ -match '`Tests/|\bTests/Linq/')
+            }
+            if ($cited) { 'cited' }
+            elseif (@(& $unlistedPaths $e.text $prefix).Count -gt 0) { 'path' }
+        }
+        $isError = {
+            param($e, $trigger, [string]$cutoff)
+            if ($trigger -eq 'path' -and $cutoff -lt '2026-11-02') { $cutoff = '2026-11-02' }
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            $dated.Success -and $dated.Groups[1].Value -ge $cutoff
+        }
+        $because = { param($trigger) if ($trigger -eq 'path') { 'it names a path P6 does not list' } else { 'a P6 row cites it' } }
+
+        foreach ($e in $entries) {
+            $trigger = & $addsEditPoints $e
+            if (-not $trigger) { continue }
             if ($e.text -match '(?i)re-derives:') { continue }
 
-            $msg = "P11 : $($e.id) adds edit-points (a P6 row cites it) but has no re-derives: line -- re-walk P4/P7/P8 for what it brought in"
-            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
-            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-16') { $errors += $msg } else { $warnings += $msg }
+            $msg = "P11 : $($e.id) adds edit-points ($(& $because $trigger)) but has no re-derives: line -- re-walk P4/P7/P8 for what it brought in"
+            if (& $isError $e $trigger '2026-10-16') { $errors += $msg } else { $warnings += $msg }
         }
 
         # The `re-derives:` line alone records an intention, not a re-walk: #5959's A-8/A-9 named only P6/P8/P9,
@@ -560,7 +589,8 @@ function Invoke-Validate {
         # adding edit-points must also cite a P4/P7 row (or `P7: none - <searched>`) and be named by a P12 round.
         foreach ($e in $entries) {
             $idPattern = "\b$([regex]::Escape($e.id))\b"
-            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match $idPattern })) { continue }
+            $trigger   = & $addsEditPoints $e
+            if (-not $trigger) { continue }
 
             $missing = @()
             # any occurrence counts: prose in the entry may mention the token before the real line (#6162 A-5)
@@ -569,23 +599,21 @@ function Invoke-Validate {
             if ($p12Text -notmatch $idPattern) { $missing += 'a P12 critic round naming it' }
             if ($missing.Count -eq 0) { continue }
 
-            $msg = "P11 : $($e.id) adds edit-points but lacks $($missing -join ' and ') -- the re-walk and its critique are what catch a dropped clause"
-            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
-            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+            $msg = "P11 : $($e.id) adds edit-points ($(& $because $trigger)) but lacks $($missing -join ' and ') -- the re-walk and its critique are what catch a dropped clause"
+            if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
 
         # An amendment adding test edit-points owes the amend-mode step 4 record: the *Test layout* embed and a sweep
         # of the branch's test diff. #5943 rounds 2, 4 and 5 drew layout nits from amendment-added tests; by round 5
         # the step existed in the skill and still was not run, so its record is now checked.
         foreach ($e in $entries) {
-            $idPattern = "\b$([regex]::Escape($e.id))\b"
             # A Tests/ path anywhere on the row counts: an E-n leading with a source file can still add tests (#5943 E-39).
-            if (-not ($p6Lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' -and $_ -match $idPattern })) { continue }
+            $trigger = & $addsEditPoints $e 'Tests/'
+            if (-not $trigger) { continue }
             if ($e.text -match '(?i)\bconventions:') { continue }
 
-            $msg = "P11 : $($e.id) adds test edit-points but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
-            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
-            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+            $msg = "P11 : $($e.id) adds test edit-points ($(& $because $trigger)) but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
+            if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
 
         # An amendment answering a review finding fixes the instance it was shown unless it enumerates the class

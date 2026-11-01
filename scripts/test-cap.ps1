@@ -16,7 +16,8 @@
 #
 # Usage:
 #   pwsh -NoProfile -File .claude/scripts/test-cap.ps1 -AnchorPid <pid> [-Filter <expr>] [-Max 1000] [-LogDir <dir>]
-#   pwsh -NoProfile -File .claude/scripts/test-cap.ps1 -ArgsFile <json>   # hook mode: { anchorPid, filter, max, logDir, readyFile }
+#   pwsh -NoProfile -File .claude/scripts/test-cap.ps1 -ArgsFile <json>   # hook mode: { anchorPid, sessionId, filter, max, logDir, readyFile }
+# With -SessionId and -LogDir, a stop also leaves <LogDir>/test-cap-notices/<SessionId>/<pid>.json for report-test-cap.js.
 # The hook goes through `cmd /c start /b`, where a `|` in a filter would be a pipe, hence the args file. The ready
 # file is written once the session is resolved (or found missing); nothing is ever written to stdout in hook mode.
 
@@ -28,6 +29,7 @@ param(
 	[string] $LogDir,
 	[string] $ArgsFile,
 	[string] $ReadyFile,
+	[string] $SessionId,
 	[int]    $StartTimeoutSec = 2400,
 	[int]    $PollSec         = 3
 )
@@ -42,6 +44,7 @@ if ($ArgsFile) {
 	if ($a.max)       { $Max       = [int]$a.max }
 	if ($a.logDir)    { $LogDir    = [string]$a.logDir }
 	if ($a.readyFile) { $ReadyFile = [string]$a.readyFile }
+	if ($a.sessionId) { $SessionId = [string]$a.sessionId }
 }
 
 function Signal-Ready([string] $text) {
@@ -130,6 +133,19 @@ function Write-Verdict([string] $dir, [hashtable] $v) {
 	try { $v | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $dir "test-cap.$($v.pid).json") -Encoding utf8 } catch { }
 }
 
+# The per-session notice report-test-cap.js relays. Written before the stop: the killed command returns, and its
+# PostToolUse hook fires, as soon as the process is gone.
+function Write-Notice([hashtable] $v) {
+	if (-not $SessionId -or -not $LogDir) { return }
+	try {
+		$dir = Join-Path $LogDir "test-cap-notices/$SessionId"
+		if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+		$tmp = Join-Path $dir "$($v.pid).json.tmp"
+		$v | ConvertTo-Json -Compress | Set-Content -Path $tmp -Encoding utf8
+		Move-Item -Path $tmp -Destination (Join-Path $dir "$($v.pid).json") -Force
+	} catch { }
+}
+
 # ---- resolve this session's claude.exe while the hook (the anchor's child) still waits for the ready file ----
 $anchor = Get-Proc $AnchorPid
 $session = Get-Chain $anchor $null | Where-Object { $_.Name -like 'claude*' } | Select-Object -First 1
@@ -202,11 +218,13 @@ while ($true) {
 			$v.verdict = 'unverifiable'; $v.reason = 'total is the discovered upper bound, not the filtered count'
 		}
 		elseif ($total -gt $Max) {
+			$v.verdict = 'stopped'
+			Write-Notice $v
 			try {
 				Stop-Process -Id $id -Force -ErrorAction Stop
-				$v.verdict = 'stopped'
 			} catch {
 				$v.verdict = 'stop-failed'; $v.reason = "$_"
+				Write-Notice $v
 			}
 		}
 		else {
