@@ -1020,6 +1020,20 @@ When debugging query translation or provider issues,
 use `Console.WriteLine` to output intermediate values or SQL fragments.
 Do not introduce logging dependencies.
 
+### Release-only analyzer errors that test helpers hit
+
+A Debug or `Testing` build compiles these cleanly, and the Release build CI runs fails on them. They come up whenever a test needs shared state or a hand-written value type:
+
+- **`[ThreadStatic]` is banned in `Tests/`** (RS0030, `Tests/BannedSymbols.txt`). For per-test counters reached from code the test cannot parameterize, such as a converter lambda in an EF model, put a counts object behind a `static readonly AsyncLocal<T?>`. The test installs it before the call and clears it in `finally`. Runs on other providers, executing in parallel, then never count into it.
+- **Locking**: lock a **private** `static readonly Lock`. Locking a publicly reachable object is [MA0064](https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/MA0064.md), and `object` instead of `Lock` is [MA0158](https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/MA0158.md) / IDE0330. `Lock` is polyfilled, so it compiles on net462 too. Expose a `With…(Action)` method when another class needs the lock.
+- **A struct overriding `Equals`** must implement `IEquatable<T>` (CA1066). A class doesn't trip it.
+
+(`measuring-query-build.md` uses `[ThreadStatic]` in a scratch runner outside `Tests/`; that use stays legal.) (#6189: four Release-only errors across two fix rounds, each a separate build cycle.)
+
+### A value converter runs more than once per write — count side effects per conversion
+
+linq2db invokes a column's `ToProvider` conversion more than once for a single-row write: measured twice per `Update(...).Set(...)` on SQLite.MS under EF10. A test that counts a converter's side effects (calls, evaluations) therefore must not assert an absolute count. Count the conversions too, for example in the converter's target body, and assert the side effect happens **once per conversion**. Assert the conversion count is non-zero as well, so the test cannot pass vacuously. (#6189: `ShouldBe(1)` on argument evaluations would have stayed red after the fix, at 2.)
+
 ### `Should.Throw` / `Should.ThrowAsync` don't resolve inside `Tests.*` — `Tests.Should` shadows Shouldly's
 
 `Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so **both** `Should.Throw<T>(…)` and `Should.ThrowAsync<T>(…)` fail to compile with `error CS0117: 'Should' does not contain a definition for 'Throw'` / `'ThrowAsync'`, even though Shouldly 4.3 provides them. The sync form is the one you reach for most often and fails identically — assert it as `Action act = () => …;` then `act.ShouldThrow<T>()`. Use the extension form, which also mirrors the sync `Action` + `ShouldThrow<T>()` shape the fixtures already use:
