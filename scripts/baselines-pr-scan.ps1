@@ -43,6 +43,10 @@ Parameters
                        line pair is compared again with every `<fn>(inner, …last)`
                        call replaced by `inner`, nested calls included; see
                        `wrapper` below. Omitted: `wrapper` is null.
+  -SourceRepo <path>   default: the linq2db checkout this script sits in. Read
+                       with -SourceRef for `staleKeys`.
+  -SourceRef <ref>     default `origin/pr/<Pr>` — the PR head whose `Tests/` tree
+                       `staleKeys` checks the added test names against.
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
   -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
@@ -100,6 +104,22 @@ rewrites every line it touches. `pairs` counts the line pairs of symmetric chang
 `otherPairs` the ones that still differ once the wrapper is stripped. Those carry a real change,
 such as a literal written at another precision inside the wrap. (#6116: 653 of 659 pairs were
 wrap-only, and the 6 left were the review's defect.)
+
+`parens` ({ parenOnlyFiles, otherFiles, openRemoved, openAdded, otherSamples }) answers "does
+this delta only add or drop parentheses?", which `permutation` and `renames` cannot: a dropped
+pair rewrites the line. A modified file is paren-only when its two sides are the same multiset
+of lines once `(`, `)` and whitespace are removed. `openRemoved` / `openAdded` count the `(` on
+each side of those files, so the direction shows. Paren-only is not harmless by itself — moving
+a pair can change what an operator binds — so read a sample per shape before calling it inert.
+(#6146: all 261 modified files dropped the pair around a `||` chain under a comparison.)
+
+`staleKeys` ({ ref, sha, status, files, tests }) lists added tests whose fixture class or method no
+longer exists in `Tests/` at -SourceRef. The default ref is fetched first unless -NoFetch: with
+-NoFetch, compare `sha` with the PR head, since a stale local ref flags every newer test. A baselines branch only gains files across CI runs, so
+a test renamed, moved or deleted after an earlier run keeps its old baselines there. Those are
+stale keys, an action item. `status: ref_missing` means -SourceRef did not resolve, so nothing
+was checked. A method name that still occurs anywhere under `Tests/` is not flagged, so an empty
+list is a bound, not proof. (#6146: 16 `Issue5984Tests` files from before the tests moved.)
 
 `renames.mismatches` counts changed line-pairs that still differ after
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
@@ -168,6 +188,8 @@ param(
     [string]   $Signal            = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
     [string]   $StripWrapper,
+    [string]   $SourceRepo,
+    [string]   $SourceRef,
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
     [int]      $MaxImpureFiles     = 25,
@@ -304,6 +326,64 @@ foreach ($t in ($addedByTest.Keys | Sort-Object)) {
     $addedTests += [pscustomobject]@{ test = $t; providers = $have.Count; missing = $missing }
 }
 
+# ---- staleKeys: added tests whose class or method is gone at the PR head -----
+if (-not $SourceRepo) { $SourceRepo = (Resolve-Path -LiteralPath "$PSScriptRoot/../..").Path }
+if (-not $SourceRef)  { $SourceRef  = "origin/pr/$Pr" }
+
+function SrcGit([string[]]$GitArgs) { Invoke-Process -FilePath 'git' -ArgumentList (@('-C', $SourceRepo) + $GitArgs) }
+
+$staleKeys = [ordered]@{ ref = $SourceRef; sha = $null; status = 'ok'; files = 0; tests = @() }
+if ($addedByTest.Count -gt 0) {
+    # A local PR ref left from an earlier review flags every test added since as stale (#6197: 266 false positives).
+    if (-not $NoFetch -and -not $PSBoundParameters.ContainsKey('SourceRef')) {
+        [void](SrcGit @('fetch', 'origin', "+refs/pull/${Pr}/head:refs/remotes/origin/pr/$Pr"))
+    }
+    $rv = SrcGit @('rev-parse', '--verify', '--quiet', $SourceRef)
+    if ($rv.code -ne 0 -or -not $rv.stdout.Trim()) {
+        $staleKeys.status = 'ref_missing'
+    } else {
+        $staleKeys.sha = $rv.stdout.Trim()
+        $classes = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        $cg = SrcGit @('grep', '-h', '-o', '-E', '\bclass\s+[A-Za-z_][A-Za-z0-9_]*', $SourceRef, '--', 'Tests')
+        foreach ($m in [regex]::Matches($cg.stdout, 'class\s+([A-Za-z_][A-Za-z0-9_]*)')) { [void]$classes.Add($m.Groups[1].Value) }
+
+        # test name -> (class, method); NUnit spells a nested fixture `Outer+Inner`
+        $parsed = @{}
+        foreach ($t in $addedByTest.Keys) {
+            $seg = $t -split '\.'
+            if ($seg.Count -lt 2) { continue }
+            $parsed[$t] = @{ class = ($seg[-2] -split '\+')[-1]; method = $seg[-1] }
+        }
+
+        # Method names are checked only for tests whose class survives, in batches to stay under the command-line limit.
+        $methods = @($parsed.Values | Where-Object { $classes.Contains($_.class) } | ForEach-Object { $_.method } | Sort-Object -Unique)
+        $foundMethods = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        for ($b = 0; $b -lt $methods.Count; $b += 200) {
+            $batch = $methods[$b..([Math]::Min($b + 199, $methods.Count - 1))]
+            $gargs = @('grep', '-h', '-o', '-w', '-F')
+            foreach ($mn in $batch) { $gargs += @('-e', $mn) }
+            $mg = SrcGit ($gargs + @($SourceRef, '--', 'Tests'))
+            foreach ($l in ($mg.stdout -split "`n")) { if ($l.Trim()) { [void]$foundMethods.Add($l.Trim()) } }
+        }
+
+        $fileCount = @{}
+        foreach ($path in $addedPaths) {
+            $t = (($path -split '/')[-1] -replace '\(.*$', '')
+            if (-not $fileCount.ContainsKey($t)) { $fileCount[$t] = 0 }
+            $fileCount[$t]++
+        }
+
+        $stale = @()
+        foreach ($t in ($parsed.Keys | Sort-Object)) {
+            $p = $parsed[$t]
+            $why = if (-not $classes.Contains($p.class)) { 'class missing' } elseif (-not $foundMethods.Contains($p.method)) { 'method missing' }
+            if ($why) { $stale += [pscustomobject]@{ test = $t; reason = $why; files = $fileCount[$t] } }
+        }
+        $staleKeys.files = [int](($stale | Measure-Object -Property files -Sum).Sum)
+        $staleKeys.tests = @($stale | Select-Object -First $MaxAddedTests)
+    }
+}
+
 # ---- per-file line / signal / rename analysis over the -U0 diff ------------
 $diff = (Git -GitArgs @('diff', '-U0', $range)).stdout
 
@@ -398,6 +478,12 @@ function Get-AliasShape([System.Collections.Generic.List[string]]$Lines) {
     }
     return ($tokens -join ' ')
 }
+
+$parenStripRe     = [regex]::new('[()\s]')
+$parenOnlyCount   = 0
+$parenOpenAdded   = 0
+$parenOpenRemoved = 0
+$parenOther       = [System.Collections.Generic.List[string]]::new()
 
 $wrapperPairs   = 0
 $wrapperOther   = 0
@@ -500,6 +586,15 @@ function Flush-File {
         $shapeD = Get-AliasShape $Removed
         if ([string]::Equals($shapeA, $shapeD, [System.StringComparison]::Ordinal)) { $script:aliasOnlyCount++ }
         else { $script:aliasOther.Add($File) }
+
+        $parA = @($Added   | ForEach-Object { $script:parenStripRe.Replace($_, '') } | Sort-Object)
+        $parD = @($Removed | ForEach-Object { $script:parenStripRe.Replace($_, '') } | Sort-Object)
+        if ([string]::Equals(($parA -join "`n"), ($parD -join "`n"), [System.StringComparison]::Ordinal)) {
+            $script:parenOnlyCount++
+            foreach ($l in $Added)   { $script:parenOpenAdded   += ([regex]::Matches($l, '\(')).Count }
+            foreach ($l in $Removed) { $script:parenOpenRemoved += ([regex]::Matches($l, '\(')).Count }
+        }
+        else { $script:parenOther.Add($File) }
     }
 
     $script:stats.Add([pscustomobject]@{
@@ -694,6 +789,14 @@ $result = [ordered]@{
         otherFiles     = $aliasOther.Count
         otherSamples   = @($aliasOther | Select-Object -First 25)
     }
+    parens    = [ordered]@{
+        parenOnlyFiles = $parenOnlyCount
+        otherFiles     = $parenOther.Count
+        openRemoved    = $parenOpenRemoved
+        openAdded      = $parenOpenAdded
+        otherSamples   = @($parenOther | Select-Object -First 25)
+    }
+    staleKeys = $staleKeys
     wrapper   = if ($StripWrapper) {
         [ordered]@{
             function         = $StripWrapper
@@ -710,4 +813,5 @@ Write-JsonOutput -InputObject $result -Depth 6 -OutFile $OutFile -Summary ([orde
     counts    = $result.counts
     inherited = $inherited.Count
     parentInherited = if ($parentInherited) { [ordered]@{ files = $parentInherited.files; own = $parentInherited.own } } else { $null }
+    staleKeys = [ordered]@{ status = $staleKeys.status; files = $staleKeys.files }
 })
