@@ -71,8 +71,8 @@ Audit projection (reads a prior -OutFile result; no gh, no git):
       pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -AuditSummary
 
     One JSON object: { ok, action, pr, headSha, currentUser, ownPendingReviewId,
-    idFloor, auditScope, reviews[], replyOnlyReviews, threads[], otherReviewBodies[],
-    issueCommentAuthors, ownIssueComments[] }.
+    idFloor, openOwnBodyItems[], auditScope, reviews[], replyOnlyReviews, threads[],
+    otherReviewBodies[], issueCommentAuthors, ownIssueComments[] }.
       `reviews[]`  — { id, user, own, state, submittedAt, commitId, bodyChars,
                      findingIds[], threads }; a body-less review that opens no
                      thread only carries replies and is counted in replyOnlyReviews.
@@ -84,8 +84,13 @@ Audit projection (reads a prior -OutFile result; no gh, no git):
                      audits: { ids[], user, state, commitId, body[] } (lines; badge
                      markup and HTML comments stripped; identical bodies merged).
       `idFloor`    — next ID per severity from your own posted text (reviews, review
-                     comments, issue comments). The branch's gap ledger is not in the
-                     context JSON: fold .claude/plans/<key>/gaps.md in separately.
+                     comments, issue comments) and other agentic reviewers' reviews
+                     and line comments (body carries "Agentic review"). The branch's
+                     gap ledger is not in the context JSON: fold
+                     .claude/plans/<key>/gaps.md in separately.
+      `openOwnBodyItems[]` — { id, reviewId, submittedAt, title }: your body-section
+                     findings (`- [ ] **ID** — …`) still unchecked in the newest own
+                     review that lists them. Brief them as already raised.
       `auditScope` — { otherOpenThreads, resolvedByOthers, otherReviewBodies }.
 
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
@@ -201,12 +206,33 @@ if ($From -or $AuditSummary) {
     $otherBodies = @($otherBodies.Values)
 
     # ID-continuation floor from posted text only (review-conventions.md): own review bodies, own review comments and
-    # own issue comments. The branch's gap ledger is not in the context JSON; fold it in separately.
+    # own issue comments, plus other agentic reviewers' reviews and their line comments (rule 5: they share the ID
+    # space; #5673 had igor-tkachev's MAJ010/MAJ011 over an own-only floor of MAJ010). A follow-up review can omit the
+    # disclaimer, so a review also counts when it or one of its line comments carries a bold finding ID. The branch's
+    # gap ledger is not in the context JSON; fold it in separately.
+    $boldIdRx   = '\*\*(?:(?:Blocker|Major|Minor|Suggestion|Nit) · )?(?:BLK|MAJ|MIN|SUG|NIT)\d{3}\*\*'
+    $agenticIds = @($doc.reviews | Where-Object {
+        $rid = $_.id
+        $_.user -ne $me -and ([string]$_.body -match 'Agentic review' -or [string]$_.body -match $boldIdRx -or
+            @($comments | Where-Object { $_.pull_request_review_id -eq $rid -and [string]$_.body -match $boldIdRx }).Count -gt 0)
+    } | ForEach-Object { $_.id })
     $ownText = @()
-    $ownText += @($doc.reviews | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
-    $ownText += @($comments | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
+    $ownText += @($doc.reviews | Where-Object { $_.user -eq $me -or $agenticIds -contains $_.id } | ForEach-Object { [string]$_.body })
+    $ownText += @($comments | Where-Object { $_.user -eq $me -or $agenticIds -contains $_.pull_request_review_id } | ForEach-Object { [string]$_.body })
     $ownIssue = @($doc.issueComments | Where-Object { $_.user -eq $me })
     $ownText += @($ownIssue | ForEach-Object { [string]$_.body })
+
+    # Own body-section findings still unchecked in the newest own review that lists them. A body item has no thread,
+    # so nothing else surfaces it to a new round, which then re-files it under a new ID (#5673: NIT005 = NIT001).
+    $bodyItemRx = [regex]'(?m)^\s*- \[( |x)\] (?:\*\*)?(BLK|MAJ|MIN|SUG|NIT)(\d{3})(?:\*\*)? *[—-] *(.*)$'
+    $itemState  = [ordered]@{}
+    foreach ($r in @($doc.reviews | Where-Object { $_.user -eq $me -and $_.submitted_at } | Sort-Object { [datetime]$_.submitted_at })) {
+        foreach ($m in $bodyItemRx.Matches([string]$r.body)) {
+            $id = $m.Groups[2].Value + $m.Groups[3].Value
+            $itemState[$id] = [ordered]@{ id = $id; open = ($m.Groups[1].Value -eq ' '); reviewId = $r.id; submittedAt = Format-When $r.submitted_at; title = Get-Excerpt $m.Groups[4].Value }
+        }
+    }
+    $openOwnBodyItems = @($itemState.Values | Where-Object { $_.open } | ForEach-Object { $_.Remove('open'); $_ })
     $floor = [ordered]@{}
     foreach ($sev in 'BLK', 'MAJ', 'MIN', 'SUG', 'NIT') {
         $max = 0
@@ -227,6 +253,7 @@ if ($From -or $AuditSummary) {
         currentUser        = $me
         ownPendingReviewId = if ($pending.Count -gt 0) { $pending[0].id } else { $null }
         idFloor            = $floor
+        openOwnBodyItems   = $openOwnBodyItems
         auditScope         = [ordered]@{
             otherOpenThreads     = @($threads | Where-Object { -not $_.own -and -not $_.isResolved }).Count
             resolvedByOthers     = @($threads | Where-Object { $_.isResolved -and $_.resolvedBy -ne $me }).Count

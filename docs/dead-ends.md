@@ -12,6 +12,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** widening that guard for providers without APPLY. #6224 belongs in the emulation path. (#6208, #6229, #6224)
 
+## SQL-PROVIDER: two suspected holes in #5673's deferred predicate reduce that did not reproduce
+
+**Tried:** probing two shapes a source-reading pass flagged in the single optimize+convert traversal, on SqlServer.2022.MS and SQLite.MS at `e40c90018` (net10.0). (1) A captured `bool` choosing the branch of a `Where`, whose dead branch compares `Sql.Row(...)` to a SELECT, which SQL Server refuses at convert time (`SqlExpressionConvertVisitor.ConvertRowExprExpr`): the suspicion was that children are lowered before the parameter decides the branch. (2) A nullable `A == B` projected, then filtered on, in a query made parameter-dependent with an `ids.Contains(r.Id)` IN list, with `[Values(1, 2)]` runs for a cache hit: the suspicion was that a predicate shared between a deferred value slot and the filter is answered from the transformation map with its unreduced copy, dropping the LikeClr null guards.
+
+**Failed because:** both are green on both providers, with results equal to LINQ to Objects. Reach was not instrumented, so neither shape is proven to hit the code path the suspicion named; shape 2's sharing producer is still unknown (the one known sharing case, a SET value with an inner column, has both slots deferred).
+
+**Don't re-attempt:** these two shapes as written. A further probe of shape 2 first needs a statement that provably shares one predicate instance between a value slot and a filter. (#5673, review of 2026-11-01)
+
 ## MAPPING: inputs that do not separate a handle's schema from the live one
 
 **Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):
