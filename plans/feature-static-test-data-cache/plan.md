@@ -96,6 +96,8 @@ Mechanism (code read, the race itself not reproduced):
 - E-2 `Tests/Linq/Create/CreateData.cs:a_CreateData.CreateDatabase` — call `CaptureReferenceData(context)` after the `switch`.
 - E-3 `Tests/Linq/Linq/MappingTests.cs:MyType3` — key on `[IncludeDataSources(TestProvName.AllSQLite)] string context`, `GetDataConnection(context)`; same for `MyType4`, `MyType5` (same file).
 - E-4 `Tests/Linq/Infrastructure/DataOptionsTests.cs:OnTraceTest` — `_child = …` → `_ = …` (lines 69, 79, 92, 104; also `OnTraceTest2`).
+- E-6 `Tests/Base/CustomTestContext.cs:EnsureDatabaseReady` — new helper: `AwaitDatabaseReady` + backstop `MarkDatabaseReady` on timeout (A-1).
+- E-7 `Tests/Base/TestBase.cs:OnBeforeTest` — the inline await + backstop is replaced by `EnsureDatabaseReady`; E-1's `Data` getter calls the same helper (A-1).
 - E-5 `Tests/Linq/Infrastructure/ReferenceDataTests.cs:ReferenceDataTests` — new fixture with the TO-1 test. Invariant the test must keep: the first getter read happens **before** the insert (that read waits for the capture under D-3), so the `[NonParallelizable]` insert can never overlap the ungated default `CreateDatabase` — the overlap D-4 rejects `[NonParallelizable]` for. Stated in a one-line comment at the read.
 
 ## P7 Impact map (M/L)
@@ -127,11 +129,19 @@ Mechanism (code read, the race itself not reproduced):
 
 ## P9 Verification gates
 
-- G-01: — (pending) — TO-1 red on master then green; TO-2 control observed both arms; TO-4..TO-6 via `/test`; plus `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0` (analyzers / XML docs on test edits) and `-f net462` (TFM API availability for the test projects).
-- G-02: — (pending) — expect no baseline change; MyType3/4/5 baselines move from the default context to per-SQLite-context keys (review, not regenerate).
-- G-06: — (pending)
-- G-07: — (pending)
-- G-09: — (pending)
+- G-01: pass — all via `worktree-test.ps1` (worktree, `-c Testing`, net10.0, in-memory SQLite from `DataProviders.json`):
+  - TO-1 red on master (fix files stashed): `SnapshotIgnoresLaterWrites` "should be 7 but was 8"; green on the branch.
+  - TO-2 control, file-logged probe on `CreateDatabase|InheritanceTests|MappingTests.MyType|ReferenceDataTests` × `SQLite.MS,SQLite.Classic`: capture arm one `capture ready=False` line and no lazy line (twice); control arm (E-2 call commented out) one `lazy` line and no capture line. 326/326 non-skipped passed in each arm.
+  - TO-3: the lazy path is exercised by TO-2's control arm. Hosts without the dispatcher are left to CI.
+  - TO-4/TO-5: 21/21 (`CreateDatabase` ×4, `MyType1..5` on all four SQLite contexts, `OnTraceTest*`, TO-1).
+  - TO-6: `…|InheritanceTests|MappingTests.MyType|JoinTests|ReferenceDataTests` 811 passed / 32 skipped / 0 failed. Final clean-tree slice `CreateDatabase|ReferenceDataTests|InheritanceTests|MappingTests.MyType|AssociationTests|DataOptionsTests.OnTraceTest` 686 / 30 / 0.
+  - Builds: `Tests/Linq` `-c Release -f net10.0` and `-f net462`, both 0 warnings / 0 errors.
+  - `test-diff-sweep.ps1 -IncludeWorkingTree`: 11 one-line chains, all in `Tests/Base/TestBase.Tables.cs`, every one an existing statement moved verbatim from `EnsureModel` / the old getters (not reflowed; reformatting moved code is out of scope). 3 narrowed sets (`MappingTests.cs:283,298,314`, `AllSQLite`) are wider than master's default-context-only run; reason in D-4. 0 nested chains.
+  - Four runs whose filter included all of `MappingTests` (1817–1820 tests) ended with exit -1/255. This was not a crash: the corpus test-cap watcher (`.claude/scripts/test-cap.ps1`, cap 1000) stopped them, per the `test-cap.<pid>.json` verdicts `stopped` for pids 40448, 11760, 40432 and 23592. Confirmed by linq2db-claude-9e under cdb on master. The runs cited above stayed under the cap.
+- G-02: n/a locally — the worktree has no baselines path configured. CI will show `MyType3/4/5` baseline keys moving from the default context to per-SQLite-context keys; no other SQL change is expected.
+- G-06: pass — `git diff --stat`: 4 files modified plus 1 new file. The `TestBase.Tables.cs` rewrite is confined to E-1's regions (Types / Person / Parent-Child / Inheritance / `InitPatientPerson`); Northwind and `DataCache<T>` are untouched.
+- G-07: pass — nothing under `Tests/Tests.Playground/` changed.
+- G-09: pass — `/code-review` high on the worktree diff: 10 findings, walked one at a time with the user. 8 dropped (all covered by P10 / D-1 / P8), finding 8 fixed (A-1), finding 10 fixed (comment shortened), finding 2 filed as [#6232](https://github.com/linq2db/linq2db/issues/6232). Re-run after the fixes: the final slice passed 686 / skipped 30 / failed 0.
 
 ## P10 Adjudicated (M/L)
 
@@ -142,7 +152,8 @@ Mechanism (code read, the race itself not reproduced):
 
 ## P11 Amendments (M/L)
 
-_None._
+- A-1 (2026-11-01, `/code-review` high, finding 8, disposition "fix" by the user) — the await-then-backstop pair was duplicated between `TestBase.OnBeforeTest` and E-1's `Data` getter. It is extracted into `CustomTestContext.EnsureDatabaseReady`, which both now call. Behaviour unchanged. Same review, finding 10: the E-1 comment is shortened to 2 lines (no plan row). Other dispositions: findings 1, 3, 4, 5, 6, 7, 9 dropped (covered by P10 / D-1 / P8); finding 2 (route context-less tests to the default provider's lane in `DatabaseLaneStrategy.Classify`) filed to the backlog as a separate task.
+  re-derives: P6 (E-6, E-7)
 
 ## P12 Critic verdict (M/L)
 
