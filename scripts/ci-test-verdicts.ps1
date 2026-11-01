@@ -33,8 +33,9 @@ Anything else on a `failed` line is an ordinary `failure`.
 
 A leg can also go red with no failing case at all: the test host itself fails after the tests ran,
 and every case line reads as a holding gate. The per-case parse is blind to that, so each
-`Test run summary: Failed!` block is checked too — when its `failed:` count exceeds the leg's parsed
-non-holding cases, one `host-failure` row is emitted carrying the first `##[error][Failed] …` line.
+`Test run summary: Failed!` block is checked too — when its `failed:` count exceeds the non-holding cases
+parsed since the previous summary block, one `host-failure` row is emitted carrying the first
+`##[error][Failed] …` line.
 `details` is prefixed `x86-oom:` when that line is NUnit's `OutOfMemoryException` in result
 serialization, the known intermittent 32-bit address-space failure — not PR-introduced.
 
@@ -160,7 +161,6 @@ foreach ($d in $Dir) {
         $leg   = $file.BaseName -replace '^tests-', ''
         $lines = [System.IO.File]::ReadAllLines($file.FullName)
 
-        $legStart       = $rows.Count
         $summaryFailed  = 0
         $summaryPassed  = 0
         $failedAssembly = @()
@@ -168,6 +168,10 @@ foreach ($d in $Dir) {
         $hangDump       = ''
         $hungTests      = @()
         $hostExitCode   = ''
+        # A leg can run one assembly several times, each run's cases printed above its own summary block - so a
+        # block's failed count is matched against the cases parsed since the previous block, never the leg's total.
+        $blockStart     = $rows.Count
+        $blockDeficits  = @()
 
         for ($i = 0; $i -lt $lines.Length; $i++) {
             $line = Clear-Decoration $lines[$i]
@@ -176,13 +180,24 @@ foreach ($d in $Dir) {
             if ($hangDump -and $line -match '^\[\d{2}:\d{2}:\d{2}\]\s+(.+)$') { $hungTests += $Matches[1].Trim(); continue }
             if ($line -match '^Test application process didn''t exit gracefully, exit code is ''(\d+)''') { $hostExitCode = $Matches[1]; continue }
 
-            if ($line -match '^Test run summary: Passed!') { $summaryPassed++; continue }
+            if ($line -match '^Test run summary: Passed!') { $summaryPassed++; $blockStart = $rows.Count; continue }
 
             if ($line -match '^Test run summary: (?:Failed|Aborted)!\s*-\s*(.+)$') {
-                $failedAssembly += $Matches[1].Trim()
+                $assembly    = $Matches[1].Trim()
+                $blockFailed = 0
                 for ($j = $i + 1; $j -lt [Math]::Min($i + 8, $lines.Length); $j++) {
-                    if ((Clear-Decoration $lines[$j]) -match '^\s*failed:\s*(\d+)') { $summaryFailed += [int]$Matches[1]; break }
+                    if ((Clear-Decoration $lines[$j]) -match '^\s*failed:\s*(\d+)') { $blockFailed = [int]$Matches[1]; break }
                 }
+                $summaryFailed += $blockFailed
+
+                $blockParsed = @($rows | Select-Object -Skip $blockStart | Where-Object verdict -ne 'gate-holds' |
+                    Sort-Object test, args, provider -Unique).Count
+                if ($blockFailed -gt $blockParsed) {
+                    $failedAssembly += $assembly
+                    $blockDeficits  += "summary failed: $blockFailed, parsed non-holding cases: $blockParsed"
+                }
+
+                $blockStart = $rows.Count
                 continue
             }
 
@@ -292,26 +307,21 @@ foreach ($d in $Dir) {
                 details      = $tag + $(if ($hangDump) { "hang: dump after $hangDump" } else { 'crash' }) + "; exit code $hostExitCode"
             })
         }
-        elseif ($summaryFailed -gt 0 -and -not $Test) {
-            $parsed = @($rows | Select-Object -Skip $legStart | Where-Object verdict -ne 'gate-holds' |
-                Sort-Object test, args, provider -Unique).Count
+        elseif ($blockDeficits -and -not $Test) {
+            $tag = if ($hostError -match 'OutOfMemoryException' -and $hostError -match 'NUnit\.Engine') { 'x86-oom: ' } else { '' }
 
-            if ($summaryFailed -gt $parsed) {
-                $tag = if ($hostError -match 'OutOfMemoryException' -and $hostError -match 'NUnit\.Engine') { 'x86-oom: ' } else { '' }
-
-                $rows.Add([pscustomobject]@{
-                    verdict      = 'host-failure'
-                    fixture      = ''
-                    test         = '(test host)'
-                    args         = ''
-                    provider     = ''
-                    leg          = $leg
-                    expectedType = ''
-                    expected     = ''
-                    actual       = $hostError
-                    details      = "${tag}summary failed: $summaryFailed, parsed non-holding cases: $parsed; $($failedAssembly -join '; ')"
-                })
-            }
+            $rows.Add([pscustomobject]@{
+                verdict      = 'host-failure'
+                fixture      = ''
+                test         = '(test host)'
+                args         = ''
+                provider     = ''
+                leg          = $leg
+                expectedType = ''
+                expected     = ''
+                actual       = $hostError
+                details      = "${tag}$($blockDeficits -join '; '); $($failedAssembly -join '; ')"
+            })
         }
     }
 }
