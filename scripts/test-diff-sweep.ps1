@@ -8,7 +8,11 @@ letting through:
   2. narrowed provider sets on an added line (`[IncludeDataSources(...)]`, `[DataSources(<exclusions>)]`)
      with the nearest non-attribute line above (from three lines of diff context, so an unchanged comment
      further up shows as blank — open the file), so a missing or stale reason line is visible —
-     testing.md -> *A narrowed provider set is a claim* -> *State the reason at the attribute*.
+     testing.md -> *A narrowed provider set is a claim* -> *State the reason at the attribute*;
+  3. Shouldly-assertion gates (`[ActiveIssue]` / `[ThrowsForProvider]` naming `Shouldly`) whose
+     `ErrorMessage` is the asserted expression (`records[2].FirstName`) and not a `should ...` clause —
+     Shouldly writes the expression only when it can read the test source, so CI never matches it —
+     testing.md -> *Gating an assertion failure*. (#6229: written against that rule, caught by the critic.)
 
 Why this script exists
 ----------------------
@@ -40,7 +44,7 @@ Contract
 on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
-narrowedSets: [{file, line, attribute, lineAbove}] }.
+narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}] }.
 #>
 
 param(
@@ -86,6 +90,7 @@ $recent = [System.Collections.Generic.List[string]]::new()
 $chains = @()
 $nested = @()
 $sets   = @()
+$gates  = @()
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
 function Remove-Operands([string] $text) {
@@ -146,6 +151,16 @@ foreach ($l in $diff) {
 				}
 			}
 		}
+
+		# a member-access chain starting lower-case (`records[2].FirstName`, `t.Single().Value`) is an expression,
+		# not an expected value - values such as `CONVERT(varchar(4), 123)` do not fit the shape
+		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -match 'ErrorMessage\s*=\s*"(?<msg>(?:[^"\\]|\\.)*)"') {
+			$msg = $Matches['msg'] -replace '\\"', '"'
+
+			if ($msg -notmatch '(?i)\bshould\b' -and $msg -match '^[a-z_]\w*(\.\w+|\[[^\]]*\]|\([^()]*\))*$') {
+				$gates += [pscustomobject]@{ file = $file; line = $line; errorMessage = $msg }
+			}
+		}
 	}
 
 	$recent.Add($l)
@@ -153,9 +168,10 @@ foreach ($l in $diff) {
 }
 
 [ordered]@{
-	base         = $range
-	path         = $Path
-	chains       = @($chains)
-	nestedChains = @($nested)
-	narrowedSets = @($sets)
+	base                 = $range
+	path                 = $Path
+	chains               = @($chains)
+	nestedChains         = @($nested)
+	narrowedSets         = @($sets)
+	shouldlySubjectGates = @($gates)
 } | ConvertTo-Json -Depth 4

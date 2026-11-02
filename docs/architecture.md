@@ -58,6 +58,10 @@ The query cache key is taken from the exposed tree before any builder runs. A no
 
 `SqlSearchCondition.CanInvert` is false whenever a member is not itself a search condition. So the optimizer's `VisitNotPredicate` usually takes its second path: it visits the inner predicate (in the convert visitor, that reduces it) and only then tries `Invert`. The order shows up in the SQL. `NOT (x IS TRUE)` inverted first is `x IS FALSE`, which reduces to `x = TrueValue`. Reduced first, it is `NOT (x = FalseValue)`, and that inverts to `x <> FalseValue`. The `x != false` flip that would rescue it matches only a `SqlValue` of type `bool`, not a provider's mapped boolean constant (Firebird 2.5's char `'0'`). On master the reduce ran at render time, so it was invert-first. (#6201: `NOT` became a deferral slot that inverts first.)
 
+### An UPDATE `SET` subquery's APPLY survives to `JoinMoveSubQueryUp` only on Oracle
+
+A `Set(col, x => (… DefaultIfEmpty() …).Single())` value is built as an OUTER APPLY on the update target. `OptimizeJoins` runs before `OptimizeJoinSubQueries`, and its `MoveSingleOuterJoinToSubQuery` folds that apply into the `SET` subquery unless the validator rejects the result. `SqlQueryValidatorVisitor` (`:220`) rejects a parent reference in a join `ON` when `IsSubqueryWithParentReferenceInJoinConditionSupported = false`, which only Oracle and MySQL set. MySQL still never reaches the apply path, because it writes a multi-table `UPDATE x LEFT JOIN … SET x.c = CASE … END`. So Oracle alone leaves the apply intact for `JoinMoveSubQueryUp`. On master, that pass lifted the apply and dropped the `DefaultIfEmpty` fallback, writing `NULL` to unmatched rows. The flag is conservative for Oracle 12+, which accepts the kept `LEFT JOIN … ON canChange.Id = x.Id + 1` inside the `SET` subquery, and correct for Oracle 11, which rejects it with `ORA-00904`. (#6229 fixes Oracle 12+, measured on Oracle 11/12, MySQL 5.7/8, MariaDB 11; #6241 tracks Oracle 11.)
+
 ## Other Key Directories
 
 - `Source/LinqToDB/Mapping/` — Attribute-based and fluent mapping configuration (`[Table]`, `[Column]`, `FluentMappingBuilder`)
