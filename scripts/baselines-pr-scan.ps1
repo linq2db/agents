@@ -47,6 +47,11 @@ Parameters
                        with -SourceRef for `staleKeys`.
   -SourceRef <ref>     default `origin/pr/<Pr>` — the PR head whose `Tests/` tree
                        `staleKeys` checks the added test names against.
+  -SinceCommit <sha>   a commit on the branch: the newest commit of the previous CI
+                       run, as listed now by `git log <BaseRef>..origin/baselines/pr_<n>`
+                       (CI replays earlier runs' commits when it recreates the branch,
+                       so take the sha from the current listing, not an old one). See
+                       `since` below. Omitted: `since` is null.
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
   -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
@@ -121,6 +126,16 @@ stale keys, an action item. `status: ref_missing` means -SourceRef did not resol
 was checked. A method name that still occurs anywhere under `Tests/` is not flagged, so an empty
 list is a bound, not proof. (#6146: 16 `Issue5984Tests` files from before the tests moved.)
 
+`modified` ({ providers, tests }) is the provider and test histogram over the *modified* files
+only; `providers` above counts added and modified together, so a delta dominated by new tests
+hides which providers' existing SQL moved. Test name = file name up to the first `(`.
+
+`since` (only with -SinceCommit; { commit, status, counts, tests }) is the round delta: what the
+latest CI run(s) changed on the branch after that commit, grouped per status and test with the
+providers that changed. `status: commit_missing` means the sha did not resolve in the clone.
+(#6157 round 3: hand-rolled twice; the round delta was 4 tests added and one Access test
+returning to master's SQL.)
+
 `renames.mismatches` counts changed line-pairs that still differ after
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
 delta is NOT name-only, and `mismatchSamples` shows the first few.
@@ -190,6 +205,7 @@ param(
     [string]   $StripWrapper,
     [string]   $SourceRepo,
     [string]   $SourceRef,
+    [string]   $SinceCommit,
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
     [int]      $MaxImpureFiles     = 25,
@@ -239,6 +255,8 @@ $addedByTest   = [System.Collections.Generic.Dictionary[string, object]]::new([S
 $addedUniverse = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $addedPaths    = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $deltaStatus   = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
+$modifiedByProvider = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
+$modifiedByTest     = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
 
 foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -split "`n")) {
     if (-not $line.Trim()) { continue }
@@ -257,7 +275,14 @@ foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -spl
             [void]$addedPaths.Add($path)
         }
         'D' { $counts.deleted++ }
-        'M' { $counts.modified++ }
+        'M' {
+            $counts.modified++
+            $mt = (($path -split '/')[-1] -replace '\(.*$', '')
+            if (-not $modifiedByProvider.ContainsKey($p))  { $modifiedByProvider[$p] = 0 }
+            if (-not $modifiedByTest.ContainsKey($mt))     { $modifiedByTest[$mt]     = 0 }
+            $modifiedByProvider[$p]++
+            $modifiedByTest[$mt]++
+        }
     }
     $deltaPaths.Add($path)
     $deltaStatus[$path] = $parts[0].Substring(0, 1)
@@ -722,6 +747,42 @@ foreach ($k in ($providers.Keys | Sort-Object { -$providers[$_] }, { $_ })) {
     $providerList += [pscustomobject]@{ provider = $k; files = $providers[$k] }
 }
 
+$modified = [ordered]@{
+    providers = @($modifiedByProvider.Keys | Sort-Object { -$modifiedByProvider[$_] }, { $_ } | ForEach-Object { [pscustomobject]@{ provider = $_; files = $modifiedByProvider[$_] } })
+    tests     = @($modifiedByTest.Keys     | Sort-Object { -$modifiedByTest[$_] },     { $_ } | ForEach-Object { [pscustomobject]@{ test = $_; files = $modifiedByTest[$_] } })
+}
+
+$since = $null
+if ($SinceCommit) {
+    $sv = Git -GitArgs @('rev-parse', '--verify', '--quiet', "$SinceCommit^{commit}") -AllowFail
+    if ($sv.code -ne 0 -or -not $sv.stdout.Trim()) {
+        $since = [ordered]@{ commit = $SinceCommit; status = 'commit_missing' }
+    } else {
+        $sinceCounts = @{ A = 0; M = 0; D = 0 }
+        $sinceGroups = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+        foreach ($l in ((Git -GitArgs @('diff', '--name-status', $SinceCommit, $remoteRef)).stdout -split "`n")) {
+            if (-not $l.Trim()) { continue }
+            $sp = $l.TrimEnd("`r") -split "`t"
+            $st = $sp[0].Substring(0, 1)
+            if ($sinceCounts.ContainsKey($st)) { $sinceCounts[$st]++ }
+            $key = "$st`t" + (($sp[-1] -split '/')[-1] -replace '\(.*$', '')
+            if (-not $sinceGroups.ContainsKey($key)) {
+                $sinceGroups[$key] = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            }
+            [void]$sinceGroups[$key].Add(($sp[-1] -split '/')[0])
+        }
+        $since = [ordered]@{
+            commit = $SinceCommit
+            status = 'ok'
+            counts = [ordered]@{ added = $sinceCounts.A; modified = $sinceCounts.M; deleted = $sinceCounts.D }
+            tests  = @($sinceGroups.Keys | Sort-Object | ForEach-Object {
+                $kp = $_ -split "`t"
+                [pscustomobject]@{ status = $kp[0]; test = $kp[1]; providers = $sinceGroups[$_].Count; providerList = @($sinceGroups[$_] | Sort-Object) }
+            } | Select-Object -First $MaxAddedTests)
+        }
+    }
+}
+
 $result = [ordered]@{
     status    = 'ok'
     branch    = $branch
@@ -760,6 +821,8 @@ $result = [ordered]@{
         perFileLosses = $castLosses
     }
     providers = $providerList
+    modified  = $modified
+    since     = $since
     inherited = [ordered]@{
         files   = $inherited.Count
         samples = @($inherited | Select-Object -First 25)

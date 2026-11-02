@@ -12,6 +12,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** widening that guard for providers without APPLY. #6224 belongs in the emulation path. (#6208, #6229, #6224)
 
+## SQL-AST: an Access UPDATE target lost by a later pass after the `JoinMoveSubQueryUp` UPDATE-target flatten
+
+**Tried:** probing whether, once #6157's UPDATE-target exception lets a LEFT-joined subquery flatten, a later `OptimizeQueries` pass (after `UnnestJoins`, or `BasicCorrectUpdate` cloning the target) no longer sees the target. It would then push a joined-side predicate into a derived table beside a nested RIGHT join, and update too many rows on Access. Shape: `outer LEFT JOIN (assoc RIGHT JOIN target ON a.Id = t.Id) ON m.Id = t.Id AND a.Flag`, select `t`, `Update`.
+
+**Failed because:** the probe never reaches a second pass. `BasicCorrectUpdate` throws `InvalidOperationException` at `BasicSqlOptimizer.cs:336` (`tsIndex < 0`) on Access ACE OleDb, direct and remote, with `IsComplexJoinConditionSupported` both `false` and `true`. SQLite.MS returns the correct rows. The throw is pre-existing, filed as #6240.
+
+**Don't re-attempt:** looking for that wrong-rows route through a target under a nested RIGHT join until #6240 is fixed. Re-probe then, because the route may open. (#6157 review round 3, #6240)
+
 ## SQL-PROVIDER: two suspected holes in #5673's deferred predicate reduce that did not reproduce
 
 **Tried:** probing two shapes a source-reading pass flagged in the single optimize+convert traversal, on SqlServer.2022.MS and SQLite.MS at `e40c90018` (net10.0). (1) A captured `bool` choosing the branch of a `Where`, whose dead branch compares `Sql.Row(...)` to a SELECT, which SQL Server refuses at convert time (`SqlExpressionConvertVisitor.ConvertRowExprExpr`): the suspicion was that children are lowered before the parameter decides the branch. (2) A nullable `A == B` projected, then filtered on, in a query made parameter-dependent with an `ids.Contains(r.Id)` IN list, with `[Values(1, 2)]` runs for a cache hit: the suspicion was that a predicate shared between a deferred value slot and the filter is answered from the transformation map with its unreduced copy, dropping the LikeClr null guards.
