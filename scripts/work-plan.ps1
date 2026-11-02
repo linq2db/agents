@@ -603,6 +603,28 @@ function Invoke-Validate {
             if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
 
+        # An amendment can change a planned mechanism without P6 citing it: it carries a `re-derives:` line, names an
+        # E-n in its own text, or names a P6 file by bare file name. #6157 A-9 did all three, no critic round named it,
+        # and both of review round 2's majors sat in what it changed. Errors from 2026-11-03; older entries warn.
+        foreach ($e in $entries) {
+            if (& $addsEditPoints $e) { continue }
+            if ($p12Text -match "\b$([regex]::Escape($e.id))\b") { continue }
+
+            $reasons = @()
+            if ($e.text -match '(?i)re-derives:') { $reasons += 'a re-derives: line' }
+            if ($e.text -match '\bE-\d+\b') { $reasons += 'an E-n named in its text' }
+            $bareFiles = @([regex]::Matches($e.text, '`([A-Za-z0-9_.{}]+\.(?:cs|fs|vb|ps1|props|targets|csproj))(?::[\d-]+)?`') |
+                ForEach-Object { $_.Groups[1].Value } |
+                Where-Object { $p6Text -match [regex]::Escape($_) } |
+                Select-Object -Unique)
+            if ($bareFiles.Count -gt 0) { $reasons += "a P6 file by name ($($bareFiles -join ', '))" }
+            if ($reasons.Count -eq 0) { continue }
+
+            $msg = "P11 : $($e.id) changes a planned mechanism ($($reasons -join ', ')) but no P12 critic round names it -- dispatch the critic on the delta"
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if ($dated.Success -and $dated.Groups[1].Value -ge '2026-11-03') { $errors += $msg } else { $warnings += $msg }
+        }
+
         # An amendment adding test edit-points owes the amend-mode step 4 record: the *Test layout* embed and a sweep
         # of the branch's test diff. #5943 rounds 2, 4 and 5 drew layout nits from amendment-added tests; by round 5
         # the step existed in the skill and still was not run, so its record is now checked.
