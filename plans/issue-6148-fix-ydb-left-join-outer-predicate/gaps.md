@@ -52,3 +52,25 @@ Two findings, one GAP-02 and one GAP-03, with one mechanism behind both: amendme
 - **Round-1 MIN001 (GAP-03)** recurs as MAJ002 through the same artifact: A-4's `re-derives:` line refreshed the flag setter/reader rows only. Round 1 missed a second flag reader; this round a downstream consumer whose behaviour depends on a flag where Access differs from YDB.
 - **Round-1 NIT002 shape** recurs without a finding: A-9 edited a test (`JoinTests.LeftJoinTableFreePredicateOverNestedRightJoin`) with no `conventions:` line, unflagged for the same trigger reason.
 - **Round-1 recommendations 2 and 3** (`Sql.Row` operand-kind critic vector; re-measure a `ThrowsForProvider` message after an amendment): not found in `plan-critic.md`, `work-plan.md`, `testing.md` or `work-plan/SKILL.md`; their classes did not recur this round.
+
+## Round 3 — reviewed HEAD 36586fdf4b81277eb94aaa390497370c0aa1ceeb
+
+### Attribution
+
+- **MIN003** (`IsComplexJoinConditionSupported` XML doc omits A-11's UPDATE-target exception) — GAP-03 — A-11 changed what both flag readers do (`MoveJoinConditionsToWhere` keeps the conjunct in ON, `SelectQueryOptimizerVisitor.cs:2997`; the `JoinMoveSubQueryUp` guard is skipped, `:2680`), but its `re-derives:` line (`plan.md:188`) checks only "no new caller of `IsComplexJoinConditionSupported`", and `E-9` (`plan.md:100`) does not name `E-2`; the `P7` row tying `E-2` to the flag (`plan.md:106`) keys the doc on the flag's declaration, not on its readers' behaviour, so nothing asked whether a reader's behaviour changed; A-10's `re-derives:` (`plan.md:180`) did re-word `E-2`, A-11 did not; commit `36586fdf4` touches only `SelectQueryOptimizerVisitor.cs` and `UpdateTests.cs`; secondary: critic round 6 (`plan.md:199`) did not check `E-2` either — — — preventable: yes
+
+The Access UPDATE through a RIGHT join inside a LEFT-joined subquery (`InvalidOperationException` in `BasicSqlOptimizer.BasicCorrectUpdate`, `:336`) is not attributed: it reproduces identically with the Access flag at master's `true`, so it is pre-existing. The `P7` consumer row A-11 added for `BasicCorrectUpdate` / `FindTableSource` is what led the round-3 pass to the shape; its wrong-rows lead did not reproduce.
+
+### Aggregate
+
+One finding, GAP-03, and it is round-1 MIN001 again. The flag's XML doc (`E-2`) describes how its readers behave, but the plan's re-derive question asks whether the flag gained a caller. A-5 added a reader (round 1); A-11 kept the same readers and changed what they do (round 3). Both times the doc was missed. The single change that would have prevented both: tie `E-2` to the reader symbols it describes, and require any `A-n` that edits one of those symbols to name `E-2` in its `re-derives:` line.
+
+### Recommended durable fixes
+
+- GAP-03 ×1 (and round-1 MIN001) → `P6` semantics in `work-plan.md`, with a `work-plan.ps1 -Action validate` check beside the amend-mode trigger at `:606-626` — an `E-n` that edits a doc block (an XML doc, a flag's summary) lists the symbols whose behaviour it describes; an `A-n` that names one of those symbols, or cites an `E-n` that edits one, must name that doc `E-n` in its `re-derives:` line. "No new caller" does not answer "did an existing reader change". (Grep finds no rule on a flag doc tracking its readers in `docs/`, `agents/`, `docs/review-rubric/` or `work-plan/SKILL.md`.)
+
+### Continuity
+
+- **Round-1 MIN001 (GAP-03)** recurs as MIN003: same `E-2` doc, same blind spot. Round 1's trigger was a new reader; this round, changed behaviour in existing readers. A re-derive phrased as a caller search misses both. Round 1's recommendations targeted the missing `re-derives:` / `conventions:` lines, not what a `re-derives:` line has to check, so they could not have caught this.
+- **Round-2 recommendation 1** (critic round for any `A-n` with a `re-derives:` line) landed (`work-plan.ps1:606-626`); A-11 got critic round 6, and the round-2 mechanism did not recur.
+- **Round-2 recommendations 2 and 3** landed (`plan-critic.md:43`, `:145`); their classes did not recur.
