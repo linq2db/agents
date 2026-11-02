@@ -162,3 +162,65 @@ Round-2's recommended `plan-critic.md` prose-claim vector did not land; MIN028 a
   against the guide's own types.
 - GAP-01 ×2 + MIN029 → `definition-of-done.md`: before CI on a long-lived branch, merge master and check new shipped
   assemblies against master's registries; a csproj switch disabled "until next release" needs a named release step.
+
+## Round 5 — reviewed HEAD 01d3ff195
+
+Plan on branch: yes (Tier M). The round's delta was merge-only (`01d3ff195`; no PR-owned commit since `afb9ba0e9`).
+Dispositions (`A-14`): 9 fixed (`cc4a5dc41`, `48fe1e503`, `0a12ea523`, `4462c00f1`); the Sybase 5461-character
+passkey cap **withdrawn on measurement** (ASE caps `nvarchar(n)` by bytes; ASCII JSON of 6228 characters round-tripped)
+— the second width claim in two rounds made from the builder rather than a round-trip; the Access memo-prefix probe
+found no defect; one dropped (settled by `A-6`); Copilot's net10 PublicAPI threads declined (release task).
+
+### Attribution
+
+- **R5-1** (hand-set `BASELINE_DISABLED` instead of #6061's `[NoBaselines]`) — GAP-10 — #6061 and its sweep of master's sites arrived with merge `01d3ff195`; `P7`'s `linq2db.baselines` row names the retired idiom, and `definition-of-done.md` re-walks the checklist after a merge, not branch code against idioms the merge retired. — — — preventable: partly
+- **R5-2** (Oracle `VARCHAR2(n)` byte length; `ORA-12899` on a 256-character non-ASCII name) — GAP-03 — no `P7` row lists, per 256-wide string column × provider, the emitted type and whether its length counts bytes or characters; `A-10` fixed the class for Informix only; the scout width rule asks for a max-length round-trip, not a multi-byte one, and `A-11`'s `UserProfileFields` probe was ASCII. Second class GAP-05. — G-01 — preventable: yes
+- **R5-3** (readme omits SQL Server `OUTPUT` vs `UPDATE` trigger) — GAP-02 — unprobed claim from `A-10`; the mechanism is in `ConcurrencyExtensions`' own XML doc; `P12` records no critic run after `A-9`, so the prose-claim vector never reached `A-10`…`A-13`. — — — preventable: yes
+- **R5-4** (no unique name indexes; readme named the missing FKs only; + Copilot's four find-then-insert race threads) — GAP-03 — round-1 MAJ002's missing `P7` row again: what EF Core's model declares (`HasIndex(...).IsUnique()`), not its store code; the scout rule landed as an example list without indexes. — — — preventable: yes
+- **R5-5** (narrower-column list incomplete: `ClaimType`, `ProviderDisplayName`, Informix / HANA token `Value`) — GAP-03 — the same missing width × provider inventory as R5-2; `A-13` wrote the list from the pinned set. Second class GAP-02. — — — preventable: yes
+- **R5-6** (readme: "`UseMappingSchema` does not work at all") — GAP-02 — absolute claim from `A-10` without a probe; the test added in `0a12ea523` is that probe. — — — preventable: yes
+- **R5-7** (DI round-trip asserted a type-name prefix; role-path `#else` and `IdentityDataContext` arms untested) — GAP-05 — `TO-9` claims every DI test asserts the resolved types and that CI's net8/net9 legs cover the `#else` arm, true for the user-only path only; `A-9`'s `G-01` ran net10.0 only; the per-arm rule lists arity, schema version and provider, not a TFM `#if` arm. Second class GAP-02. — G-01 — preventable: yes
+- **R5-8** (role-membership tests had one user / one role; mutation-confirmed) — GAP-05 — pre-plan port, no `TO-n` for the store filters, so the `separates:` rule had nothing to bind. — G-01 — preventable: partly
+- **R5-9** (multi-claim `OrElse` arm unexercised; no claim / delete-cleanup test with a second owner; mutation-confirmed) — GAP-05 — R5-8's shape. — G-01 — preventable: partly
+- **R5-12** (`RemoveUserTokenAsync` keyless delete) — not-a-gap: settled in `P11 A-6`; lifted into `P10` with this round.
+- **R5-13** (Copilot: net10 `PublicAPI.Unshipped.txt`) — not-a-gap: out-of-plan-scope, `P7` defers it to `/release-publicapi` (`D-4`).
+
+### Aggregate
+
+9 findings: GAP-03 ×3, GAP-05 ×3, GAP-02 ×2, GAP-10 ×1. Two clusters: no EF Core parity inventory (every `HasKey` /
+`HasIndex(...).IsUnique()` / `HasMaxLength` / length unit against what `CreateTable` emits per provider), so both the
+mapping and the readme's limit lists were written from memory (R5-2, R5-4, R5-5); and tests on pre-plan or `#if`-split
+code that no `TO-n` could make fail (R5-7, R5-8, R5-9).
+
+### Continuity with rounds 1–4
+
+| Prior finding | Round-5 finding | Through |
+|---|---|---|
+| round-1 MAJ002 (cascade FKs) | R5-4 | the scout rule landed as an example list; indexes not in it |
+| round-2 OOS3, round-4 MIN027 (string widths) | R5-2, R5-5 | width × provider inventory never built; fourth round on this class |
+| round-1 MIN009, round-2 MIN022/MIN023, round-4 MIN028/SUG005 (unprobed readme) | R5-3, R5-5, R5-6 | the prose-claim vector exists but is never run on amendments |
+| round-1 MIN014 (DI paths untested) | R5-7 | `TO-9` credited the `#else` arm to CI legs without naming the assertion |
+| round-1 MIN013, round-4 MIN030/SUG006 (arms without a test) | R5-8, R5-9 | per-arm / `separates:` rules bind `TO-n` rows only, never pre-plan tests |
+| round-4 MIN029 (master sync missed a registry) | R5-1 | DoD re-walk covers checklist items, not idioms a merge retired |
+| round-4 MIN027 (width claim withdrawn) | withdrawn Sybase cap | reviewer side: width claims read off the builder, not emitted DDL / a round-trip |
+
+Round-2's recommendation that a review-round fix commit cite an `A-n` written before it did not land; this round's fix
+commits were again amended after the fact.
+
+### Review-process note (not a plan gap)
+
+- **R5-PROC** — the round's first pass was briefed on the merge and found nothing; with no PR-owned commits in the round
+  delta, the round must be a full review of `merge-base(origin/master, head)..head` plus a check of merge resolutions
+  in PR paths, never a review of the merge itself. Fix site: `review-pr/SKILL.md`, round-delta rule.
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-03 ×3 → `work-plan/SKILL.md` scout brief: an exhaustive pass over the original's model configuration (every
+  `HasKey` / `HasIndex(...).IsUnique()` / `HasMaxLength` / FK / concurrency token), one `P7` row each; the width probe
+  reads each provider's emitted DDL with its length unit and round-trips a max-length **multi-byte** value; user-facing
+  limit lists are derived from that table.
+- GAP-05 ×3 → `work-plan.md` per-arm and `separates:` rules: add a TFM `#if` arm as a dispatch axis; a coverage claim
+  credited to another CI leg names the assertion that runs there; a review round editing pre-plan code owes a
+  `separates:` row (a second owner) per filter it touches.
+- GAP-02 ×2 → `work-plan.md` `P11` / `P12`: an amendment changing user-facing prose gets the prose-claim vector over its
+  delta before push, recorded in `P12`.

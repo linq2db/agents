@@ -320,6 +320,9 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 - **`DeleteAsync` removes dependents in separate statements, outside any transaction.** A cancellation or error
   mid-sequence can strand dependents. Maintainer (review round 2, MIN016): callers use an explicit transaction - the
   readme's "not atomic" section documents the pattern. Do not re-raise.
+- **`RemoveUserTokenAsync` deletes by entity, including on Firebird 2.5's keyless token table.** Settled by `A-6`: a
+  keyless `DeleteAsync(entity)` matches on every column and still removes the one row; the public token paths use
+  predicate deletes. Review round 5 dropped it. Do not re-raise.
 
 ## P11 Amendments
 
@@ -440,6 +443,30 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*. `test-diff-sweep.ps1` over
     `origin/master...` + working tree: before 148 chains / 18 narrowed sets; after 37 chains (34 constructor /
     initializer false positives, 3 call arguments) / 18 narrowed sets (all `[DataSources(false)]` or with a reason).
+- **A-14** — **review round 5 (`gaps.md`, round 5), on `01d3ff195` (master merge) .. `4462c00f1`.** Each item was
+  dispositioned by the maintainer in the walk:
+  - `cc4a5dc41` (`E-10`): `[NoBaselines]` on `IdentityTestData` replaces the hand-set `BASELINE_DISABLED` (#6061's
+    convention). Control: without an opt-out, 16/16 `IdentityStoreTests` remote cases fail the direct-vs-remote check.
+  - `48fe1e503` (`E-1`, `E-10`, `E-12`): Oracle-scoped `DataType.NVarChar` on the name, email, phone, password-hash,
+    security-stamp columns and `ProviderDisplayName` — `VARCHAR2(n)` counts bytes, so a 256-character non-ASCII
+    name failed `ORA-12899`. `FullWidthNonAsciiNames`: red on Oracle 23 before, green after (LinqService case; the
+    direct case hit the local `ORA-24449`). Extends `D-2`'s per-provider pin set; `SC-3` unaffected.
+  - `0a12ea523` (`E-12`): readme — no unique name indexes from `CreateTable`; find-then-insert races in
+    `AddToRoleAsync` / `SetTokenAsync` / `AddOrUpdatePasskeyAsync` under concurrent writes (EF Core parity;
+    duplicates on the keyless dialects — Copilot's four race threads answered with this); SQL Server rejects
+    `UpdateAsync`'s `OUTPUT` on a table with an `UPDATE` trigger; narrower-column list completed; `UseMappingSchema`
+    still maps what the defaults leave alone (asserted in `DataOptionsMappingSchemaDoesNotOverrideDefaults`).
+  - `4462c00f1` (`E-10`, `E-13`): second owner in the role / claim / delete-cleanup tests (mutation check: role-name
+    filter, `OrElse`, delete user filter each turn red); exact DI store types plus DataContext and custom-model
+    role-path DI cases on every TFM (corrects `TO-9`'s claim that CI's net8/net9 legs covered the role `#else`
+    arm); `LargePasskeyData` (SAP HANA excluded, documented cap); Access long-text tests discriminate a prefix match
+    (ACE OleDb/ODBC compare the whole memo).
+  - Withdrawn on measurement: the Sybase 5461-character passkey `Data` cap — ASE caps `nvarchar(n)` by bytes and the
+    JSON is ASCII (6228 characters round-tripped). Dropped: `RemoveUserTokenAsync` keyless delete (settled by `A-6`).
+    Declined: Copilot's net10 `PublicAPI.Unshipped.txt` entries (release task).
+  - Local: Identity suite green on SQLite.MS, Sybase, Access ACE ODBC (direct + LinqService); Release build of
+    `Tests/Linq` (net10.0) clean. CI: `test-all` 25135 on `4462c00f1` pending — first run on `SqlServer.CS`,
+    `SapHana.Native`, and of `FullWidthNonAsciiNames` on Firebird / Informix / DB2 / MySQL.
 
 ## P12 Critic verdict
 
