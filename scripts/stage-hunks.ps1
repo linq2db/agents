@@ -68,13 +68,13 @@ after `<start>`), and is inserted before `<anchor>` in the index content. (#6181
 block sat between two later-commit blocks; it was staged by hand with `hash-object` / `update-index` before
 this form existed.)
 
-**Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
-the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
-naming a hunk that does not exist. See `script-authoring.md`.
+`-Hunks` takes `6,18`, `@(6,18)` or `"6,18"` alike. `pwsh -NoProfile -File` flattens `-Hunks 6,18` into
+the single string `"6,18"`, which an `[int[]]` parameter bound as `618`; the parameter is a string list
+split on commas, so both invocation forms work. See `script-authoring.md`.
 #>
 param(
     [Parameter(Mandatory)][string]$Worktree,
-    [int[]]$Hunks,
+    [string[]]$Hunks,
     [string]$Split,
     [switch]$ListOnly,
     [string]$CutFile,
@@ -85,6 +85,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+[int[]]$Hunks = @($Hunks | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object { [int]$_ })
 
 # Scratch goes under .build/.agents, never beside the script (agent-rules.md -> Temp files).
 $scratchDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.build/.agents'
