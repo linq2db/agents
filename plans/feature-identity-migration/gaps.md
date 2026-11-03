@@ -273,3 +273,41 @@ written before the fix) held for the first time with `A-15`.
 - GAP-06 (NIT017) → `.claude/scripts/test-diff-sweep.ps1` + `testing.md` *Test layout* rule 1: allow generic arguments
   and property hops between `)` and the next call (e.g. `\)(\s*\.\s*\w+)*\s*\.\s*[A-Z]\w*\s*(<[^()]*>)?\s*\(`), and add
   a do/don't example for `sp.GetRequiredService<T>().ShouldBeOfType<U>()`.
+
+## Round 7 — reviewed HEAD b50358f91
+
+Plan on branch: yes (Tier M). The round delta is `20bbda1fa`, `9b82b2037`, `523968fe8`, `c52461ed5` and `b50358f91`, which are
+round 6's fixes under `A-15` and `A-16`. Both amendments were written before their fix commits. `P9`: `validate -Done` is
+clean, reconcile is clean and CI is green. `A-16` records that its new case reached only Oracle and Informix and that
+neither was run locally. CI could not fail the Informix assertion, so green CI is not evidence for it.
+
+### Attribution
+
+- **MIN032** (`NonAsciiClaimTypeAndLoginName` cannot fail on CI's Informix, so both `InformixTextLimit()` pins are unproven) — GAP-05 — `A-15`'s `TO-n` was specified as "Oracle, Informix — the two byte-counted defaults; 200 two-byte characters". For Informix that premise was never probed (second class GAP-02): `Build/Azure/scripts/db2informixduckdb.sh:16` creates `testdb` with no `DB_LOCALE`, so the database is single-byte, and `Issue1307Tests.cs:167-172` already gates CJK writes on Informix for that reason. `A-15` asked red-before/green-after only of the passkey `TO-n`, not of this one. `A-16` widened the case to `ProviderDisplayName` on the same premise and noted "neither run locally". The display-name assertion is also green without its pin on Oracle, which `A-14` had already pinned. — G-01 — preventable: yes
+- **NIT018** (`IdentityCustomizationTests.cs:409-410` continuation indented two tabs past the receiver, siblings one tab) — GAP-06 — `523968fe8` applied the `A-15` splits by script and left this site with different indentation; `test-diff-sweep.ps1` detects one-line chains only and has no continuation-indent check. — G-09 — preventable: yes
+
+### Aggregate
+
+2 findings: GAP-05 ×1, GAP-06 ×1. Both repeat, in round 6's fix passes, the failure those passes were fixing. MIN032 is
+SUG007's fix with a test that could not fail: the byte-versus-character premise for Informix was copied from the plan's
+own text, and the test was never shown red against a revert of its pin. NIT018 is NIT017's fix with a scripted transform
+whose output no instrument checks. The change that would have prevented MIN032: a `TO-n` whose purpose depends on a
+provider quirk (byte-counted width, locale, range) names the CI configuration that makes it fire and records a red run
+with the fix reverted; otherwise it is unproven, not passing.
+
+### Continuity with rounds 1–6
+
+| Prior finding | Round-7 finding | Through |
+|---|---|---|
+| round-6 SUG007; widths in rounds 1, 2, 4, 5 (MAJ003, OOS3/OOS4, MIN027, R5-2/R5-5) | MIN032 | `9b82b2037`, `c52461ed5`; sixth round on string widths, the first about the test's power rather than a missing pin |
+| round-1 MIN011/MIN012, round-2 CI4/SUG003 (tests that cannot fail) | MIN032 | no per-provider obligation naming what proves the assertion fires |
+| round-6 NIT017, round-4 NIT011–013 (test layout) | NIT018 | `523968fe8`; the sweep was widened for chain shape but has no continuation-indent check |
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-05 (MIN032) → `work-plan.md` `P8` semantics / `work-plan/SKILL.md:165` scout brief: a `TO-n` targeting a provider
+  quirk states the CI configuration under which it fires (database locale, collation) and records a red run with the fix
+  reverted, else it is marked unproven on that provider. Over-width values are set in characters, so the test fires in
+  any locale.
+- GAP-06 (NIT018) → `.claude/scripts/test-diff-sweep.ps1` + `testing.md` *Test layout*: check that continuation lines of
+  a split chain sit one tab past the receiver, and re-run the sweep after any scripted rewrite.

@@ -504,6 +504,17 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   name). `E-10`: `IdentityCustomizationTests.cs:607` chain split. Local: SQLite.MS / Access ACE ODBC; the display-name
   case reaches only Oracle / Informix, neither run locally for this amendment.
   class: A-15's SUG007 class line; no unpinned user-text string column is left on Oracle or Informix.
+- **A-17** — **review round 7 (`gaps.md`, round 7), on `b50358f91`.** Each item was dispositioned by the maintainer in the
+  walk:
+  - MIN032 (`E-10`, `d2306ba88`): `NonAsciiClaimTypeAndLoginName` could not fail on Informix. CI's Informix database is
+    created without `DB_LOCALE` (`Build/Azure/scripts/db2informixduckdb.sh:16`), a single-byte locale, so 200 / 100 'ü'
+    fit the unpinned `NVarChar(255)` / `NVarChar(128)`; A-15 / A-16's "two-byte" premise held on Oracle only. Informix
+    now writes 300 / 200 characters (over the unpinned width in any locale, within `LVarChar(1024)`). Local
+    `Informix.DB2` (direct + LinqService): green with the pins; red with each pin removed in turn — user `ClaimType`
+    (`holders`, silent truncation), role `ClaimType` (`roleClaims`), `ProviderDisplayName` (`logins`). Oracle values
+    unchanged, not run locally.
+  - NIT018 (`E-10`, `5b0248610`): `ShouldMapPasskey` continuation indent.
+  - Local: Release build of `Tests/Linq` (net10.0) clean.
 
 ## P12 Critic verdict
 
