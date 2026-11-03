@@ -170,7 +170,7 @@ Output (stdout, single JSON object):
                                      // -FailureLines (8) message lines - stack frames and the
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
-    "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than the test assembly (stale run)
+    "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than every assembly in the test output (stale run)
     "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
                                      // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
@@ -457,7 +457,11 @@ $staleBuild = $null
 if ($NoBuild -and -not $LinqToDBAsset -and $Tfm) {
     $targetPath = & dotnet msbuild $projectFull '-getProperty:TargetPath' "-p:Configuration=$Configuration" "-p:TargetFramework=$Tfm" 2>$null | Select-Object -Last 1
     if ($LASTEXITCODE -eq 0 -and $targetPath -and (Test-Path -LiteralPath $targetPath.Trim())) {
-        $builtAt = (Get-Item -LiteralPath $targetPath.Trim()).LastWriteTimeUtc
+        # The newest assembly in the output, not the test assembly: a body-only change to a referenced project leaves
+        # its reference assembly unchanged, so the build skips recompiling the tests (#5640: a fresh build read stale).
+        $builtAt = (Get-ChildItem -LiteralPath (Split-Path -Parent $targetPath.Trim()) -Filter *.dll -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1).LastWriteTimeUtc
         $newest  = Get-ChildItem -LiteralPath (Split-Path -Parent $projectFull), (Join-Path $repoFull 'Source') -Recurse -Filter *.cs -File -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } |
             Sort-Object LastWriteTimeUtc -Descending |

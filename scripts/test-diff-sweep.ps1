@@ -97,12 +97,17 @@ function Remove-Operands([string] $text) {
 	return [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
 }
 
+# `).Member(` after a call, also across property hops (`(await x).Succeeded.ShouldBeTrue(`, `).Name.Name.ShouldBe(`)
+# and generic arguments (`).ShouldBeOfType<U>(`, or `<U<` left open where the type list wraps). #5640: the
+# `\)\s*\.\s*[A-Z]\w*\s*\(` form missed 94 such chains.
+$chainPattern = '\)(\s*\.\s*\w+)*\s*\.\s*[A-Z]\w*\s*(?:<[^()]*>\s*\(|<[^()]*$|\()'
+
 # bracket depth at each `).Member(` on the line, string literals blanked first; 0 = statement level
 function Get-ChainDepths([string] $text) {
 	$t = [regex]::Replace($text, '"(?:[^"\\]|\\.)*"', { param($m) '"' + (' ' * ($m.Length - 2)) + '"' })
 	$t = Remove-Operands $t
 	$depths = @()
-	foreach ($m in [regex]::Matches($t, '\)\s*\.\s*[A-Z]\w*\s*\(')) {
+	foreach ($m in [regex]::Matches($t, $chainPattern)) {
 		$d = 0
 		for ($i = 0; $i -le $m.Index; $i++) {
 			switch ($t[$i]) { '(' { $d++ } '{' { $d++ } ')' { $d-- } '}' { $d-- } }
@@ -134,7 +139,7 @@ foreach ($l in $diff) {
 		$text = $l.Substring(1)
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
-		if ((Remove-Operands $text) -match '\)\s*\.\s*[A-Z]\w*\s*\(' -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
+		if ((Remove-Operands $text) -match $chainPattern -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
 			$hit = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if (@(Get-ChainDepths $text | Where-Object { $_ -le 0 }).Count -gt 0) { $chains += $hit } else { $nested += $hit }
 		}

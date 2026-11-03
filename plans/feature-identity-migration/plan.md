@@ -476,15 +476,28 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
     on a keyed table), red before / green after. Readme race paragraph: EF Core parity only for `SetTokenAsync` /
     `AddOrUpdatePasskeyAsync` (EF Core's `AddToRoleAsync` has no existence check); a duplicate is harmless on both
     keyless tables after the fix.
+    class: `git grep -E "Single(OrDefault)?Async" -- Source/LinqToDB.Identity` against the key drops
+    (`IsPrimaryKey = false`: Firebird 2.5 tokens `DefaultMappings.cs:394-401`, passkeys `:478`, `:484`). The passkey
+    finders were the only `Single*` over a dropped key; `UserOnlyStore.cs:474` (users) and `:480` / `:486` (logins)
+    are keyed on every provider; `UserStore.cs:328` reads roles by `NormalizedName`, which is no key, as EF Core's
+    `FindRoleAsync` does. A duplicate needs the missing `RoleNameIndex`, which the readme tells users to add.
   - SUG007 (`E-1`, `E-12`): `OracleUnicodeText()` on `ClaimType` (user and role claims); readme's Oracle sentence
     lists it. Same class on Informix (default `NVarChar` caps at 255 bytes): `InformixTextLimit()` on `ClaimType`,
     readme's override and width sentences updated. Extends `D-2`'s pin set; `SC-3` unaffected. New `TO-n`:
     `NonAsciiClaimType` (Oracle, Informix — the two byte-counted defaults; 200 two-byte characters).
+    class: every string property in `DefaultMappings.Setup*` against the Oracle and Informix pins. Pinned on both:
+    the name, email and profile columns and `ClaimType`; `ClaimValue` and token `Value` by their own tables. Left
+    because they hold identifiers, not user text: `LoginProvider`, `ProviderKey`, token `Name`, `ConcurrencyStamp`,
+    string keys. **Carried, open:** `ProviderDisplayName` is Oracle-pinned but not Informix-pinned, so it is
+    `NVarChar(128)` in bytes there; a display name over 64 two-byte characters overruns it. Unprobed.
   - NIT017 (`E-10`): one-line `GetRequiredService<…>().ShouldBeOfType<…>()` chains in `IdentityStoreVariantTests`
     split (10 sites), and every one-line `(await …).Prop.Should…()` chain across the four Identity fixtures (52
     sites, scripted), and the column-aligned `GetEntityDescriptor(…).Name.Name.ShouldBe(…)` /
     `Columns.Single(…).<Prop>.ShouldBe(…)` blocks (32 sites, scripted; the alignment padding is dropped with them).
-    The sweep script detects none of these shapes.
+    The sweep script detected none of these shapes; its pattern was widened afterwards.
+    class: the widened `test-diff-sweep.ps1 -Ref origin/pr/5640` at `2a91d747d` reports 4 chains, the 3 A-13 accepted
+    (`var options = new DataOptions().UseConfiguration(...)`) and **`IdentityCustomizationTests.cs:607` —
+    `db.MappingSchema.GetEntityDescriptor(...).Columns.Single(...)`, carried, open**.
 
 ## P12 Critic verdict
 
