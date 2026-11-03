@@ -498,6 +498,12 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
     class: the widened `test-diff-sweep.ps1 -Ref origin/pr/5640` at `2a91d747d` reports 4 chains, the 3 A-13 accepted
     (`var options = new DataOptions().UseConfiguration(...)`) and **`IdentityCustomizationTests.cs:607` —
     `db.MappingSchema.GetEntityDescriptor(...).Columns.Single(...)`, carried, open**.
+- **A-16** — **A-15's two carried siblings, closed** (maintainer: "pin"). `E-1`, `E-12`: `InformixTextLimit()` on
+  `ProviderDisplayName` (`NVarChar(128)` counted bytes on Informix); readme override list and width line updated.
+  `TO-n` `NonAsciiClaimType` widened and renamed `NonAsciiClaimTypeAndLoginName` (a 100-character two-byte display
+  name). `E-10`: `IdentityCustomizationTests.cs:607` chain split. Local: SQLite.MS / Access ACE ODBC; the display-name
+  case reaches only Oracle / Informix, neither run locally for this amendment.
+  class: A-15's SUG007 class line; no unpinned user-text string column is left on Oracle or Informix.
 
 ## P12 Critic verdict
 
