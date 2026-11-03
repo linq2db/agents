@@ -246,7 +246,7 @@ pwsh -NoProfile -File .claude/scripts/diff-reader.ps1 -ManifestFile .build/.agen
 
 (Surfaced on PR #5561 — a leftover SqlBuilder-override set from an earlier commit of the same PR triggered a false divergence flag that cost several `git diff --name-only` confirmations.)
 
-Manifest:
+Build it, and step 6's rubric path list, from the saved context rather than by hand: `pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr<n>-context.json -DiffPrep -Companion <path>,<path>` writes `.build/.agents/pr<n>-diff-prep.json` and `.build/.agents/pr<n>-rubric-paths.txt`. Manifest shape:
 ```json
 {
   "pr": <n>,
@@ -430,7 +430,7 @@ When **count ≤ 5**, spawn a single `code-reviewer` with `focus: "all"` and the
 
 All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); the **work plan** from step 3e when one exists; and **`rubricModules`**.
 
-**Compute `rubricModules` from the changed paths, not by judgement.** Write the step-2 `nameStatus` paths one per line to `.build/.agents/pr<n>/rubric-paths.txt`, run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>/rubric-paths.txt`, and brief a single pass with `modules`, each multi-pass pass with `byFocus[<its focus>]`. Pass the list even when it is empty: `[]` means no module applies, while an absent field makes the pass read every module.
+**Compute `rubricModules` from the changed paths, not by judgement.** Take the step-2 `nameStatus` paths from `.build/.agents/pr<n>-rubric-paths.txt` (written by step 5b's `-DiffPrep`; on a single-pass run, run `-DiffPrep` for it anyway), run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>-rubric-paths.txt`, and brief a single pass with `modules`, each multi-pass pass with `byFocus[<its focus>]`. Pass the list even when it is empty: `[]` means no module applies, while an absent field makes the pass read every module.
 
 **When the PR adds test code, run the test-layout sweep on its head and brief the hits.** `pwsh -NoProfile -File .claude/scripts/test-diff-sweep.ps1 -Repo . -Ref origin/pr/<n>` lists every one-line chain and narrowed provider set on an added line under `Tests/`. Drop the hits that are only re-indented master lines or harness code outside *Test layout*, then paste the rest into the pass that owns tests (`api-and-test`, or the single `all` pass) as a `testLayoutFindings` block, the way `styleFindings` reaches the code-correctness pass. A briefed lead that names files is narrower than the diff. (#6061 round 2: the layout lead named two files, and the pass missed a one-line chain at `ActiveIssueTests.cs:412`, which the plan amendment's sweep found afterwards.)
 

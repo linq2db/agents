@@ -93,6 +93,18 @@ Audit projection (reads a prior -OutFile result; no gh, no git):
                      review that lists them. Brief them as already raised.
       `auditScope` — { otherOpenThreads, resolvedByOthers, otherReviewBodies }.
 
+Diff-prep projection (reads a prior -OutFile result; no gh, no git) — `/review-pr`
+step 5b's manifest and step 6's rubric path list from `nameStatus`:
+
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -DiffPrep [-Companion <path>,<path>]
+
+    Writes `.build/.agents/pr<n>-diff-prep.json` (files = changed paths + companions,
+    writeDir `.build/.agents/pr<n>`, include base/diff/styleScan, plus content when
+    a -Companion is given) and
+    `.build/.agents/pr<n>-rubric-paths.txt` (changed paths only, one per line, the
+    -PathsFile for review-rubric-modules.ps1). Does not touch the writeDir; clear it
+    first per step 5b. Prints { ok, action, pr, changed, manifestFiles, manifest, rubricPaths }.
+
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
 step 7 and `/review-pr` step 2b (which thread-disposition action to take per
 prior line/file comment based on thread state + resolver identity). Each entry
@@ -119,11 +131,39 @@ param(
     [string]$ManifestFile,
     [string]$OutFile,
     [string]$From,
-    [switch]$AuditSummary
+    [switch]$AuditSummary,
+    [switch]$DiffPrep,
+    [string[]]$Companion = @()
 )
 
 $global:ScriptBaseName = 'pr-context'
 . "$PSScriptRoot/_shared.ps1"
+
+# Diff-prep projection: every multi-pass review rebuilt this manifest by hand from nameStatus (#5673).
+if ($DiffPrep) {
+    if (-not $From) { Exit-WithError -Message '-DiffPrep needs -From <context json>' -NextAction 'load once with -Pr <n> -OutFile <path>, then pass -From <path> -DiffPrep' }
+    if ($AuditSummary) { Exit-WithError -Message '-DiffPrep and -AuditSummary are separate projections' -NextAction 'run them as two calls' }
+    if (-not (Test-Path -LiteralPath $From)) { Exit-WithError -Message "-From file not found: $From" -NextAction 'run the load with -Pr <n> -OutFile <path> first' }
+    $doc     = Get-Content -Raw -LiteralPath $From | ConvertFrom-Json
+    $prNum   = [int]$doc.pr.number
+    if ($prNum -le 0) { $prNum = [int]$doc.pr }
+    $changed = @($doc.nameStatus | ForEach-Object { $_.path } | Where-Object { $_ } | Sort-Object -Unique)
+    $files   = @(@($changed) + @($Companion | Where-Object { $_ }) | Sort-Object -Unique)
+    $dir         = '.build/.agents'
+    $manifest    = "$dir/pr$prNum-diff-prep.json"
+    $rubricPaths = "$dir/pr$prNum-rubric-paths.txt"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    [ordered]@{
+        pr       = $prNum
+        files    = $files
+        writeDir = "$dir/pr$prNum"
+        # an out-of-diff companion has no diff, so only content brings its body in
+        include  = [ordered]@{ content = ($Companion.Count -gt 0); base = $true; diff = $true; styleScan = $true }
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest -Encoding utf8NoBOM
+    $changed | Set-Content -LiteralPath $rubricPaths -Encoding utf8NoBOM
+    [ordered]@{ ok = $true; action = 'diff-prep'; pr = $prNum; changed = $changed.Count; manifestFiles = $files.Count; manifest = $manifest; rubricPaths = $rubricPaths } | ConvertTo-Json -Compress
+    exit 0
+}
 
 # Audit projection: the prior-review picture /review-pr step 2b and /verify-review steps 2-3 start from, read from a
 # saved -OutFile result with no network. The whole JSON is 100-300 KB, and on #5943 it took four hand-written

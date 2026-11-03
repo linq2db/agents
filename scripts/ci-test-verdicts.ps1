@@ -265,6 +265,15 @@ foreach ($d in $Dir) {
                 }
             }
 
+            # AssertQuery's mismatch starts with a bare "Expected Was" header; the wrong value is the first `!` row.
+            if ($actual -match '^Expected\s+Was$') {
+                for ($j = $i + 2; $j -lt [Math]::Min($i + 200, $lines.Length); $j++) {
+                    $candidate = (Clear-Decoration $lines[$j]).Trim()
+                    if ($candidate -match '^(?:failed|skipped|passed)\s+\w+\(') { break }
+                    if ($candidate -match '^!\s*(.+)$') { $actual += " | $($Matches[1])"; break }
+                }
+            }
+
             if ($outcome -eq 'skipped' -and $kind -eq 'failure') { continue }   # an ordinary NUnit skip
 
             # The case line names only the method, so `Test1` from two fixtures reads as one site. The declaring
