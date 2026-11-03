@@ -37,3 +37,32 @@ The governing rules already exist (`work-plan.md:149`, `:171`, `:191`; `plan-cri
 - GAP-05 × 1 (SUG001) → `work-plan.md` P8/P9, next to :149 and :191.
   - A recorded mutation that stays green on a provider inside the `TO-n`'s scope is a seed change, never a relabel to "characterization elsewhere".
   - A cell named for an ordering property needs a seed whose order differs from the fallback (key or PK) order, plus an in-order assertion.
+
+## Round 2 — reviewed HEAD `a33ab67fa7ab92e81ce3c086326e5b5586317cda`
+
+Review of PR #6197 (2026-11-02). The round delta is ef6b80a62 (P11 A-4 … A-6) plus a33ab67fa (test gating, no P11 entry, no finding against it). Both findings were fixed by 98a9e4794 and d33510917; nothing was posted as a review, and the round's status went to the PR as comment 6591453726. The reviewer's out-of-scope item ("outer-correlated grouping key never covered") was dropped after a probe (LINQ rows at HEAD) and is not attributed.
+
+### Attribution
+
+- **MAJ002** (empty capture → recoverable `Error` in a projection) — GAP-02 — SC-4 (plan.md:34) and the P3 A-4 delta (plan.md:61) promise `Error_DistinctByRequiresOrderBy` "on every provider", which assumes `BuildSequenceResult.Error` at `DistinctByBuilder.cs:116` is terminal; P4 has no row asking that. The plan held the counter-evidence twice: U-18 (plan.md:81) says the aggregate fallback consumes this error inside `Select(p => ….Count())` ("untraced (critic round A-4d)"), and P11 A-5 (plan.md:362) measured the correlated subquery falling back to eager loading for `m25`; both were closed on the test side (TO-41 asserts `DISTINCT ON`) and never turned back on the SC — — — preventable: yes
+  - The governing rule exists: `work-plan.md:86` (each stage of a two-stage chain gets its own row: emitting the error, then how the projection consumes it). U-18 is marked `resolved-by probe` although its second stage is explicitly untraced.
+  - Contributing: session-reflect 3187d00 turned the `m25` observation into `evidence-discipline.md:44` as a test-visibility rule. That rule says the fallback "returns the same rows", which MAJ002 disproves: the client-side `DistinctBy` runs over an unordered detail query, and with an aggregate on top the query hits the #5787 `AggregateExecute` fallback.
+- **MIN003** (`SqlConcatExpression` missing from the closed composite list) — GAP-03 — `IsBuiltFromKeys` / `IsOperand` is a type-keyed helper keyed on `QueryElementType`, and no P7 row or P11 A-6 `class:` line listed its domain; D-6 (plan.md:149) specified a kind-independent leaf test, A-6 found the code narrower and widened it by instance (the kinds the critic named), and the A-6 critic round (plan.md:385-387) checked only admitted kinds, never rejected ones — — — preventable: yes
+  - Second class: GAP-08 in shape. The rule that fits exactly, `plan-critic.md:99` ("a closed list … owes a census of what it now rejects", naming string functions), was written from this plan's A-6 in 3187d00 at 2026-11-01 00:42, twelve minutes after ef6b80a62 (00:30). No critic round re-attacked the list with it before review.
+
+### Aggregate
+
+The two findings sit in two classes (GAP-02, GAP-03), neither GAP-10. In both, the plan already held the information — U-18's "untraced" note plus the A-5 `m25` fallback for MAJ002, A-6's own lesson for MIN003 — and the evidence was routed to a corpus rule or a test fix instead of back to the decision it undermined. The one change that would have prevented both: when a round's lesson becomes a corpus rule, re-apply it to the live plan (a P11 entry and a re-attack) before the next push.
+
+### Recommended durable fixes (route to `/session-reflect` → plan-rule; not applied)
+
+- GAP-02 × 1 + GAP-03 × 1 → `work-plan.md` P11 semantics (near :259-272): a rule session-reflect derives from the live plan, or an observation recorded as "untraced" / "falls back", triggers a P11 entry that re-checks every SC / `D-n` it touches; widening a type-keyed closed list carries a `class:` line with the domain census (the `QueryElementType` members a LINQ shape can produce in that position) and a master probe per rejected kind.
+- GAP-02 × 1 → `evidence-discipline.md:44`: correct "returns the same rows" — the eager-load and aggregate fallbacks can change semantics; an SC promising a `BuildSequenceResult.Error` needs a probe in a correlated projection, scalar and aggregate.
+- GAP-03 × 1 → the step-5 scout brief in `work-plan/SKILL.md`: for an `is A or B …` / `case QueryElementType.` helper the plan adds or widens, P7 lists the enum or implementor domain with admitted / rejected per member (the producer-side twin of `plan-critic.md:37` and `:99`, which fire only when a critic round runs).
+
+### Continuity with Round 1
+
+- Round 1's dominant class, GAP-05, does not recur as a primary class.
+- Its underlying mechanism does: evidence the plan names but never turns into an obligation — round 1's SUG003 failure-mode input with no `TO-n`; here U-18's untraced fallback and the A-5 `m25` note (MAJ002).
+- Round 1's GAP-08 note (a decision changed without a re-attack round) recurs in shape in MIN003: the `plan-critic.md:99` census rule landed after the A-6 round and was never run against A-6.
+- Round 1's `plan-critic.md:118` recommendation landed (now `plan-critic.md:125`) and is not re-proposed.
