@@ -224,3 +224,52 @@ commits were again amended after the fact.
   `separates:` row (a second owner) per filter it touches.
 - GAP-02 ×2 → `work-plan.md` `P11` / `P12`: an amendment changing user-facing prose gets the prose-claim vector over its
   delta before push, recorded in `P12`.
+
+## Round 6 — reviewed HEAD 4462c00f1
+
+Plan on branch: yes (Tier M). The round delta is `01d3ff195..4462c00f1`, which holds round 5's fix commits `cc4a5dc41`,
+`48fe1e503`, `0a12ea523` and `4462c00f1`. `A-15` was written before this round's fix commits, the first round in which
+round 2's recommendation 2 held. `P9` has no `G-01` / `G-05` row for `A-14` or `A-15`. `A-14`'s local results sit only
+in its `P11` prose, and `test-all` 25135 is still recorded as pending. No finding below turns on a skipped gate.
+
+### Attribution
+
+- **MIN031** (readme race paragraph: false EF Core parity, and a duplicate passkey row made `FindUserPasskey*Async` throw) — GAP-03 — `A-6` dropped the passkey table's key on Access / Informix / Firebird 2.5 (`d4713b14e`, `7516dab09`) and traced only the write paths on a keyless entity (`UpdateAsync` via `GetKeys(true)`, and `DeleteAsync`); no `P7` row listed the readers that rely on the dropped key's uniqueness — `SingleOrDefaultAsync` at `UserOnlyStore.cs:597,603`, inside `P7`'s own `(D-4) users of IdentityUserPasskey` row (`UserOnlyStore.cs:459-609`), which asked one question per decision, round-4 MIN025's shape. Second class GAP-02: "as EF Core's stores do" (`0a12ea523`; `A-14` "EF Core parity") was never checked against EF Core's `UserStore.AddToRoleAsync`, which has no existence check; `P12`'s last round is `A-9`, and the amendment-delta critic rule (`work-plan/SKILL.md:293-294`) binds Tier L only and landed after this commit. — — — preventable: yes
+- **SUG007** (`ClaimType` left as byte-counted `VARCHAR2` on Oracle) — GAP-03 — `P7` still has no row per string column × provider giving the emitted type and its length unit; `48fe1e503` pinned the columns R5-2 named (`A-14`: name, email, phone, password-hash, security-stamp, `ProviderDisplayName`), yet R5-5 named `ClaimType` in the same round and `0a12ea523` documents its width; the round-5 scout rule (`work-plan/SKILL.md:165`, inventory from the original's model configuration with a multi-byte max-length probe) landed in corpus `805744c` 17 minutes after `48fe1e503` and was never applied back to it — round 2 recorded the same for round 1's Rec 1. — — — preventable: yes
+- **NIT017** (one-line `GetRequiredService<…>().ShouldBeOfType<…>()` / `(await …).Succeeded.ShouldBe…()` chains in `IdentityStoreVariantTests.cs`) — GAP-06 — `A-13` embedded `testing.md` → *Test layout* rule 1 with `test-diff-sweep.ps1` as the instrument and reported "every rule-1 chain the sweep found rewritten"; the sweep's pattern `\)\s*\.\s*[A-Z]\w*\s*\(` (`test-diff-sweep.ps1:105,137`) needs `(` straight after the member name, so it never matches a generic method (`.ShouldBeOfType<U>(`) or a property hop (`).Succeeded.ShouldBe(`), and the earlier sites survived `A-13`. Second class GAP-07: `A-14` has no `conventions:` line for `4462c00f1`'s test edits, which added new sites. — G-09 — preventable: yes
+
+### Aggregate
+
+3 findings: GAP-03 ×2, GAP-06 ×1. Both GAP-03s are a fix that covered the instances its finding named and not the class
+behind them: `A-6` checked the keyless writes but not the readers that need a unique key; `48fe1e503` pinned R5-2's
+columns but not the inventory's. The width rule that would have caught SUG007 already existed, but landed minutes after
+the commit and was not re-applied. The change that would have prevented the most findings: a fix amendment takes its
+site list from a class enumeration (the `P7` inventory, or every consumer of the invariant it changes), never from the
+finding's list of instances.
+
+### Continuity with rounds 1–5
+
+| Prior finding | Round-6 finding | Through |
+|---|---|---|
+| round-1 MAJ002, round-5 R5-4 (EF model parity: FKs, unique indexes) | MIN031 | R5-4's own fix `0a12ea523`; the readme paragraph repeats an unprobed parity claim |
+| round-4 MIN025 (`P7` passkey-users row asked one question) | MIN031 | the same `UserOnlyStore.cs:459-609` row, never re-asked after `A-6` dropped the key |
+| round-1 MIN009 … round-5 R5-3/R5-6 (unprobed readme) | MIN031 (second class) | no critic round on `A-10`…`A-14`; the delta-critic rule is Tier L only |
+| round-1 MAJ003, round-2 OOS3/OOS4, round-4 MIN027, round-5 R5-2/R5-5 (string widths) | SUG007 | fix `48fe1e503`; a width finding in five of six rounds |
+| round-1 MIN015, round-4 NIT011–013 (test layout) | NIT017 | the sweep now exists, but cannot see generic-method or property-hop chains |
+
+Round-5 recommendations: Rec 1 (scout inventory with a multi-byte probe) landed as `work-plan/SKILL.md:165` (`805744c`),
+after the fix commits it would have governed. Rec 3 (prose-claim vector on amendment deltas) landed as
+`work-plan/SKILL.md:293-294` (`0279bbc`), but only at Tier L, so it does not bind this Tier M plan. Round-2 Rec 2 (`A-n`
+written before the fix) held for the first time with `A-15`.
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-03 (MIN031) → `work-plan/SKILL.md` step 5 scout brief: an edit-point that drops or relaxes a key or unique
+  constraint (per provider or overall) gets one `P7` row per consumer of that uniqueness — `Single*` lookups,
+  find-then-insert, `Update` / `Delete(entity)` — each with a disposition.
+- GAP-03 (SUG007) → `work-plan.md` `P11` semantics: a review-round amendment fixing a per-column or per-provider finding
+  names the class and takes its site list from the `P7` inventory; a plan rule landing from a round's ledger is
+  re-applied to that round's unpushed fix commits before push.
+- GAP-06 (NIT017) → `.claude/scripts/test-diff-sweep.ps1` + `testing.md` *Test layout* rule 1: allow generic arguments
+  and property hops between `)` and the next call (e.g. `\)(\s*\.\s*\w+)*\s*\.\s*[A-Z]\w*\s*(<[^()]*>)?\s*\(`), and add
+  a do/don't example for `sp.GetRequiredService<T>().ShouldBeOfType<U>()`.

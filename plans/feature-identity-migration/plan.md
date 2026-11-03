@@ -467,6 +467,24 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   - Local: Identity suite green on SQLite.MS, Sybase, Access ACE ODBC (direct + LinqService); Release build of
     `Tests/Linq` (net10.0) clean. CI: `test-all` 25135 on `4462c00f1` pending — first run on `SqlServer.CS`,
     `SapHana.Native`, and of `FullWidthNonAsciiNames` on Firebird / Informix / DB2 / MySQL.
+- **A-15** — **review round 6 (`gaps.md`, round 6), on `4462c00f1`.** Written before the fix commits. Each item was
+  dispositioned by the maintainer in the walk:
+  - MIN031 (`E-10`, `E-12`): `FindUserPasskeyAsync` / `FindUserPasskeyByIdAsync` switch `SingleOrDefaultAsync` →
+    `FirstOrDefaultAsync`. On the keyless passkey table (Access, Informix, Firebird 2.5) a duplicate row from two
+    concurrent registrations made every lookup of that credential throw; the predicate update/remove already act on
+    all copies. New `TO-n`: `DuplicatePasskeyRowStillResolves` (keyless providers only — the duplicate insert fails
+    on a keyed table), red before / green after. Readme race paragraph: EF Core parity only for `SetTokenAsync` /
+    `AddOrUpdatePasskeyAsync` (EF Core's `AddToRoleAsync` has no existence check); a duplicate is harmless on both
+    keyless tables after the fix.
+  - SUG007 (`E-1`, `E-12`): `OracleUnicodeText()` on `ClaimType` (user and role claims); readme's Oracle sentence
+    lists it. Same class on Informix (default `NVarChar` caps at 255 bytes): `InformixTextLimit()` on `ClaimType`,
+    readme's override and width sentences updated. Extends `D-2`'s pin set; `SC-3` unaffected. New `TO-n`:
+    `NonAsciiClaimType` (Oracle, Informix — the two byte-counted defaults; 200 two-byte characters).
+  - NIT017 (`E-10`): one-line `GetRequiredService<…>().ShouldBeOfType<…>()` chains in `IdentityStoreVariantTests`
+    split (10 sites), and every one-line `(await …).Prop.Should…()` chain across the four Identity fixtures (52
+    sites, scripted), and the column-aligned `GetEntityDescriptor(…).Name.Name.ShouldBe(…)` /
+    `Columns.Single(…).<Prop>.ShouldBe(…)` blocks (32 sites, scripted; the alignment padding is dropped with them).
+    The sweep script detects none of these shapes.
 
 ## P12 Critic verdict
 
