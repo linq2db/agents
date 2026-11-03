@@ -378,6 +378,11 @@ function Invoke-Validate {
         if ($row -notmatch 'proof:\s*[*_]{0,2}\s*(red.{0,3}green|control|characterization)') {
             $errors += "P8 : row declares no proof mode (red-green | control | characterization) -- $row"
         }
+        # A bad Edit can splice the next bullet onto this one; the merged row still has a proof mode (#6197 A-8).
+        # Both fields must repeat: a per-arm `— proof:` alone is legitimate (issue-6099 TO-7).
+        if ([regex]::Matches($row, '— proof:').Count -gt 1 -and [regex]::Matches($row, '— providers:').Count -gt 1) {
+            $warnings += "P8 : row carries two '— providers:' and two '— proof:' fields -- two bullets merged? -- $row"
+        }
         # work-plan.md -> P8: an unscoped obligation defaults to SQLite and the types its author thought of.
         # An amendment's obligation is the one a review round then finds red on an unrun provider (#5959 rounds
         # 4 and 7), so for amendments from 2026-10-21 the scope is required.
