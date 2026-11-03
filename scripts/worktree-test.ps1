@@ -170,6 +170,7 @@ Output (stdout, single JSON object):
                                      // -FailureLines (8) message lines - stack frames and the
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
+    "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than the test assembly (stale run)
     "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
                                      // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
@@ -450,6 +451,21 @@ if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed')
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
 if ($NoBuild) { $dotnetArgs += '--no-build' }
 
+# -NoBuild after a failed build runs the previous assembly without saying so (#5673: a failed master-control build
+# reported results from stale code). A source newer than the test assembly is reported, not fatal.
+$staleBuild = $null
+if ($NoBuild -and -not $LinqToDBAsset -and $Tfm) {
+    $targetPath = & dotnet msbuild $projectFull '-getProperty:TargetPath' "-p:Configuration=$Configuration" "-p:TargetFramework=$Tfm" 2>$null | Select-Object -Last 1
+    if ($LASTEXITCODE -eq 0 -and $targetPath -and (Test-Path -LiteralPath $targetPath.Trim())) {
+        $builtAt = (Get-Item -LiteralPath $targetPath.Trim()).LastWriteTimeUtc
+        $newest  = Get-ChildItem -LiteralPath (Split-Path -Parent $projectFull), (Join-Path $repoFull 'Source') -Recurse -Filter *.cs -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+        if ($newest -and $newest.LastWriteTimeUtc -gt $builtAt) { $staleBuild = $newest.FullName }
+    }
+}
+
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
 $runSettings = Join-Path $repoFull '.runsettings'
 if (Test-Path -LiteralPath $runSettings) { $dotnetArgs += @('--settings', $runSettings) }
@@ -584,6 +600,7 @@ $result = [ordered]@{
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
 if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
+if ($staleBuild)  { $result['staleBuild']   = $staleBuild; if (-not $hint) { $hint = "-NoBuild ran an assembly older than $staleBuild; rebuild (or check the last build log) before trusting this result." } }
 if ($hint)        { $result['hint']         = $hint }
 
 if ($OutFile) { Write-JsonOutput -InputObject $result -Depth 5 -OutFile $OutFile -Summary @{ summary = $summary } }
