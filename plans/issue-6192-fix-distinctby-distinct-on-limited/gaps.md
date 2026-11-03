@@ -66,3 +66,40 @@ The two findings sit in two classes (GAP-02, GAP-03), neither GAP-10. In both, t
 - Its underlying mechanism does: evidence the plan names but never turns into an obligation — round 1's SUG003 failure-mode input with no `TO-n`; here U-18's untraced fallback and the A-5 `m25` note (MAJ002).
 - Round 1's GAP-08 note (a decision changed without a re-attack round) recurs in shape in MIN003: the `plan-critic.md:99` census rule landed after the A-6 round and was never run against A-6.
 - Round 1's `plan-critic.md:118` recommendation landed (now `plan-critic.md:125`) and is not re-proposed.
+
+## Round 3 — reviewed HEAD `128f2bf82cbcf62000dbe9784ecfd1db8a5a91c3`
+
+Review of PR #6197 (2026-11-03). The round delta is 98a9e4794 … 128f2bf82 (P11 A-7 D-8 and the `SqlConcat` admission, A-8 six kinds, A-9 `SqlInterval` and TO-69). igor-tkachev's review 5754176813 points 1–3 are folded in as MAJ003 … MAJ005; every finding is fixed on the branch, none posted. Measured locally: HEAD 20 / 27 failed, master 25 / 27 passed (SQLite.MS / DuckDB / SqlServer.2022, each with `.LinqService`).
+
+### Attribution
+
+- **MAJ003** (D-8 throws for every empty capture, `DistinctByBuilder.cs:116-119`) — GAP-02 — D-8 treats "capture emptied by the GroupBy pruning" (U-20 / MAJ002) and "source never ordered" as one input; its failure-mode line's "measured: none in `DistinctByMethodTests` + `EagerLoadingStrategyUnionTests`" is absence from a sweep that has no never-ordered `DistinctBy` in a correlated subquery or eager-loaded collection; no `U-n` asked what master does for a never-ordered input — — — preventable: yes
+  - Contributing: round 2's durable fix `architecture.md` → *A `BuildSequenceResult.Error` is recoverable inside a projection* (32ae8ff) says such a builder "must therefore throw", with no carve-out for an input whose fallback loses nothing.
+- **MAJ004** (key-function ordering + aggregate-reading DistinctBy key on ROW_NUMBER → `no such column: e.Count_1`, `GroupByBuilder.cs:250-253`) — GAP-02 — P11 A-5 attributed the SQLite failure to P10 L-7 as pre-existing and reshaped TO-35 to `(x.Key ?? 0) % 2` without a master run of that shape, while TO-35's own P8 row still specified `DistinctBy(x => x.Count)` and recorded master green on SQLite.MS; L-7 was measured on a different (post-GroupBy) shape — G-01 — preventable: yes
+  - The governing rules existed: `bug-investigation.md:41` (confirm "pre-existing" by running the base) and `:501` (never narrow a test's input to avoid one failure). L-7's "follow-up issues proposed" were never filed, so the entry became a place to park an unrelated failure.
+- **MAJ005** (`IsPure` conjunct rejects translator-built `SqlExpression`, `GroupByBuilder.cs:403-405`) — GAP-03 — the P7 closed-list row, the A-8 residual line and both critic censuses list the domain by `QueryElementType` only; `SqlParameterizedExpressionBase` is an admitted kind there, so the census cannot see the second rejection axis inside it (`IsPure`, which `factory.Expression` / `NotNullExpression` nodes with `SqlFlags.None` fail); the conjunct, added in ef6b80a62, is narrower than D-6's own text (only `IsAggregate` / `IsWindowFunction`) — — — preventable: yes
+  - Second class GAP-02: nobody checked the premise that translator output is flagged pure. Doing the A-8 residual census as written, by element kind, would still have marked these nodes admitted.
+- **MIN004** (`…OrderedByDateDifferenceOfKey`, TO-65, `DistinctByMethodTests.cs:1282-1283`) — GAP-05 — ascending ordering monotone in the key with a constant partition `Year > 0`; `m39-no-a8-kinds` reddens it only through the throw, the case `work-plan.md:201` says leaves the value arm unwitnessed; no `separates:` line — G-01 — preventable: yes
+  - Critic round A-8 found the class on TO-63 / TO-64; A-9 flipped those two and did not sweep their four siblings under the same mutation (`plan-critic.md:34`).
+- **MIN005** (`…DateDifferencePartOfKey`, TO-66, `DistinctByMethodTests.cs:1300-1301`) — GAP-05 — same row and miss as MIN004 — G-01 — preventable: yes
+- **MIN006** (`…ComparisonOfKey`, TO-54, `DistinctByMethodTests.cs:1126-1127`) — GAP-05 — A-6 specified `OrderBy(p => p.ParentID > 2).ThenByDescending(ParentID)`, which picks odd 1 / even 2 = key order; `m35-no-predicate-kinds` reddens it only through the throw; `work-plan.md:159` (seed differs from the fallback order) and `:201` (`separates:` row) were in place and not applied — G-01 — preventable: yes
+- **Cosmetic** (ROW_NUMBER projects a rebuilt key ordering twice, `as RowNumber` / `as c1`; DISTINCT ON `…ConcatOfKey` repeats `Key_1 || 'x' DESC`) — GAP-08 — A-4's re-derives line required G-02 on the A-4 tree; P9 recorded "G-02 not re-run … the CI baselines PR is the record" and no G-02 entry exists for A-4 … A-9 — G-02 — preventable: partly
+
+### Aggregate
+
+Seven findings in four classes: GAP-05 × 3, GAP-02 × 2, GAP-03 × 1, GAP-08 × 1; no GAP-10. The three MINs are one family (ordering cells whose mutation reddens them only by the throw) whose rules already exist — enforcement, not doctrine. MAJ003 and MAJ005 share a shape: a rejecting or throwing predicate whose input domain was split along one axis only (empty capture without asking how it became empty; element kind without asking what each admitted arm's extra conditions reject). MAJ004 repeats round 2's mechanism: the plan held the master-green measurement and still filed the failure as pre-existing. The change that would have prevented the most severe findings: census every population that reaches a changed rejection or throw, with a master probe each, not only node kinds.
+
+### Recommended durable fixes (route to `/session-reflect` → plan-rule; not applied)
+
+- GAP-05 × 3 → `plan-critic.md:34` sibling sweep + `work-plan.md:201`: a fold-in that fixes one non-separating cell re-checks every `TO-n` reddened by the same mutation for a `separates:` row; a mutation that reddens only through `Error_DistinctByRequiresOrderBy` does not count for a cell named `OrderedBy…`.
+- GAP-03 × 1 + GAP-02 × 1 → `work-plan/SKILL.md` step-5 closed-list paragraph and `plan-critic.md:101`: the census lists rejections per conjunct, not per kind (for each admitted kind with an extra condition, name the producers that fail it and master-probe one); for an exit whose outcome a `D-n` changes, list every population that reaches it and master-probe each. Give `architecture.md` → *A `BuildSequenceResult.Error` is recoverable inside a projection* a carve-out: throw only when the fallback loses information the input carried.
+- GAP-02 × 1 → `work-plan.md` P11 semantics: an `A-n` that blames a HEAD failure on a P10 / pre-existing entry cites a master run of that exact shape; a P8 row recording master green refutes it; a test reshaped to avoid the failure gets a `U-n`, not a test correction.
+
+### Continuity with Rounds 1–2
+
+- Round 2 "re-apply a lesson to the live plan" landed (`work-plan.md:291`, 32ae8ff) and was applied partially: A-8 recorded the residual as "not censused … reasoned, unprobed" instead of probing it; MAJ005 came from that residual.
+- Round 2 "domain census + master probe per rejected kind" landed in `work-plan/SKILL.md` step 5; its axis (element type) is itself the gap MAJ005 exposes — a defect in the rule, re-proposed above widened to conjuncts.
+- Round 2's `architecture.md` "must therefore throw" generalisation contributed to MAJ003: a round-2 fix enabled a round-3 finding.
+- Round 2's mechanism "evidence held in the plan, routed elsewhere" recurs in MAJ004 (TO-35's master-green row beside A-5's L-7 attribution).
+- Round 1's ordering-cell seed rule (`work-plan.md:159`, 41b2bee) landed before A-6 / A-8 and was not applied to TO-54 / TO-65 / TO-66; round 1's dominant class GAP-05 returns as this round's most frequent.
+- Round 1's GAP-08 note recurs in shape: A-4's required G-02 stayed "not re-run" through A-9.
