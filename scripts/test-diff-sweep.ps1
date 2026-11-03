@@ -16,6 +16,12 @@ letting through:
   4. Shouldly-assertion gates with no `ErrorMessage` at all, the attribute read to its closing `)]` across
      lines — enough only when the test makes one Shouldly assertion, so read the body —
      testing.md -> *Gating an assertion failure*. (#6185 TO-27: two `ShouldBe`s under a type-only gate.)
+  5. continuation lines of a split chain (`\t.Select(...)`) indented more than one tab past the line above —
+     the drift a scripted split leaves (#5640 NIT018: two tabs past `passkey.Columns`, its siblings one).
+     No written rule fixes the depth and some tests use two tabs after `var x = ...`, so a hit means "check it
+     against the sibling chains in the same test". `.cs` files with tab indentation only; a shallower
+     continuation (after query syntax or a wrapped argument list) is not reported. Measured over
+     `origin/master~300...origin/master`: 9 hits.
 
 Why this script exists
 ----------------------
@@ -48,7 +54,7 @@ on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
 narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}],
-typeOnlyShouldlyGates: [{file, line, text}] }.
+typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}] }.
 #>
 
 param(
@@ -96,7 +102,19 @@ $nested = @()
 $sets   = @()
 $gates  = @()
 $typeOnly    = @()
+$indents     = @()
 $pendingGate = $null
+
+function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
+
+# the nearest preceding non-blank line in $recent, without its diff prefix
+function Get-PreviousLine {
+	for ($i = $recent.Count - 1; $i -ge 0; $i--) {
+		$t = $recent[$i] -replace '^[+ ]', ''
+		if ($t.Trim()) { return $t }
+	}
+	return $null
+}
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
 function Remove-Operands([string] $text) {
@@ -157,6 +175,21 @@ foreach ($l in $diff) {
 			if (@(Get-ChainDepths $text | Where-Object { $_ -le 0 }).Count -gt 0) { $chains += $hit } else { $nested += $hit }
 		}
 
+		# a chain continuation: one tab past a receiver line, at most one past a continuation above it
+		if ($file -match '\.cs$' -and $text -match '^\t+\.\s*[A-Za-z_]' -and $text -notmatch '^\t* ') {
+			$prev = Get-PreviousLine
+			if ($null -ne $prev -and $prev -notmatch '^\t* ' -and $prev -notmatch '[\(\{,]\s*$|=>\s*$') {
+				$actual  = Get-Tabs $text
+				$prevTab = Get-Tabs $prev
+				$isCont  = $prev -match '^\t*\.'
+				# over-indentation only: a shallower continuation follows query syntax or a wrapped argument list
+				$bad     = $actual -gt $prevTab + 1
+				if ($bad) {
+					$indents += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim(); expectedTabs = $prevTab + 1; actualTabs = $actual }
+				}
+			}
+		}
+
 		if ($text -match '\[(IncludeDataSources|DataSources)\s*\((?<args>[^\]]*)\)') {
 			$isNarrowed = $Matches[1] -eq 'IncludeDataSources' -or ($Matches['args'] -match '\S' -and $Matches['args'] -notmatch '^\s*(true|false)\s*$')
 
@@ -198,4 +231,5 @@ foreach ($l in $diff) {
 	narrowedSets         = @($sets)
 	shouldlySubjectGates = @($gates)
 	typeOnlyShouldlyGates = @($typeOnly)
+	continuationIndents  = @($indents)
 } | ConvertTo-Json -Depth 4
