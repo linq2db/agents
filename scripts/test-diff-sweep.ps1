@@ -13,6 +13,9 @@ letting through:
      `ErrorMessage` is the asserted expression (`records[2].FirstName`) and not a `should ...` clause —
      Shouldly writes the expression only when it can read the test source, so CI never matches it —
      testing.md -> *Gating an assertion failure*. (#6229: written against that rule, caught by the critic.)
+  4. Shouldly-assertion gates with no `ErrorMessage` at all, the attribute read to its closing `)]` across
+     lines — enough only when the test makes one Shouldly assertion, so read the body —
+     testing.md -> *Gating an assertion failure*. (#6185 TO-27: two `ShouldBe`s under a type-only gate.)
 
 Why this script exists
 ----------------------
@@ -44,7 +47,8 @@ Contract
 on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
-narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}] }.
+narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}],
+typeOnlyShouldlyGates: [{file, line, text}] }.
 #>
 
 param(
@@ -91,6 +95,8 @@ $chains = @()
 $nested = @()
 $sets   = @()
 $gates  = @()
+$typeOnly    = @()
+$pendingGate = $null
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
 function Remove-Operands([string] $text) {
@@ -128,12 +134,19 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
-	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); continue }
+	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# a multi-line gate attribute: its `ErrorMessage` may sit on a later line, added or context
+	if ($pendingGate) {
+		$body = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+		if ($body -match 'ErrorMessage\s*=') { $pendingGate = $null }
+		elseif ($body -match '\)\]')        { $typeOnly += $pendingGate; $pendingGate = $null }
+	}
 
 	if ($l.StartsWith('+')) {
 		$text = $l.Substring(1)
@@ -166,6 +179,11 @@ foreach ($l in $diff) {
 				$gates += [pscustomobject]@{ file = $file; line = $line; errorMessage = $msg }
 			}
 		}
+
+		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -notmatch 'ErrorMessage\s*=') {
+			$rec = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			if ($text -match '\)\]') { $typeOnly += $rec } else { $pendingGate = $rec }
+		}
 	}
 
 	$recent.Add($l)
@@ -179,4 +197,5 @@ foreach ($l in $diff) {
 	nestedChains         = @($nested)
 	narrowedSets         = @($sets)
 	shouldlySubjectGates = @($gates)
+	typeOnlyShouldlyGates = @($typeOnly)
 } | ConvertTo-Json -Depth 4
