@@ -317,3 +317,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** (3) an array kept in the key is reference-compared, so `FoldedConstantArray*HitsOnEqualArray` / `FoldedConstantArrayLength` miss on an equal fresh array. (4) a Skip/Take literal becomes a parameter and its dropped bare registration is then compared by value, so `Skip(1)` / `Skip(2)` stop sharing a query (14 `TakeSkipTests` reds). Both measured.
 
 **Don't re-attempt:** either. Per compare, take out only the constants the key cannot compare by value (`PrepareComparedAccessor` / `IsComparedByValueInKey`); leave parameter entries as they are.
+
+## LINQ: DistinctBy ordering plumbing — publishing window placeholders, clearing every lower ORDER BY
+
+**Tried:** for #6197 round 3, (1) re-applying the ROW_NUMBER window's sequence-built placeholders (`DistinctByBuilder.BuildOnSequence`) as the outer ordering, not only as window arguments; (2) clearing every non-limited single-source ORDER BY below the DISTINCT ON query once the captured ordering was re-translated onto it (`ClearConsumedOrderBy`).
+
+**Failed because:** (1) `OrderByBuilder` publishes the re-applied bodies as the captured ordering, and a `GroupBy` above cannot match `SqlPlaceholderExpression`s anchored at the inner sequence to its keys, so it dropped the ordering and the next `DistinctBy` threw (`DistinctByAfterGroupByOverDistinctBy`, green on the PR head before). (2) the query below can be an inner DISTINCT ON whose ORDER BY picks its surviving rows (`DistinctByAfterDistinctByOnLeadingKeyKeepsOrdering`, DuckDB), or the only full copy of the ordering when `AddCapturedOrdering` skipped an outer-correlated key (`DistinctByInSubQueryAfterGroupByOuterAndInnerKeyOrderedByFunctionOfKey`, DuckDB). Both measured red.
+
+**Don't re-attempt:** either. Re-apply the captured expressions and keep the placeholders inside the window; stop the clear at a DISTINCT (ON) query, and skip it below the DISTINCT ON query when an entry was left out.
