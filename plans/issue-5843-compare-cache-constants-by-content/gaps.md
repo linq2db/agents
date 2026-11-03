@@ -50,3 +50,29 @@ Both attributed findings are GAP-02, and both have the same shape. The plan chec
   - The secondary GAP-05 recurs too: one obligation per producer that breaks the assumption, written after each one is found.
   - Round 1 attributed CR7-1 but recommended no durable fix for it. Its one GAP-02 fix targeted A-2's `class:` exclusion (MIN001), which is a different shape. So this recurrence is not a fix that failed to land; that class never got a fix. The first two recommendations above are that fix.
 - **R2-2 is a new GAP-02 member, latent since the first plan commit.** It is not a recurrence of any round-1 finding.
+
+## Round 3 — reviewed HEAD 7d8fa97523f12da90b510dcc6814112d8b755802
+
+Round-3 self-review `/review-pr` 2026-11-03 over `950ebd3a0` + `7d8fa9752`. The code pass found nothing. Both findings are in `7d8fa9752`, a CI-triage commit (tests only, 2026-11-02, GH run 41247088188) that went in with no `P11` entry. A-7 / E-20 / TO-27 were written afterwards, at this review's scope gate. Critic round 10 raised both findings against the A-7 delta. The author fixed both on the branch (`G-01 (A-7)`), and nothing was posted.
+
+## Attribution
+
+- **MIN001** (TO-27 gates pin type only) — GAP-06 — `testing.md:96` (*Gating an assertion failure*) allows `ErrorTypeName = "Shouldly.ShouldAssertException"` alone and says to pin a message only "when the type alone is too broad", with no criterion; A-7's conventions line embedded that section and still concluded the rule "does not apply", and `:84`'s sibling-assertion warning was not connected to a body with two `ShouldBe`s. Second class GAP-09: `QueryFilterTests.cs` had no `E-n` until E-20, so the rule never reached the author when the code was written. Dormant GAP-07: `skills/work-plan/SKILL.md:70` has required embedding *Gating an assertion failure* since `a68358f` (2026-10-18), and A-6's conventions line left it out. The corpus precedent was 31/31 Shouldly-typed gates pinning `ErrorMessage`, surfaced only by critic round 10's `git grep ShouldAssertException`; `test-diff-sweep.ps1:162` matches a Shouldly gate only when it has an `ErrorMessage`, so a type-only gate is invisible to G-01's instrument — — — preventable: partly
+- **NIT001** (`AllSQLiteBase` without a reason line; 4 one-line chains at `QueryFilterTests.cs:1277,1280,1288,1291`) — GAP-09 — `7d8fa9752` added 46 lines to `QueryFilterTests.cs`, a file with no `E-n` in `P6` and no `P11` entry; `-Reconcile` has no commit or push trigger (it runs only from `/work-plan check` and the `review-pr/SKILL.md:178` scope gate, where it fired and produced A-7), and unlike #6208's `0af703ad3` the edit was outside `P6`'s files, so the file-keyed check would have failed if run. Both rules were already embedded by A-6's conventions line (*Test layout*, *A narrowed provider set is a claim*). Second class GAP-08: `definition-of-done.md:11` requires `test-diff-sweep.ps1 -IncludeWorkingTree` before a push touching `Tests/`; no pre-push run is recorded, and the review-time run (`-Base ddfe4547d`) reported exactly these 4 chains and 2 bare narrowed sets — G-01 — preventable: yes
+
+## Aggregate
+
+No design-pass gap this round: the product code pass found nothing, and neither finding involves a `P5` / `P7` / `P4` artifact. Both are test-convention misses in one CI-triage commit made outside `/work-plan`. GAP-09 is the shared root (NIT001 primary, MIN001 secondary). A reconcile-and-amend step before a CI-triage push on a planned branch would have prevented NIT001; MIN001 survived an embedded rule because the rule's trigger ("too broad") gives no criterion.
+
+## Recommended durable fixes
+
+- GAP-09 ×2 (NIT001 primary, MIN001 secondary) → `definition-of-done.md:11` — on a planned branch, every push, CI-triage pushes included, runs `work-plan.ps1 -Action reconcile -Head HEAD` and writes the `A-n` with its conventions line before the commit. `review-pr/SKILL.md:178` catches the miss only at the next review. Cite #5843 `7d8fa9752`, the second CI-triage commit with no amendment after #6208 `0af703ad3`.
+- GAP-06 ×1 (MIN001) → `testing.md:96` (*Gating an assertion failure*) — replace "when the type alone is too broad" with a criterion: a type-only `ShouldAssertException` gate is acceptable only when the body has a single Shouldly assertion; with two or more, pin the gated assertion's expected value (`should be{0}[2]{1}but was`), or a failure of the other assertion also reads Inconclusive. Cite TO-27 and A-7's "does not apply".
+- GAP-06 ×1 (MIN001, mechanical) → `test-diff-sweep.ps1:162` — also report an added `[ActiveIssue]` / `[ThrowsForProvider]` naming `Shouldly` with no `ErrorMessage`, so G-01's sweep sees the type-only gate it now skips.
+
+## Continuity with rounds 1–2
+
+- **Round-2 durable fixes landed:** `docs/work-plan.md:92` (P7 `covered by` rows and `A-n` / `E-n` mechanism text), `docs/work-plan.md:286` (`class:` line for a critic objection answered with a new `E-n`), `agents/plan-critic.md:36` (shared-producer read-site demand). Round 1's three were confirmed landed in round 2.
+- **GAP-02 and GAP-03 do not recur.** Neither the round-3 code pass nor critic round 10 found a mechanism gap; round 10 held A-7's mechanism (`QueryFilterAttribute.cs:56` → `FluentMetadataReader.cs:109` → `MappingSchema.cs:1145`).
+- **GAP-09 is new on this plan, not to the corpus.** Same shape as #6208 MIN002 (a CI-triage commit, no `P11` entry). #6208's recommendation (a round-1 pre-dispatch reconcile covering CI-triage commits) landed at `review-pr/SKILL.md:178` and produced A-7 here, but it is a review-time detector; the upstream half (amend before the push) had no destination, which the first fix above supplies.
+- **The gating rule recurs as a weak spot across plans.** #5955 MIN004 (GAP-07) got the embed rule at `skills/work-plan/SKILL.md:70`; this round shows embedding is not enough while `testing.md:96`'s trigger has no criterion.
