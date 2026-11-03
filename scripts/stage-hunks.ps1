@@ -71,7 +71,13 @@ this form existed.)
 `-Hunks` takes `6,18`, `@(6,18)` or `"6,18"` alike. `pwsh -NoProfile -File` flattens `-Hunks 6,18` into
 the single string `"6,18"`, which an `[int[]]` parameter bound as `618`; the parameter is a string list
 split on commas, so both invocation forms work. See `script-authoring.md`.
+
+`-Cut` / `-Replace` / `-Add` markers may contain commas, so they are not split. Under `-File`, `-Cut "x", "y"`
+does not arrive as two markers; with more than one value, call the script with `&` from a `.build/.agents/*.ps1`
+wrapper that passes real arrays. Positional binding is off, so a stray value fails by name rather than landing
+in `-Hunks` (#6110).
 #>
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [Parameter(Mandatory)][string]$Worktree,
     [string[]]$Hunks,

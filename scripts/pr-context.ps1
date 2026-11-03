@@ -139,6 +139,9 @@ param(
 $global:ScriptBaseName = 'pr-context'
 . "$PSScriptRoot/_shared.ps1"
 
+# -File passes `-Companion a,b` as the single string "a,b" (#6110).
+$Companion = @($Companion | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
 # Diff-prep projection: every multi-pass review rebuilt this manifest by hand from nameStatus (#5673).
 if ($DiffPrep) {
     if (-not $From) { Exit-WithError -Message '-DiffPrep needs -From <context json>' -NextAction 'load once with -Pr <n> -OutFile <path>, then pass -From <path> -DiffPrep' }
