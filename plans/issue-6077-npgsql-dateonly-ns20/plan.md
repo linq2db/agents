@@ -144,7 +144,7 @@ Mechanism (scout, `ConvertBuilder.cs:483-522`, `:30`): `Converter.GetConverter(D
 
 ## P10 Adjudicated (M/L)
 
-_None yet._
+- L-1 (2026-11-05, round 3 objection 1) — NativeAOT of core `LinqToDB` is not a support target: `LinqToDB.csproj` declares neither `IsAotCompatible` nor `IsTrimmable`; only the satellite packages (`Extensions`, `Remote.*`) do, for WebAssembly, whose Mono runtime falls back to the interpreter for a missing generic instantiation. A-3's `MakeGenericMethod(DateOnly)` in the `MappingSchema` cctor is therefore not probed under `PublishAot`. Decided by the user.
 
 ## P11 Amendments (M/L)
 
@@ -153,6 +153,11 @@ _None yet._
 - A-2 (2026-10-20, G-09 code-reviewer pass) — E-4's tests renamed after their behaviour, with the issue only in `Description` (test-review-checklist → *`Issue<N>` names in a shared feature fixture*): `Issue6077TimeToTimeSpanScalar` → `ReadTimeAsTimeSpanScalar`, `Issue6077TimeToTimeSpanEntity` → `ReadTimeAsTimeSpanEntity`, `Issue6077DateToString` → `ReadDateAsString`, `Issue6077TimeToDateTime` → `ReadTimeAsDateTime`, `Issue6077Table` → `TimeColumnTable`. Assertions use one call per line (testing.md → *Test layout*). No behavioural change; TO-3a/3b/4/8 refer to the new names.
   conventions: testing.md → *Test layout* rule 1; test-review-checklist → *`Issue<N>` names*; swept `git diff -- Tests/` of this branch (2 files, 6 tests) by hand.
   re-derives: P8 (TO-3a, TO-3b, TO-4, TO-8)
+- A-3 (2026-11-05, review round 1 MIN001) — D-4's delegate no longer comes from `CompileExpression()`: that ran a user-set `Compilation.SetExpressionCompiler` compiler inside `MappingSchema`'s type initializer, so a throwing or re-entrant compiler left `MappingSchema` permanently broken (`TypeInitializationException`; reviewer's `AssemblyLoadContext` repro red before, green after on net10.0). It is now `Delegate.CreateDelegate` over a compiled generic `FormatInvariantDate<T>(T) where T : IFormattable`, closed over the runtime `DateOnly`. The rest of D-4 holds: the stored conversion is still `Invoke(Constant(delegate), p)` through `SetConvertInfo`, and nothing is compiled. Commit b0f0aafb5.
+  D-4 *chosen* now reads: the delegate is `Delegate.CreateDelegate(Func<DateOnly,string>, FormatInvariantDate<DateOnly>)`, no `CompileExpression()`, no `MethodBase.Invoke`. D-4 *failure mode* now reads: after the null-guarded `Type.GetType("System.DateOnly")`, the two remaining calls (`MakeGenericMethod` constraint check, `CreateDelegate` bind) throw rather than return null; both are unreachable on a CoreLib `DateOnly` (`ISpanFormattable : IFormattable` since .NET 6, signature is ours).
+  re-derives: D-4 (chosen, failure mode); same edit-point (E-6), same stored shape; TO-8/TO-9 re-run green on net10.0, netstandard2.0-asset reds unchanged (`BulkCopyTest*` only).
+- A-4 (2026-11-05, master merge) — #6155 (#4314) banned `Type.GetMethod(string, Type[])` and `Type.GetConstructor(Type[])`; the D-1 / D-3 lookups now use `GetMethodEx(name, Public | Instance, types)` and `GetConstructorEx(types)`. Lookup semantics unchanged (exact-match, public). Commit cd50069cc.
+  re-derives: none.
 
 ## P12 Critic verdict (M/L)
 
@@ -172,6 +177,11 @@ _None yet._
 3. The ClickHouse `DateTimeOffset` row was a masked negative → relabelled "unprobed, masked" and deferred to linq2db#6086.
 4. SC-7 had no core-layer obligation → TO-9 added (`ConvertTo<string>.From(DateOnly)`).
 5. The `SerializationMappingSchema` mirror was missing → P7 row added, out-of-scope with its reachability reason.
+
+**Round 3 (delta on A-3 / A-4, `fable`): weak.** It read both commits against `ReflectionExtensions.cs:233-240,394-410` (A-4's `GetMethodEx` / `GetConstructorEx` resolve the same unique members as the banned overloads, `ToDateTime(TimeOnly)` and `DateTime(long)`, non-throwing; no static state reaches `MappingSchema` or `Converter`), `MemberHelper.cs:98-126,203-253` (`MethodOfGeneric` returns the generic definition), `MappingSchema.cs:550` (the cast matches the `Func<DateOnly,string>` that `CreateDelegate` produces), the builder's `Invoke` consumers (none reads a delegate's `Method`) and `BannedSymbols.txt`; A-3 cannot throw on a runtime without `DateOnly`. Objections and responses:
+
+1. `lead:` `MakeGenericMethod(dateOnly)` in `MappingSchema`'s type initializer would be missing under NativeAOT → adjudicated out of scope, P10 L-1.
+2. A-3's `re-derives: none` left D-4's chosen / failure-mode lines stale → A-3 now re-derives both.
 6. Deferrals cited no issue → they now cite linq2db#6084, #6085, #6086 (Backlog), filed before this round's revision.
 
 Also addressed: TO-5a states that net462 runs Npgsql 8 and proves only the skip branch; D-1 states that the member-null branch is unreachable by construction.
