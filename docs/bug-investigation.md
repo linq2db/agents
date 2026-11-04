@@ -196,6 +196,16 @@ Two things to carry into the write-up. Log the **facts** rather than inferring t
 
 (Surfaced on #5844's `CompiledTable<T>` learn window. Two natural-timing attempts came back green — the fact log showed both threads' `TryGetValue` preceding either publication, because the window opens only after the query *build*. The signal-gated version landed on the first try: `seq=2 … hit=True covered=False`, and the second caller executed the first one's query — a query-filter bypass returning 7 rows where 1 was correct.)
 
+## Measuring a query build's stack use
+
+A stack regression (`Stack overflow.` on CI, `Issue3674Tests.InThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows*.
+
+- **Whole-build peak, uninstrumented (Windows).** Run the query on a 16 MB thread after `Query.ClearCaches()`. Afterwards, from that thread, `VirtualQuery` the address of a local to get the stack's `AllocationBase` and top, then walk up from `AllocationBase` to the first region with `State == MEM_COMMIT` (`0x1000`) and no `PAGE_GUARD` (`0x100`). Its distance to the top is the deepest the stack reached: commit only grows, at 4 KB resolution. This catches every recursion, not just the one you suspect.
+- **Attributing the peak to a site.** Wrap the suspect recursive method (e.g. `ExpressionEqualityComparer.UpdateHashCode`) in a counting wrapper that records the minimum address of a local and a three-frame stack at each new minimum. The wrapper adds a frame per level, so it overstates the depth: use it for *where*, and the committed peak for *how much*.
+- **Noise.** Repeated runs of one tree spread by about ±8 KB (JIT tier state, test order), so take three or more processes per tree and compare ranges, not single values. Build any deep probe expression on the test thread, not on the small one.
+
+(#6185 A-8: master 53–65 KB, the regressed head 78 KB, the fix 53–65 KB for the plain query.)
+
 ## Perf work — a work count is not a time measurement, and a corpus aggregate is not the case you're fixing
 
 Counting operations (node visits, call counts, allocations) is the cheap and often decisive way to

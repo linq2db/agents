@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
+
+**Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
+
+**Failed because:** at 64 KB the fixed tree overflows inside master's own `GetExpressionAccessors` (the `ExpressionCacheManager` ctor), so the size separates nothing: master's measured peak for that query is 53–65 KB, the regressed head's 78 KB, which also fits the original 80 KB on Windows. The first attempt crashed in the probe itself: an `ExpressionVisitor` rewriting the deep predicate recurses as deep as the tree, so it overflowed the small thread before any linq2db code ran.
+
+**Don't re-attempt:** a 64 KB thread for this query, nor building the probe expression on the small thread (build it on the test thread, run only the query on the small one). Untried: a size between the two peaks (e.g. 72 KB). The measurement that did separate the trees: [`bug-investigation.md`](bug-investigation.md) → *Measuring a query build's stack use*. (#6185 A-8)
+
 ## SQL-AST: refusing the APPLY lift in `JoinMoveSubQueryUp` on providers without APPLY
 
 **Tried:** widening the #6208 guard (refuse lifting a subquery's joins into an `OUTER APPLY` / `CROSS APPLY`) to providers with `IsApplyJoinSupported = false`, to fix #6224's SQLite `no such column` — first for both apply kinds, then `OUTER APPLY` everywhere and `CROSS APPLY` only with APPLY support.
