@@ -32,7 +32,7 @@ User-visible deltas vs master:
 
 - D-1: a `TypeMapper` wrapper member whose parameter types need a value conversion to reach the target overload/ctor now fails with `LinqToDBException` "Method/Constructor not found in target type" (or aborts an optional wrapper under `IgnoreMissingMembers`) instead of `ArgumentException` from `Expression.Call`/`New`. No shipped prose states the old behaviour.
 - D-1: `LinqToDB.Internal.Extensions.ReflectionExtensions.GetMethodEx(Type, string, params Type[])` and `GetPublicInstanceMethodEx` return null where the default binder needed a value conversion. Neither had an XML doc on master; they now document the rule.
-- D-5: on net462/netstandard2.0 the `TypeMapper` generic-arity lookup (`[TypeWrapperGenericArgs]`) now accepts reference-assignable parameters, as net8+ already did; ties throw `AmbiguousMatchException`.
+- D-5: on net462/netstandard2.0 the `TypeMapper` generic-arity lookup (`[TypeWrapperGenericArgs]`) now accepts reference-assignable parameters and picks the most specific (master: the polyfill compared types exactly). On net8+ (master: `Type.GetMethod(name, arity, flags, null, types, null)`, `TypeMapper.cs:800`) it matches master except one shape (A-3): a more specific candidate declared on a less derived type than a compatible one (`Base.M(BaseItem)` vs `Derived.M(object)`) throws `AmbiguousMatchException` where master's binder picked the base method — P10 cross-hierarchy entry.
 
 ## P4 Unknowns (M/L)
 
@@ -182,6 +182,7 @@ User-visible deltas vs master:
 - Unprobed adapter variants (assembly not loadable locally, `4314-divergence.log:9,24,31`): Sybase Unmanaged (`Sybase.AdoNet45.AseClient`), Oracle Native (`Oracle.DataAccess`), Informix (`IBM.Data.Informix`). They share the adapter code paths probed for the loadable variants; their own wrappers are covered only by CI.
 - (A-2, critic round 4) `IsSameType` clauses not covered by TO-11: by-ref and pointer element types and array rank, and a SZ array `T[]` comparing equal to a rank-1 multidimensional `T[*]` (`GetArrayRank()` is 1 for both; the BCL compares by reference). Not declarable as a hiding pair in C# that the one caller (`DuckDBProviderAdapter.cs:305`, arity 0) could reach; revisit if a `[TypeWrapperGenericArgs(n > 0)]` user appears.
 - (critic round 4, lead) P3's "accepts reference-assignable parameters, as net8+ already did" is unmeasured for parameters that contain generic parameters: whether the net8+ BCL arity `GetMethod` matched `M<T>(T)` for a concrete request was never probed, so D-5 may differ from master there. Unreachable today (the one arity caller is arity 0); revisit with the first arity > 0 user.
+- (A-3, postmortem rule re-run) Cross-hierarchy specificity on net8+ — D-5: "a cross-hierarchy specificity conflict throws where the binder picks the more specific base method". A behaviour change vs master's net8+ `TypeMapper.cs:800` call, accepted: C# binds the derived method there and the binder the base one, so either answer contradicts one of them, and a throw names the conflict instead of silently picking. Reachability is over public surface (`TypeMapper`, `TypeWrapperGenericArgsAttribute` are public): a wrapper whose target type hides a more specific base overload with a less specific `new`/overload in a derived type. No in-tree target has the shape (one `[TypeWrapperGenericArgs]` user, DuckDB, identical parameter types). The throw escapes `IgnoreMissingMembers` (A-3). Pinned by `GetMethodExWithArityThrowsOnTieAcrossHierarchy`. The binder's pick of the base method is stated by review MIN001, not re-measured here; not probed against a third-party target.
 - Probe run timing (1h15m for 582 SQLite.MS tests, one `LinqService` gRPC 100 s timeout in `Select_KeyedQuery_NestedChildProjectsGrandparentFieldFallback`) attributed to the probe's per-call `StackFrame` + locked log writes; TO-7 re-runs without the probe.
 
 ## P11 Amendments (M/L)
@@ -203,6 +204,11 @@ User-visible deltas vs master:
 ## P12 Critic verdict (M/L)
 
 **Current verdict: weak** (round 4, A-2 delta; A-3 not yet attacked)
+
+**Postmortem rule re-run (2026-11-04, corpus 68eaac9, rules from gap ledger round 4, applied by the author — not a critic round):**
+- `work-plan.md` "failure mode diverging from a framework call is measured against master per TFM" — hit: D-5's remaining failure mode (cross-hierarchy specificity) diverges from master's net8+ call → P3 D-5 line rewritten per TFM; P10 cross-hierarchy entry added.
+- `plan-critic.md` "throw-direction `P7` contract row; a `P3` contradicting a `D-n` failure mode is `weak`" — no hit after A-3: the binding → throw direction and the `IgnoreMissingMembers` escape are recorded in A-3 and the P10 entry; P3 now agrees with D-5.
+- `work-plan/SKILL.md` postmortem step 4 — this block.
 
 **Round 4 (2026-11-02, A-2 delta, `4df0fe1a1` + `55f7699d8`) — weak** (plan-critic, `fable`; fable also ran rounds 1–3 and did not author A-2). Searched: `git diff b68bc440f 55f7699d8`; `ReflectionExtensions.cs:100-470`, `BannedSymbols.txt:230-260`, `TypeMapper.cs:770-820`, `DuckDBProviderAdapter.cs:298-309`; every arity-helper call (`GetMethodEx\(\s*[^,()]+,\s*[^,()]+,\s*(BindingFlags|…flags)` and `GetMethodEx\([^;]*,\s*\d+\s*,\s*[A-Za-z_.]+\s*,` over the worktree: `TypeMapper.cs:799` plus five test calls); `TypeWrapperGenericArgs` over `Source/` (one user, `DuckDBProviderAdapter.cs:305`); decompiled .NET 10 `System.DefaultBinder` (`SelectMethod`, `FindMostSpecificMethod`, `CompareMethodSig` — the BCL hiding tie-break compares `ParameterType` by reference). Objections and response:
 
