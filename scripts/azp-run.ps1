@@ -68,8 +68,12 @@ Hence four behaviours below, the last three defeatable:
                         up - on a re-run, with a build id other than the one it
                         had before (default 60); exit non-zero when it never does, so a
                         silent no-op surfaces as a failure the caller can retry
-                        rather than as a comment URL that means nothing. Before
-                        calling it a no-op, it looks for a failed build of that
+                        rather than as a comment URL that means nothing. A check can
+                        register long after the run starts, so before calling it a
+                        no-op it also looks for an Azure build of that pipeline
+                        queued since the trigger, then for the bot's "successfully
+                        started" reply; either counts as started (exit 0). It also
+                        looks for a failed build of that
                         pipeline on refs/pull/<n>/merge carrying validationResults:
                         that is a YAML validation error, which the bot reports only
                         as "Azure Pipelines failed to run 1 pipeline(s)" - not a
@@ -173,6 +177,30 @@ function Get-RefusedBuild([string]$name, [datetime]$since) {
     })[0]
 }
 
+# The PR check can register well after the run starts (#5640: the bot replied "successfully started" 14 s after the
+# trigger, the check had not appeared at 60 s), so "no check" alone is not "no run" - re-running then queues a
+# duplicate. Evidence in order: an Azure build of the pipeline queued since the trigger (gives the build id), then
+# the bot's "successfully started" reply.
+function Get-QueuedBuild([string]$name, [datetime]$since) {
+    try {
+        $builds = Invoke-RestMethod "https://dev.azure.com/linq2db/linq2db/_apis/build/builds?branchName=refs/pull/$Pr/merge&`$top=10&queryOrder=queueTimeDescending&api-version=7.0"
+    }
+    catch { return $null }
+    return @($builds.value | Where-Object {
+        $_.definition.name -eq $name -and
+        ([datetime]$_.queueTime).ToUniversalTime() -ge $since -and
+        @($_.validationResults | Where-Object { $_.result -eq 'error' }).Count -eq 0
+    })[0]
+}
+
+function Test-BotStarted([datetime]$since) {
+    $json = gh api "repos/$Repo/issues/$Pr/comments?since=$($since.ToString('yyyy-MM-ddTHH:mm:ssZ'))&per_page=100" --jq '[.[] | {login: .user.login, createdAt: .created_at, started: (.body | test("successfully started running"))}]' 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return $false }
+    return @(@($json | ConvertFrom-Json) | Where-Object {
+        $_.login -like 'azure-pipelines*' -and $_.started -and ([datetime]$_.createdAt).ToUniversalTime() -ge $since
+    }).Count -gt 0
+}
+
 # GitHub `tests (comment)` runs created at or after $since and not yet reported for an earlier pipeline.
 # Every PR comment starts a `tests (comment)` run, the Azure bot's replies included, and those end `skipped`:
 # taking the earliest one by time reported a skipped neighbour as the run (#6161: 40371420237 instead of
@@ -249,9 +277,15 @@ foreach ($name in $Pipeline) {
             $why = (@($refused.validationResults | ForEach-Object { $_.message }) | Select-Object -Unique) -join ' | '
             [Console]::Error.WriteLine("azp-run: '$name' was refused - the pipeline YAML failed validation (Azure build $($refused.id)): $why A retry will not help; fix the template on the branch.")
         }
+        elseif ($queued = Get-QueuedBuild $name $postedAt) {
+            Write-Output "azp-run: '$name' started (buildId $($queued.id)); its PR check has not registered yet - do not re-run."
+        }
+        elseif (Test-BotStarted $postedAt) {
+            Write-Output "azp-run: '$name' started (azure-pipelines confirmed); no build id or PR check yet - do not re-run."
+        }
         else {
             $notStarted += $name
-            [Console]::Error.WriteLine("azp-run: '$name' did not register a check within $VerifyTimeoutSeconds s - the comment posted but no run started. Re-run this trigger.")
+            [Console]::Error.WriteLine("azp-run: '$name' did not register a check within $VerifyTimeoutSeconds s and neither Azure nor the bot reports a run - the comment posted but no run started. Re-run this trigger.")
         }
     }
 }

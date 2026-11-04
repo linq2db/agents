@@ -147,6 +147,10 @@ Three costs that make an alias worse than neutral, all of them real on the case 
 
 (#1475 paid this twice. `IPivotBuilder` was deleted at design time once its SQL measured byte-identical to a hand-written `GroupBy` + ternary. The `PivotCell.Sum/Min/Max/Avg/Count` wrappers survived that pass as "one mechanism and five conveniences" and were deleted a milestone later on the same argument: ~50 lines of reflection re-deriving what the compiler resolves in `rows => rows.Sum(x => x.Amount)`, `Sum`/`Avg` throwing `LinqToDBException` where the lambda form is a compile error, a redundant nullability mechanism, and 18 `PublicAPI.Unshipped.txt` lines where 5 do. The erasure carrier and the factory lambda stayed — those are the two things the language cannot do.)
 
+### No public overload that callers can reach only by spelling out its type arguments
+
+A generic overload whose type arguments cannot be inferred from the call — `user.Roles<AppRole, string>()`, where the receiver says nothing about `AppRole` — is not added: nobody wants to write the type list at every call, and the overload buys nothing over the user's own code. Document how users declare the typed member themselves instead (for navigations: association properties on their own subclass). Maintainer, #5640 review round 8.
+
 ### New API parameters take the weakest useful type
 
 For a **new** public API parameter, prefer the weakest useful type — `IEnumerable<T>` over `T[]` — and fold an optional second dimension into `params` so two overloads collapse into one. Materialize to an array inside the method for query-cache stability.
@@ -440,6 +444,10 @@ When an option falls back to a provider default, write the null-coalesce: `helpe
 ### Don't wrap runtime arithmetic in `unchecked`
 
 No project sets `CheckForOverflowUnderflow`, so integer arithmetic already wraps; `unchecked(hash * 397 + …)` is a no-op — write the bare expression. `unchecked` is still needed for *constant* expressions, which the compiler checks regardless (e.g. `unchecked((int)0xFFFFFFFF)`). Maintainer, 2026-10-09, on #6003: *"we don't use checked builds, so … unchecked operator is noop"*.
+
+### An add-on package's settings are a `DataOptions` option set
+
+A setting of a linq2db add-on package (Identity, an integration, a provider extension) is an `IOptionSet` record carried on `DataOptions`, set with a `Use…` extension and read with `Context.Options.FindOrDefault(XOptions.Default)` — not a DI `IOptions<>`, not a constructor parameter, not a virtual to override. `DataOptions` is the library's configuration pattern; the option set needs no constructor changes on the consuming types and reaches a remote context through the client's options. Maintainer, #5640: *"DataOptions is our main configuration pattern"* (`LinqToDBIdentityOptions` / `UseIdentityDatabaseCascadeDelete()`). Two mechanics `QueryTraceOptions` shows: a parameterless constructor alongside the positional one, for `WithOptions<TSet>`'s `new()` constraint; and `Equals` / `GetHashCode` overridden, because the record's generated equality would also compare the cached `_configurationID` field.
 
 ### An option's XML doc lives in three places
 
