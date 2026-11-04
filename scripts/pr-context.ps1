@@ -56,8 +56,11 @@ Output (stdout, single JSON object): see the review skills' expected shape —
     closingIssues, linkedRefs, linkedIssues, diffStat, nameStatus, commits,
     baseRef, headRef, headSha }
 With -OutFile that object goes to the file, and stdout carries one line:
-  { ok, outFile, bytes, headSha, reviews, reviewComments, reviewThreads,
+  { ok, outFile, bytes, headSha, bodyFile, reviews, reviewComments, reviewThreads,
     issueComments, changedFiles, commits } (the last six are counts).
+-OutFile also writes the PR body as plain text to `bodyFile` (the out-file path
+with `.body.md` for its extension). In the JSON it is one long string line,
+which `Grep` reports as an omitted long line.
 
 `reviewComments[]` carry `node_id` (the GraphQL id a `replyComments[]` entry's
 `inReplyTo` needs) and `in_reply_to_id` (null on a thread's first comment, the
@@ -68,8 +71,8 @@ Audit projection (reads a prior -OutFile result; no gh, no git):
       pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -AuditSummary
 
     One JSON object: { ok, action, pr, headSha, currentUser, ownPendingReviewId,
-    idFloor, auditScope, reviews[], replyOnlyReviews, threads[], otherReviewBodies[],
-    issueCommentAuthors, ownIssueComments[] }.
+    idFloor, openOwnBodyItems[], auditScope, reviews[], replyOnlyReviews, threads[],
+    otherReviewBodies[], issueCommentAuthors, ownIssueComments[] }.
       `reviews[]`  — { id, user, own, state, submittedAt, commitId, bodyChars,
                      findingIds[], threads }; a body-less review that opens no
                      thread only carries replies and is counted in replyOnlyReviews.
@@ -81,9 +84,26 @@ Audit projection (reads a prior -OutFile result; no gh, no git):
                      audits: { ids[], user, state, commitId, body[] } (lines; badge
                      markup and HTML comments stripped; identical bodies merged).
       `idFloor`    — next ID per severity from your own posted text (reviews, review
-                     comments, issue comments). The branch's gap ledger is not in the
-                     context JSON: fold .claude/plans/<key>/gaps.md in separately.
+                     comments, issue comments) and other agentic reviewers' reviews
+                     and line comments (body carries "Agentic review"). The branch's
+                     gap ledger is not in the context JSON: fold
+                     .claude/plans/<key>/gaps.md in separately.
+      `openOwnBodyItems[]` — { id, reviewId, submittedAt, title }: your body-section
+                     findings (`- [ ] **ID** — …`) still unchecked in the newest own
+                     review that lists them. Brief them as already raised.
       `auditScope` — { otherOpenThreads, resolvedByOthers, otherReviewBodies }.
+
+Diff-prep projection (reads a prior -OutFile result; no gh, no git) — `/review-pr`
+step 5b's manifest and step 6's rubric path list from `nameStatus`:
+
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -DiffPrep [-Companion <path>,<path>]
+
+    Writes `.build/.agents/pr<n>-diff-prep.json` (files = changed paths + companions,
+    writeDir `.build/.agents/pr<n>`, include base/diff/styleScan, plus content when
+    a -Companion is given) and
+    `.build/.agents/pr<n>-rubric-paths.txt` (changed paths only, one per line, the
+    -PathsFile for review-rubric-modules.ps1). Does not touch the writeDir; clear it
+    first per step 5b. Prints { ok, action, pr, changed, manifestFiles, manifest, rubricPaths }.
 
 `reviewThreads[]` is the databaseId → thread.id map needed by `/verify-review`
 step 7 and `/review-pr` step 2b (which thread-disposition action to take per
@@ -111,11 +131,42 @@ param(
     [string]$ManifestFile,
     [string]$OutFile,
     [string]$From,
-    [switch]$AuditSummary
+    [switch]$AuditSummary,
+    [switch]$DiffPrep,
+    [string[]]$Companion = @()
 )
 
 $global:ScriptBaseName = 'pr-context'
 . "$PSScriptRoot/_shared.ps1"
+
+# -File passes `-Companion a,b` as the single string "a,b" (#6110).
+$Companion = @($Companion | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+# Diff-prep projection: every multi-pass review rebuilt this manifest by hand from nameStatus (#5673).
+if ($DiffPrep) {
+    if (-not $From) { Exit-WithError -Message '-DiffPrep needs -From <context json>' -NextAction 'load once with -Pr <n> -OutFile <path>, then pass -From <path> -DiffPrep' }
+    if ($AuditSummary) { Exit-WithError -Message '-DiffPrep and -AuditSummary are separate projections' -NextAction 'run them as two calls' }
+    if (-not (Test-Path -LiteralPath $From)) { Exit-WithError -Message "-From file not found: $From" -NextAction 'run the load with -Pr <n> -OutFile <path> first' }
+    $doc     = Get-Content -Raw -LiteralPath $From | ConvertFrom-Json
+    $prNum   = [int]$doc.pr.number
+    if ($prNum -le 0) { $prNum = [int]$doc.pr }
+    $changed = @($doc.nameStatus | ForEach-Object { $_.path } | Where-Object { $_ } | Sort-Object -Unique)
+    $files   = @(@($changed) + @($Companion | Where-Object { $_ }) | Sort-Object -Unique)
+    $dir         = '.build/.agents'
+    $manifest    = "$dir/pr$prNum-diff-prep.json"
+    $rubricPaths = "$dir/pr$prNum-rubric-paths.txt"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    [ordered]@{
+        pr       = $prNum
+        files    = $files
+        writeDir = "$dir/pr$prNum"
+        # an out-of-diff companion has no diff, so only content brings its body in
+        include  = [ordered]@{ content = ($Companion.Count -gt 0); base = $true; diff = $true; styleScan = $true }
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest -Encoding utf8NoBOM
+    $changed | Set-Content -LiteralPath $rubricPaths -Encoding utf8NoBOM
+    [ordered]@{ ok = $true; action = 'diff-prep'; pr = $prNum; changed = $changed.Count; manifestFiles = $files.Count; manifest = $manifest; rubricPaths = $rubricPaths } | ConvertTo-Json -Compress
+    exit 0
+}
 
 # Audit projection: the prior-review picture /review-pr step 2b and /verify-review steps 2-3 start from, read from a
 # saved -OutFile result with no network. The whole JSON is 100-300 KB, and on #5943 it took four hand-written
@@ -198,12 +249,33 @@ if ($From -or $AuditSummary) {
     $otherBodies = @($otherBodies.Values)
 
     # ID-continuation floor from posted text only (review-conventions.md): own review bodies, own review comments and
-    # own issue comments. The branch's gap ledger is not in the context JSON; fold it in separately.
+    # own issue comments, plus other agentic reviewers' reviews and their line comments (rule 5: they share the ID
+    # space; #5673 had igor-tkachev's MAJ010/MAJ011 over an own-only floor of MAJ010). A follow-up review can omit the
+    # disclaimer, so a review also counts when it or one of its line comments carries a bold finding ID. The branch's
+    # gap ledger is not in the context JSON; fold it in separately.
+    $boldIdRx   = '\*\*(?:(?:Blocker|Major|Minor|Suggestion|Nit) · )?(?:BLK|MAJ|MIN|SUG|NIT)\d{3}\*\*'
+    $agenticIds = @($doc.reviews | Where-Object {
+        $rid = $_.id
+        $_.user -ne $me -and ([string]$_.body -match 'Agentic review' -or [string]$_.body -match $boldIdRx -or
+            @($comments | Where-Object { $_.pull_request_review_id -eq $rid -and [string]$_.body -match $boldIdRx }).Count -gt 0)
+    } | ForEach-Object { $_.id })
     $ownText = @()
-    $ownText += @($doc.reviews | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
-    $ownText += @($comments | Where-Object { $_.user -eq $me } | ForEach-Object { [string]$_.body })
+    $ownText += @($doc.reviews | Where-Object { $_.user -eq $me -or $agenticIds -contains $_.id } | ForEach-Object { [string]$_.body })
+    $ownText += @($comments | Where-Object { $_.user -eq $me -or $agenticIds -contains $_.pull_request_review_id } | ForEach-Object { [string]$_.body })
     $ownIssue = @($doc.issueComments | Where-Object { $_.user -eq $me })
     $ownText += @($ownIssue | ForEach-Object { [string]$_.body })
+
+    # Own body-section findings still unchecked in the newest own review that lists them. A body item has no thread,
+    # so nothing else surfaces it to a new round, which then re-files it under a new ID (#5673: NIT005 = NIT001).
+    $bodyItemRx = [regex]'(?m)^\s*- \[( |x)\] (?:\*\*)?(BLK|MAJ|MIN|SUG|NIT)(\d{3})(?:\*\*)? *[—-] *(.*)$'
+    $itemState  = [ordered]@{}
+    foreach ($r in @($doc.reviews | Where-Object { $_.user -eq $me -and $_.submitted_at } | Sort-Object { [datetime]$_.submitted_at })) {
+        foreach ($m in $bodyItemRx.Matches([string]$r.body)) {
+            $id = $m.Groups[2].Value + $m.Groups[3].Value
+            $itemState[$id] = [ordered]@{ id = $id; open = ($m.Groups[1].Value -eq ' '); reviewId = $r.id; submittedAt = Format-When $r.submitted_at; title = Get-Excerpt $m.Groups[4].Value }
+        }
+    }
+    $openOwnBodyItems = @($itemState.Values | Where-Object { $_.open } | ForEach-Object { $_.Remove('open'); $_ })
     $floor = [ordered]@{}
     foreach ($sev in 'BLK', 'MAJ', 'MIN', 'SUG', 'NIT') {
         $max = 0
@@ -224,6 +296,7 @@ if ($From -or $AuditSummary) {
         currentUser        = $me
         ownPendingReviewId = if ($pending.Count -gt 0) { $pending[0].id } else { $null }
         idFloor            = $floor
+        openOwnBodyItems   = $openOwnBodyItems
         auditScope         = [ordered]@{
             otherOpenThreads     = @($threads | Where-Object { -not $_.own -and -not $_.isResolved }).Count
             resolvedByOthers     = @($threads | Where-Object { $_.isResolved -and $_.resolvedBy -ne $me }).Count
@@ -618,6 +691,12 @@ $issueComments = foreach ($c in $issueCommentsRaw) {
     }
 }
 
+$bodyFile = $null
+if ($outFile) {
+    $bodyFile = [System.IO.Path]::ChangeExtension($outFile, '.body.md')
+    [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($bodyFile), [string]$prMeta.body, [System.Text.UTF8Encoding]::new($false))
+}
+
 Write-JsonOutput ([pscustomobject]@{
     pr = $prMeta
     currentUser = $currentUser
@@ -636,6 +715,7 @@ Write-JsonOutput ([pscustomobject]@{
     headSha = $headSha
 }) -OutFile $outFile -Summary ([ordered]@{
     headSha        = $headSha
+    bodyFile       = $bodyFile
     reviews        = @($reviews).Count
     reviewComments = @($reviewComments).Count
     reviewThreads  = @($reviewThreads).Count

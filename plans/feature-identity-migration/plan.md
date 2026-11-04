@@ -320,6 +320,9 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
 - **`DeleteAsync` removes dependents in separate statements, outside any transaction.** A cancellation or error
   mid-sequence can strand dependents. Maintainer (review round 2, MIN016): callers use an explicit transaction - the
   readme's "not atomic" section documents the pattern. Do not re-raise.
+- **`RemoveUserTokenAsync` deletes by entity, including on Firebird 2.5's keyless token table.** Settled by `A-6`: a
+  keyless `DeleteAsync(entity)` matches on every column and still removes the one row; the public token paths use
+  predicate deletes. Review round 5 dropped it. Do not re-raise.
 
 ## P11 Amendments
 
@@ -440,6 +443,78 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
   - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*. `test-diff-sweep.ps1` over
     `origin/master...` + working tree: before 148 chains / 18 narrowed sets; after 37 chains (34 constructor /
     initializer false positives, 3 call arguments) / 18 narrowed sets (all `[DataSources(false)]` or with a reason).
+- **A-14** — **review round 5 (`gaps.md`, round 5), on `01d3ff195` (master merge) .. `4462c00f1`.** Each item was
+  dispositioned by the maintainer in the walk:
+  - `cc4a5dc41` (`E-10`): `[NoBaselines]` on `IdentityTestData` replaces the hand-set `BASELINE_DISABLED` (#6061's
+    convention). Control: without an opt-out, 16/16 `IdentityStoreTests` remote cases fail the direct-vs-remote check.
+  - `48fe1e503` (`E-1`, `E-10`, `E-12`): Oracle-scoped `DataType.NVarChar` on the name, email, phone, password-hash,
+    security-stamp columns and `ProviderDisplayName` — `VARCHAR2(n)` counts bytes, so a 256-character non-ASCII
+    name failed `ORA-12899`. `FullWidthNonAsciiNames`: red on Oracle 23 before, green after (LinqService case; the
+    direct case hit the local `ORA-24449`). Extends `D-2`'s per-provider pin set; `SC-3` unaffected.
+  - `0a12ea523` (`E-12`): readme — no unique name indexes from `CreateTable`; find-then-insert races in
+    `AddToRoleAsync` / `SetTokenAsync` / `AddOrUpdatePasskeyAsync` under concurrent writes (EF Core parity;
+    duplicates on the keyless dialects — Copilot's four race threads answered with this); SQL Server rejects
+    `UpdateAsync`'s `OUTPUT` on a table with an `UPDATE` trigger; narrower-column list completed; `UseMappingSchema`
+    still maps what the defaults leave alone (asserted in `DataOptionsMappingSchemaDoesNotOverrideDefaults`).
+  - `4462c00f1` (`E-10`, `E-13`): second owner in the role / claim / delete-cleanup tests (mutation check: role-name
+    filter, `OrElse`, delete user filter each turn red); exact DI store types plus DataContext and custom-model
+    role-path DI cases on every TFM (corrects `TO-9`'s claim that CI's net8/net9 legs covered the role `#else`
+    arm); `LargePasskeyData` (SAP HANA excluded, documented cap); Access long-text tests discriminate a prefix match
+    (ACE OleDb/ODBC compare the whole memo).
+  - Withdrawn on measurement: the Sybase 5461-character passkey `Data` cap — ASE caps `nvarchar(n)` by bytes and the
+    JSON is ASCII (6228 characters round-tripped). Dropped: `RemoveUserTokenAsync` keyless delete (settled by `A-6`).
+    Declined: Copilot's net10 `PublicAPI.Unshipped.txt` entries (release task).
+  - Local: Identity suite green on SQLite.MS, Sybase, Access ACE ODBC (direct + LinqService); Release build of
+    `Tests/Linq` (net10.0) clean. CI: `test-all` 25135 on `4462c00f1` pending — first run on `SqlServer.CS`,
+    `SapHana.Native`, and of `FullWidthNonAsciiNames` on Firebird / Informix / DB2 / MySQL.
+- **A-15** — **review round 6 (`gaps.md`, round 6), on `4462c00f1`.** Written before the fix commits. Each item was
+  dispositioned by the maintainer in the walk:
+  - MIN031 (`E-10`, `E-12`): `FindUserPasskeyAsync` / `FindUserPasskeyByIdAsync` switch `SingleOrDefaultAsync` →
+    `FirstOrDefaultAsync`. On the keyless passkey table (Access, Informix, Firebird 2.5) a duplicate row from two
+    concurrent registrations made every lookup of that credential throw; the predicate update/remove already act on
+    all copies. New `TO-n`: `DuplicatePasskeyRowStillResolves` (keyless providers only — the duplicate insert fails
+    on a keyed table), red before / green after. Readme race paragraph: EF Core parity only for `SetTokenAsync` /
+    `AddOrUpdatePasskeyAsync` (EF Core's `AddToRoleAsync` has no existence check); a duplicate is harmless on both
+    keyless tables after the fix.
+    class: `git grep -E "Single(OrDefault)?Async" -- Source/LinqToDB.Identity` against the key drops
+    (`IsPrimaryKey = false`: Firebird 2.5 tokens `DefaultMappings.cs:394-401`, passkeys `:478`, `:484`). The passkey
+    finders were the only `Single*` over a dropped key; `UserOnlyStore.cs:474` (users) and `:480` / `:486` (logins)
+    are keyed on every provider; `UserStore.cs:328` reads roles by `NormalizedName`, which is no key, as EF Core's
+    `FindRoleAsync` does. A duplicate needs the missing `RoleNameIndex`, which the readme tells users to add.
+  - SUG007 (`E-1`, `E-12`): `OracleUnicodeText()` on `ClaimType` (user and role claims); readme's Oracle sentence
+    lists it. Same class on Informix (default `NVarChar` caps at 255 bytes): `InformixTextLimit()` on `ClaimType`,
+    readme's override and width sentences updated. Extends `D-2`'s pin set; `SC-3` unaffected. New `TO-n`:
+    `NonAsciiClaimType` (Oracle, Informix — the two byte-counted defaults; 200 two-byte characters).
+    class: every string property in `DefaultMappings.Setup*` against the Oracle and Informix pins. Pinned on both:
+    the name, email and profile columns and `ClaimType`; `ClaimValue` and token `Value` by their own tables. Left
+    because they hold identifiers, not user text: `LoginProvider`, `ProviderKey`, token `Name`, `ConcurrencyStamp`,
+    string keys. **Carried, open:** `ProviderDisplayName` is Oracle-pinned but not Informix-pinned, so it is
+    `NVarChar(128)` in bytes there; a display name over 64 two-byte characters overruns it. Unprobed.
+  - NIT017 (`E-10`): one-line `GetRequiredService<…>().ShouldBeOfType<…>()` chains in `IdentityStoreVariantTests`
+    split (10 sites), and every one-line `(await …).Prop.Should…()` chain across the four Identity fixtures (52
+    sites, scripted), and the column-aligned `GetEntityDescriptor(…).Name.Name.ShouldBe(…)` /
+    `Columns.Single(…).<Prop>.ShouldBe(…)` blocks (32 sites, scripted; the alignment padding is dropped with them).
+    The sweep script detected none of these shapes; its pattern was widened afterwards.
+    class: the widened `test-diff-sweep.ps1 -Ref origin/pr/5640` at `2a91d747d` reports 4 chains, the 3 A-13 accepted
+    (`var options = new DataOptions().UseConfiguration(...)`) and **`IdentityCustomizationTests.cs:607` —
+    `db.MappingSchema.GetEntityDescriptor(...).Columns.Single(...)`, carried, open**.
+- **A-16** — **A-15's two carried siblings, closed** (maintainer: "pin"). `E-1`, `E-12`: `InformixTextLimit()` on
+  `ProviderDisplayName` (`NVarChar(128)` counted bytes on Informix); readme override list and width line updated.
+  `TO-n` `NonAsciiClaimType` widened and renamed `NonAsciiClaimTypeAndLoginName` (a 100-character two-byte display
+  name). `E-10`: `IdentityCustomizationTests.cs:607` chain split. Local: SQLite.MS / Access ACE ODBC; the display-name
+  case reaches only Oracle / Informix, neither run locally for this amendment.
+  class: A-15's SUG007 class line; no unpinned user-text string column is left on Oracle or Informix.
+- **A-17** — **review round 7 (`gaps.md`, round 7), on `b50358f91`.** Each item was dispositioned by the maintainer in the
+  walk:
+  - MIN032 (`E-10`, `d2306ba88`): `NonAsciiClaimTypeAndLoginName` could not fail on Informix. CI's Informix database is
+    created without `DB_LOCALE` (`Build/Azure/scripts/db2informixduckdb.sh:16`), a single-byte locale, so 200 / 100 'ü'
+    fit the unpinned `NVarChar(255)` / `NVarChar(128)`; A-15 / A-16's "two-byte" premise held on Oracle only. Informix
+    now writes 300 / 200 characters (over the unpinned width in any locale, within `LVarChar(1024)`). Local
+    `Informix.DB2` (direct + LinqService): green with the pins; red with each pin removed in turn — user `ClaimType`
+    (`holders`, silent truncation), role `ClaimType` (`roleClaims`), `ProviderDisplayName` (`logins`). Oracle values
+    unchanged, not run locally.
+  - NIT018 (`E-10`, `5b0248610`): `ShouldMapPasskey` continuation indent.
+  - Local: Release build of `Tests/Linq` (net10.0) clean.
 
 ## P12 Critic verdict
 

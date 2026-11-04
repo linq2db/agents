@@ -37,7 +37,8 @@ It stages the file's **working-tree** content with each span (start marker throu
 plus the blank line after it) removed, so everything except the later commit's parts goes in.
 Markers are literal text; `<path>` is relative to the worktree. A start marker that begins mid-line
 leaves that line's indentation behind, so include the leading tabs in it. The file's UTF-8 BOM, if any,
-is preserved.
+is preserved. A marker may span lines: pass a double-quoted PowerShell string with `` `r`n `` for a CRLF
+file. That is how to make a marker unique when its first line (`[Test]`, `/// <summary>`) repeats (#6194).
 
     .claude/scripts/stage-hunks.ps1 -Worktree <path> -CutFile docs/x.md -Cut '## New section|||last words.'
 
@@ -67,13 +68,19 @@ after `<start>`), and is inserted before `<anchor>` in the index content. (#6181
 block sat between two later-commit blocks; it was staged by hand with `hash-object` / `update-index` before
 this form existed.)
 
-**Invoke it directly, never via `pwsh -NoProfile -File`** - that form flattens `-Hunks 6,18` into
-the single string `"6,18"`, which binds to `[int[]]` as `618` and throws an out-of-range error
-naming a hunk that does not exist. See `script-authoring.md`.
+`-Hunks` takes `6,18`, `@(6,18)` or `"6,18"` alike. `pwsh -NoProfile -File` flattens `-Hunks 6,18` into
+the single string `"6,18"`, which an `[int[]]` parameter bound as `618`; the parameter is a string list
+split on commas, so both invocation forms work. See `script-authoring.md`.
+
+`-Cut` / `-Replace` / `-Add` markers may contain commas, so they are not split. Under `-File`, `-Cut "x", "y"`
+does not arrive as two markers; with more than one value, call the script with `&` from a `.build/.agents/*.ps1`
+wrapper that passes real arrays. Positional binding is off, so a stray value fails by name rather than landing
+in `-Hunks` (#6110).
 #>
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [Parameter(Mandatory)][string]$Worktree,
-    [int[]]$Hunks,
+    [string[]]$Hunks,
     [string]$Split,
     [switch]$ListOnly,
     [string]$CutFile,
@@ -84,6 +91,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+[int[]]$Hunks = @($Hunks | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object { [int]$_ })
 
 # Scratch goes under .build/.agents, never beside the script (agent-rules.md -> Temp files).
 $scratchDir = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) '.build/.agents'

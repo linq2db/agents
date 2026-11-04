@@ -162,3 +162,152 @@ Round-2's recommended `plan-critic.md` prose-claim vector did not land; MIN028 a
   against the guide's own types.
 - GAP-01 ×2 + MIN029 → `definition-of-done.md`: before CI on a long-lived branch, merge master and check new shipped
   assemblies against master's registries; a csproj switch disabled "until next release" needs a named release step.
+
+## Round 5 — reviewed HEAD 01d3ff195
+
+Plan on branch: yes (Tier M). The round's delta was merge-only (`01d3ff195`; no PR-owned commit since `afb9ba0e9`).
+Dispositions (`A-14`): 9 fixed (`cc4a5dc41`, `48fe1e503`, `0a12ea523`, `4462c00f1`); the Sybase 5461-character
+passkey cap **withdrawn on measurement** (ASE caps `nvarchar(n)` by bytes; ASCII JSON of 6228 characters round-tripped)
+— the second width claim in two rounds made from the builder rather than a round-trip; the Access memo-prefix probe
+found no defect; one dropped (settled by `A-6`); Copilot's net10 PublicAPI threads declined (release task).
+
+### Attribution
+
+- **R5-1** (hand-set `BASELINE_DISABLED` instead of #6061's `[NoBaselines]`) — GAP-10 — #6061 and its sweep of master's sites arrived with merge `01d3ff195`; `P7`'s `linq2db.baselines` row names the retired idiom, and `definition-of-done.md` re-walks the checklist after a merge, not branch code against idioms the merge retired. — — — preventable: partly
+- **R5-2** (Oracle `VARCHAR2(n)` byte length; `ORA-12899` on a 256-character non-ASCII name) — GAP-03 — no `P7` row lists, per 256-wide string column × provider, the emitted type and whether its length counts bytes or characters; `A-10` fixed the class for Informix only; the scout width rule asks for a max-length round-trip, not a multi-byte one, and `A-11`'s `UserProfileFields` probe was ASCII. Second class GAP-05. — G-01 — preventable: yes
+- **R5-3** (readme omits SQL Server `OUTPUT` vs `UPDATE` trigger) — GAP-02 — unprobed claim from `A-10`; the mechanism is in `ConcurrencyExtensions`' own XML doc; `P12` records no critic run after `A-9`, so the prose-claim vector never reached `A-10`…`A-13`. — — — preventable: yes
+- **R5-4** (no unique name indexes; readme named the missing FKs only; + Copilot's four find-then-insert race threads) — GAP-03 — round-1 MAJ002's missing `P7` row again: what EF Core's model declares (`HasIndex(...).IsUnique()`), not its store code; the scout rule landed as an example list without indexes. — — — preventable: yes
+- **R5-5** (narrower-column list incomplete: `ClaimType`, `ProviderDisplayName`, Informix / HANA token `Value`) — GAP-03 — the same missing width × provider inventory as R5-2; `A-13` wrote the list from the pinned set. Second class GAP-02. — — — preventable: yes
+- **R5-6** (readme: "`UseMappingSchema` does not work at all") — GAP-02 — absolute claim from `A-10` without a probe; the test added in `0a12ea523` is that probe. — — — preventable: yes
+- **R5-7** (DI round-trip asserted a type-name prefix; role-path `#else` and `IdentityDataContext` arms untested) — GAP-05 — `TO-9` claims every DI test asserts the resolved types and that CI's net8/net9 legs cover the `#else` arm, true for the user-only path only; `A-9`'s `G-01` ran net10.0 only; the per-arm rule lists arity, schema version and provider, not a TFM `#if` arm. Second class GAP-02. — G-01 — preventable: yes
+- **R5-8** (role-membership tests had one user / one role; mutation-confirmed) — GAP-05 — pre-plan port, no `TO-n` for the store filters, so the `separates:` rule had nothing to bind. — G-01 — preventable: partly
+- **R5-9** (multi-claim `OrElse` arm unexercised; no claim / delete-cleanup test with a second owner; mutation-confirmed) — GAP-05 — R5-8's shape. — G-01 — preventable: partly
+- **R5-12** (`RemoveUserTokenAsync` keyless delete) — not-a-gap: settled in `P11 A-6`; lifted into `P10` with this round.
+- **R5-13** (Copilot: net10 `PublicAPI.Unshipped.txt`) — not-a-gap: out-of-plan-scope, `P7` defers it to `/release-publicapi` (`D-4`).
+
+### Aggregate
+
+9 findings: GAP-03 ×3, GAP-05 ×3, GAP-02 ×2, GAP-10 ×1. Two clusters: no EF Core parity inventory (every `HasKey` /
+`HasIndex(...).IsUnique()` / `HasMaxLength` / length unit against what `CreateTable` emits per provider), so both the
+mapping and the readme's limit lists were written from memory (R5-2, R5-4, R5-5); and tests on pre-plan or `#if`-split
+code that no `TO-n` could make fail (R5-7, R5-8, R5-9).
+
+### Continuity with rounds 1–4
+
+| Prior finding | Round-5 finding | Through |
+|---|---|---|
+| round-1 MAJ002 (cascade FKs) | R5-4 | the scout rule landed as an example list; indexes not in it |
+| round-2 OOS3, round-4 MIN027 (string widths) | R5-2, R5-5 | width × provider inventory never built; fourth round on this class |
+| round-1 MIN009, round-2 MIN022/MIN023, round-4 MIN028/SUG005 (unprobed readme) | R5-3, R5-5, R5-6 | the prose-claim vector exists but is never run on amendments |
+| round-1 MIN014 (DI paths untested) | R5-7 | `TO-9` credited the `#else` arm to CI legs without naming the assertion |
+| round-1 MIN013, round-4 MIN030/SUG006 (arms without a test) | R5-8, R5-9 | per-arm / `separates:` rules bind `TO-n` rows only, never pre-plan tests |
+| round-4 MIN029 (master sync missed a registry) | R5-1 | DoD re-walk covers checklist items, not idioms a merge retired |
+| round-4 MIN027 (width claim withdrawn) | withdrawn Sybase cap | reviewer side: width claims read off the builder, not emitted DDL / a round-trip |
+
+Round-2's recommendation that a review-round fix commit cite an `A-n` written before it did not land; this round's fix
+commits were again amended after the fact.
+
+### Review-process note (not a plan gap)
+
+- **R5-PROC** — the round's first pass was briefed on the merge and found nothing; with no PR-owned commits in the round
+  delta, the round must be a full review of `merge-base(origin/master, head)..head` plus a check of merge resolutions
+  in PR paths, never a review of the merge itself. Fix site: `review-pr/SKILL.md`, round-delta rule.
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-03 ×3 → `work-plan/SKILL.md` scout brief: an exhaustive pass over the original's model configuration (every
+  `HasKey` / `HasIndex(...).IsUnique()` / `HasMaxLength` / FK / concurrency token), one `P7` row each; the width probe
+  reads each provider's emitted DDL with its length unit and round-trips a max-length **multi-byte** value; user-facing
+  limit lists are derived from that table.
+- GAP-05 ×3 → `work-plan.md` per-arm and `separates:` rules: add a TFM `#if` arm as a dispatch axis; a coverage claim
+  credited to another CI leg names the assertion that runs there; a review round editing pre-plan code owes a
+  `separates:` row (a second owner) per filter it touches.
+- GAP-02 ×2 → `work-plan.md` `P11` / `P12`: an amendment changing user-facing prose gets the prose-claim vector over its
+  delta before push, recorded in `P12`.
+
+## Round 6 — reviewed HEAD 4462c00f1
+
+Plan on branch: yes (Tier M). The round delta is `01d3ff195..4462c00f1`, which holds round 5's fix commits `cc4a5dc41`,
+`48fe1e503`, `0a12ea523` and `4462c00f1`. `A-15` was written before this round's fix commits, the first round in which
+round 2's recommendation 2 held. `P9` has no `G-01` / `G-05` row for `A-14` or `A-15`. `A-14`'s local results sit only
+in its `P11` prose, and `test-all` 25135 is still recorded as pending. No finding below turns on a skipped gate.
+
+### Attribution
+
+- **MIN031** (readme race paragraph: false EF Core parity, and a duplicate passkey row made `FindUserPasskey*Async` throw) — GAP-03 — `A-6` dropped the passkey table's key on Access / Informix / Firebird 2.5 (`d4713b14e`, `7516dab09`) and traced only the write paths on a keyless entity (`UpdateAsync` via `GetKeys(true)`, and `DeleteAsync`); no `P7` row listed the readers that rely on the dropped key's uniqueness — `SingleOrDefaultAsync` at `UserOnlyStore.cs:597,603`, inside `P7`'s own `(D-4) users of IdentityUserPasskey` row (`UserOnlyStore.cs:459-609`), which asked one question per decision, round-4 MIN025's shape. Second class GAP-02: "as EF Core's stores do" (`0a12ea523`; `A-14` "EF Core parity") was never checked against EF Core's `UserStore.AddToRoleAsync`, which has no existence check; `P12`'s last round is `A-9`, and the amendment-delta critic rule (`work-plan/SKILL.md:293-294`) binds Tier L only and landed after this commit. — — — preventable: yes
+- **SUG007** (`ClaimType` left as byte-counted `VARCHAR2` on Oracle) — GAP-03 — `P7` still has no row per string column × provider giving the emitted type and its length unit; `48fe1e503` pinned the columns R5-2 named (`A-14`: name, email, phone, password-hash, security-stamp, `ProviderDisplayName`), yet R5-5 named `ClaimType` in the same round and `0a12ea523` documents its width; the round-5 scout rule (`work-plan/SKILL.md:165`, inventory from the original's model configuration with a multi-byte max-length probe) landed in corpus `805744c` 17 minutes after `48fe1e503` and was never applied back to it — round 2 recorded the same for round 1's Rec 1. — — — preventable: yes
+- **NIT017** (one-line `GetRequiredService<…>().ShouldBeOfType<…>()` / `(await …).Succeeded.ShouldBe…()` chains in `IdentityStoreVariantTests.cs`) — GAP-06 — `A-13` embedded `testing.md` → *Test layout* rule 1 with `test-diff-sweep.ps1` as the instrument and reported "every rule-1 chain the sweep found rewritten"; the sweep's pattern `\)\s*\.\s*[A-Z]\w*\s*\(` (`test-diff-sweep.ps1:105,137`) needs `(` straight after the member name, so it never matches a generic method (`.ShouldBeOfType<U>(`) or a property hop (`).Succeeded.ShouldBe(`), and the earlier sites survived `A-13`. Second class GAP-07: `A-14` has no `conventions:` line for `4462c00f1`'s test edits, which added new sites. — G-09 — preventable: yes
+
+### Aggregate
+
+3 findings: GAP-03 ×2, GAP-06 ×1. Both GAP-03s are a fix that covered the instances its finding named and not the class
+behind them: `A-6` checked the keyless writes but not the readers that need a unique key; `48fe1e503` pinned R5-2's
+columns but not the inventory's. The width rule that would have caught SUG007 already existed, but landed minutes after
+the commit and was not re-applied. The change that would have prevented the most findings: a fix amendment takes its
+site list from a class enumeration (the `P7` inventory, or every consumer of the invariant it changes), never from the
+finding's list of instances.
+
+### Continuity with rounds 1–5
+
+| Prior finding | Round-6 finding | Through |
+|---|---|---|
+| round-1 MAJ002, round-5 R5-4 (EF model parity: FKs, unique indexes) | MIN031 | R5-4's own fix `0a12ea523`; the readme paragraph repeats an unprobed parity claim |
+| round-4 MIN025 (`P7` passkey-users row asked one question) | MIN031 | the same `UserOnlyStore.cs:459-609` row, never re-asked after `A-6` dropped the key |
+| round-1 MIN009 … round-5 R5-3/R5-6 (unprobed readme) | MIN031 (second class) | no critic round on `A-10`…`A-14`; the delta-critic rule is Tier L only |
+| round-1 MAJ003, round-2 OOS3/OOS4, round-4 MIN027, round-5 R5-2/R5-5 (string widths) | SUG007 | fix `48fe1e503`; a width finding in five of six rounds |
+| round-1 MIN015, round-4 NIT011–013 (test layout) | NIT017 | the sweep now exists, but cannot see generic-method or property-hop chains |
+
+Round-5 recommendations: Rec 1 (scout inventory with a multi-byte probe) landed as `work-plan/SKILL.md:165` (`805744c`),
+after the fix commits it would have governed. Rec 3 (prose-claim vector on amendment deltas) landed as
+`work-plan/SKILL.md:293-294` (`0279bbc`), but only at Tier L, so it does not bind this Tier M plan. Round-2 Rec 2 (`A-n`
+written before the fix) held for the first time with `A-15`.
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-03 (MIN031) → `work-plan/SKILL.md` step 5 scout brief: an edit-point that drops or relaxes a key or unique
+  constraint (per provider or overall) gets one `P7` row per consumer of that uniqueness — `Single*` lookups,
+  find-then-insert, `Update` / `Delete(entity)` — each with a disposition.
+- GAP-03 (SUG007) → `work-plan.md` `P11` semantics: a review-round amendment fixing a per-column or per-provider finding
+  names the class and takes its site list from the `P7` inventory; a plan rule landing from a round's ledger is
+  re-applied to that round's unpushed fix commits before push.
+- GAP-06 (NIT017) → `.claude/scripts/test-diff-sweep.ps1` + `testing.md` *Test layout* rule 1: allow generic arguments
+  and property hops between `)` and the next call (e.g. `\)(\s*\.\s*\w+)*\s*\.\s*[A-Z]\w*\s*(<[^()]*>)?\s*\(`), and add
+  a do/don't example for `sp.GetRequiredService<T>().ShouldBeOfType<U>()`.
+
+## Round 7 — reviewed HEAD b50358f91
+
+Plan on branch: yes (Tier M). The round delta is `20bbda1fa`, `9b82b2037`, `523968fe8`, `c52461ed5` and `b50358f91`, which are
+round 6's fixes under `A-15` and `A-16`. Both amendments were written before their fix commits. `P9`: `validate -Done` is
+clean, reconcile is clean and CI is green. `A-16` records that its new case reached only Oracle and Informix and that
+neither was run locally. CI could not fail the Informix assertion, so green CI is not evidence for it.
+
+### Attribution
+
+- **MIN032** (`NonAsciiClaimTypeAndLoginName` cannot fail on CI's Informix, so both `InformixTextLimit()` pins are unproven) — GAP-05 — `A-15`'s `TO-n` was specified as "Oracle, Informix — the two byte-counted defaults; 200 two-byte characters". For Informix that premise was never probed (second class GAP-02): `Build/Azure/scripts/db2informixduckdb.sh:16` creates `testdb` with no `DB_LOCALE`, so the database is single-byte, and `Issue1307Tests.cs:167-172` already gates CJK writes on Informix for that reason. `A-15` asked red-before/green-after only of the passkey `TO-n`, not of this one. `A-16` widened the case to `ProviderDisplayName` on the same premise and noted "neither run locally". The display-name assertion is also green without its pin on Oracle, which `A-14` had already pinned. — G-01 — preventable: yes
+- **NIT018** (`IdentityCustomizationTests.cs:409-410` continuation indented two tabs past the receiver, siblings one tab) — GAP-06 — `523968fe8` applied the `A-15` splits by script and left this site with different indentation; `test-diff-sweep.ps1` detects one-line chains only and has no continuation-indent check. — G-09 — preventable: yes
+
+### Aggregate
+
+2 findings: GAP-05 ×1, GAP-06 ×1. Both repeat, in round 6's fix passes, the failure those passes were fixing. MIN032 is
+SUG007's fix with a test that could not fail: the byte-versus-character premise for Informix was copied from the plan's
+own text, and the test was never shown red against a revert of its pin. NIT018 is NIT017's fix with a scripted transform
+whose output no instrument checks. The change that would have prevented MIN032: a `TO-n` whose purpose depends on a
+provider quirk (byte-counted width, locale, range) names the CI configuration that makes it fire and records a red run
+with the fix reverted; otherwise it is unproven, not passing.
+
+### Continuity with rounds 1–6
+
+| Prior finding | Round-7 finding | Through |
+|---|---|---|
+| round-6 SUG007; widths in rounds 1, 2, 4, 5 (MAJ003, OOS3/OOS4, MIN027, R5-2/R5-5) | MIN032 | `9b82b2037`, `c52461ed5`; sixth round on string widths, the first about the test's power rather than a missing pin |
+| round-1 MIN011/MIN012, round-2 CI4/SUG003 (tests that cannot fail) | MIN032 | no per-provider obligation naming what proves the assertion fires |
+| round-6 NIT017, round-4 NIT011–013 (test layout) | NIT018 | `523968fe8`; the sweep was widened for chain shape but has no continuation-indent check |
+
+### Recommended durable fixes (route to `/session-reflect` → `plan-rule`)
+
+- GAP-05 (MIN032) → `work-plan.md` `P8` semantics / `work-plan/SKILL.md:165` scout brief: a `TO-n` targeting a provider
+  quirk states the CI configuration under which it fires (database locale, collation) and records a red run with the fix
+  reverted, else it is marked unproven on that provider. Over-width values are set in characters, so the test fires in
+  any locale.
+- GAP-06 (NIT018) → `.claude/scripts/test-diff-sweep.ps1` + `testing.md` *Test layout*: check that continuation lines of
+  a split chain sit one tab past the receiver, and re-run the sweep after any scripted rewrite.

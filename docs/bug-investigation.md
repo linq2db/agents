@@ -16,6 +16,8 @@ When a bug report blames a package swap ("worked with package X, broke after swi
 
 Before building a repro for a bug attributed to a specific merged PR/commit, confirm the working tree actually contains that change. A long-lived branch (e.g. `infra/*`) can sit weeks behind `origin/master`, so a regression introduced by a recent PR won't reproduce locally and you'll burn time chasing a ghost — building elaborate offline repros against code that predates the bug. Check with `git merge-base --is-ancestor <pr-merge-sha> HEAD` (exit 0 = present), or compare `git log -1 --format=%ci HEAD` against the PR's merge date. If HEAD predates the change, create the fix branch from fresh `origin/master` first (per [`agent-rules.md`](agent-rules.md) → *Creating a new branch*), then reproduce there. #5528 (a regression from #5504) was invisible for a long stretch because the working branch's base predated #5504 entirely.
 
+**Before proposing to scope out an adjacent failure a probe surfaced, state whether it is a regression** against the reporter's last good release — the scope decision turns on it. Measure it with the console probe on released NuGet packages ([`historical-bisect.md`](historical-bisect.md) → *Probe outside the harness*), which already lists the in-repo isolation traps (`CS0579` from per-version `obj`, analyzers, `Directory.Build` stubs). (#6208: an outer-keyed `LEFT JOIN` variant failed on SQLite; the probe showed 5.4.1.9 failing it too, so it went to #6224 instead of the fix — after four probe iterations rediscovering that doc's traps.)
+
 ## A reported version with no release tag is a master build
 
 When an issue's version has no release (`gh release list --repo linq2db/linq2db`), it is the `<Version>` master carries in `Directory.Build.props` — the reporter is on a nightly / master build. Reproduce on a fetched `origin/master`, not on the last release, and treat `<last release>..origin/master` as the regression window. (#6067 reported "6.6.0" while the latest release was 6.5.0.)
@@ -193,6 +195,16 @@ Make the hand-off explicit instead. Inside the instrumentation, tag each entry w
 Two things to carry into the write-up. Log the **facts** rather than inferring them — thread id, the state each caller read, and whether its lookup hit or missed — because a green run otherwise cannot distinguish "the window is unreachable" from "my probe never entered it", and those have opposite consequences for the finding. And state plainly that a signal-gated hand-off shows the interleaving is *possible*, not that it occurs naturally under load; that is the standard way to demonstrate a race, but it is weaker evidence than a natural repro and the finding should say so.
 
 (Surfaced on #5844's `CompiledTable<T>` learn window. Two natural-timing attempts came back green — the fact log showed both threads' `TryGetValue` preceding either publication, because the window opens only after the query *build*. The signal-gated version landed on the first try: `seq=2 … hit=True covered=False`, and the second caller executed the first one's query — a query-filter bypass returning 7 rows where 1 was correct.)
+
+## Measuring a query build's stack use
+
+A stack regression (`Stack overflow.` on CI, `Issue3674Tests.InThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows*.
+
+- **Whole-build peak, uninstrumented (Windows).** Run the query on a 16 MB thread after `Query.ClearCaches()`. Afterwards, from that thread, `VirtualQuery` the address of a local to get the stack's `AllocationBase` and top, then walk up from `AllocationBase` to the first region with `State == MEM_COMMIT` (`0x1000`) and no `PAGE_GUARD` (`0x100`). Its distance to the top is the deepest the stack reached: commit only grows, at 4 KB resolution. This catches every recursion, not just the one you suspect.
+- **Attributing the peak to a site.** Wrap the suspect recursive method (e.g. `ExpressionEqualityComparer.UpdateHashCode`) in a counting wrapper that records the minimum address of a local and a three-frame stack at each new minimum. The wrapper adds a frame per level, so it overstates the depth: use it for *where*, and the committed peak for *how much*.
+- **Noise.** Repeated runs of one tree spread by about ±8 KB (JIT tier state, test order), so take three or more processes per tree and compare ranges, not single values. Build any deep probe expression on the test thread, not on the small one.
+
+(#6185 A-8: master 53–65 KB, the regressed head 78 KB, the fix 53–65 KB for the plain query.)
 
 ## Perf work — a work count is not a time measurement, and a corpus aggregate is not the case you're fixing
 

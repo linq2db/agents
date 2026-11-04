@@ -26,6 +26,8 @@ This applies most strongly to APIs that have been public since v1.0 / older majo
 
 **`[Obsolete]` does not unfreeze behavior.** A public method marked `[Obsolete]` stays callable by downstream code until it is actually removed — its observable behavior is as frozen as any other public API. When an *internal* caller (e.g. a member mapping in `Linq/Expressions.cs`) needs corrected behavior, do **not** edit the obsolete method's body: add a private copy with the fix and repoint the internal callers at it, leaving the public method untouched. (Done in #5577: public `ConvertToCaseCompareTo`'s null-returning body stayed frozen; the member mappings moved to a BCL-faithful private `ConvertToCaseCompareToImpl`. That private impl is **gone as of #5613** — `string.CompareTo` moved to a member translator — so don't expect to find it; the public `ConvertToCaseCompareTo` still stands in `Linq/Expressions.cs:1074`, which is the point: the frozen public method outlived the internal workaround.)
 
+**…nor does it unfreeze dispatch.** A `public virtual` member kept `[Obsolete]` for compatibility must still be called on every path it governed in the shipped version, or be removed outright. Keeping the signature while a new path bypasses it turns the compile error an override would have hit into a silent behaviour change: an override that validated or authorized now applies to some callers only. (#6014: the restored `LinqToDBHub.Execute*Async` virtuals are never reached by 6.6.0 clients, which call the non-virtual `*Stream` methods.)
+
 ### Shipped packages don't pin vulnerable transitive dependencies
 
 A package that *declares* its dependencies gets no direct `PackageReference` added only to lift a vulnerable transitive one — that becomes a new dependency of the package, and consumers who need the fix pin it themselves. Pin where the dependency ships *inside* the artifact (`linq2db.cli`, the T4 packages, the `.lpx`) — the consumer cannot pin there — and freely in test and example projects. An advisory whose patched version is not on nuget.org yet gets a `NuGetAuditSuppress` in `Directory.Packages.props`. The older `Newtonsoft.Json` / `System.Text.Json` "transitive vulnerable packages" pins in `Source/LinqToDB.Remote.*` predate this rule. (#6043.)
@@ -172,6 +174,10 @@ The failure shape is what makes this expensive: the direct half of the suite is 
 
 The test-side counterpart is already covered — see [`testing.md`](testing.md) → *`[ThrowsForProvider]` covers the `.LinqService` context, and tolerates the remote wrapper*.
 
+### Provider adapters read driver members through `TypeMapper` wrappers, never reflection
+
+A `*ProviderAdapter` reaches a driver member by declaring a `[Wrapper]` class — plus a `[Wrapper]` enum for a driver enum, members and values copied from the driver — and building the accessor with `typeMapper.Type<W>().Member(p => p.X).BuildGetter<DbParameter>()` / `BuildSetter`. Not a hand-built `Expression.Property` over `Type.GetProperty(name)`, and no other reflection. Precedents: `SqlCeProviderAdapter`, `MySqlProviderAdapter`, `YdbProviderAdapter`. (Maintainer review on #6198.)
+
 ### A TFM gate may withhold a feature, never recognition of unchanged source
 
 The `netstandard2.0` asset is not only a .NET Framework / legacy build. **Modern runtimes load it too**, in two ways:
@@ -284,6 +290,10 @@ For a per-provider capability use a `SqlProviderFlags` bool (`dc.SqlProviderFlag
 
 Engine code shared across providers must not hard-code provider SQL syntax — parameter prefixes (`@`, `:`, `$`), positional `?`, identifier quoting. Ask the builder (`ConvertInline(name, ConvertType.NameToQueryParameter)` and the other `ConvertType`s) and `SqlProviderFlags` (`IsParameterOrderDependent`); a provider that accepts an alternate syntax overrides a virtual on its builder. (#6003: an unreferenced-argument check matched a fixed `@`/`:`/`?` list; reworked to `BasicSqlBuilder.IsParameterReferenced`, with PostgreSQL adding Npgsql's `@name`.)
 
+### Dialect operator precedence goes through the builder's precedence hook
+
+When a provider ranks an operator differently from `Precedence.cs` (SQLite and Firebird bind `||` above arithmetic), override the precedence the builder reads for that node, `BasicSqlBuilder.GetPrecedence(ISqlExpression)`, which drives both the wrap decision and the operand precedence. Don't copy a base emit loop into a provider `*SqlBuilder` just to change its precedence argument. Per-database precedence is tracked in #5527; this hook is where it lands. The hook is `private static` until #6146 (or a follow-up) makes it `protected virtual`. (#6146: the SQLite `||` fix overrode `BuildSqlConcatExpression`; review redirected it to the hook, which also covers Firebird.)
+
 ### A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test
 
 When a feature needs to know whether a provider supports something, expose it as a `SqlProviderFlags` bool set per-provider **and** add a test that probes the provider's actual runtime behaviour and asserts the flag equals the probe result. An unenforced flag is rejected — maintainer: *"adding flag when it is not enforced on implementation is not a good idea"* — because a bool nothing verifies drifts as providers change, silently. The probing test makes divergence fail loudly.
@@ -329,6 +339,8 @@ When **matching** a method-call node's identity (rather than constructing a call
 ### Check `Internal/Extensions` before writing a private type-shape helper
 
 `LinqToDB.Internal.Extensions.NullableTypeExtensions` already carries `MakeNullable()`, `AsNullable()`, `UnwrapNullableType()`, `UnwrappedNullableType`, `IsNullableType` and `IsNullableOrReferenceType`, so a local `static Type MakeNullable(Type)` or `static bool IsNonNullableValueType(Type)` is a re-derivation of one of them — often as its negation, which is what makes the duplicate hard to spot by name. Same instinct as the `MemberHelper.MethodOf*` rule above: the reuse candidate is in `Internal/`, and a file outside that namespace reaches it with a `using`, not a reimplementation. (#5708 shipped both of those before review caught them.)
+
+**The same holds for a `DataType` membership predicate.** `QueryHelper.IsDecimal` (and, from #6186, `QueryHelper.IsUnicode`) are the shared spellings. Before writing `DataType is A or B or C` inline, `git grep` the token set; a private local copy elsewhere is an extraction candidate for `QueryHelper`. (#6186: the Unicode test was spelled twice in the PR while `SqlExpressionOptimizerVisitor` held a local `IsUnicode`.)
 
 ### A reference-identity set over `Expression` needs the comparer spelled out
 

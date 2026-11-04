@@ -204,6 +204,18 @@ Output: `{ found: true|false, newReview: {...} | null, waitedSec, polled }`.
 Defaults: `MaxWaitSec=600` (10 minutes), `PollIntervalSec=30` (every 30s).
 Override on invocation: `/copilot-loop --wait 30m --poll 60s`.
 
+**A ratchet is not convergence — name it and offer to stop.** Sometimes two
+consecutive rounds' findings are variants of one property: each fix closes one
+spelling, and the next review finds a narrower one. Typical properties are
+evaluation order, purity and nullability. The loop will then not converge. In the
+step-6 prompt, say so and add an explicit option: *fix the realistic cases, state
+the contract the remaining ones violate in a PR comment, stop the loop*. Size the
+remaining cases honestly. A finding that needs a hand-built expression tree, or a
+converter that mutates its own parameter, is a contract question, not a defect to
+chase. (#6189: three rounds on one EF inlining helper, covering duplication, then
+skipping and order, then mutable fields and by-ref parameters. The user fixed the
+field case, declined by-ref with a purity statement, and stopped the loop.)
+
 ### 12. Report on stop
 
 Whatever ends the loop (convergence, timeout, user `Ctrl+C`, error):

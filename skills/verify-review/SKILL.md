@@ -107,6 +107,8 @@ Per `review-orchestration.md` → **Spawning the subagents in parallel**. This s
 
 **Refresh the diff cache before spawning (verify-mode only).** A prior `/review-pr` run leaves a `writeDir` cache populated at *that* run's HEAD. Re-run `diff-reader.ps1` for all changed files at current HEAD first, so a subagent whose own `diff-reader` call is denied (background runs can't surface a permission prompt) falls back to a *fresh* cache rather than the stale prior-run one — a stale cache produces false line-level findings (a dropped-then-readded comment surfaced as a NIT on PR #5639). Pairs with the live-blob cross-check in `pr-context-prep.md` → *Cache freshness*. Set `outFile` in that manifest: the refresh needs only the files on disk, and without it the per-file JSON lands in your context. `files` is a plain string array: write the manifest to `.build/.agents/pr<n>-diff-refresh-manifest.json` and pass `-ManifestFile`. (#6069)
 
+**Also cache the delta since the last own review.** The refresh above diffs against `master`, but a verify round is about what changed since the latest own review's `commit_id` (`latestOwnReview.commit_id` in the prior-findings file). Run `diff-reader.ps1` a second time with `baseRef` set to that SHA, the same `files`, `writeDir: <writeDir>/_since` and its own `outFile`, and brief `<writeDir>/_since/_diff/` as the round's delta. Without it the subagent re-runs `git diff <commit_id> <head>` itself (#5991 round 4: twice).
+
 - **`code-reviewer`:** `mode: verify`; **prior findings list** (the full parsed structure from step 3); **`rubricModules`** — write the changed paths at current HEAD (the `nameStatus` paths, the same files the cache refresh above covers) **one per line** to `.build/.agents/pr<n>/rubric-paths.txt`, run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>/rubric-paths.txt`, and brief its `modules` field, even when it is `[]`. The subagent returns `prior_finding_status` (fixed / still_actual / partial), plus fresh `findings` for `partial` cases and any genuinely new issues, plus `api_changes`.
 - **`baselines-reviewer`:** `mode: verify`. A prior round whose baselines pass was skipped left the delta **unreviewed**: never brief this one with "skipped by the user" or "same files as round N, do not investigate". Run it, or record the delta as outstanding ([`review-pr/SKILL.md`](../review-pr/SKILL.md) step 4 → *A skipped pass is "not reviewed", never "settled"*).
 
@@ -128,7 +130,7 @@ For each prior finding, pick the update action based on `status` × `location.ki
 | partial      | line          | Add an entry to the new draft review's `replyComments[]` with `inReplyTo` set to the existing comment's GraphQL node ID and a body that quotes the original and explains the residual concern. The wrapper attaches it via `addPullRequestReviewComment` scoped to the new pending review, so the reply stays hidden until the user submits the draft (do **not** use the `/replies` REST endpoint — it posts immediately, outside the draft, which breaks the "preview before submit" flow). |
 | partial      | file          | Post a fresh file-level comment in the new draft review, referencing the original ID. |
 
-Edit-in-place of prior review bodies uses GitHub's `PUT` endpoint — see `.claude/docs/github-review-api.md`. Mechanics: the prior review body is already in memory from step 2's `GET /pulls/<n>/reviews` response — do not re-fetch. Apply a targeted substring replacement on the exact line containing the finding's ID to flip its checkbox, then PUT the whole new body in one call per review.
+Edit-in-place of prior review bodies uses GitHub's `PUT` endpoint — see `.claude/docs/github-review-api.md`. A checkbox flip is a `checkboxFlips[]` entry in step 9: the script fetches the body, flips the finding's checkbox and PUTs it, so you never rebuild the body yourself.
 
 ### 7b. Out-of-scope disposition gate
 
@@ -165,8 +167,8 @@ pwsh -NoProfile -File .claude/scripts/apply-verify-writes.ps1 <<'EOF'
   "threadResolves": [
     { "threadId": "PRRT_...", "label": "MIN001" }
   ],
-  "reviewBodyEdits": [
-    { "reviewId": <review_id>, "newBody": "<full replacement body>" }
+  "checkboxFlips": [
+    { "reviewId": <review_id>, "findingId": "MIN007", "mark": "x" }
   ]
 }
 EOF
@@ -176,7 +178,8 @@ Manifest rules:
 
 - `commentPatches[]` entries may be bare integers (use top-level `appendNote`) or `{ commentId, appendNote }` (per-entry override — rarely needed). The script fetches the current comment body, appends `\n\n<appendNote>`, and `PATCH`es. Idempotent: if the note already appears in the body the write is skipped.
 - `threadResolves[]` entries may be bare strings or `{ threadId, label }`. `label` surfaces in the output so per-finding pass/fail is identifiable.
-- `reviewBodyEdits[]` needs the **full new body** — the caller is responsible for starting from the prior review body (already in memory from step 2's `GET /pulls/<n>/reviews` response) and doing the targeted substring replacement for each finding's checkbox. Do not re-fetch.
+- `checkboxFlips[]` covers the step-7 body rows: `mark` is `x` for fixed and `~` for partial. The script requires `- [ ] **<findingId>**` to occur exactly once in the current body, sends one PUT per review, and skips a box that already carries the mark.
+- `reviewBodyEdits[]` (a **full new body**) is only for a body edit that is not a checkbox flip. A review can appear in one of the two arrays, not both.
 
 The script exits 0 on full success, 2 when at least one item failed (per-item `ok: false` in the JSON output). On failure, report which items failed and stop — do not attempt rollback (these are human-reviewable state changes; partial progress is preferable to silently losing work).
 

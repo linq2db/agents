@@ -8,7 +8,20 @@ letting through:
   2. narrowed provider sets on an added line (`[IncludeDataSources(...)]`, `[DataSources(<exclusions>)]`)
      with the nearest non-attribute line above (from three lines of diff context, so an unchanged comment
      further up shows as blank — open the file), so a missing or stale reason line is visible —
-     testing.md -> *A narrowed provider set is a claim* -> *State the reason at the attribute*.
+     testing.md -> *A narrowed provider set is a claim* -> *State the reason at the attribute*;
+  3. Shouldly-assertion gates (`[ActiveIssue]` / `[ThrowsForProvider]` naming `Shouldly`) whose
+     `ErrorMessage` is the asserted expression (`records[2].FirstName`) and not a `should ...` clause —
+     Shouldly writes the expression only when it can read the test source, so CI never matches it —
+     testing.md -> *Gating an assertion failure*. (#6229: written against that rule, caught by the critic.)
+  4. Shouldly-assertion gates with no `ErrorMessage` at all, the attribute read to its closing `)]` across
+     lines — enough only when the test makes one Shouldly assertion, so read the body —
+     testing.md -> *Gating an assertion failure*. (#6185 TO-27: two `ShouldBe`s under a type-only gate.)
+  5. continuation lines of a split chain (`\t.Select(...)`) indented more than one tab past the line above —
+     the drift a scripted split leaves (#5640 NIT018: two tabs past `passkey.Columns`, its siblings one).
+     No written rule fixes the depth and some tests use two tabs after `var x = ...`, so a hit means "check it
+     against the sibling chains in the same test". `.cs` files with tab indentation only; a shallower
+     continuation (after query syntax or a wrapped argument list) is not reported. Measured over
+     `origin/master~300...origin/master`: 9 hits.
 
 Why this script exists
 ----------------------
@@ -40,7 +53,8 @@ Contract
 on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
-narrowedSets: [{file, line, attribute, lineAbove}] }.
+narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}],
+typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}] }.
 #>
 
 param(
@@ -86,18 +100,38 @@ $recent = [System.Collections.Generic.List[string]]::new()
 $chains = @()
 $nested = @()
 $sets   = @()
+$gates  = @()
+$typeOnly    = @()
+$indents     = @()
+$pendingGate = $null
+
+function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
+
+# the nearest preceding non-blank line in $recent, without its diff prefix
+function Get-PreviousLine {
+	for ($i = $recent.Count - 1; $i -ge 0; $i--) {
+		$t = $recent[$i] -replace '^[+ ]', ''
+		if ($t.Trim()) { return $t }
+	}
+	return $null
+}
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
 function Remove-Operands([string] $text) {
 	return [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
 }
 
+# `).Member(` after a call, also across property hops (`(await x).Succeeded.ShouldBeTrue(`, `).Name.Name.ShouldBe(`)
+# and generic arguments (`).ShouldBeOfType<U>(`, or `<U<` left open where the type list wraps). #5640: the
+# `\)\s*\.\s*[A-Z]\w*\s*\(` form missed 94 such chains.
+$chainPattern = '\)(\s*\.\s*\w+)*\s*\.\s*[A-Z]\w*\s*(?:<[^()]*>\s*\(|<[^()]*$|\()'
+
 # bracket depth at each `).Member(` on the line, string literals blanked first; 0 = statement level
 function Get-ChainDepths([string] $text) {
 	$t = [regex]::Replace($text, '"(?:[^"\\]|\\.)*"', { param($m) '"' + (' ' * ($m.Length - 2)) + '"' })
 	$t = Remove-Operands $t
 	$depths = @()
-	foreach ($m in [regex]::Matches($t, '\)\s*\.\s*[A-Z]\w*\s*\(')) {
+	foreach ($m in [regex]::Matches($t, $chainPattern)) {
 		$d = 0
 		for ($i = 0; $i -le $m.Index; $i++) {
 			switch ($t[$i]) { '(' { $d++ } '{' { $d++ } ')' { $d-- } '}' { $d-- } }
@@ -118,20 +152,42 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
-	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); continue }
+	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# a multi-line gate attribute: its `ErrorMessage` may sit on a later line, added or context
+	if ($pendingGate) {
+		$body = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+		if ($body -match 'ErrorMessage\s*=') { $pendingGate = $null }
+		elseif ($body -match '\)\]')        { $typeOnly += $pendingGate; $pendingGate = $null }
+	}
 
 	if ($l.StartsWith('+')) {
 		$text = $l.Substring(1)
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
-		if ((Remove-Operands $text) -match '\)\s*\.\s*[A-Z]\w*\s*\(' -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
+		if ((Remove-Operands $text) -match $chainPattern -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
 			$hit = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if (@(Get-ChainDepths $text | Where-Object { $_ -le 0 }).Count -gt 0) { $chains += $hit } else { $nested += $hit }
+		}
+
+		# a chain continuation: one tab past a receiver line, at most one past a continuation above it
+		if ($file -match '\.cs$' -and $text -match '^\t+\.\s*[A-Za-z_]' -and $text -notmatch '^\t* ') {
+			$prev = Get-PreviousLine
+			if ($null -ne $prev -and $prev -notmatch '^\t* ' -and $prev -notmatch '[\(\{,]\s*$|=>\s*$') {
+				$actual  = Get-Tabs $text
+				$prevTab = Get-Tabs $prev
+				$isCont  = $prev -match '^\t*\.'
+				# over-indentation only: a shallower continuation follows query syntax or a wrapped argument list
+				$bad     = $actual -gt $prevTab + 1
+				if ($bad) {
+					$indents += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim(); expectedTabs = $prevTab + 1; actualTabs = $actual }
+				}
+			}
 		}
 
 		if ($text -match '\[(IncludeDataSources|DataSources)\s*\((?<args>[^\]]*)\)') {
@@ -146,6 +202,21 @@ foreach ($l in $diff) {
 				}
 			}
 		}
+
+		# a member-access chain starting lower-case (`records[2].FirstName`, `t.Single().Value`) is an expression,
+		# not an expected value - values such as `CONVERT(varchar(4), 123)` do not fit the shape
+		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -match 'ErrorMessage\s*=\s*"(?<msg>(?:[^"\\]|\\.)*)"') {
+			$msg = $Matches['msg'] -replace '\\"', '"'
+
+			if ($msg -notmatch '(?i)\bshould\b' -and $msg -match '^[a-z_]\w*(\.\w+|\[[^\]]*\]|\([^()]*\))*$') {
+				$gates += [pscustomobject]@{ file = $file; line = $line; errorMessage = $msg }
+			}
+		}
+
+		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -notmatch 'ErrorMessage\s*=') {
+			$rec = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			if ($text -match '\)\]') { $typeOnly += $rec } else { $pendingGate = $rec }
+		}
 	}
 
 	$recent.Add($l)
@@ -153,9 +224,12 @@ foreach ($l in $diff) {
 }
 
 [ordered]@{
-	base         = $range
-	path         = $Path
-	chains       = @($chains)
-	nestedChains = @($nested)
-	narrowedSets = @($sets)
+	base                 = $range
+	path                 = $Path
+	chains               = @($chains)
+	nestedChains         = @($nested)
+	narrowedSets         = @($sets)
+	shouldlySubjectGates = @($gates)
+	typeOnlyShouldlyGates = @($typeOnly)
+	continuationIndents  = @($indents)
 } | ConvertTo-Json -Depth 4

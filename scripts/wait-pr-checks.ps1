@@ -51,6 +51,9 @@ param(
 		'PublishSingleFile smoke test'
 		'CLI tests (ubuntu-24.04)'
 		'CLI tests (windows-2025)'
+		'CLI tests (macos-15)'
+		'x86 FPU-unmasked JIT sweep'
+		'WASM runtime tests'
 	)
 )
 

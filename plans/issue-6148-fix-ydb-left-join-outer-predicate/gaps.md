@@ -1,0 +1,76 @@
+# Gap ledger: issue-6148-fix-ydb-left-join-outer-predicate
+
+## Round 1 — reviewed HEAD 85a35da55e3827f4e8e78f1cd18f26cb2a407d08
+
+### Attribution
+
+- **MIN002** — GAP-02 — `P5 D-1` takes master's key test (`ExprExpr Equal`, reduces to `ExprExpr`, no `SqlValue` side) and then assumes the outer operand is a scalar that a `CASE` can wrap. No `P4 U-n` asked which expression kinds can reach that operand. `U-1`/`U-2` probed a single scalar column only, and `SqlRowExpression` (`Sql.Row`) appears nowhere in `P4`, `P7` or the three `P12` rounds. A-4 then put Access on the path, and Access is where it was measured. Secondary: GAP-05, since no `TO-n` covered a row key. — — — preventable: partly
+- **MIN001** — GAP-03 — `P7` row 1 says `SelectQueryOptimizerVisitor.cs:283` is the "sole reader" of `IsComplexJoinConditionSupported`, and `P3` repeats it. A-5 added a second reader (the `JoinMoveSubQueryUp` guard) without re-running that row's own recorded search (`IsComplexJoinConditionSupported` over `Source/`). So `E-2`'s doc was never reopened. The A-3(7) wording "reads the same tables", where the code tests `IsSubsetOf`, is the prose half and is GAP-10. — — — preventable: partly
+  - Why `validate` missed it: the amendment `re-derives:` check (`work-plan.ps1:561-575`) runs only for an `A-n` that a `P6` `E-n` row names. A-5 added no `E-n` row, so the check never ran.
+  - At review time `G-06` (plan @ `06df3d8`) still read "diff limited to `MoveJoinConditionsToWhere` (+ two local helpers), the flag's XML doc, and the test files". That was false at `85a35da55`.
+- **SUG001** — GAP-05 — A-1 re-specified `TO-2` as type-only `[ThrowsForProvider("Ydb.Sdk.Ado.YdbException", TestProvName.AllYdb)]`. The message A-1 measured (`each equality predicate argument must depend on exactly one JOIN input`) belongs to the folded form, which A-1's own picker narrowing removed. The D-4 rejection that `TO-2` now pins was never re-measured. So the obligation accepted any `YdbException`, including the one A-1 had just engineered away. `TO-9` in the same `P8` pins "the measured message", so the plan had the standard and dropped it in the amendment. — — — preventable: yes
+- **NIT001** — GAP-07 — `P8` spells the very shape flagged: `TO-5`, `TO-6`, `TO-6b`, `TO-6c` and `TO-9` each quote `Where(p => …).DefaultIfEmpty()` as a one-line chain. That contradicts `testing.md` → *Test layout* rule 1 and `work-plan/SKILL.md:289` ("spell any assertion a `TO-n` quotes one call per line", in place since `217b0aa`, 2026-10-19). The plan carries no record that step 4 embedded *Test layout*, so GAP-07 over GAP-06 is inferred, not recorded. A-3 also added tests (`…WithStringParameter`, `…OnSeveralKeys`) with no `conventions:` line. Secondary: GAP-08, below. — G-01 — preventable: yes
+  - The backstop gate was applicable and skipped. `G-01` at review time (plan @ `06df3d8`) has no `test-diff-sweep` counts, which the DoD has required since `38ef4b2` (2026-10-30).
+  - `validate` already warned on it (`work-plan.ps1:475-477`, since `088c803`, 2026-10-28). The warning turns into an error only under `-Done`, which was not run.
+- **NIT002** — GAP-07 — A-5 added the `Issue2832Tests.cs:110` assertion and has no `conventions:` line, so amend-mode step 4 (*Test layout* embed plus a sweep) was not run. `validate`'s `conventions:` check (`work-plan.ps1:580-589`) skipped it for the same reason as MIN001: A-5 added no `P6` `E-n` row. Secondary: GAP-08, the same unrecorded `G-01` sweep as NIT001. — G-01 — preventable: yes
+  - `-Reconcile` at `85a35da55` (run now, read-only) fails with `unplanned: AccessDataProvider.cs, Issue2832Tests.cs`. These are A-4's and A-5's files, both logged in `P11` but never added to `P6`, against amend-mode step 1 (`work-plan/SKILL.md:285`).
+  - `P9` records no reconcile run, so `-Reconcile` was either not run or its failure was ignored.
+
+### Aggregate
+
+The five findings split into four classes, GAP-07 ×2 and one each of GAP-02, GAP-03 and GAP-05, but three of them share one mechanism. Amendments A-3, A-4 and A-5 changed code and tests without the amend-mode record: no `P6` `E-n` row, no `re-derives:`, no `conventions:`. Both of `validate`'s amendment checks only run for an `A-n` that a `P6` row names, so they went quiet. The `G-01` sweep warning that would have caught every layout chain was emitted and left as a warning, because `-Done` was never run. The single change that would have prevented the most (MIN001, NIT001, NIT002) is to make those `validate` checks fire on any `P11` entry whose cited files fall outside `P6`, rather than relying on the author to add the row. MIN002 and SUG001 are individual misses: an operand-kind assumption no round questioned, and a gate whose message was not re-measured after the amendment changed the shape.
+
+### Recommended durable fixes
+
+- GAP-07 ×2 + GAP-03 ×1 → `work-plan.ps1 -Action validate` (the check behind amend-mode steps 1 and 4 in `work-plan/SKILL.md:285-289`) — require the `re-derives:` / `conventions:` lines for every `A-n` whose text names a backticked `Source/` or `Tests/` path absent from `P6`, or that `-Reconcile`'s `unplanned` list attributes to it. Today an amendment escapes both checks just by not adding an `E-n` row (A-4: `AccessDataProvider.cs`; A-5: `Issue2832Tests.cs`, `JoinMoveSubQueryUp`).
+- GAP-02 ×1 → an attack vector in `plan-critic.md` (Grep: no `Sql.Row` / `SqlRowExpression` vector exists) — when a design wraps or rewrites one operand of a predicate (a `CASE` around a key side, a cast, a nullability wrapper), list the expression kinds that can reach that operand, including `SqlRowExpression` from `Sql.Row`, and demand a probe or a guard for each non-scalar kind.
+- GAP-05 ×1 → `P8` semantics in `work-plan.md` — when an amendment changes the code path behind a `ThrowsForProvider` / `ActiveIssue` obligation, it re-measures the message on the amended code and pins it as `ErrorMessage`, or states why type-only is required, as `TO-6` does. A message measured on a superseded shape does not count.
+
+## Round 2 — reviewed HEAD c70bb957318bc854e45f3d7fa57f7e01001ae137
+
+### Attribution
+
+- **MAJ001** (`JoinMoveSubQueryUp` guard keyed on ON form, not outer dependency) — GAP-02 — A-9 says `IsKeyEqualityCondition` "mirrors `MoveJoinConditionsToWhere`'s `move` test" and that "key equalities stay in ON either way", which the plan's own `P5 D-2` contradicts (the LEFT branch classifies every conjunct, keys included, by `IsDependsOnOuterSources`; only INNER keeps the `move` gate); the plan also held both counterexamples, the null-aware key (`U-4`, `TO-9`: outer-dependent, fails `Reduce is ExprExpr`) and `joined.Id = @p` (`D-2`, `TO-10`: passes the form test, no outer dependency, pushed); secondary: no `P12` round attacked A-9 — — — preventable: yes
+  - Why no critic round ran: `work-plan/SKILL.md:289` step 3, and `validate` behind it (`work-plan.ps1:561-569`, `:590-603`), fire only when a `P6` row cites the `A-n` or the `A-n` names a backticked `Source/…` / `Tests/…` path. At `3cf9ad6` no `P6` row cited A-9; A-9 cited "(E-1, E-2, E-3)" from its own text, wrongly (the guard is `E-7`), and spelled its files bare (`SelectQueryOptimizerVisitor.cs`, `BasicSqlOptimizer.cs:336`), so neither trigger fired although it has a `re-derives:` line.
+- **MAJ002** (UPDATE through an optional association with a non-correlated `ExpressionPredicate` throws on Access) — GAP-03 — `P7` had no consumer row for `BasicSqlOptimizer.BasicCorrectUpdate :259-336` / `FindTableSource :113-152` until A-11; A-4 put Access on the path and its `re-derives:` refreshed only the flag-setter rows, never the flags where Access differs from YDB that downstream passes read on the rewritten shape (`IsUpdateFromSupported = false`); A-9 named the exact mechanism (target nested under a join → `tsIndex < 0`) yet added no `P7` row and did not list the other routes that nest the target (D-2's `DoNotRemove` push wrap, A-5's `HasWhere` refusal); critic round 3 probed the class once (`Issue3186Tests.UpdateWhenTableFirstWithLeftJoin`), on a shape without a predicate association; secondary: GAP-05, no `TO-n` covered UPDATE through a filtered association — — — preventable: partly
+
+The DELETE-through-`.Select(m => m.Assoc!)` observation is pre-existing and not a finding of this PR, so it is not attributed.
+
+### Aggregate
+
+Two findings, one GAP-02 and one GAP-03, with one mechanism behind both: amendment A-9 changed `E-7`'s guard with a `re-derives:` line but went unattacked. It escaped the amend-mode critic trigger in a new spelling, citing edit-point ids from its own text instead of being cited from `P6`, and using bare file names. That cost a critic round, not a conventions line. Critic round 5, dispatched on A-10 (the fix for MAJ001), immediately raised MAJ002 as a lead and confirmed the corrected classifier — direct evidence that a round on A-9 would have caught both. The single change that would have prevented the most: make `validate` require a `P12` round for any `A-n` that carries a `re-derives:` line, which `plan-critic.md:143` already states in prose.
+
+### Recommended durable fixes
+
+- GAP-02 ×1 + GAP-03 ×1 → `work-plan.ps1 -Action validate` (the check behind `work-plan/SKILL.md:289` step 3) — require a `P12` round naming the `A-n` when the entry (a) has a `re-derives:` line, (b) cites an `E-n` id in its own text, or (c) names a bare file (`*.cs`) that appears in a `P6` row. The round-1 path trigger (`work-plan.ps1:550-576`) landed and A-9 still slipped past it, so the trigger has to key on what the amendment says it did, not on path spelling.
+- GAP-03 ×1 → an attack vector in `plan-critic.md`, beside the provider-family vector at `:42` — when an amendment puts a provider on a code path (a flag set on a new provider), demand the list of `SqlProviderFlags` on which it differs from the providers already there and which downstream passes read on the rewritten shape (here Access `IsUpdateFromSupported = false` → `BasicCorrectUpdate`); each needs a `P7` consumer row and a probe per route that produces the shape (the D-2 push wrap, the A-5 refusal, the A-8 widening).
+- GAP-02 ×1 → an attack vector in `plan-critic.md`, near `:143` (Grep finds no such rule in `plan-critic.md`, `code-reviewer.md`, `work-plan.md` or `code-design.md`) — a guard that predicts what a later pass will do with a predicate must call that pass's own classifier, not re-derive it from the predicate's form; demand one probe cell per class where form and the pass's test disagree, and cross-check the plan's existing `D-n` / `TO-n` for such classes (here `TO-9` and `TO-10`).
+
+### Continuity
+
+- **Round-1 recommendation 1 (validate path trigger)** landed in `bbb876a` (2026-11-01; `work-plan.ps1:550-576`) before A-9 was written (2026-11-02, `3cf9ad6`). A-9 escaped it anyway by citing E-ids from inside the entry and using bare file names. The round-1 mechanism recurs: an amendment slips past the amend-mode checks because `P6` does not cite it. Round 1 lost the `re-derives:` / `conventions:` lines (MIN001, NIT001, NIT002); this round lost the critic round.
+- **Round-1 MIN001 (GAP-03)** recurs as MAJ002 through the same artifact: A-4's `re-derives:` line refreshed the flag setter/reader rows only. Round 1 missed a second flag reader; this round a downstream consumer whose behaviour depends on a flag where Access differs from YDB.
+- **Round-1 NIT002 shape** recurs without a finding: A-9 edited a test (`JoinTests.LeftJoinTableFreePredicateOverNestedRightJoin`) with no `conventions:` line, unflagged for the same trigger reason.
+- **Round-1 recommendations 2 and 3** (`Sql.Row` operand-kind critic vector; re-measure a `ThrowsForProvider` message after an amendment): not found in `plan-critic.md`, `work-plan.md`, `testing.md` or `work-plan/SKILL.md`; their classes did not recur this round.
+
+## Round 3 — reviewed HEAD 36586fdf4b81277eb94aaa390497370c0aa1ceeb
+
+### Attribution
+
+- **MIN003** (`IsComplexJoinConditionSupported` XML doc omits A-11's UPDATE-target exception) — GAP-03 — A-11 changed what both flag readers do (`MoveJoinConditionsToWhere` keeps the conjunct in ON, `SelectQueryOptimizerVisitor.cs:2997`; the `JoinMoveSubQueryUp` guard is skipped, `:2680`), but its `re-derives:` line (`plan.md:188`) checks only "no new caller of `IsComplexJoinConditionSupported`", and `E-9` (`plan.md:100`) does not name `E-2`; the `P7` row tying `E-2` to the flag (`plan.md:106`) keys the doc on the flag's declaration, not on its readers' behaviour, so nothing asked whether a reader's behaviour changed; A-10's `re-derives:` (`plan.md:180`) did re-word `E-2`, A-11 did not; commit `36586fdf4` touches only `SelectQueryOptimizerVisitor.cs` and `UpdateTests.cs`; secondary: critic round 6 (`plan.md:199`) did not check `E-2` either — — — preventable: yes
+
+The Access UPDATE through a RIGHT join inside a LEFT-joined subquery (`InvalidOperationException` in `BasicSqlOptimizer.BasicCorrectUpdate`, `:336`) is not attributed: it reproduces identically with the Access flag at master's `true`, so it is pre-existing. The `P7` consumer row A-11 added for `BasicCorrectUpdate` / `FindTableSource` is what led the round-3 pass to the shape; its wrong-rows lead did not reproduce.
+
+### Aggregate
+
+One finding, GAP-03, and it is round-1 MIN001 again. The flag's XML doc (`E-2`) describes how its readers behave, but the plan's re-derive question asks whether the flag gained a caller. A-5 added a reader (round 1); A-11 kept the same readers and changed what they do (round 3). Both times the doc was missed. The single change that would have prevented both: tie `E-2` to the reader symbols it describes, and require any `A-n` that edits one of those symbols to name `E-2` in its `re-derives:` line.
+
+### Recommended durable fixes
+
+- GAP-03 ×1 (and round-1 MIN001) → `P6` semantics in `work-plan.md`, with a `work-plan.ps1 -Action validate` check beside the amend-mode trigger at `:606-626` — an `E-n` that edits a doc block (an XML doc, a flag's summary) lists the symbols whose behaviour it describes; an `A-n` that names one of those symbols, or cites an `E-n` that edits one, must name that doc `E-n` in its `re-derives:` line. "No new caller" does not answer "did an existing reader change". (Grep finds no rule on a flag doc tracking its readers in `docs/`, `agents/`, `docs/review-rubric/` or `work-plan/SKILL.md`.)
+
+### Continuity
+
+- **Round-1 MIN001 (GAP-03)** recurs as MIN003: same `E-2` doc, same blind spot. Round 1's trigger was a new reader; this round, changed behaviour in existing readers. A re-derive phrased as a caller search misses both. Round 1's recommendations targeted the missing `re-derives:` / `conventions:` lines, not what a `re-derives:` line has to check, so they could not have caught this.
+- **Round-2 recommendation 1** (critic round for any `A-n` with a `re-derives:` line) landed (`work-plan.ps1:606-626`); A-11 got critic round 6, and the round-2 mechanism did not recur.
+- **Round-2 recommendations 2 and 3** landed (`plan-critic.md:43`, `:145`); their classes did not recur.

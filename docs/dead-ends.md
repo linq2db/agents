@@ -4,6 +4,38 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
+
+**Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
+
+**Failed because:** at 64 KB the fixed tree overflows inside master's own `GetExpressionAccessors` (the `ExpressionCacheManager` ctor), so the size separates nothing: master's measured peak for that query is 53–65 KB, the regressed head's 78 KB, which also fits the original 80 KB on Windows. The first attempt crashed in the probe itself: an `ExpressionVisitor` rewriting the deep predicate recurses as deep as the tree, so it overflowed the small thread before any linq2db code ran.
+
+**Don't re-attempt:** a 64 KB thread for this query, nor building the probe expression on the small thread (build it on the test thread, run only the query on the small one). Untried: a size between the two peaks (e.g. 72 KB). The measurement that did separate the trees: [`bug-investigation.md`](bug-investigation.md) → *Measuring a query build's stack use*. (#6185 A-8)
+
+## SQL-AST: refusing the APPLY lift in `JoinMoveSubQueryUp` on providers without APPLY
+
+**Tried:** widening the #6208 guard (refuse lifting a subquery's joins into an `OUTER APPLY` / `CROSS APPLY`) to providers with `IsApplyJoinSupported = false`, to fix #6224's SQLite `no such column` — first for both apply kinds, then `OUTER APPLY` everywhere and `CROSS APPLY` only with APPLY support.
+
+**Failed because:** refusing `CROSS APPLY` made SQLite throw `Provider does not support CROSS/OUTER/LATERAL joins` for the `CanBeNull = false` twin; the `OUTER APPLY`-only split fixed #6224's shape but turned `EagerLoadingTests.TestSelectGroupBy` red on SQLite (`GuardGrouping` exception). Access fails all four #6208 tests with the CROSS/OUTER error either way, master included. Without APPLY the lifted shape is what the `ROW_NUMBER` emulation in `OptimizeApplyJoin` consumes.
+
+**Don't re-attempt:** widening that guard for providers without APPLY. #6224 belongs in the emulation path. (#6208, #6229, #6224)
+
+## SQL-AST: an Access UPDATE target lost by a later pass after the `JoinMoveSubQueryUp` UPDATE-target flatten
+
+**Tried:** probing whether, once #6157's UPDATE-target exception lets a LEFT-joined subquery flatten, a later `OptimizeQueries` pass (after `UnnestJoins`, or `BasicCorrectUpdate` cloning the target) no longer sees the target. It would then push a joined-side predicate into a derived table beside a nested RIGHT join, and update too many rows on Access. Shape: `outer LEFT JOIN (assoc RIGHT JOIN target ON a.Id = t.Id) ON m.Id = t.Id AND a.Flag`, select `t`, `Update`.
+
+**Failed because:** the probe never reaches a second pass. `BasicCorrectUpdate` throws `InvalidOperationException` at `BasicSqlOptimizer.cs:336` (`tsIndex < 0`) on Access ACE OleDb, direct and remote, with `IsComplexJoinConditionSupported` both `false` and `true`. SQLite.MS returns the correct rows. The throw is pre-existing, filed as #6240.
+
+**Don't re-attempt:** looking for that wrong-rows route through a target under a nested RIGHT join until #6240 is fixed. Re-probe then, because the route may open. (#6157 review round 3, #6240)
+
+## SQL-PROVIDER: two suspected holes in #5673's deferred predicate reduce that did not reproduce
+
+**Tried:** probing two shapes a source-reading pass flagged in the single optimize+convert traversal, on SqlServer.2022.MS and SQLite.MS at `e40c90018` (net10.0). (1) A captured `bool` choosing the branch of a `Where`, whose dead branch compares `Sql.Row(...)` to a SELECT, which SQL Server refuses at convert time (`SqlExpressionConvertVisitor.ConvertRowExprExpr`): the suspicion was that children are lowered before the parameter decides the branch. (2) A nullable `A == B` projected, then filtered on, in a query made parameter-dependent with an `ids.Contains(r.Id)` IN list, with `[Values(1, 2)]` runs for a cache hit: the suspicion was that a predicate shared between a deferred value slot and the filter is answered from the transformation map with its unreduced copy, dropping the LikeClr null guards.
+
+**Failed because:** both are green on both providers, with results equal to LINQ to Objects. Reach was not instrumented, so neither shape is proven to hit the code path the suspicion named; shape 2's sharing producer is still unknown (the one known sharing case, a SET value with an inner column, has both slots deferred).
+
+**Don't re-attempt:** these two shapes as written. A further probe of shape 2 first needs a statement that provably shares one predicate instance between a value slot and a filter. (#5673, review of 2026-11-01)
+
 ## MAPPING: inputs that do not separate a handle's schema from the live one
 
 **Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):
@@ -72,6 +104,30 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a comparison shape. Project the value, then filter with a non-integral bound (`from d in … select Sql.Degrees((int)r.M)!.Value where d < 57.1 select d`), and prove it red under "revert the guard" before adding it. (#5943, `9f0c4fb08`)
 
+## SQL-PROVIDER: an Access boolean ORDER BY key rewritten as an expression
+
+**Tried:** making a boolean sort key (Yes/No column or predicate) sort false-first on Access by rendering it as an expression: `Abs(key)` (#6201, A-5), `IIF(key, 1, 0)`, and `-key` (#5969).
+
+**Failed because:** Jet/ACE stores True as -1, but native Jet/ACE also rejects any expression ORDER BY key under DISTINCT (*"ORDER BY clause (IIf(…)) conflicts with DISTINCT"*, measured on `Access.Ace.OleDb`). `SelectQueryOptimizerVisitor` can merge a DISTINCT subquery into the ordered query, so `Select(t => t.BoolValue).Distinct().OrderBy(b => b)` reaches the rewrite with DISTINCT and ORDER BY on one query and would start throwing.
+
+**Don't re-attempt:** an expression key. A non-nullable key keeps the bare column, parenthesized as an int-typed `({0})`, with the direction flipped; a nullable key gets an int-typed unary minus, except under DISTINCT (flip). The int type keeps the remote path's second convert pass idempotent. (#6203, port of #5969 `10f517d5f` + `817b052c2`)
+
+## SQL-PROVIDER: a YDB RETURNING column with an expression
+
+**Tried:** making `UpdateWithOutput(…, (d, i) => new { IsOther = i.ValueStr != "Str1" })` run on YDB by dropping the table qualifier inside output expressions (`YdbSqlBuilder.BuildFieldTableAlias => _buildTableName`, following ClickHouse).
+
+**Failed because:** the qualifier was only the first error. Without it YQL fails at the operator (`(9:10) mismatched input '<>' expecting {<EOF>, ';'}`): `RETURNING` takes column names only, as the comment in `YdbSqlBuilder.BuildOutputColumnExpressions` says.
+
+**Don't re-attempt:** a builder fix. Gate a test that outputs an expression through the fixture's `…WithExpressions` provider sets, which omit YDB (`InsertWithOutputTests`, `DeleteWithOutputTests`, and `UpdateWithOutputTests.FeatureUpdateOutputWithoutOldMultipleWithExpressions`). (#6201, `00d5b0652`)
+
+## SQL-AST: an execution-stable ELSE for a folded LEFT JOIN key (Access, YDB)
+
+**Tried:** keeping `CASE WHEN P THEN outerKey ELSE … END = innerKey` outer-dependent when a parameter makes P false at execution, with ELSE = `CASE WHEN outerKey IS NULL THEN NULL ELSE NULL END` built from `SqlPredicate.IsNull(outerKey)`; with a raw-SQL condition and two NULL branches; and `CAST(NULL AS …)`.
+
+**Failed because:** `SqlExpressionOptimizerVisitor.VisitIsNullPredicate` folds IS NULL on a non-nullable key to false, so the ELSE collapses back to `NULL = innerKey`, which YDB and Jet reject. Jet cannot type `IIF(x, NULL, NULL)` ("Type mismatch in expression"). Jet has no CAST.
+
+**Don't re-attempt:** those forms. Use `SqlPredicate.IsNull(SqlNullabilityExpression.ApplyNullability(outerKey, true))` with `outerKey` as the true branch, only when the folded predicates carry a parameter. (#6157, `276839ffe`)
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
@@ -135,6 +191,22 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** the request was sent with or without the relaxed encoder — the default `JsonHubProtocol` frame is UTF-8-sized for such text. The PR's own `NonAsciiRequestUnderTheLimitIsSent` (6000 × `é` under 32 KB) shows the same.
 
 **Don't re-attempt:** an over-rejection finding built on default-encoder escaping. The JSON-vs-MessagePack gap that remains is only `"`, `\` and control characters (2–6 bytes in JSON, 1 in MessagePack) — a narrow window, unprobed because the test projects reference no MessagePack protocol. (#6014)
+
+## REMOTE: observing a gRPC context's disposal by the server-side connection close over a caller-owned `SocketsHttpHandler`
+
+**Tried:** asserting that disposing an address-based `GrpcDataContext` (or a caller's `GrpcChannel`) closes its connection, by counting Kestrel `ConnectionContext.ConnectionClosed` on the test host, with the tests' shared `SocketsHttpHandler` passed as `GrpcChannelOptions.HttpHandler` and `DisposeHttpClient` unset.
+
+**Failed because:** disposing the channel leaves the connection open in the caller's handler pool: 0 of 1 closed within 30 s, on the unmutated code.
+
+**Don't re-attempt:** a close assertion over a caller-owned handler. Hand the handler to the channel (`DisposeHttpClient = true`, one handler per context), as `GrpcDataContextTests.DisposedContextClosesItsConnection` does. (#6020)
+
+## REMOTE: racing two Signal/R calls' cancellations through one `CancellationTokenSource`
+
+**Tried:** one CTS for both the slot holder and a queued call, cancelled once, to race the holder's slot release against the queued call's cancelled limiter wait (`SignalRTransportTests.QueuedCallCancelledAsTheSlotIsReleasedNeverRuns`).
+
+**Failed because:** the order in which the server sees the two cancellations is not fixed. On net462 the holder's arrived first, so the queued call legitimately got the slot before its own cancellation reached the server, and the test failed with the fix in place (68 calls for 50).
+
+**Don't re-attempt:** a shared source. Give each call its own CTS and cancel the queued call's first, then the holder's; that version is red under the mutation on net10.0 and green with the fix on net10.0 and net462. (#6014)
 
 ## BUILD: regenerating `CompatibilitySuppressions.xml` for a field→property change
 
@@ -253,3 +325,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** (3) an array kept in the key is reference-compared, so `FoldedConstantArray*HitsOnEqualArray` / `FoldedConstantArrayLength` miss on an equal fresh array. (4) a Skip/Take literal becomes a parameter and its dropped bare registration is then compared by value, so `Skip(1)` / `Skip(2)` stop sharing a query (14 `TakeSkipTests` reds). Both measured.
 
 **Don't re-attempt:** either. Per compare, take out only the constants the key cannot compare by value (`PrepareComparedAccessor` / `IsComparedByValueInKey`); leave parameter entries as they are.
+
+## LINQ: DistinctBy ordering plumbing — publishing window placeholders, clearing every lower ORDER BY
+
+**Tried:** for #6197 round 3, (1) re-applying the ROW_NUMBER window's sequence-built placeholders (`DistinctByBuilder.BuildOnSequence`) as the outer ordering, not only as window arguments; (2) clearing every non-limited single-source ORDER BY below the DISTINCT ON query once the captured ordering was re-translated onto it (`ClearConsumedOrderBy`).
+
+**Failed because:** (1) `OrderByBuilder` publishes the re-applied bodies as the captured ordering, and a `GroupBy` above cannot match `SqlPlaceholderExpression`s anchored at the inner sequence to its keys, so it dropped the ordering and the next `DistinctBy` threw (`DistinctByAfterGroupByOverDistinctBy`, green on the PR head before). (2) the query below can be an inner DISTINCT ON whose ORDER BY picks its surviving rows (`DistinctByAfterDistinctByOnLeadingKeyKeepsOrdering`, DuckDB), or the only full copy of the ordering when `AddCapturedOrdering` skipped an outer-correlated key (`DistinctByInSubQueryAfterGroupByOuterAndInnerKeyOrderedByFunctionOfKey`, DuckDB). Both measured red.
+
+**Don't re-attempt:** either. Re-apply the captured expressions and keep the placeholders inside the window; stop the clear at a DISTINCT (ON) query, and skip it below the DISTINCT ON query when an entry was left out.

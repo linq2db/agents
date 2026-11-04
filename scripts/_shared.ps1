@@ -291,6 +291,12 @@ function Split-DiffByFile {
 #   mixed_indent           — leading whitespace that starts with spaces and
 #                            then has a tab. Tab-then-spaces is legitimate
 #                            column alignment and is intentionally skipped.
+#   misaligned_column      — a line in a column-aligned block (same leading
+#                            tabs, `<type> <name>` shape, at least two lines
+#                            padded with 2+ spaces) whose name column differs
+#                            from the block's majority: a rename/retype that
+#                            was not re-padded. The alignment itself is never
+#                            flagged, only a line that breaks it (#5673).
 function Find-StyleIssues {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Body)
     $findings = @()
@@ -330,7 +336,50 @@ function Find-StyleIssues {
             $findings += [pscustomobject]@{ kind = 'three_plus_blank_lines'; line = $blankRunStart; lineEnd = $lines.Count }
         }
     }
+    $findings += @(Find-MisalignedColumns -Lines $lines)
     return $findings
+}
+
+# Blocks of consecutive `<tabs><type> <name><terminator>` lines (parameters, fields, locals) sharing the same
+# leading tabs. A block counts as deliberately aligned when 2+ of its lines pad the name with 2+ spaces; a line whose
+# name column differs from the block's majority column is reported. Anything else ends a block.
+function Find-MisalignedColumns {
+    param([Parameter(Mandatory)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines)
+    $out        = @()
+    $block      = [System.Collections.Generic.List[object]]::new()
+    $prevIndent = $null
+    $shape      = '^(\t*)(?!(?:where|return|throw|case|goto|yield|await|using|new)\s)(?!.*=>)([^\s/*:].*?)( +)([A-Za-z_@]\w*)\s*(,|\)|;|=.*|\{.*)?\s*$'
+
+    for ($i = 0; $i -le $Lines.Count; $i++) {
+        $m = if ($i -lt $Lines.Count) { [regex]::Match($Lines[$i].TrimEnd("`r"), $shape) } else { $null }
+        $indent = if ($m -and $m.Success) { $m.Groups[1].Value } else { $null }
+
+        if ($null -eq $indent -or $indent -ne $prevIndent) {
+            $out       += @(Get-BlockMisalignment -Block $block)
+            $block.Clear()
+        }
+        $prevIndent = $indent
+        if ($null -eq $indent) { continue }
+
+        [void]$block.Add([pscustomobject]@{
+            line = $i + 1
+            col  = $indent.Length + $m.Groups[2].Value.Length + $m.Groups[3].Value.Length
+            gap  = $m.Groups[3].Value.Length
+            text = $m.Value.Trim()
+        })
+    }
+    return $out
+}
+
+function Get-BlockMisalignment {
+    param([Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Block)
+    if ($Block.Count -lt 3)                                        { return @() }
+    if (@($Block | Where-Object { $_.gap -ge 2 }).Count -lt 2)     { return @() }
+    $mode = $Block | Group-Object col | Sort-Object Count -Descending | Select-Object -First 1
+    if ($mode.Count -lt 2)                                         { return @() }
+    return @($Block | Where-Object { $_.col -ne [int]$mode.Name } | ForEach-Object {
+        [pscustomobject]@{ kind = 'misaligned_column'; line = $_.line; snippet = $_.text }
+    })
 }
 
 # Fingerprint a per-file diff body so the same logical change across providers

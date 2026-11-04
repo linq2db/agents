@@ -32,7 +32,10 @@ Input (named parameters):
   -RepoRoot      <path>    required; the worktree root (absolute)
   -Project       <path>    required; test project, relative to RepoRoot
   -Tfm           <string>  optional; e.g. net10.0 - omit to build every TFM
-  -Filter        <string>  optional; passed through to --filter
+  -Filter        <string>  optional; passed through to --filter. Rejected (exit 1) when its terms are
+                           separated by whitespace instead of '|' / '&' - the usual PowerShell
+                           `'A|' + (...) -join '|'` precedence slip, which the test host otherwise
+                           reports as an unhandled TestPlatformFormatException at start.
   -Provider      <list>    optional; passed through to --provider (comma list)
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
@@ -167,6 +170,7 @@ Output (stdout, single JSON object):
                                      // -FailureLines (8) message lines - stack frames and the
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
+    "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than every assembly in the test output (stale run)
     "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
                                      // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
@@ -215,6 +219,12 @@ $ErrorActionPreference = 'Stop'
 
 # -File passes `-ExpectTests A,B` as the single string "A,B".
 $ExpectTests = @($ExpectTests | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+# `'A|' + (@(...) | % { ... }) -join '|'` concatenates before it joins, so the terms arrive space-separated. The test
+# host then dies at start (TestPlatformFormatException, exit -532462766), which reads like a host crash (#6185).
+if ($Filter -match '[^\s|&(!]\s+(FullyQualifiedName|Name|ClassName|Category|TestCategory)[~=!]') {
+    Exit-WithError -Message "-Filter has terms separated by whitespace, not '|' or '&': $Filter" -NextAction "build the term list first, then join it: `$f = `$parts -join '|'"
+}
 
 # -PerProvider: one run, log and summary per provider, sequentially - a failure is attributed to its provider and each
 # provider's database is driven by one process at a time. The first run may build; the rest reuse its output.
@@ -441,6 +451,25 @@ if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed')
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
 if ($NoBuild) { $dotnetArgs += '--no-build' }
 
+# -NoBuild after a failed build runs the previous assembly without saying so (#5673: a failed master-control build
+# reported results from stale code). A source newer than the test assembly is reported, not fatal.
+$staleBuild = $null
+if ($NoBuild -and -not $LinqToDBAsset -and $Tfm) {
+    $targetPath = & dotnet msbuild $projectFull '-getProperty:TargetPath' "-p:Configuration=$Configuration" "-p:TargetFramework=$Tfm" 2>$null | Select-Object -Last 1
+    if ($LASTEXITCODE -eq 0 -and $targetPath -and (Test-Path -LiteralPath $targetPath.Trim())) {
+        # The newest assembly in the output, not the test assembly: a body-only change to a referenced project leaves
+        # its reference assembly unchanged, so the build skips recompiling the tests (#5640: a fresh build read stale).
+        $builtAt = (Get-ChildItem -LiteralPath (Split-Path -Parent $targetPath.Trim()) -Filter *.dll -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1).LastWriteTimeUtc
+        $newest  = Get-ChildItem -LiteralPath (Split-Path -Parent $projectFull), (Join-Path $repoFull 'Source') -Recurse -Filter *.cs -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+        if ($newest -and $newest.LastWriteTimeUtc -gt $builtAt) { $staleBuild = $newest.FullName }
+    }
+}
+
 # .runsettings is resolved relative to the run's cwd, so it must be looked up in the worktree.
 $runSettings = Join-Path $repoFull '.runsettings'
 if (Test-Path -LiteralPath $runSettings) { $dotnetArgs += @('--settings', $runSettings) }
@@ -483,6 +512,10 @@ if (Test-Path -LiteralPath $LogPath) {
     # Retrying cannot clear it: the broken package is re-extracted onto a DLL a shared build node holds.
     if ($lines | Where-Object { $_ -match 'NuGet\.targets.*error : Access to the path' }) {
         $hint = 'NuGet cache entry half-extracted and locked by a shared build node; do not retry. Restore into a private cache: .claude/docs/windows-dev-gotchas.md -> "A half-deleted package in the NuGet cache".'
+    }
+
+    if (-not $hint -and ($lines | Where-Object { $_ -match 'Incorrect format for TestCaseFilter' })) {
+        $hint = 'The test host rejected -Filter (TestPlatformFormatException) before running anything; this is not a host crash. Fix the filter syntax and rerun.'
     }
 
     $seenFailures  = [System.Collections.Generic.HashSet[string]]::new()
@@ -571,6 +604,7 @@ $result = [ordered]@{
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
 if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
+if ($staleBuild)  { $result['staleBuild']   = $staleBuild; if (-not $hint) { $hint = "-NoBuild ran an assembly older than $staleBuild; rebuild (or check the last build log) before trusting this result." } }
 if ($hint)        { $result['hint']         = $hint }
 
 if ($OutFile) { Write-JsonOutput -InputObject $result -Depth 5 -OutFile $OutFile -Summary @{ summary = $summary } }

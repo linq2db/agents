@@ -30,6 +30,9 @@ Parameters
   -Clone <path>        default `../linq2db.baselines`, else the primary clone's
                        sibling (so it also resolves from a worktree)
   -BaseRef <ref>       default `origin/master`
+  -ParentPr <int>      for a stacked PR: the parent PR whose `baselines/pr_<parent>`
+                       branch carries deltas this branch inherits. See
+                       `parentInherited` below.
   -Signal <regex>      default `^\s*DECLARE\s` — the structural signal counted
                        per file on the added and removed sides. Override for a
                        mechanism whose fingerprint is not a parameter DECLARE
@@ -40,6 +43,15 @@ Parameters
                        line pair is compared again with every `<fn>(inner, …last)`
                        call replaced by `inner`, nested calls included; see
                        `wrapper` below. Omitted: `wrapper` is null.
+  -SourceRepo <path>   default: the linq2db checkout this script sits in. Read
+                       with -SourceRef for `staleKeys`.
+  -SourceRef <ref>     default `origin/pr/<Pr>` — the PR head whose `Tests/` tree
+                       `staleKeys` checks the added test names against.
+  -SinceCommit <sha>   a commit on the branch: the newest commit of the previous CI
+                       run, as listed now by `git log <BaseRef>..origin/baselines/pr_<n>`
+                       (CI replays earlier runs' commits when it recreates the branch,
+                       so take the sha from the current listing, not an old one). See
+                       `since` below. Omitted: `since` is null.
   -NoFetch             skip the `git fetch` of the baselines branch.
   -MaxRenameTests <int> default 40 — cap on test names listed per rename.
   -MaxAddedTests <int>  default 60 — cap on `addedTests.tests` entries listed.
@@ -98,6 +110,32 @@ rewrites every line it touches. `pairs` counts the line pairs of symmetric chang
 such as a literal written at another precision inside the wrap. (#6116: 653 of 659 pairs were
 wrap-only, and the 6 left were the review's defect.)
 
+`parens` ({ parenOnlyFiles, otherFiles, openRemoved, openAdded, otherSamples }) answers "does
+this delta only add or drop parentheses?", which `permutation` and `renames` cannot: a dropped
+pair rewrites the line. A modified file is paren-only when its two sides are the same multiset
+of lines once `(`, `)` and whitespace are removed. `openRemoved` / `openAdded` count the `(` on
+each side of those files, so the direction shows. Paren-only is not harmless by itself — moving
+a pair can change what an operator binds — so read a sample per shape before calling it inert.
+(#6146: all 261 modified files dropped the pair around a `||` chain under a comparison.)
+
+`staleKeys` ({ ref, sha, status, files, tests }) lists added tests whose fixture class or method no
+longer exists in `Tests/` at -SourceRef. The default ref is fetched first unless -NoFetch: with
+-NoFetch, compare `sha` with the PR head, since a stale local ref flags every newer test. A baselines branch only gains files across CI runs, so
+a test renamed, moved or deleted after an earlier run keeps its old baselines there. Those are
+stale keys, an action item. `status: ref_missing` means -SourceRef did not resolve, so nothing
+was checked. A method name that still occurs anywhere under `Tests/` is not flagged, so an empty
+list is a bound, not proof. (#6146: 16 `Issue5984Tests` files from before the tests moved.)
+
+`modified` ({ providers, tests }) is the provider and test histogram over the *modified* files
+only; `providers` above counts added and modified together, so a delta dominated by new tests
+hides which providers' existing SQL moved. Test name = file name up to the first `(`.
+
+`since` (only with -SinceCommit; { commit, status, counts, tests }) is the round delta: what the
+latest CI run(s) changed on the branch after that commit, grouped per status and test with the
+providers that changed. `status: commit_missing` means the sha did not resolve in the clone.
+(#6157 round 3: hand-rolled twice; the round delta was 4 tests added and one Access test
+returning to master's SQL.)
+
 `renames.mismatches` counts changed line-pairs that still differ after
 identifier normalisation — i.e. real SQL changes. A non-zero value means the
 delta is NOT name-only, and `mismatchSamples` shows the first few.
@@ -115,6 +153,17 @@ name-only diff. Their content came from another PR's baselines merged into
 baselines master after this branch was cut, so they are not this PR's work.
 Subtract them before attributing the delta. A zero does NOT rule out lag on
 the PR-branch side (see review-pr step 8).
+
+`parentInherited` (only with -ParentPr; { parent, status, files, samples, own }) covers the
+same lag one level up. For a PR stacked on another, the branch also carries the parent's
+whole baselines delta. These are the delta paths, not already `inherited`, that are
+byte-identical between `baselines/pr_<parent>` and this branch. `own` holds the A/M/D counts
+left once both sets are subtracted. The per-file scans (lines, permutation, signal, casts,
+renames, aliases, wrapper, decimalFacets, statementParity) skip these paths too. `counts`,
+`providers` and `addedTests` still cover the whole delta. (#6194: 32,977 delta files,
+32,229 inherited, 394 from #6186, 354 its own, matching a hand-rolled set difference on the
+same refs.) `status: branch_missing` means the parent's
+branch was not found, so nothing was subtracted.
 
 `addedTests` covers every test that has at least one *added* file; the test
 name is the file name up to the first `(`. For each test it lists the
@@ -150,9 +199,13 @@ param(
     [Parameter(Mandatory)][int] $Pr,
     [string]   $Clone,
     [string]   $BaseRef            = 'origin/master',
-    [string]   $Signal             = '^\s*DECLARE\s',
+    [int]      $ParentPr,
+    [string]   $Signal            = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
     [string]   $StripWrapper,
+    [string]   $SourceRepo,
+    [string]   $SourceRef,
+    [string]   $SinceCommit,
     [switch]   $NoFetch,
     [int]      $MaxRenameTests     = 40,
     [int]      $MaxImpureFiles     = 25,
@@ -201,6 +254,9 @@ $deltaPaths = [System.Collections.Generic.List[string]]::new()
 $addedByTest   = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
 $addedUniverse = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 $addedPaths    = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+$deltaStatus   = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
+$modifiedByProvider = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
+$modifiedByTest     = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::Ordinal)
 
 foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -split "`n")) {
     if (-not $line.Trim()) { continue }
@@ -219,9 +275,17 @@ foreach ($line in ((Git -GitArgs @('diff', '--name-status', $range)).stdout -spl
             [void]$addedPaths.Add($path)
         }
         'D' { $counts.deleted++ }
-        'M' { $counts.modified++ }
+        'M' {
+            $counts.modified++
+            $mt = (($path -split '/')[-1] -replace '\(.*$', '')
+            if (-not $modifiedByProvider.ContainsKey($p))  { $modifiedByProvider[$p] = 0 }
+            if (-not $modifiedByTest.ContainsKey($mt))     { $modifiedByTest[$mt]     = 0 }
+            $modifiedByProvider[$p]++
+            $modifiedByTest[$mt]++
+        }
     }
     $deltaPaths.Add($path)
+    $deltaStatus[$path] = $parts[0].Substring(0, 1)
     if (-not $providers.ContainsKey($p)) { $providers[$p] = 0 }
     $providers[$p]++
 }
@@ -233,6 +297,39 @@ foreach ($l in ((Git -GitArgs @('diff', '--name-only', $BaseRef, $remoteRef)).st
     if ($l.Trim()) { [void]$twoDot.Add($l.TrimEnd("`r")) }
 }
 $inherited = @($deltaPaths | Where-Object { -not $twoDot.Contains($_) })
+
+# ---- parentInherited: delta paths byte-identical to the parent PR's branch --
+$parentInherited = $null
+$parentExcluded  = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+if ($ParentPr) {
+    $parentRef = "origin/baselines/pr_$ParentPr"
+    if (-not $NoFetch) { [void](Git -GitArgs @('fetch', 'origin', "+refs/heads/baselines/pr_${ParentPr}:refs/remotes/$parentRef") -AllowFail) }
+
+    $pv = Git -GitArgs @('rev-parse', '--verify', '--quiet', $parentRef) -AllowFail
+    if ($pv.code -ne 0 -or -not $pv.stdout.Trim()) {
+        $parentInherited = [ordered]@{ parent = $ParentPr; status = 'branch_missing' }
+    } else {
+        $vsParent = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($l in ((Git -GitArgs @('diff', '--name-only', $parentRef, $remoteRef)).stdout -split "`n")) {
+            if ($l.Trim()) { [void]$vsParent.Add($l.TrimEnd("`r")) }
+        }
+
+        $own = [ordered]@{ added = 0; modified = 0; deleted = 0 }
+        foreach ($path in $deltaPaths) {
+            if (-not $twoDot.Contains($path)) { continue }
+            if (-not $vsParent.Contains($path)) { [void]$parentExcluded.Add($path); continue }
+            switch ($deltaStatus[$path]) { 'A' { $own.added++ } 'M' { $own.modified++ } 'D' { $own.deleted++ } }
+        }
+
+        $parentInherited = [ordered]@{
+            parent  = $ParentPr
+            status  = 'ok'
+            files   = $parentExcluded.Count
+            samples = @($parentExcluded | Select-Object -First 25)
+            own     = $own
+        }
+    }
+}
 
 # A test can gain a baseline on only some providers because it already had one elsewhere, e.g. a
 # provider exclusion was just dropped. Count every baseline the test has anywhere in the branch tree,
@@ -252,6 +349,64 @@ foreach ($t in ($addedByTest.Keys | Sort-Object)) {
     $missing = @($addedUniverse | Where-Object { -not $have.Contains($_) } | Sort-Object)
     if ($missing.Count -eq 0) { continue }
     $addedTests += [pscustomobject]@{ test = $t; providers = $have.Count; missing = $missing }
+}
+
+# ---- staleKeys: added tests whose class or method is gone at the PR head -----
+if (-not $SourceRepo) { $SourceRepo = (Resolve-Path -LiteralPath "$PSScriptRoot/../..").Path }
+if (-not $SourceRef)  { $SourceRef  = "origin/pr/$Pr" }
+
+function SrcGit([string[]]$GitArgs) { Invoke-Process -FilePath 'git' -ArgumentList (@('-C', $SourceRepo) + $GitArgs) }
+
+$staleKeys = [ordered]@{ ref = $SourceRef; sha = $null; status = 'ok'; files = 0; tests = @() }
+if ($addedByTest.Count -gt 0) {
+    # A local PR ref left from an earlier review flags every test added since as stale (#6197: 266 false positives).
+    if (-not $NoFetch -and -not $PSBoundParameters.ContainsKey('SourceRef')) {
+        [void](SrcGit @('fetch', 'origin', "+refs/pull/${Pr}/head:refs/remotes/origin/pr/$Pr"))
+    }
+    $rv = SrcGit @('rev-parse', '--verify', '--quiet', $SourceRef)
+    if ($rv.code -ne 0 -or -not $rv.stdout.Trim()) {
+        $staleKeys.status = 'ref_missing'
+    } else {
+        $staleKeys.sha = $rv.stdout.Trim()
+        $classes = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        $cg = SrcGit @('grep', '-h', '-o', '-E', '\bclass\s+[A-Za-z_][A-Za-z0-9_]*', $SourceRef, '--', 'Tests')
+        foreach ($m in [regex]::Matches($cg.stdout, 'class\s+([A-Za-z_][A-Za-z0-9_]*)')) { [void]$classes.Add($m.Groups[1].Value) }
+
+        # test name -> (class, method); NUnit spells a nested fixture `Outer+Inner`
+        $parsed = @{}
+        foreach ($t in $addedByTest.Keys) {
+            $seg = $t -split '\.'
+            if ($seg.Count -lt 2) { continue }
+            $parsed[$t] = @{ class = ($seg[-2] -split '\+')[-1]; method = $seg[-1] }
+        }
+
+        # Method names are checked only for tests whose class survives, in batches to stay under the command-line limit.
+        $methods = @($parsed.Values | Where-Object { $classes.Contains($_.class) } | ForEach-Object { $_.method } | Sort-Object -Unique)
+        $foundMethods = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        for ($b = 0; $b -lt $methods.Count; $b += 200) {
+            $batch = $methods[$b..([Math]::Min($b + 199, $methods.Count - 1))]
+            $gargs = @('grep', '-h', '-o', '-w', '-F')
+            foreach ($mn in $batch) { $gargs += @('-e', $mn) }
+            $mg = SrcGit ($gargs + @($SourceRef, '--', 'Tests'))
+            foreach ($l in ($mg.stdout -split "`n")) { if ($l.Trim()) { [void]$foundMethods.Add($l.Trim()) } }
+        }
+
+        $fileCount = @{}
+        foreach ($path in $addedPaths) {
+            $t = (($path -split '/')[-1] -replace '\(.*$', '')
+            if (-not $fileCount.ContainsKey($t)) { $fileCount[$t] = 0 }
+            $fileCount[$t]++
+        }
+
+        $stale = @()
+        foreach ($t in ($parsed.Keys | Sort-Object)) {
+            $p = $parsed[$t]
+            $why = if (-not $classes.Contains($p.class)) { 'class missing' } elseif (-not $foundMethods.Contains($p.method)) { 'method missing' }
+            if ($why) { $stale += [pscustomobject]@{ test = $t; reason = $why; files = $fileCount[$t] } }
+        }
+        $staleKeys.files = [int](($stale | Measure-Object -Property files -Sum).Sum)
+        $staleKeys.tests = @($stale | Select-Object -First $MaxAddedTests)
+    }
 }
 
 # ---- per-file line / signal / rename analysis over the -U0 diff ------------
@@ -348,6 +503,12 @@ function Get-AliasShape([System.Collections.Generic.List[string]]$Lines) {
     }
     return ($tokens -join ' ')
 }
+
+$parenStripRe     = [regex]::new('[()\s]')
+$parenOnlyCount   = 0
+$parenOpenAdded   = 0
+$parenOpenRemoved = 0
+$parenOther       = [System.Collections.Generic.List[string]]::new()
 
 $wrapperPairs   = 0
 $wrapperOther   = 0
@@ -450,6 +611,15 @@ function Flush-File {
         $shapeD = Get-AliasShape $Removed
         if ([string]::Equals($shapeA, $shapeD, [System.StringComparison]::Ordinal)) { $script:aliasOnlyCount++ }
         else { $script:aliasOther.Add($File) }
+
+        $parA = @($Added   | ForEach-Object { $script:parenStripRe.Replace($_, '') } | Sort-Object)
+        $parD = @($Removed | ForEach-Object { $script:parenStripRe.Replace($_, '') } | Sort-Object)
+        if ([string]::Equals(($parA -join "`n"), ($parD -join "`n"), [System.StringComparison]::Ordinal)) {
+            $script:parenOnlyCount++
+            foreach ($l in $Added)   { $script:parenOpenAdded   += ([regex]::Matches($l, '\(')).Count }
+            foreach ($l in $Removed) { $script:parenOpenRemoved += ([regex]::Matches($l, '\(')).Count }
+        }
+        else { $script:parenOther.Add($File) }
     }
 
     $script:stats.Add([pscustomobject]@{
@@ -512,6 +682,7 @@ foreach ($line in ($diff -split "`n")) {
     if ($line.StartsWith('diff --git ')) {
         Flush-File -File $curFile -Added $add -Removed $del
         $curFile = ($line -split ' b/', 2)[-1]
+        if ($parentExcluded.Contains($curFile)) { $curFile = $null }
         $add = [System.Collections.Generic.List[string]]::new()
         $del = [System.Collections.Generic.List[string]]::new()
         continue
@@ -576,6 +747,42 @@ foreach ($k in ($providers.Keys | Sort-Object { -$providers[$_] }, { $_ })) {
     $providerList += [pscustomobject]@{ provider = $k; files = $providers[$k] }
 }
 
+$modified = [ordered]@{
+    providers = @($modifiedByProvider.Keys | Sort-Object { -$modifiedByProvider[$_] }, { $_ } | ForEach-Object { [pscustomobject]@{ provider = $_; files = $modifiedByProvider[$_] } })
+    tests     = @($modifiedByTest.Keys     | Sort-Object { -$modifiedByTest[$_] },     { $_ } | ForEach-Object { [pscustomobject]@{ test = $_; files = $modifiedByTest[$_] } })
+}
+
+$since = $null
+if ($SinceCommit) {
+    $sv = Git -GitArgs @('rev-parse', '--verify', '--quiet', "$SinceCommit^{commit}") -AllowFail
+    if ($sv.code -ne 0 -or -not $sv.stdout.Trim()) {
+        $since = [ordered]@{ commit = $SinceCommit; status = 'commit_missing' }
+    } else {
+        $sinceCounts = @{ A = 0; M = 0; D = 0 }
+        $sinceGroups = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+        foreach ($l in ((Git -GitArgs @('diff', '--name-status', $SinceCommit, $remoteRef)).stdout -split "`n")) {
+            if (-not $l.Trim()) { continue }
+            $sp = $l.TrimEnd("`r") -split "`t"
+            $st = $sp[0].Substring(0, 1)
+            if ($sinceCounts.ContainsKey($st)) { $sinceCounts[$st]++ }
+            $key = "$st`t" + (($sp[-1] -split '/')[-1] -replace '\(.*$', '')
+            if (-not $sinceGroups.ContainsKey($key)) {
+                $sinceGroups[$key] = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            }
+            [void]$sinceGroups[$key].Add(($sp[-1] -split '/')[0])
+        }
+        $since = [ordered]@{
+            commit = $SinceCommit
+            status = 'ok'
+            counts = [ordered]@{ added = $sinceCounts.A; modified = $sinceCounts.M; deleted = $sinceCounts.D }
+            tests  = @($sinceGroups.Keys | Sort-Object | ForEach-Object {
+                $kp = $_ -split "`t"
+                [pscustomobject]@{ status = $kp[0]; test = $kp[1]; providers = $sinceGroups[$_].Count; providerList = @($sinceGroups[$_] | Sort-Object) }
+            } | Select-Object -First $MaxAddedTests)
+        }
+    }
+}
+
 $result = [ordered]@{
     status    = 'ok'
     branch    = $branch
@@ -614,10 +821,13 @@ $result = [ordered]@{
         perFileLosses = $castLosses
     }
     providers = $providerList
+    modified  = $modified
+    since     = $since
     inherited = [ordered]@{
         files   = $inherited.Count
         samples = @($inherited | Select-Object -First 25)
     }
+    parentInherited = $parentInherited
     addedTests = [ordered]@{
         universe = $addedUniverse.Count
         tests    = @($addedTests | Select-Object -First $MaxAddedTests)
@@ -642,6 +852,14 @@ $result = [ordered]@{
         otherFiles     = $aliasOther.Count
         otherSamples   = @($aliasOther | Select-Object -First 25)
     }
+    parens    = [ordered]@{
+        parenOnlyFiles = $parenOnlyCount
+        otherFiles     = $parenOther.Count
+        openRemoved    = $parenOpenRemoved
+        openAdded      = $parenOpenAdded
+        otherSamples   = @($parenOther | Select-Object -First 25)
+    }
+    staleKeys = $staleKeys
     wrapper   = if ($StripWrapper) {
         [ordered]@{
             function         = $StripWrapper
@@ -657,4 +875,6 @@ Write-JsonOutput -InputObject $result -Depth 6 -OutFile $OutFile -Summary ([orde
     status    = 'ok'
     counts    = $result.counts
     inherited = $inherited.Count
+    parentInherited = if ($parentInherited) { [ordered]@{ files = $parentInherited.files; own = $parentInherited.own } } else { $null }
+    staleKeys = [ordered]@{ status = $staleKeys.status; files = $staleKeys.files }
 })
