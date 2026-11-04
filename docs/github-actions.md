@@ -109,6 +109,15 @@ own list being non-empty (`if: needs.prepare.outputs.any == 'true'`) so it is *s
 instantiated with nothing in it. Worth doing for the upstream build job too, or a surface with
 nothing to run still pays for it.
 
+## A cancelled job with zero steps never got a runner
+
+A job that is `cancelled` with no steps and an empty `runner_name` was never picked up. The reason is
+only in its check-run annotations: `gh api repos/linq2db/linq2db/check-runs/<job-id>/annotations`.
+"The job was not acquired by Runner of type hosted even after multiple attempts", together with the notice
+"Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times", is a
+GitHub capacity problem, not a workflow or code defect. A re-run can hit it again (#5640: `CLI tests
+(macos-15)` was cancelled on both attempts of run 41852053502). Re-run that job later.
+
 ## `upload-artifact` silently drops dotfiles
 
 `actions/upload-artifact` v4+ excludes hidden files by default, **with no warning in the log**. This
