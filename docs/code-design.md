@@ -200,7 +200,11 @@ The test for the first row: *would the same source compile on net462?* If it doe
 
 **Fix shape:** recognise the shape at runtime instead of compiling it out. Match the member by name and the declaring type by `FullName`, not `typeof` (`ValueTaskToTaskMapper.cs`, `ExpressionBuildVisitor`'s `op_Implicit` / `` "ReadOnlySpan`1" `` pattern), or resolve the type with `Type.GetType` and build the expression by reflection (`SqlServerDataProvider`'s `System.Text.Json` branch). A type that ns2.0 polyfills internally (`Index`, `Range`, `IsExternalInit`) is *not* the BCL type on a modern runtime, so it too must be matched by name.
 
-**Verification.** CI never runs the ns2.0 asset, so a fix is green on every leg before *and* after the change. Prove it red locally with `worktree-test.ps1 -LinqToDBAsset netstandard2.0 -Tfm net10.0`, which runs the tests against linq2db built with the ns2.0 define set; see [`testing.md`](testing.md) → *Running against the netstandard2.0 asset*.
+**Verification.** CI never runs the ns2.0 asset, so a fix is green on every leg before *and* after the change. Prove it red locally with `worktree-test.ps1 -LinqToDBAsset netstandard2.0 -Tfm net10.0`, which runs the tests against linq2db built with the ns2.0 define set; see [`testing.md`](testing.md) → *Running against the netstandard2.0 asset*. No CI leg for the ns2.0 asset is planned: on modern runtimes it is low-priority support logic, so a review suggestion to add one is declined, not filed as an issue (#6092).
+
+#### NativeAOT is a satellite-package target, not a core one
+
+Only packages that declare `IsAotCompatible` are AOT targets: `LinqToDB.Extensions` and the `LinqToDB.Remote.*` clients and servers (small, or meant to run in WebAssembly). Core `LinqToDB` declares neither `IsAotCompatible` nor `IsTrimmable`, and making it compatible needs extensive annotation work. AOT fixes in past release notes were best-effort, not a support commitment. So a failure mode that exists only under NativeAOT in core (a value-type `MakeGenericMethod`, a reflection lookup the AOT compiler can't see) is not a review finding or plan objection by itself. (#6092 critic round 3)
 
 #### Removing or bumping the lowest TFM
 
