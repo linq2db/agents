@@ -388,6 +388,10 @@ Everything above is Azure. A red GitHub leg (`tests (comment)`) is checked again
 - **A run's attempt 1 can be an `authorize` failure with `tests` skipped**, so the real results are in attempt 2. `gh-run-logs.ps1` falls back across attempts; a hand-rolled `runs/<id>/jobs` call returns only the latest attempt unless you pass `filter=all`.
 - **The PR's own earlier green run on the leg is the cheaper baseline**, as on Azure. A red run on an unrelated PR with the same first failure means the failure was already there before this PR. (#5978: `i_PostgreSQL1` lost the remote mapping schema on PostgreSQL 9.x `.LinqService`; #5943 had the same first failure a day earlier. It was test-infra, fixed in #5992.)
 
+### A failing test the PR added — master can't run it, so remove the fix instead
+
+No master run has the test, so neither baseline above exists. Read the fix's predicate first: a guard conditioned on a provider flag is inert wherever the flag is off, so those providers' failures are pre-existing by construction. Confirm on one of them by removing the PR's `Source/` diff in the PR's own worktree and running the test there: the build is incremental and the test is already present, where a master worktree has neither. Restore with `git restore` before committing. (#6229: the nested APPLY test failed on ClickHouse, YDB, Informix, Oracle 11 and SAP HANA. The guard requires `IsApplyJoinSupported`, so only HANA could be affected; with the guard removed, Oracle 11 threw the same error and HANA failed with a syntax error, so the gates hid no regression.)
+
 ## A leg that went red with no matching code change — check the container image
 
 A third cause, beside PR-introduced and pre-existing: **the environment moved.** The provider
