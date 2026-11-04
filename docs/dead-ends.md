@@ -333,3 +333,11 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** (1) `OrderByBuilder` publishes the re-applied bodies as the captured ordering, and a `GroupBy` above cannot match `SqlPlaceholderExpression`s anchored at the inner sequence to its keys, so it dropped the ordering and the next `DistinctBy` threw (`DistinctByAfterGroupByOverDistinctBy`, green on the PR head before). (2) the query below can be an inner DISTINCT ON whose ORDER BY picks its surviving rows (`DistinctByAfterDistinctByOnLeadingKeyKeepsOrdering`, DuckDB), or the only full copy of the ordering when `AddCapturedOrdering` skipped an outer-correlated key (`DistinctByInSubQueryAfterGroupByOuterAndInnerKeyOrderedByFunctionOfKey`, DuckDB). Both measured red.
 
 **Don't re-attempt:** either. Re-apply the captured expressions and keep the placeholders inside the window; stop the clear at a DISTINCT (ON) query, and skip it below the DISTINCT ON query when an entry was left out.
+
+## EXPR-TRANS: telling a `Distinct`'s SQL consumer from materialization by its `BuildInfo`
+
+**Tried:** deciding in `DistinctBuilder.BuildMethodCall` whether the DISTINCT will be aggregated or materialized, from `buildInfo.IsSubQuery` / `CreateSubQuery` / `Parent`.
+
+**Failed because:** top-level `Distinct().Count()` and `Distinct().Take(n).ToList()` arrive with identical flags (`IsSubQuery=False, CreateSubQuery=True`; #6170 instrumentation).
+
+**Don't re-attempt:** read the request instead. Consumers that use the projection in SQL (aggregates, `Contains`, join keys) ask `DistinctContext.MakeExpression` with `SQL` flags; materialization asks with `Expression`. Also, `AggregateExecuteBuilder`'s key-initialization result used to be discarded, so a guard placed only in the context was invisible to aggregates. (#6170, `18af18415`)
