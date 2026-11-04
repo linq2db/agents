@@ -168,9 +168,9 @@ Note: the first gate's run is the combined `X` + `X.LinqService` run with `Basel
 - Nullable `Sum()` over an empty correlated set returns `null` — pre-existing convention, measured on master without `Distinct`.
 - Oracle 12 returns wrong counts (not a refusal) for grouped anonymous / entity `Distinct().Count()` — #6175, user's option (a): gated, fix deferred to that issue; master crashed on the same shapes, and grouped `Take` / `Skip` already return wrong values there.
 
-- (A-3) Materialized client-side `Distinct()` deduplicates on the inputs, not the client value: `Select(c => new { V = LastDigit(c.ChildID) }).Distinct().ToList()` returns 17 rows instead of 7 — independent of this PR (`DistinctBuilder`'s materialization path is unchanged), and refusing it would break injective uses (D-5, user option (a) rejected). To be filed as its own issue.
+- (A-3) Materialized client-side `Distinct()` deduplicates on the inputs, not the client value: `Select(c => new { V = LastDigit(c.ChildID) }).Distinct().ToList()` returns 17 rows instead of 7 — independent of this PR (`DistinctBuilder`'s materialization path is unchanged), and refusing it would break injective uses (D-5, user option (a) rejected). Filed as [#6250](https://github.com/linq2db/linq2db/issues/6250).
 - (A-3) Correlated / grouped client-only `Distinct().Count()` throws #5787's `InvalidOperationException` rather than a `LinqToDBException` until #5901 lands — gated in TO-9.
-- (A-3, critic round 2) A computing constructor in a `Distinct` projection (`new Holder(c.ChildID)` deriving its value) is treated as a projection of its arguments: `Distinct().Count()` returns 17 instead of 7 on master and with E-4 (U-19). linq2db's constructor convention; same class as the materialized-dedup entry above, filed with it.
+- (A-3, critic round 2) A computing constructor in a `Distinct` projection (`new Holder(c.ChildID)` deriving its value) is treated as a projection of its arguments: `Distinct().Count()` returns 17 instead of 7 on master and with E-4 (U-19). linq2db's constructor convention; same class as the materialized-dedup entry above, filed with it in #6250.
 - (A-3) Correlated non-`Distinct` `Select(c => new { V = F(c.ChildID) }).Count()` throws `ArgumentException … IQueryable<anon>` — off the E-4/E-5 path (U-16); not attributed to master by a run.
 
 ## P11 Amendments (M/L)
