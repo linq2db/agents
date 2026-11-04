@@ -515,6 +515,38 @@ through `SetupIdentityUser`, so `E-1` needs no second site.
     unchanged, not run locally.
   - NIT018 (`E-10`, `5b0248610`): `ShouldMapPasskey` continuation indent.
   - Local: Release build of `Tests/Linq` (net10.0) clean.
+- **A-18** — **review round 8 (igor-tkachev MIN007 on `5b0248610`) + maintainer requests, 2026-11-04.** Written before
+  the source edits of items 2-4. Decisions (maintainer):
+  - MIN007 + readme: migration-section caveat for Oracle `VARCHAR2` schemas; new *Unscoped and provider-scoped
+    mappings* section; corrected the false "Oracle pin outranks an unscoped `HasDataType`" claim (probe: unscoped
+    `HasDataType` wins, because `ColumnDescriptor` reads `DataTypeAttribute.DataType` only when the column's is
+    `Undefined`). Probe also measured: a scoped attribute added in a later `ConfigureMappings` pass outranks the
+    defaults' attribute for the same configuration.
+  - Per-provider amendment inventory in the readme (every scoped default in `DefaultMappings.cs`, its reason, and the
+    override recipe per mechanism: scoped `DataTypeAttribute`, scoped `ValueConverterAttribute`, scoped
+    `ColumnAttribute`). Coverage: an inventory guard (the scoped defaults the current provider resolves equal the
+    documented rows) and an override test per row, both `[DataSources(false)]`, mapping-only, so each CI leg checks
+    its own provider.
+  - Readme ToC.
+  - Navigations: no explicitly-typed overloads (type arguments cannot be inferred from the receiver). Readme
+    explains why the stock ones are methods (CS9296: no extension properties in expression trees) and shows
+    association properties on the user's own subclasses, with a test.
+  - Database cascade deletes: a `DataOptions` option set (maintainer chose the `DataOptions` route over DI options
+    and a store virtual) in `Source/LinqToDB.Identity`; when set, `UserOnlyStore` / `UserStore` / `RoleStore`
+    `DeleteAsync` skip the dependent-row deletes. New public surface → `PublicAPI.Unshipped.txt`. Tests: option on
+    without FKs leaves the dependent rows (proves the skip); option on with `ON DELETE CASCADE` FKs removes them.
+  - Original repo `linq2db/LinqToDB.Identity`: issues #12/#15/#18/#21 commented (moved to the main repo, ships in
+    6.6.0) and closed; maintainer archives the repo.
+  - Edit-points: `LinqToDBIdentityOptions.cs`, `IdentityDataOptionsExtensions.cs` (new), `Extensions.cs`,
+    `Stores/{UserOnlyStore,UserStore,RoleStore}.cs`, `PublicAPI.Unshipped.txt`, `readme.md`,
+    `Tests/Linq/Identity/{IdentityStoreTests,IdentityCustomizationTests}.cs`.
+  - Local (net10.0): Identity suite 296/296 on SQLite.MS / SqlCe / Access ACE OLE DB. FK cascade test on SqlCe +
+    Access (direct + LinqService). Skip test red with the option read mutated off. Inventory guard + override test
+    green on 18 provider configs mapping-only (SAP HANA: assertion ran, teardown failed on the stopped container).
+    Release builds of `linq2db.Identity` (all TFMs) and `Tests/Linq` clean.
+  - Observed: every scoped default on the stock `IdentityUser` / `IdentityRole` resolves 4x (the
+    `IdentityUser<string>` / `IdentityRole<string>` mirror registration); identical attributes, precedence
+    unaffected; the guard de-duplicates.
 
 ## P12 Critic verdict
 
