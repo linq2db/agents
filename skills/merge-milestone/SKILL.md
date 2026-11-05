@@ -101,7 +101,9 @@ Oldest first, so the longest-lived branches take the fewest re-syncs.
   full CI round.
 
 **b. Gate.** `& .claude/scripts/wait-pr-checks.ps1 -Pr <n>` with `run_in_background`, then wait for the
-completion notification — do not poll its output file. Exit 0 = green, 1 = non-green, 2 = timed out.
+completion notification — do not poll its output file. Exit 0 = green, 1 = non-green, 2 = timed out,
+4 = a fork PR's workflow run awaits maintainer approval — approving runs the fork's code on CI, so ask the
+user before approving the printed run id, then re-arm.
 
 On non-green, read the failure before touching anything:
 `gh run view --repo linq2db/linq2db --job <job-id> --log-failed`, with the job id from the check's
