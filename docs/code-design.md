@@ -288,6 +288,10 @@ public class SqlServer2022MemberTranslator : SqlServer2017MemberTranslator
 
 Each subclass inherits everything from its lower-version parent and only overrides the methods whose translation actually changed in that version. When two providers gained the same capability in equivalent versions (e.g. MySQL 8 + MariaDB 10 both got `REGEXP_REPLACE`), the data provider's switch can route both versions to the same subclass — no need to create a dedicated subclass that just inherits with no body. A `MariaDB10MemberTranslator : MySql80MemberTranslator {}` empty-body class is non-idiomatic; collapse it into `MySql80 or MariaDB10 => new MySql80MemberTranslator()` in the dispatch instead.
 
+### Access provider internals are LibRed's base too
+
+The public Access provider classes (`AccessSqlExpressionConvertVisitor` and its siblings) are also the base of the LibRed managed-Access provider, which supports SQL native Jet/ACE lacks — window functions among it. An override that native Access cannot reach because `AccessDataProvider` flags the feature off is therefore not dead code: don't flag it as unreachable in review, and don't remove it. (#6203 NIT-1: `VisitSqlWindowOrderItem` with `IsWindowFunctionsSupported = false`.)
+
 ### Never branch provider logic on `ContextName`
 
 `IDataContext.ContextName` defaults to `DataProvider.Name` but is **user-settable**, so it is not a provider identifier. Never branch provider or capability logic on it — no `ContextName.StartsWith("SqlServer")`-style matching, no capability lists keyed by context name. A renamed or custom-named context silently takes the wrong branch, with no error to show for it.

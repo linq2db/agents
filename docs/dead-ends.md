@@ -110,6 +110,8 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Failed because:** Jet/ACE stores True as -1, but native Jet/ACE also rejects any expression ORDER BY key under DISTINCT (*"ORDER BY clause (IIf(…)) conflicts with DISTINCT"*, measured on `Access.Ace.OleDb`). `SelectQueryOptimizerVisitor` can merge a DISTINCT subquery into the ordered query, so `Select(t => t.BoolValue).Distinct().OrderBy(b => b)` reaches the rewrite with DISTINCT and ORDER BY on one query and would start throwing.
 
+Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rejected too — `-[k]`, `(-[k])`, `[k] IS NULL`, `IsNull([k])` — and only a select-list alias (`-[k] AS [x]` … `ORDER BY 3`) is accepted. An outer-joined Yes/No column reads as False, not NULL (reader, `IS NULL`, and under DISTINCT); only a non-DISTINCT `-[k]` sort sees the NULL. The builder moves the DISTINCT into a subquery for a computed key or a `Distinct()` followed by `Select`, which puts the ORDER BY outside it — so the DISTINCT arm is reached only by a column at the DISTINCT level (e.g. via `AsSubQuery()`). Read a test's SQL before claiming it covers that arm.
+
 **Don't re-attempt:** an expression key. A non-nullable key keeps the bare column, parenthesized as an int-typed `({0})`, with the direction flipped; a nullable key gets an int-typed unary minus, except under DISTINCT (flip). The int type keeps the remote path's second convert pass idempotent. (#6203, port of #5969 `10f517d5f` + `817b052c2`)
 
 ## SQL-PROVIDER: a YDB RETURNING column with an expression
