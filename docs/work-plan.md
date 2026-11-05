@@ -329,6 +329,8 @@ draft ──authored──> critiqued ──> approved ──> implementing ─�
 
 **A status advances only on evidence.** No block flips toward done without a resolvable `file:line`, a command output, or a commit citation. Process-artifact churn must not outrun real code churn — see [`agent-rules.md`](agent-rules.md) → *Don't let progress artifacts outpace real work*.
 
+**Cite run logs and probe artifacts at a primary-clone path** (`.build/.agents/<plan-key>/…`), never inside a worktree: a worktree-local path dies when the worktree is removed, and removal is the default at session end. Copying them out first ([`worktree.md`](worktree.md) → the removal checks) saves the files but leaves the plan pointing at nothing. (#6158: P9/P10 cited `worktree .build/.agents/worktree-test-…` logs.)
+
 ## Consumers
 
 | Consumer | Reads | Writes |
