@@ -118,6 +118,8 @@ Run **`pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr <n>`*
 
 The same applies when a follow-up commit changes a test's projection shape / SQL output without renaming it — the old PR's files no longer match the new expected output. Out of scope: pure test *additions* that don't rename anything (the existing baselines PR is incremental — new files just get added on the next CI run), and bug-fix commits that update SQL but leave both names and structure untouched (the existing baselines PR's diff updates in-place).
 
+**Closing a linq2db PR without merging it (abandoned or superseded) needs the same script.** The baselines PR never auto-closes, so run `close-stale-baselines.ps1 -Pr <n>` in the same batch as `gh pr close`, rather than a hand-rolled `gh pr close --delete-branch` on `linq2db.baselines`, which skips the local clone's prune. (#6157 → #6257.)
+
 **The regenerated PR's own diff cannot tell you whether the SQL moved — fetch the closed one's head.** A branch recreated from the baselines anchor contributes every file as `added` against master, so `gh pr diff` / the files API show a uniform wall of additions with nothing to compare against; and for a *new* test fixture there is no predecessor on master either. The closed PR's head survives as `refs/pull/<m>/head` after the branch is deleted, which is the missing side:
 
 ```

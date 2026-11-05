@@ -130,6 +130,14 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 
 **Don't re-attempt:** those forms. Use `SqlPredicate.IsNull(SqlNullabilityExpression.ApplyNullability(outerKey, true))` with `outerKey` as the true branch, only when the folded predicates carry a parameter. (#6157, `276839ffe`)
 
+## SQL-AST: making outer-only LEFT JOIN predicates run on YDB by folding them into join keys
+
+**Tried:** with `IsComplexJoinConditionSupported = false`, folding a LEFT JOIN `ON` predicate that reads only the outer side into an equality key, `CASE WHEN P THEN outerKey ELSE NULL END = innerKey`, in `MoveJoinConditionsToWhere` — plus a wider push-down into the joined derived table, a `JoinMoveSubQueryUp` flatten guard and an Access opt-in. About 280 lines in `SelectQueryOptimizerVisitor` (#6157, closed; head `8747cea6e`, reachable as `refs/pull/6157/head`).
+
+**Failed because:** not on correctness — an agentic review verified the fold for plain keys, row keys and parameter-decided predicates — but on cost: maintainers rejected that much shared-optimizer code for a provider limitation.
+
+**Don't re-attempt:** without maintainer buy-in first. Current behaviour (#6257): such a predicate stays in `ON` and YDB rejects the query (`each equality predicate argument must depend on exactly one JOIN input`); #6148 is in Backlog. The two `#6157` entries above are the fold's known traps if it is ever revived.
+
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
 **Tried:** a nested column-subquery control for the Oracle 11 parent-`IS NOT NULL` check, where the inner subquery's `IS NOT NULL` references the *middle* subquery's table, run with the scope reset mutated to fire only at the outermost boundary (`if (isColumnSubqueryEntry && _currentSources == null)`). Four middle shapes: uncorrelated `OrderBy(...).Select(...).FirstOrDefault()`, uncorrelated one-row `Where(...).FirstOrDefault()`, root-correlated `OrderBy` + `FirstOrDefault`, and an uncorrelated `Sum` over the inner `Count`. A root-correlated `Sum` middle hits `Error_OUTER_Joins` first.
