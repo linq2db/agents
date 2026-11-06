@@ -198,6 +198,8 @@ Re-fetch option ids via `gh project field-list 8 --owner linq2db --format json` 
 
 ### Checking PRs and their baselines PRs for conflicts with master
 
+For a whole project-board lane, run [`review-queue-conflicts.ps1`](../scripts/review-queue-conflicts.ps1) (`-Status 'In Review'` by default): it does everything below and returns one table. The mechanics, for a single PR:
+
 `gh pr list --json mergeable` is reliable on linq2db, but on `linq2db/linq2db.baselines` it returns `UNKNOWN` for nearly every PR: GitHub computes mergeability lazily, and nobody opens those PRs. `UNKNOWN` is "not computed", not "conflicting". Ask for them by number in one aliased GraphQL query, which computes and returns real values:
 
 ```
