@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## BUILD: checking out `linq2db.baselines` to rebase or resolve a baselines PR
+
+**Tried:** `git worktree add --detach <dir> origin/baselines/pr_6198` in the baselines clone, to run `git rebase origin/master` on a `CONFLICTING` baselines PR.
+
+**Failed because:** the repo has ~400k files, and some names (OData test cases with the filter in the name) exceed Windows MAX_PATH. The checkout ran past 10 minutes, hit `Filename too long`, and ended with `fatal: Could not reset index file to revision 'HEAD'`. A `git rebase` needs that same working tree.
+
+**Don't re-attempt:** a checkout of that repo on Windows (`core.longpaths` was not tried; the 10-minute checkout alone rules it out for a rebase). Rebase it without a working tree: `.claude/scripts/rebase-baselines-branch.ps1` replays each commit with `merge-tree --write-tree -X ours --merge-base=<parent>` plus `commit-tree`. Procedure: [`pr-and-push.md`](pr-and-push.md) → *After test renames / moves / deletes*. (#6198, baselines #2240)
+
 ## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
 
 **Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
