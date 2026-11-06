@@ -196,6 +196,16 @@ gh project item-edit --id <item-id> --project-id PVT_kwDOAA01hc4BZqGZ \
 
 Re-fetch option ids via `gh project field-list 8 --owner linq2db --format json` if they ever drift.
 
+### Checking PRs and their baselines PRs for conflicts with master
+
+`gh pr list --json mergeable` is reliable on linq2db, but on `linq2db/linq2db.baselines` it returns `UNKNOWN` for nearly every PR: GitHub computes mergeability lazily, and nobody opens those PRs. `UNKNOWN` is "not computed", not "conflicting". Ask for them by number in one aliased GraphQL query, which computes and returns real values:
+
+```
+gh api graphql -f query="{ repository(owner:\"linq2db\", name:\"linq2db.baselines\") { a:pullRequest(number:2259){number mergeable} b:pullRequest(number:2257){number mergeable} } }" --jq ".data.repository[] | [.number, .mergeable] | @tsv"
+```
+
+A baselines PR is `baselines/pr_<n>` for linq2db PR `<n>`. For a `CONFLICTING` linq2db PR, `git merge-tree --write-tree --name-only origin/master origin/<head>` names the conflicting files without a checkout. (2026-11-06: 17 of 18 open baselines PRs read `UNKNOWN` from `gh pr list`; the GraphQL query returned `MERGEABLE` for all nine that were asked about.)
+
 ### Extending an open PR
 
 Commits that extend an open PR's scope go on that PR's branch, not a new parallel branch. When a review session surfaces an ancillary fix (apostrophe-escape bug found while reviewing #5463, a test regression caused by the PR, a missing guardrail) and the user asks for it as a follow-up, push it onto the PR's existing head branch — don't create a sibling `feature/*` branch and propose a second PR. Mechanics:
