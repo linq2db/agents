@@ -351,3 +351,11 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** top-level `Distinct().Count()` and `Distinct().Take(n).ToList()` arrive with identical flags (`IsSubQuery=False, CreateSubQuery=True`; #6170 instrumentation).
 
 **Don't re-attempt:** read the request instead. Consumers that use the projection in SQL (aggregates, `Contains`, join keys) ask `DistinctContext.MakeExpression` with `SQL` flags; materialization asks with `Expression`. Also, `AggregateExecuteBuilder`'s key-initialization result used to be discarded, so a guard placed only in the context was invisible to aggregates. (#6170, `18af18415`)
+
+## EXPR-TRANS: matching a placeholder built in a sub-query's context against an outer select list by reference
+
+**Tried:** deciding whether a client value's input is a `Distinct` column (#6170 MAJ003) by building the input chain (`Ref(SubQueryContext).ChildID`) with `BuildSqlExpression(chainRoot.BuildContext, chain)` and comparing `placeholder.Sql` by reference to each DISTINCT `SqlColumn.Expression`; then the same after `UpdateNesting(chainRoot.BuildContext, …)`.
+
+**Failed because:** the placeholder is in the input query's coordinates — `SelectQuery` is the input sub-query, `Sql` the expression *inside* it (`t98.ChildID`) — while the DISTINCT column's expression is the input query's own `SqlColumn` wrapping it (`t101[67].ChildID := t98.ChildID`). `UpdateNesting` against the same context changes nothing. Every `SubQueryContext` between the input and the DISTINCT (`OrderBy`, `Take`, a second `Select`, `AsSubQuery`, hints) adds one more `SqlColumn` layer.
+
+**Don't re-attempt:** either reference comparison. Walk the outer column's `SqlColumn` chain to the layer whose `Parent == placeholder.SelectQuery`, then compare that layer's `Expression` to `placeholder.Sql` (`DistinctBuilder.SelectsPlaceholder`). (#6170, `979a9f2ae`)
