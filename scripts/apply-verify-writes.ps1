@@ -48,8 +48,9 @@ Input (stdin, JSON)
     "concurrency": 6                                   // optional, default 6
   }
 
-checkboxFlips fetch the review body and replace `- [ ] **<findingId>**`, which
-must occur exactly once, so the caller never rebuilds a full body; flips on one
+checkboxFlips fetch the review body and replace `- [ ] **<findingId>**` (initial
+review) or `- [ ] <findingId>` (verification body), which must occur exactly once
+at a line start, so the caller never rebuilds a full body; flips on one
 review go out as one PUT. A flip whose box already carries the mark is skipped.
 A review may appear in checkboxFlips or reviewBodyEdits, not both.
 
@@ -252,15 +253,18 @@ if ($checkboxFlipJobs.Count -gt 0) {
         $skipped = @()
 
         foreach ($flip in $job.flips) {
-            $done = "- [$($flip.mark)] **$($flip.findingId)**"
-            if ($body.Contains($done)) { $skipped += $flip.findingId; continue }
+            # Initial reviews write `- [ ] **MIN007** — …`; verification bodies list `- [ ] MIN007 — …`.
+            $id      = [regex]::Escape($flip.findingId)
+            $done    = '(?m)^- \[' + [regex]::Escape($flip.mark) + '\] (\*\*)?' + $id + '(\*\*)?(?=\s|$)'
+            if ([regex]::IsMatch($body, $done)) { $skipped += $flip.findingId; continue }
 
-            $anchor = "- [ ] **$($flip.findingId)**"
-            $count = ([regex]::Matches($body, [regex]::Escape($anchor))).Count
+            $anchor  = '(?m)^- \[ \] (?<id>(\*\*)?' + $id + '(\*\*)?)(?=\s|$)'
+            $count = ([regex]::Matches($body, $anchor)).Count
             if ($count -ne 1) {
-                return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'$anchor' occurs $count times; expected exactly once" }
+                return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'- [ ] $($flip.findingId)' (bold or plain) occurs $count times; expected exactly once" }
             }
-            $body = $body.Replace($anchor, $done)
+            $mark  = $flip.mark
+            $body  = [regex]::Replace($body, $anchor, { param($m) "- [$mark] " + $m.Groups['id'].Value })
             $flipped += $flip.findingId
         }
 

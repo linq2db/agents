@@ -36,6 +36,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** these two shapes as written. A further probe of shape 2 first needs a statement that provably shares one predicate instance between a value slot and a filter. (#5673, review of 2026-11-01)
 
+## SQL-PROVIDER: deciding the concat null-as-empty wrap from a non-query parameter's value, for Informix's redundant `Nvl`
+
+**Tried:** removing #5673's Informix `Nvl('x:', '')` around a value converter's literal prefix (`StringConcatTests.ConcatAssignedToConvertedColumnKeepsPrefixUnguarded`) in `SqlExpressionConvertVisitor.ConvertConcat`: skip the `Coalesce(item, '')` wrap when the item is a `SqlParameter { IsQueryParameter: false }` (bare or in a `SqlParameterCastExpression`) with a non-null bound value. Then aiming at `master`'s exact SQL, `'x:' || Sku || Nvl('-s', '')`.
+
+**Failed because:** at the concat wrap both Informix operands are *query* parameters inside `SqlParameterCastExpression`, so the check never fired. They become literals only afterwards, when `ConvertCoalesceToBinaryFunc(…, "Nvl", supportsParameters: false)` marks them non-query — in place, on the shared `SqlParameter`. And `master`'s SQL is no consistent target: its build-time `OptimizeAndConvert` folded `Nvl(p, '')` back to `'x:'` but kept `Nvl(suffix, '')`, the identical shape.
+
+**Don't re-attempt:** a value check in the concat wrap for this case, nor reproducing `master`'s half-folded SQL. The fix that worked sits where the inlining happens: `ConvertCoalesceToBinaryFunc` stops at the first inlined parameter with a non-null bound value (#5673 `af200db1c`).
+
 ## MAPPING: inputs that do not separate a handle's schema from the live one
 
 **Tried:** red-first tests for build steps that read `ExpressionBuilder.MappingSchema` instead of the source's snapshot, each with one facet changed in a `UseMappingSchema` scope. Four inputs gave the same result on master and on the fix (SQLite.MS + DuckDB, direct and LinqService):

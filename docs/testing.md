@@ -1157,6 +1157,17 @@ A finding whose mechanism shows in the emitted SQL is settled by comparing the S
 
 This settles the mechanism and whether it is new against master. The server's answer — an error code or a wrong row — still needs a run, so record which of the two a finding rests on. (#5959 round 8: five findings that had only been read from the source, settled in two ~30-second builds. One was refuted, because master emitted the same SQL; four were confirmed.)
 
+**A standalone console instead of the playground** is quicker when the probe needs several providers or temporary instrumentation inside `Source/LinqToDB`, because it never builds `Tests/`:
+
+- Put it in a scratch directory under `.build/.agents/<name>/`, with an empty `<Project />` `Directory.Build.props` and `Directory.Build.targets`, and a `Directory.Packages.props` that sets `ManagePackageVersionsCentrally` to `false`. Those three stop the repo's props, analyzers and central versions from applying to the scratch project.
+- Reference `<worktree>/Source/LinqToDB/LinqToDB.csproj` with `SetTargetFramework="TargetFramework=net10.0"`, plus the driver packages at the versions `Directory.Packages.props` pins (`Microsoft.Data.Sqlite`, `Npgsql`, `Net.IBM.Data.Db2`, `ClickHouse.Driver`, …).
+- `new DataConnection(new DataOptions().Use<Provider>("<dead connection string>", <explicit version or provider>))` plus `ToSqlQuery()` (also on `IUpdatable` / `IValueInsertable`) renders without opening a connection. An explicit dialect avoids auto-detection.
+- Build `-c Debug` when you add temporary logging inside the library (`System.IO.File.AppendAllText` with a stack trace). Release turns on the analyzers, which reject it.
+- Run one process per parameter value. The query cache carries a first run's decisions into the second, so two values in one process can render differently from either value fresh.
+- One arm builds in about a minute. The rebuild check (step 4) applies to `bin/<cfg>/net10.0/linq2db.dll`.
+
+(#5673 round 4: four master-vs-PR comparisons, on PostgreSQL 15, SQLite.MS, Informix.DB2 and ClickHouse, two of them instrumented, located a regression in the shared concat convert.)
+
 #### One probe run, then read it
 
 A repro run usually has to answer several questions — did it throw, what was the message, what SQL came out, what did the rows materialize as. Capture the whole run **once** and then `Grep` / `Read` that capture per question; re-running the same test with a widened filter costs a full build-and-run cycle and returns nothing the first run didn't already contain. Two things make the first capture sufficient:

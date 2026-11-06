@@ -443,6 +443,8 @@ function Get-DiffFingerprint {
         $content = [regex]::Replace($content, '`([A-Za-z_][A-Za-z0-9_]*)`', '$1')
         $content = [regex]::Replace($content, '\[([A-Za-z_][A-Za-z0-9_]*)\]', '$1')
         $content = $content -replace '[ \t]+$',''
+        # A blank line moving between statement blocks carries no SQL; hashing it splits otherwise-equal patterns.
+        if ($content.Length -eq 0) { continue }
         [void]$out.Add("$marker$content")
     }
     return ($out -join "`n")
