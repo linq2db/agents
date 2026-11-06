@@ -136,7 +136,7 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 
 **Failed because:** not on correctness — an agentic review verified the fold for plain keys, row keys and parameter-decided predicates — but on cost: maintainers rejected that much shared-optimizer code for a provider limitation.
 
-**Don't re-attempt:** without maintainer buy-in first. Current behaviour (#6257): such a predicate stays in `ON` and YDB rejects the query (`each equality predicate argument must depend on exactly one JOIN input`); #6148 is in Backlog. The two `#6157` entries above are the fold's known traps if it is ever revived.
+**Don't re-attempt:** without maintainer buy-in first. Current behaviour (#6257): such a predicate stays in `ON` and YDB rejects the query (`each equality predicate argument must depend on exactly one JOIN input`); #6148 is in Backlog. The two `#6157` entries above are the fold's known traps if it is ever revived. Access has the mirror defect independently of the flag: Jet applies an outer-only `ON` conjunct as a filter and returns wrong rows (#6215); a test with that shape gates Access on #6215 (`DerivedAssociationKeepsOtherDerivedRows`).
 
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
