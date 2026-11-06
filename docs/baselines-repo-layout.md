@@ -119,6 +119,14 @@ Two consequences worth reporting. The finding is "not attributable to this PR" w
 
 (Surfaced on #5844: 387 modified files across `CharTest2/11/12`, `LeftJoin5`, `CheckField6`, three `MergeTests` and more. All but one were byte-identical to `ae40ecc3b84`, the state before #5864's baselines merged 17 minutes after the branch's own master merge — and #5864's subject named two of the clusters: *"merge-source order, CharTest isolation"*. `LeftJoin5` and `CheckField6` returned literally empty diffs.)
 
+### The other direction — a merged linq2db PR whose baselines PR never merged
+
+When a linq2db PR merges but its `baselines/pr_<n>` PR stays open, master's code and baselines master disagree: every later PR whose run covers the affected tests re-records the new output and shows it as its own drift. The cluster is the inverse of the one above — the files carry values master *should* have, not ones it used to have. Find open baselines PRs whose linq2db PR is merged ([`review-queue-conflicts.ps1`](../scripts/review-queue-conflicts.ps1) `-AllBaselines` reports them as `staleSources`) and diff one cluster file against that branch; a match attributes it. The fix is merging that baselines PR (*Merging a baselines PR* below), not a change to the PR under review. Tests added by PRs merged after the stale run keep the old values on master, so a residue drifts on the next run that covers them.
+
+To preview what a branch will show after baselines master moves, simulate the merge: `git merge-tree --write-tree origin/master origin/baselines/pr_<n>`, then diff `origin/master` against the printed tree. A two-dot `git diff origin/master origin/baselines/pr_<n>` reports master's new content as reverse drift on files the branch never touched.
+
+(#6110, 2026-11-06: ~1.4k YDB files lost the `$` in `DECLARE $p` — #5763 bumped Ydb.Sdk to 0.38.0, which stopped prefixing `DbParameter.ParameterName`, and its baselines PR #2266 stayed open.)
+
 ### Merging a baselines PR
 
 `linq2db.baselines` **disallows merge commits** — `gh pr merge --merge` fails with *"Merge commits are not allowed on this repository. (mergePullRequest)"*. Use `gh pr merge <n> --squash` (mark the CI-created draft ready first with `gh pr ready <n>`; `--admin` bypasses any pending check). This comes up when cleaning up a lingering baselines PR whose source linq2db PR has already merged (the baselines PR doesn't auto-close).
