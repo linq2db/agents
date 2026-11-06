@@ -146,6 +146,16 @@ git push --force-with-lease origin <branch>
 
 Confirm afterwards that `git diff --stat origin/master..HEAD` shows only *your* commits' files; if the parent's content reappears there, the trees were not equal and the rebase needs a second look. (6.5.0: docs #67 — base `6fb19e4` had squash-merged as `0229f0f` via #66, both at tree `309bde278`; the rebase replayed two commits with zero conflicts.) Distinct from the baselines case above, where regenerating beats rebasing.
 
+**Exception: a child that took the parent in through merge commits.** Its own commits were written against older parent states, so `rebase --onto` replays them against the final one and re-raises every conflict those merges already resolved. When master's changes since the old base touch none of the child's files (`git diff --stat <old-base> origin/master` vs `git diff --name-only <old-base> <child-head>`), build the exact tree as a merge instead:
+
+```
+git merge -s ours --no-commit origin/master
+git checkout origin/master -- <each file master changed since the old base>
+git commit -m "Merge origin/master (#<parent> squash <sha>) into <branch>"
+```
+
+Verify that `git diff --stat origin/master HEAD` equals `git diff --stat <old-base> <child-head>`, and push — no force needed. (#6111, 2026-11-06: 15 merge commits from #5673; the rebase conflicted on its first commit, the `-s ours` merge reproduced the 19-file, +2413/−51 diff exactly. A stacked parent merges via `merge-async`: [`merge-milestone`](../skills/merge-milestone/SKILL.md) step 2c.)
+
 **Orphaned baselines in an otherwise-valid baselines PR are not an action item — stale *keys* are.** The two read alike and pull opposite ways. A branch carries files for an old test name as orphans; `baselines-reviewer` misclassifies them as `new_correct`, so cross-check against the head's `DisableBaseline` usage yourself. **Over-baselining is not a problem and needs no cleanup** — the release flow resets `linq2db.baselines` to the documented anchor commit so CI regenerates clean baselines on the release PR. Never propose closing a baselines PR or deleting its branch *to tidy orphans*, and never make orphans a review finding. (#5732) The close+delete-branch action above is for a PR whose keys no longer describe the branch; reaching for `close-stale-baselines.ps1` is the documented route — don't hand-roll `gh pr comment` + `gh pr close --delete-branch`. (#5708)
 
 **Do a review-requested rename immediately, not at the end of the walk.** Every CI run between the request and the rename regenerates baselines under the doomed names, so batching the rename with the rest of the review fixes multiplies the stale set for no benefit — and a rename is usually a one-line mechanical change that needs no discussion. Push it on its own, then continue the walk. (Surfaced 2026-09-01 on #5840: a reviewer asked for an `Issue<N>_` prefix to be dropped from six tests, and the user's follow-up was *"I don't want polluted baselines"* — the rename went out as its own commit within the same turn.) This is about not *creating* stale baselines; it does not conflict with the orphaned-baselines paragraph above, which says existing orphans from a superseded run need no cleanup and are never a review finding.

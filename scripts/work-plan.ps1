@@ -477,9 +477,15 @@ function Invoke-Validate {
     # (definition-of-done.md). #6061: the sweep first ran after two review rounds, which drew four layout findings.
     # Not keyed on a pass/fail word in G-01: that plan's rows said "green" and "passed".
     $p6TestRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' } })
+    # Also an error at Tier M/L once an amendment post-dates 2026-10-28, when this check landed: #6111's warning
+    # stood unheeded through A-4, and two round-2 layout findings were what the sweep lists.
     if ($g01Rows.Count -gt 0 -and $p6TestRows.Count -gt 0 -and $g01 -notmatch 'test-diff-sweep') {
         $msg = "P9 : P6 edits Tests/ but G-01 records no test-diff-sweep.ps1 counts on the implemented tree -- run it before the commit and cite its counts"
-        if ($Done) { $errors += $msg } else { $warnings += $msg }
+        $p11Block = Get-Block -Blocks $blocks -Id 'P11'
+        $lateAmendment = $planTier -ne 'S' -and $null -ne $p11Block -and @(
+            [regex]::Matches(($p11Block.lines -join "`n"), '(?m)^-\s+(?:\*\*)?A-\d+\s*\((\d{4}-\d{2}-\d{2})') |
+                Where-Object { $_.Groups[1].Value -gt '2026-10-28' }).Count -gt 0
+        if ($Done -or $lateAmendment) { $errors += $msg } else { $warnings += $msg }
     }
 
     # P10 entries need a reason.
@@ -575,10 +581,18 @@ function Invoke-Validate {
         $isError = {
             param($e, $trigger, [string]$cutoff)
             if ($trigger -eq 'path' -and $cutoff -lt '2026-11-02') { $cutoff = '2026-11-02' }
+            if ($trigger -eq 'tests' -and $cutoff -lt '2026-11-07') { $cutoff = '2026-11-07' }
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             $dated.Success -and $dated.Groups[1].Value -ge $cutoff
         }
-        $because = { param($trigger) if ($trigger -eq 'path') { 'it names a path P6 does not list' } else { 'a P6 row cites it' } }
+        $because = {
+            param($trigger)
+            switch ($trigger) {
+                'path'  { 'it names a path P6 does not list' }
+                'tests' { 'it adds TO-n rows and P6 edits Tests/' }
+                default { 'a P6 row cites it' }
+            }
+        }
 
         foreach ($e in $entries) {
             $trigger = & $addsEditPoints $e
@@ -636,6 +650,12 @@ function Invoke-Validate {
         foreach ($e in $entries) {
             # A Tests/ path anywhere on the row counts: an E-n leading with a source file can still add tests (#5943 E-39).
             $trigger = & $addsEditPoints $e 'Tests/'
+            # Tests added inside an E-n that cites no A-n escape the trigger above (#6111 A-3 / A-4 into E-9):
+            # adding or re-deriving TO-n rows on a plan that edits Tests/ counts too.
+            if (-not $trigger -and $p6TestRows.Count -gt 0 -and
+                ($e.text -match '(?i)\bnew\b[^.\n]{0,40}\bTO-\d+' -or $e.text -match '(?i)re-derives:[^\n]*\bTO-\d+')) {
+                $trigger = 'tests'
+            }
             if (-not $trigger) { continue }
             if ($e.text -match '(?i)\bconventions:') { continue }
 
@@ -647,7 +667,8 @@ function Invoke-Validate {
         # (plan-critic.md vector 8). #6178 round 3: A-6 moved the route into the contract file and updated one of
         # the two comments describing that file. Warn from 2026-10-28; older entries predate the rule.
         foreach ($e in $entries) {
-            if ($e.text -notmatch '(?i)/review-pr|/verify-review|/code-review|review round') { continue }
+            # Also another reviewer's review cited by login or id (#6111 A-4: "igor-tkachev's review (5692750948 …)").
+            if ($e.text -notmatch "(?i)/review-pr|/verify-review|/code-review|review round|[\w-]+'s review\b|\breview \(?\d{9,}") { continue }
             if ($e.text -match '(?im)^\s*class:') { continue }
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if (-not ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-28')) { continue }

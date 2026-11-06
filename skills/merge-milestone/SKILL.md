@@ -113,6 +113,19 @@ On non-green, read the failure before touching anything:
 **c. Merge.** `gh pr merge <n> --repo linq2db/linq2db --squash --admin`, then confirm it actually landed
 (`gh pr view <n> --json state,mergeCommit`) — the merge command is often silent on success.
 
+**A PR in a GitHub stack refuses `gh pr merge`** with *"This pull request is part of a stack and must be merged
+using the asynchronous merge REST API"*. Merge it through `merge-async`, pinning the head, then read the result:
+
+```
+gh api -X PUT repos/linq2db/linq2db/pulls/<n>/merge-async -f sha=<head-sha> -f merge_action=direct_merge -f merge_method=squash -f "commit_title=<PR title> (#<n>)" -F bypass_rules=true
+gh api repos/linq2db/linq2db/pulls/<n>/merge-async/<uuid>
+```
+
+`bypass_rules=true` is the `--admin` equivalent; `status: merged` carries the merge commit sha. GitHub then
+retargets the stacked child to `master` and deletes the parent branch, which makes a merge-style child
+`CONFLICTING` — sync it per [`pr-and-push.md`](../../docs/pr-and-push.md) → *A branch cut from another open
+branch goes `CONFLICTING`…*. (#5673, 2026-11-06.)
+
 **d. Baselines.** If the PR has one, its PR is a draft and the repo rejects merge commits:
 
 ```
