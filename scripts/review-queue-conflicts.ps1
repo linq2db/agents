@@ -25,6 +25,7 @@ Invoke directly via the PowerShell tool (preferred):
     .claude\scripts\review-queue-conflicts.ps1
     .claude\scripts\review-queue-conflicts.ps1 -Status 'Waiting For Review'
     .claude\scripts\review-queue-conflicts.ps1 -NoMergeTree
+    .claude\scripts\review-queue-conflicts.ps1 -AllBaselines
 
 Contract
 --------
@@ -34,6 +35,13 @@ Contract
   -Owner         <string>  default 'linq2db'
   -NoMergeTree             skip the fetch + `git merge-tree` probe that names a conflicting
                            PR's files (the script then makes no git calls at all)
+  -AllBaselines            ignore the project lane: report every open baselines PR, its
+                           source linq2db PR's state, and (unless -NoMergeTree) the files
+                           a conflicting one collides on, probed in the baselines clone.
+                           Output shape below. (2026-11-06: hand-rolled for "check all
+                           open baselines PRs for conflicts" before this switch existed.)
+  -BaselinesClone <path>   for -AllBaselines; default `../linq2db.baselines`, else the
+                           primary clone's sibling
 
 Run from the primary clone (or any clone with `origin` = linq2db/linq2db): the probe fetches
 `origin/master` and `origin/pr/<n>` there. It writes only those remote-tracking refs.
@@ -54,6 +62,20 @@ Output: one JSON object on stdout.
 `mergeState` BEHIND means "mergeable, but not on master's tip" - not a conflict.
 `baselinesPr` is null when the PR has no open baselines PR (`baselines/pr_<n>`).
 `unknown` counts values still UNKNOWN after the retry; re-run before reading those as clean.
+
+With -AllBaselines:
+
+  {
+    "mode": "all-baselines", "count": 18, "conflicting": 1, "unknown": 0, "staleSources": 1,
+    "prs": [
+      { "number": 2266, "head": "baselines/pr_5763", "sourcePr": 5763, "sourceState": "MERGED",
+        "mergeable": "CONFLICTING", "conflictFiles": [ "YDB/Tests/..." ] }
+    ]
+  }
+
+`staleSources` counts open baselines PRs whose linq2db PR is no longer open: a MERGED one
+leaves baselines master behind master's code, and every later PR re-records that drift
+(baselines-repo-layout.md -> "The other direction").
 #>
 
 [CmdletBinding()]
@@ -61,7 +83,9 @@ param(
     [string] $Status  = 'In Review',
     [int]    $Project = 8,
     [string] $Owner   = 'linq2db',
-    [switch] $NoMergeTree
+    [switch] $NoMergeTree,
+    [switch] $AllBaselines,
+    [string] $BaselinesClone
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,6 +120,86 @@ function Resolve-Unknown {
         $fresh = Get-Mergeable -Repo $Repo -Numbers ([long[]]$pending)
         foreach ($k in $fresh.Keys) { $Map[$k] = $fresh[$k] }
     }
+}
+
+function Get-MergeTreeConflicts {
+    param([string]$Repo, [string]$Ref)
+    # Exit 1 = conflicts. Output: tree oid, conflicted paths, blank line, messages.
+    $m = Invoke-Git -ArgumentList @('merge-tree', '--write-tree', '--name-only', 'origin/master', $Ref) -WorkingDirectory $Repo
+    $files = @()
+    if ($m.code -eq 1) {
+        $lines = $m.stdout -split "`r?`n"
+        for ($i = 1; $i -lt $lines.Count -and $lines[$i] -ne ''; $i++) { $files += $lines[$i] }
+    } elseif ($m.code -ne 0) {
+        $files = @("<merge-tree failed: $($m.error)>")
+    }
+    return ,$files
+}
+
+if ($AllBaselines) {
+    $bl = Invoke-GhJson -ArgumentList @('pr', 'list', '--repo', $baselinesRepo, '--state', 'open', '--limit', '500',
+        '--json', 'number,headRefName')
+    if (-not $bl.ok) { Exit-WithError "pr list on ${baselinesRepo} failed: $($bl.error)" }
+    $all = @($bl.data | Sort-Object number)
+
+    $blMergeable = Get-Mergeable -Repo $baselinesRepo -Numbers ([long[]]@($all | ForEach-Object { [long]$_.number }))
+    foreach ($b in $all) { if (-not $blMergeable.ContainsKey([long]$b.number)) { $blMergeable[[long]$b.number] = 'UNKNOWN' } }
+    Resolve-Unknown -Repo $baselinesRepo -Map $blMergeable
+
+    $sourceOf = @{}
+    foreach ($b in $all) {
+        if ($b.headRefName -match '^baselines/pr_(\d+)$') { $sourceOf[[long]$b.number] = [long]$Matches[1] }
+    }
+    $sourceState = @{}
+    if ($sourceOf.Count -gt 0) {
+        $owner, $name = $mainRepo.Split('/')
+        $fields = ($sourceOf.Values | Sort-Object -Unique | ForEach-Object { "p${_}:pullRequest(number:$_){number state}" }) -join ' '
+        $r = Invoke-GhJson -ArgumentList @('api', 'graphql', '-f', "query={ repository(owner:`"$owner`", name:`"$name`") { $fields } }")
+        if (-not $r.ok) { Exit-WithError "graphql state query on ${mainRepo} failed: $($r.error)" }
+        foreach ($p in $r.data.data.repository.PSObject.Properties) {
+            if ($p.Value) { $sourceState[[long]$p.Value.number] = [string]$p.Value.state }
+        }
+    }
+
+    $conflictFiles = @{}
+    $conflicting = @($all | Where-Object { $blMergeable[[long]$_.number] -eq 'CONFLICTING' })
+    if (-not $NoMergeTree -and $conflicting.Count -gt 0) {
+        $clone = Resolve-BaselinesClone -Path $BaselinesClone
+        if (-not (Test-Path -LiteralPath $clone)) { Exit-WithError "baselines clone not found: $clone" -NextAction 'pass -BaselinesClone, or -NoMergeTree' }
+        $refspecs = @('+refs/heads/master:refs/remotes/origin/master')
+        foreach ($b in $conflicting) { $refspecs += "+refs/heads/$($b.headRefName):refs/remotes/origin/$($b.headRefName)" }
+        $f = Invoke-Git -ArgumentList (@('fetch', 'origin') + $refspecs) -WorkingDirectory $clone
+        if (-not $f.ok) { Exit-WithError "git fetch in ${clone} failed: $($f.error)" }
+        foreach ($b in $conflicting) {
+            $conflictFiles[[long]$b.number] = Get-MergeTreeConflicts -Repo $clone -Ref "origin/$($b.headRefName)"
+        }
+    }
+
+    $prs = @()
+    foreach ($b in $all) {
+        $n   = [long]$b.number
+        $src = if ($sourceOf.ContainsKey($n)) { $sourceOf[$n] } else { $null }
+        $files = @()
+        if ($conflictFiles.ContainsKey($n)) { $files = @($conflictFiles[$n]) }
+        $prs += [ordered]@{
+            number        = $n
+            head          = [string]$b.headRefName
+            sourcePr      = $src
+            sourceState   = if ($null -ne $src -and $sourceState.ContainsKey($src)) { $sourceState[$src] } else { $null }
+            mergeable     = $blMergeable[$n]
+            conflictFiles = $files
+        }
+    }
+
+    Write-JsonOutput -InputObject ([ordered]@{
+        mode         = 'all-baselines'
+        count        = $prs.Count
+        conflicting  = @($prs | Where-Object { $_.mergeable -eq 'CONFLICTING' }).Count
+        unknown      = @($prs | Where-Object { $_.mergeable -eq 'UNKNOWN' }).Count
+        staleSources = @($prs | Where-Object { $_.sourceState -and $_.sourceState -ne 'OPEN' }).Count
+        prs          = $prs
+    })
+    return
 }
 
 # 1. Project items in the lane.
@@ -143,16 +247,7 @@ if (-not $NoMergeTree -and $conflicting.Count -gt 0) {
     if (-not $f.ok) { Exit-WithError "git fetch failed: $($f.error)" }
 
     foreach ($n in $conflicting) {
-        # Exit 1 = conflicts. Output: tree oid, conflicted paths, blank line, messages.
-        $m = Invoke-Git -ArgumentList @('merge-tree', '--write-tree', '--name-only', 'origin/master', "origin/pr/$n") -WorkingDirectory $PWD.Path
-        $files = @()
-        if ($m.code -eq 1) {
-            $lines = $m.stdout -split "`r?`n"
-            for ($i = 1; $i -lt $lines.Count -and $lines[$i] -ne ''; $i++) { $files += $lines[$i] }
-        } elseif ($m.code -ne 0) {
-            $files = @("<merge-tree failed: $($m.error)>")
-        }
-        $conflictFiles[$n] = $files
+        $conflictFiles[$n] = Get-MergeTreeConflicts -Repo $PWD.Path -Ref "origin/pr/$n"
     }
 }
 
