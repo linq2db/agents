@@ -22,6 +22,13 @@ letting through:
      against the sibling chains in the same test". `.cs` files with tab indentation only; a shallower
      continuation (after query syntax or a wrapped argument list) is not reported. Measured over
      `origin/master~300...origin/master`: 9 hits.
+  6. gates whose `ErrorMessage` is a rendered value (`{ Id = 1, …`, `[{ …`) not anchored as
+     `should be{0}<expected>{1}but` — on an assertion failure that pins the order or value the engine
+     happened to return, which another provider in the gate's set need not reproduce, and a gate with no
+     `ErrorTypeName` never names `Shouldly`, so checks 3 and 4 cannot see it — testing.md ->
+     *Gating an assertion failure*. (#6197 TO-80: pinned DuckDB's actual order; caught by the critic.)
+     AssertQuery's `<actual> <> <expected>` form carries the expected value and is not reported. Measured
+     over `origin/master~300...origin/master`: 0 hits; the #6197 gate is hit.
 
 Why this script exists
 ----------------------
@@ -54,7 +61,8 @@ on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
 narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}],
-typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}] }.
+typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
+unanchoredAssertionGates: [{file, line, errorMessage}] }.
 #>
 
 param(
@@ -103,6 +111,7 @@ $sets   = @()
 $gates  = @()
 $typeOnly    = @()
 $indents     = @()
+$unanchored  = @()
 $pendingGate = $null
 
 function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
@@ -213,6 +222,15 @@ foreach ($l in $diff) {
 			}
 		}
 
+		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'ErrorMessage\s*=\s*"(?<msg>(?:[^"\\]|\\.)*)"') {
+			$msg = $Matches['msg'] -replace '\\"', '"'
+
+			# `<actual> <> <expected>` is AssertQuery's message, which carries the expected value too
+			if ($msg -match '\{ \w+ = |\[\{' -and $msg -notmatch '(?s)should be\{0\}.*\{1\}but' -and $msg -notmatch ' <> ') {
+				$unanchored += [pscustomobject]@{ file = $file; line = $line; errorMessage = $msg }
+			}
+		}
+
 		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -notmatch 'ErrorMessage\s*=') {
 			$rec = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if ($text -match '\)\]') { $typeOnly += $rec } else { $pendingGate = $rec }
@@ -232,4 +250,5 @@ foreach ($l in $diff) {
 	shouldlySubjectGates = @($gates)
 	typeOnlyShouldlyGates = @($typeOnly)
 	continuationIndents  = @($indents)
+	unanchoredAssertionGates = @($unanchored)
 } | ConvertTo-Json -Depth 4
