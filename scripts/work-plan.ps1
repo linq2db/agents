@@ -993,9 +993,10 @@ function Invoke-GapReport {
     $unparsed = @()
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $t = $lines[$i].Trim()
-        # The label may hold one level of nested parentheses (`DisableBaseline(disable: false)`); a row the pattern
-        # still misses is reported, not dropped (#6061: two such rows vanished from the aggregate without a word).
-        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\((?:[^()]|\([^()]*\))*\))?\s*[-—]+\s*(.+)$') {
+        # The label may hold two levels of nested parentheses (`DisableBaseline(disable: false)`,
+        # `CAST(x AS NVarChar(Max))`, #6194); a row the pattern still misses is reported, not dropped (#6061: two such
+        # rows vanished from the aggregate without a word).
+        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))?\s*[-—]+\s*(.+)$') {
             if ($lines[$i] -match '^-\s+\*\*[A-Za-z0-9-]+\*\*') { $unparsed += $t }
             continue
         }
