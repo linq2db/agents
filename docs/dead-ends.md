@@ -375,3 +375,11 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** the placeholder is in the input query's coordinates — `SelectQuery` is the input sub-query, `Sql` the expression *inside* it (`t98.ChildID`) — while the DISTINCT column's expression is the input query's own `SqlColumn` wrapping it (`t101[67].ChildID := t98.ChildID`). `UpdateNesting` against the same context changes nothing. Every `SubQueryContext` between the input and the DISTINCT (`OrderBy`, `Take`, a second `Select`, `AsSubQuery`, hints) adds one more `SqlColumn` layer.
 
 **Don't re-attempt:** either reference comparison. Walk the outer column's `SqlColumn` chain to the layer whose `Parent == placeholder.SelectQuery`, then compare that layer's `Expression` to `placeholder.Sql` (`DistinctBuilder.SelectsPlaceholder`). (#6170, `979a9f2ae`)
+
+## SQL-PROVIDER: rounding a double on Access with a midpoint test against a literal
+
+**Tried:** porting `RoundAwayFromZeroByMagnitude` to Access for `Sql.Round(double)` / `Math.Round(double, AwayFromZero)`: first `IIF(m - Int(m) = 0.5, Int(m) + 1, Round(m, 0))`, then `Int(m) + IIF(m - Int(m) >= 0.5, 1, 0)`.
+
+**Failed because:** ACE (OLE DB and ODBC) compares a Double with the literal `0.5` imprecisely. A probe showed that `F = 0.49999999999999994` is stored exactly and that `F - Int(F)` comes back exact, yet `IIF(F < 0.5, 1, 0)` returns 0. `Round` was not the culprit: removing it changed nothing.
+
+**Don't re-attempt:** comparing a double with a fractional literal in Access SQL when the outcome must be exact. Use arithmetic: `Int(m) + Int((m - Int(m)) * 2)`, since the doubling is exact (`bdc4a2ff7`). The same caution applies to any other Access emulation that tests a double against `0.5`. (#6151)
