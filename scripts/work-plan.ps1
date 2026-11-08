@@ -457,6 +457,8 @@ function Invoke-Validate {
         # A mutation P8 names must have a recorded red in G-01: a named mutation nobody ran is a claim, not a
         # control (work-plan.md -> "A control obligation records the mutation").
         $mutationRx = '[Mm]utations?\s+(?:"([^"]+)"|`([^`]+)`(?:\s*(?:\u2192|->)\s*`([^`]+)`)?)'
+        $waiverBlock = Get-Block -Blocks $blocks -Id 'P10'
+        $waiverRows  = if ($null -ne $waiverBlock) { @($waiverBlock.lines) } else { @() }
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to   = $Matches[1]
@@ -465,7 +467,9 @@ function Invoke-Validate {
                 $name = if ($m.Groups[1].Success) { $m.Groups[1].Value }
                         elseif ($m.Groups[3].Success) { "$($m.Groups[2].Value)`` $([char]0x2192) ``$($m.Groups[3].Value)" }
                         else { $m.Groups[2].Value }
-                if ($seen.Add($name) -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
+                $waived = @($waiverRows | Where-Object { $_ -match $toRx -and $_.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
+                if ($seen.Add($name) -and -not $waived -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
                     $msg = "P9 : G-01 records no run of $to's mutation '$name' -- name the red it produced, or drop the claim"
                     if ($Done) { $errors += $msg } else { $warnings += $msg }
                 }
@@ -497,7 +501,7 @@ function Invoke-Validate {
 
         # An analyzer edit-point owes a per-branch fixture census with a denominator (work-plan.md). #6151: two
         # MemberMapShadowAnalyzer branches had no fixture while G-01 listed fixture names only.
-        $analyzerRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match 'Source/CodeGenerators/' } })
+        $analyzerRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match 'Source/CodeGenerators/\S*\.cs\b' } })
         if ($analyzerRows.Count -gt 0 -and $g01 -notmatch '(?i)\b\d+\s+branch(es)?\b[^\n]*\b\d+\s+uncovered\b') {
             $msg = "P9 : P6 edits an analyzer under Source/CodeGenerators/ but G-01 records no 'N branches, M uncovered' census -- map each analyzer branch to a fixture"
             if ($Done) { $errors += $msg } else { $warnings += $msg }
