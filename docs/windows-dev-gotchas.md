@@ -448,6 +448,8 @@ Quote any path that may contain spaces. Bit PR #5539 rounds 2 + 4 (Copilot caugh
 
 Writing `docs/Foo.md` when `docs/foo.md` exists does not create a second file: NTFS opens the existing one, so the write lands in the original and git may then report a case-only rename. The dangerous follow-up is cleanup — an agent that believes it created a stray duplicate and deletes it deletes the original. Before deleting a path you think you just created, check `git ls-files -- <dir>` (or `Glob`) for a case variant, and take paths from `git ls-files` rather than retyping them. (Reported in an external write-up on running Claude Code natively on Windows, 2026; not yet hit in this repo.)
 
+`docs.yml` builds on `windows-2025`, so a link that differs from its target only by case passes CI and then fails on a case-sensitive file system. Files under `docs/source/` are lowercase; keep new ones lowercase.
+
 ## IBM.Data.Db2 on Windows with the UTF-8 code page needs `DB2CODEPAGE=1208`
 
 With "Use Unicode UTF-8 for worldwide language support" enabled (`ACP`/`OEMCP` = 65001 under `HKLM\SYSTEM\CurrentControlSet\Control\Nls\CodePage`), IBM's native client cannot derive its codepage and fails before any network activity. Set `DB2CODEPAGE=1208` in the environment of every process using `IBM.Data.Db2` — the test host (`DB2`, `Informix.DB2`), `linq2db.cli`, the LINQPad driver. `IBM.Data.Informix` (CN `Informix`, port 9088) is unaffected; CN `Informix.DB2` (port 9189) is not — don't conflate them.
