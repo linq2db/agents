@@ -277,6 +277,8 @@ Measure the criterion against a census of the real sites before implementing: li
 
 (#6145 review round 2: five of six analyzer findings sat in the properties above — a nested read in an `out` assignment, a static lambda offered outer variables, every `var` local suggested the nullable form, the suggested `Prop ?? read` reported itself, and a constructor handed the source's schema stayed silent — four of them in branches round 1's fix had just added.)
 
+**A reader's silent `return` reads as "no diagnostics", so build the real tree in Release whenever a reader or drift arm changes.** The miniature fixture model has only the shapes its author wrote, so it needs every overload the real code binds to. Then make each exit that drops an input report, or say why it cannot. (#5922: a parameterless pattern binds to `Expression<Action>`, whose lambda body ends in an implicit return. `ResolveMember` required a single operation, so 150 real registrations were silently never collected and `LINQ2DB0007` could not see them. Every fixture was green; the bug surfaced only when a new "pattern names no member" check reported all 150 on the Release build.)
+
 ## Registration
 
 Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).

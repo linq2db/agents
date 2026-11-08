@@ -483,11 +483,14 @@ function Invoke-Validate {
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to = $Matches[1]
+            if ($row -match '(?i)proof:\s*characterization' -and $row -match '(?i)\bseparates:') {
+                $warnings += "P8 : $to is proof: characterization but keeps a separates: clause -- a characterization separates nothing; find an input that does, or drop the clause"
+            }
             if ($row -notmatch '(?i)proof:\s*control') { continue }
             $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
             $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
             if ($joined.Length -gt 0 -and ($joined -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
-                $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red, or relabel the proof"
+                $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
         }
