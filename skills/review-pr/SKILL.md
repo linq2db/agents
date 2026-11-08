@@ -572,6 +572,8 @@ Append the suggestion fence only when `suggestion` is set. GitHub requires the f
 
 7. **In a prose suggestion (a doc or a comment), a "because…" clause is a claim — verify it against the code it names.** Check the conditions under which the stated reason holds: a constraint true for one provider-flag value is often written as universal. Treat a clause lifted from a nearby code comment as unverified, because the comment can carry the same over-generalisation, and when it is wrong, the fix belongs in both places. (#6157 MIN003: the suggested flag doc said *"because UPDATE correction cannot reach a target nested in a derived table"*, copied from the comment at `SelectQueryOptimizerVisitor.cs:2625`. Both overstated it: `BasicCorrectUpdate` fails only without UPDATE FROM (`BasicSqlOptimizer.cs:327-347`). Critic round 7 caught it after the fix was pushed.)
 
+8. **Two findings anchored on the same line can carry only one suggestion.** Each block replaces the whole line, so applying one invalidates the other. Fold the lesser finding's change into the greater one's block, say so in its `Fix`, and drop the lesser finding. Multi-pass runs produce this, because each pass audits only its own findings. (#6133: a wording `SUG` and an alignment `NIT` from two passes both replaced `ErrorHelper.cs:30`.)
+
 Do not post a line-level finding with a replaceable fix but no suggestion block.
 
 **Baselines section rendering.** Use the subagent's structured output to compose the `## Baselines` section with these rules:
