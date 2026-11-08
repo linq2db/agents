@@ -8,6 +8,10 @@ Git Bash (MSYS / MINGW) on Windows rewrites and fails on a handful of `git` / `g
 
 When an agent hands the user a command to run themselves with the `!` prefix, it runs through Git Bash, which treats an unquoted backslash as an escape: `! git -C C:\Worktrees\linq2db\x push …` reaches git as `C:Worktreeslinq2dbx` and dies with `fatal: cannot change to …`. Spell every Windows path in a `!` suggestion with forward slashes (`C:/Worktrees/linq2db/x`). It works from Bash and PowerShell alike, so there is no reason to emit the backslash form. (Surfaced on #5991, where the handed-over push failed once before the forward-slash form went through.)
 
+## A `gh api` body handed to the user: use `-F` fields, not piped JSON
+
+`'{…}' | gh api -X PUT <endpoint> --input -` run from the user's PowerShell came back `Problems parsing JSON (HTTP 400)` on valid JSON; the cause was not isolated. `-F` takes the pipe out of it, including for nested objects and booleans: `gh api -X PUT <endpoint> -F "parent[flag]=true"`. Handing over anything byte-sensitive through a pipe has the same exposure, so prefer `cmd /c "tool < file"` for a key or a secret. (Surfaced on #6265, creating the `docs` environment.)
+
 ## `gh api` endpoints must not start with `/`
 
 MSYS path-mangles a leading slash into `C:/Program Files/Git/...` and `gh` rejects it. Always write `gh api user`, `gh api repos/linq2db/linq2db/pulls/<n>/reviews` — never `gh api /user` or `gh api /repos/...`. GraphQL calls (`gh api graphql`) are unaffected.
@@ -499,6 +503,8 @@ Don't try to outwait a transient disk-space failure or ignore it as "the build m
 **Before treating repeated kills as a futile loop, read the build log — MSBuild is incremental, so they may be *converging*.** A kill leaves every project it already finished built and cached, so successive attempts get further. The tell is a build log whose tail advances between attempts. In the #5833 case the log reached 17 of 18 projects and died only on the last one every time, which is what identified `Tests/Linq`'s own compilation as the memory hog and pointed at the fix above. A retry loop that never advances is a different problem; one that advances is worth continuing.
 
 **`error MSB4025: The project file could not be loaded. An XML comment cannot contain '--'`** when a `.csproj` / `.fsproj` / `.props` / `.slnx` comment quotes a CLI double-dash option (`--nrt`, `--target-language`). A literal `--` is illegal *inside* an XML `<!-- … -->` comment, so the project file fails to load before any build starts. Reword the comment to drop the dashes (`nrt=true`, `target-language f#`). (Surfaced on #1553 three times writing baseline-gate `.fsproj` comments that referenced the scaffold CLI flags — each `--nrt` / `--target-language` in a comment aborted the load.)
+
+**A docfx build-only pass is not reliably "minutes" on a loaded box, and can die with `InvalidPreprocessorException: Error running GetOptions function inside template preprocessor: The operation has timed out`.** At `BelowNormal` alongside other builds one mutation-plus-restore pair of passes outran the 10-minute foreground limit, and the second pass hit that timeout with exit `-1`, leaving the previous pass's `_site` in place. Run it in the background and read the exit code before reading the site; a rerun cleared it, and it says nothing about the content. (Surfaced on #6265.)
 
 ## TFM API availability (net462 / netstandard2.0)
 

@@ -47,7 +47,7 @@ Settings precedence: project-local `.claude/settings.local.json` > user-level `~
 
 **Hooks** (`.githooks/` in linq2db, enabled per clone with `git config core.hooksPath .githooks`)
 
-- `post-checkout` / `post-merge` / `post-rewrite` → `_refresh-corpus.sh`: fast-forwards `.claude/` to the corpus tip after a branch switch, pull, or rebase. It skips when `.claude/` has uncommitted tracked changes (never clobbers in-flight corpus work) and always exits 0 — a `post-checkout` failure would become the `git checkout`'s exit status.
+- `post-checkout` / `post-merge` / `post-rewrite` → `_refresh-corpus.sh`: fast-forwards `.claude/` to the corpus tip after a branch switch, pull, or rebase. It skips when `.claude/` has uncommitted tracked changes (never clobbers in-flight corpus work) and always exits 0 — a `post-checkout` failure would become the `git checkout`'s exit status. **So one uncommitted corpus edit, from anyone, stops a clone's `.claude/` advancing, with no message.** Before trusting a plan on resume, run `git -C .claude fetch` and check `status -sb`; fast-forward with `merge --ff-only` when behind. (#6265: a plan read and edited 7 commits behind `master`, missing an amendment and two test obligations.)
 - `pre-commit`: refuses a staged `.claude` gitlink bump and refuses staged edits to the root `AGENTS.md` / `CLAUDE.md` trampolines. Both are deliberate-action gates, overridable with `git commit --no-verify`.
 
 **Editing the corpus.** Edit files under `.claude/`, then commit **inside** the submodule and push to `agents/master` (`git -C .claude add <pathspec>` / `commit` / `push`). Nothing lands on a linq2db branch and the gitlink stays put. Per-worktree bootstrap: [`worktree.md`](worktree.md) → *Bootstrapping `.claude/` in a worktree*.
