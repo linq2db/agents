@@ -60,7 +60,8 @@ Contract
 on #5640 those were 35 of 148 hits and none was a layout defect.
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
-narrowedSets: [{file, line, attribute, lineAbove}], shouldlySubjectGates: [{file, line, errorMessage}],
+narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
+lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
 unanchoredAssertionGates: [{file, line, errorMessage}] }.
 #>
@@ -203,11 +204,13 @@ foreach ($l in $diff) {
 			$isNarrowed = $Matches[1] -eq 'IncludeDataSources' -or ($Matches['args'] -match '\S' -and $Matches['args'] -notmatch '^\s*(true|false)\s*$')
 
 			if ($isNarrowed) {
+				$above = Get-LineAbove
 				$sets += [pscustomobject]@{
 					file      = $file
 					line      = $line
 					attribute = $Matches[0]
-					lineAbove = Get-LineAbove
+					lineAbove = $above
+					hasReason = [bool]($above -and $above -match '^\s*//')
 				}
 			}
 		}
@@ -247,6 +250,7 @@ foreach ($l in $diff) {
 	chains               = @($chains)
 	nestedChains         = @($nested)
 	narrowedSets         = @($sets)
+	narrowedWithoutReason = @($sets | Where-Object { -not $_.hasReason })
 	shouldlySubjectGates = @($gates)
 	typeOnlyShouldlyGates = @($typeOnly)
 	continuationIndents  = @($indents)

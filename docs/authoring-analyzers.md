@@ -264,12 +264,13 @@ Measure the criterion against a census of the real sites before implementing: li
 
 - a capture: field / auto-property / `out` parameter / any assignment target — and a carrier is any symbol **definitely assigned at the read**, so the statement holding the read makes nothing a source, whatever the target kind and however deep the read sits in it;
 - a getter: `=> x` / `get => x;` / `get { return x; }`;
-- a receiver: chain head / mid-chain / after `?.` or `!`;
+- a write to a local: simple and compound assignment / tuple deconstruction target, nested included (a tuple in value position is not one) / `ref`, `out`, `in` argument / `ref` alias;
+- a receiver: chain head / mid-chain / after `?.` or `!` / a primary-constructor parameter, which a member lookup does not find;
 - a carrier: in scope / definitely assigned (pattern and `out` variables are scoped to the block but assigned only on one path) / **capturable** (a `static` lambda or local function sees no outer variable);
 - a carrier's nullability: from **flow state**, not the declared annotation — a `var` local is always annotated;
 - a source: every type the carrier clause names, in every clause that uses it;
 - an anchor: the types the rule resolves, **and** the member names its triggers match by string — a renamed member switches a trigger off silently;
-- a suggestion: every form the diagnostic tells the author to write goes into a fixture and must be silent (fixpoint);
+- a suggestion: every form the diagnostic tells the author to write goes into a fixture and must be silent (fixpoint), crossed with each carrier rank and with the constructor-assignment position (#6145 round 4: a nullable schema outranking a definite source reported its own suggestion, and `_s = hint ?? read` in a constructor stopped being a definition site);
 - triggers **compose**: a branch that judges one trigger (a definition site) does not end the search for another (a carrier among the constructor's parameters).
 
 (#6145 review round 1: six of nine analyzer findings were a clause stated in one spelling — the field capture but not the auto-property, `=>` but not an accessor body, the chain head but not mid-chain, `IBuildContext` but not `ContextRefExpression`, in scope but not definitely assigned, type anchors but not member names. The census was exact, and every one of them still got through.)
