@@ -383,3 +383,21 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** ACE (OLE DB and ODBC) compares a Double with the literal `0.5` imprecisely. A probe showed that `F = 0.49999999999999994` is stored exactly and that `F - Int(F)` comes back exact, yet `IIF(F < 0.5, 1, 0)` returns 0. `Round` was not the culprit: removing it changed nothing.
 
 **Don't re-attempt:** comparing a double with a fractional literal in Access SQL when the outcome must be exact. Use arithmetic: `Int(m) + Int((m - Int(m)) * 2)`, since the doubling is exact (`bdc4a2ff7`). The same caution applies to any other Access emulation that tests a double against `0.5`. (#6151)
+
+## SQL-PROVIDER: separating PostgreSQL's numeric and double rounding routes with residue values
+
+**Tried:** a control for `Math.Round(double, p, AwayFromZero)` that should go red if the `Sql.Round(double, p)` decimal cast (`RoundThroughDecimal`) leaked onto the `Math.Round` path. Residue doubles {1.15 @1, 2.675 @2, 1.005 @2} were run with the leak mutated in.
+
+**Failed because:** two reasons, both measured.
+- The mutant stays green. PostgreSQL's away-from-zero formula is `FLOOR(v * POWER(10, p) + 0.5) / POWER(10, p)`, and `POWER(10, int)` resolves to `power(double precision, double precision)`. So `v::decimal * POWER(10, p)` is a double again, and the cast changes no value.
+- .NET's `Math.Round(double, digits, mode)` scales by `10^digits` before rounding. 1.15 and 2.675 become exact ties (1.2, 2.68), which is what a decimal route gives too.
+
+**Don't re-attempt:** separating the routes through that formula. The cast is observable only in a native `ROUND(numeric, p)` arm (PostgreSQL's to-even path). Compute any `separates:` row's two answers with `dotnet fsi` and a SQL probe before writing it. (#6151)
+
+## EXPR-TRANS: asserting the SQL of a constant member call inside a predicate
+
+**Tried:** `Where(p => p.ID == 1 && Sql.Truncate(2.7m) == 2m)` plus a `ToSqlQuery().Sql` assertion, as a control for `TranslateTruncateMethod`'s client-evaluation guard.
+
+**Failed because:** the comparison is constant as a whole, so it is folded on the client before any member translator runs. With the guard removed, the SQL was still `WHERE [p].[PersonID] = 1` (SQLite.MS, measured).
+
+**Don't re-attempt:** a constant-only comparison as a translator control. Put a column on one side of the comparison, or assert in a projection. (#6151)

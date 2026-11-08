@@ -471,6 +471,37 @@ function Invoke-Validate {
                 }
             }
         }
+
+        # A `proof: control` obligation needs its red on record even when P8 names the mutation in prose, which the
+        # check above cannot see, and a G-01 row that itself says the run is missing is not a pass. #6151: TO-9 read
+        # "pass; the mutation run is not recorded", and its mutant was later measured green.
+        $g01Lines = @($g01 -split "`r?`n")
+        foreach ($row in (Get-BlockRows -Block $p8)) {
+            if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
+            $to = $Matches[1]
+            if ($row -notmatch '(?i)proof:\s*control') { continue }
+            $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
+            $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
+            if ($joined.Length -gt 0 -and ($joined -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+                $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red, or relabel the proof"
+                if ($Done) { $errors += $msg } else { $warnings += $msg }
+            }
+        }
+
+        # A sweep hit on branch test code is a branch finding (definition-of-done.md), not a deferral. #6151: G-01
+        # recorded a one-line chain as "review item" and passed; review then raised it.
+        if (@($g01Lines | Where-Object { $_ -match 'test-diff-sweep' -and $_ -match '(?i)review item' }).Count -gt 0) {
+            $msg = "P9 : G-01's test-diff-sweep line leaves a hit as 'review item' -- fix it on the branch, or record why it is not a layout hit"
+            if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
+
+        # An analyzer edit-point owes a per-branch fixture census with a denominator (work-plan.md). #6151: two
+        # MemberMapShadowAnalyzer branches had no fixture while G-01 listed fixture names only.
+        $analyzerRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match 'Source/CodeGenerators/' } })
+        if ($analyzerRows.Count -gt 0 -and $g01 -notmatch '(?i)\b\d+\s+branch(es)?\b[^\n]*\b\d+\s+uncovered\b') {
+            $msg = "P9 : P6 edits an analyzer under Source/CodeGenerators/ but G-01 records no 'N branches, M uncovered' census -- map each analyzer branch to a fixture"
+            if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # On a planned branch that edited Tests/, G-01 records test-diff-sweep.ps1's counts on the implemented tree
