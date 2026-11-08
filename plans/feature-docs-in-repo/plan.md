@@ -278,6 +278,7 @@ Docs live in a separate repo, `linq2db/docs` (local clone `../linq2db.docs`), th
 - Environment setup (user action, setup walkthrough): `docs` environment rule type *Selected branches and tags* with a **tag** pattern `v*` and no required reviewer — "Protected branches only" or a *branch* pattern would refuse the release-event deploy (`github.ref` = `refs/tags/v…`), a required reviewer would park it. TO-10's refusal arm checks the restriction.
 - TO-3's mutation "remove properties from the Identity entry" and TO-16's mutation "drop the linq2db entry's properties" were not run (user decision 2026-11-08, /review-pr gate): each costs a 30–60 min docs build, and the production comparison already separates the arms — production is built at net462, and the new site carries net10.0-only pages (`UserOnlyStore-7`, `TransientRetryPolicy`) absent from it.
 - Known limits, measurable only after merge (user decision 2026-11-08, /review-pr gate): `workflow_dispatch` from a tag under the `v*` environment rule (U-9/U-10), the branch-protection state, and whether `build` runs after a failed `changes` job (TO-18's live arm).
+- `-WarningsAsErrors` also gates the deploying runs (`docs.yml` Build site step; user decision 2026-11-08, /review-pr round 2 of `ab6db65cc`): a warning first appearing at publish time blocks that release's site, and because a dispatch reads the workflow and script from the tag's tree, the way out is a new tag or a manual push. Kept deliberately: a release does not publish a site with warnings.
 
 ## P11 Amendments (M/L)
 
