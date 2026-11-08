@@ -96,7 +96,7 @@ Wait for an explicit `y`. No other guards (no draft-PR guard, no size guard).
 
 **A stacked PR is reviewed against its own delta, not against `master`.** When the base is another open PR's branch, everything keyed on `origin/master` — the context's `nameStatus`, the diff cache, the test-layout sweep, the baselines scan — also carries the parent's changes. Scope each one down:
 
-- **Own-delta base:** `git merge-base origin/pr/<parent> origin/pr/<n>`, the last parent commit the child merged. Write `git diff <base> origin/pr/<n>` to `<writeDir>/_own-delta.diff` and brief every pass that this diff is the scope. `diff-reader.ps1` diffs against `origin/master`, so its cached diffs hold parent hunks too.
+- **Own-delta base:** `git merge-base origin/pr/<parent> origin/pr/<n>`, the last parent commit the child merged. Build the cache with `pr-context.ps1 -From <context> -DiffPrep -OwnDeltaBase <base>`, which scopes the changed paths and the rubric list to the delta and makes the cached diffs and `_base/` bodies relative to `<base>`, so they hold no parent hunks. Without it, `diff-reader.ps1` diffs against `origin/master`. Write `git diff <base> origin/pr/<n>` to `<writeDir>/_own-delta.diff` and brief every pass that this diff is the scope.
 - **Sweep:** `test-diff-sweep.ps1 -Base <base>`.
 - **Baselines:** `baselines-pr-scan.ps1 -Pr <n> -ParentPr <parent>`. Read `parentInherited.own`, not `counts`.
 - **What the child lacks:** `git log --oneline origin/pr/<n>..origin/pr/<parent>`. A parent commit that changes code the child edits or relies on is a merge-forward lead. Check it with `git merge-tree --write-tree origin/pr/<parent> origin/pr/<n>`.
