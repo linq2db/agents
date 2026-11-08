@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## BUILD: choosing the documented target framework for docfx metadata through `docfx.json`
+
+**Tried:** (1) `metadata[].properties.TargetFramework` alone; (2) a `DocfxTargetFramework` rule in `Directory.Build.targets`; (3) the same rule via `BeforeTargetFrameworkInferenceTargets`; (4) via `BeforeMicrosoftNETSdkTargets`; (5) `TreatAsLocalProperty="TargetFramework"` alone on the netstandard2.0 analyzer projects.
+
+**Failed because:** (1) docfx passes `properties` as global MSBuild properties, which reach every referenced project, so LinqToDB's netstandard2.0 analyzer references logged "Found project reference without a matching metadata reference" (dotnet/docfx#10772); (2) `Directory.Build.targets` is imported after the SDK has split the project into per-framework builds (`IsCrossTargetingBuild=true`, empty TFI); (3) that hook is imported only in the inner build — no effect; (4) it picks the framework, but after `Directory.Build.props` has computed the `SUPPORTS_*` constants from an empty `$(TargetFramework)` (LinqToDB: `TRACE;RELEASE` instead of ten constants), and the custom global flows into `GetTargetFrameworks` negotiation, so LinqToDB answers net10.0-only to its net462 / net8.0 referrers; (5) the framework is right, but Roslyn's workspace matches a loaded reference by output path, and `ArtifactsPivots` (root `Directory.Build.props`) had already pivoted it on the global framework.
+
+**Don't re-attempt:** use a global `TargetFramework` only on entries whose project targets it, plus, on every project in their reference closure that lacks that framework, both `TreatAsLocalProperty="TargetFramework"` and an `ArtifactsPivots=$(Configuration)` pin (`Source/Analyzers.Common.props`). (#6265)
+
 ## BUILD: checking out `linq2db.baselines` to rebase or resolve a baselines PR
 
 **Tried:** `git worktree add --detach <dir> origin/baselines/pr_6198` in the baselines clone, to run `git rebase origin/master` on a `CONFLICTING` baselines PR.
