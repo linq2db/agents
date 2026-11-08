@@ -201,14 +201,17 @@ foreach ($l in $diff) {
 		}
 
 		if ($text -match '\[(IncludeDataSources|DataSources)\s*\((?<args>[^\]]*)\)') {
-			$isNarrowed = $Matches[1] -eq 'IncludeDataSources' -or ($Matches['args'] -match '\S' -and $Matches['args'] -notmatch '^\s*(true|false)\s*$')
+			# every -match below overwrites $Matches
+			$attribute  = $Matches[0]
+			$attrArgs   = $Matches['args']
+			$isNarrowed = $Matches[1] -eq 'IncludeDataSources' -or ($attrArgs -match '\S' -and $attrArgs -notmatch '^\s*(true|false)\s*$')
 
 			if ($isNarrowed) {
 				$above = Get-LineAbove
 				$sets += [pscustomobject]@{
 					file      = $file
 					line      = $line
-					attribute = $Matches[0]
+					attribute = $attribute
 					lineAbove = $above
 					hasReason = [bool]($above -and $above -match '^\s*//')
 				}
