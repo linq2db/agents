@@ -75,6 +75,10 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - E-4 `Tests/Linq/Linq/EnumMappingTests.cs:ProjectedEnumCast*` — regression and guard tests on the shared `Person` / `Gender` model.
 - E-5 `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:ConvertEnumConversion` — constant arm declines an enum constant whose default mapping is the operand's enum.
 - E-6 `Tests/Linq/Linq/EnumMappingTests.cs:DirectEnumCast*` — tests for the cast written directly in the predicate.
+- E-7 `Source/LinqToDB/Internal/SqlQuery/QueryHelper.Evaluate.cs:TryEvaluateExpressionInternal` — on an enum / non-enum `ExprExpr`, retry with provider values and fold only when both have the same type.
+- E-8 `Source/LinqToDB/Internal/Linq/Builder/ParametersContext.cs:no-descriptor conversion` — an enum whose default mapping is another enum converts to it and takes its database type.
+- E-9 `Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:ProcessComparisonWithCase` — compare CASE literals against an enum's provider value (`TryEvaluateAsProviderValue`).
+- E-10 `Tests/Linq/Linq/EnumMappingTests.cs:DirectEnumCastOverConstant*` — constant-only conditional and CASE tests.
 
 ## P7 Impact map
 
@@ -88,6 +92,9 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - `GenerateConvertFromObject` — searched the symbol under `Source/LinqToDB`, single caller `ParametersContext.cs:268` — covered by E-3
 - `ColumnDescriptor.ApplyConversions` callers — searched `\.ApplyConversions\(` under `Source/LinqToDB`; method unchanged, E-2 alters only its input in `ParametersContext` — covered by E-2
 - Remote: `.LinqService` contexts run every TO — covered by E-4
+- `TryEvaluateExpressionInternal` `ExprExpr` — every folded comparison with exactly one enum operand; remote already saw provider values there, and #6061 compares direct with remote on every run — covered by E-7, cross-provider drift left to CI baselines
+- `SetDefaultFromEnumType` with an enum target — searched `Tests/`, `ApiGender` is the only registration; `string` targets do not enter E-8 — covered by E-8
+- `TryEvaluateNoParameters` callers — searched under `Source/LinqToDB`; only `ProcessComparisonWithCase` compares against CASE literals, the other callers are unchanged — covered by E-9
 - `ConvertEnumConversion` Constant arm, single caller `ExpressionBuildVisitor.cs:4800` — searched the symbol under `Source/LinqToDB` and the corpus for cross-enum casts compared to constants, none outside TO-19/TO-20 — covered by E-5
 - `RestoreCompare` (needs an integer constant), `ReadsAsTheReaderReads` (excludes enums) — searched the consumers keyed on the raw `Convert` shape, unaffected — out-of-scope
 - `ConvertInPredicate` NewArrayInit route, an inline `new[] { ApiGender.Female }.Contains(...)` — critic's census, measured by TO-26 — covered by E-1
@@ -120,6 +127,13 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - TO-24 `DirectCastToEnumWithOwnMapValuesEqualConstant`: unregistered enum with its own `MapValue`s keeps the bare column compare; discriminating input is a `CAST` around the column under a guard keyed on type inequality — providers: `[DataSources]`, measured SQLite.MS — proof: control
 - TO-25 `DirectEnumCastConstantOnLeft`: constant on the left of the cast — providers: `[DataSources]`, measured SQLite.MS — proof: red→green
 - TO-26 `ProjectedEnumCastContainsInlineArray`: inline array route of `Contains` — providers: `[DataSources]`, measured SQLite.MS — proof: red→green
+- TO-27 `DirectEnumCastOverConditionalEqualParameter`: direct SQL matches remote; discriminating input is an inlined enum parameter beside a mapped literal — providers: `[DataSources]`, measured ClickHouse.Driver, ClickHouse.MySql, ClickHouse.Octonica, SQLite.MS — proof: red→green
+- TO-28 `DirectEnumCastOverConstantConditionalEqualParameter`: no column in the operand; parameter must reach the driver as `'F'` — providers: `[DataSources]`, measured the same four — proof: red→green
+- TO-29 `DirectEnumCastOverConstantCaseEqualParameter`: multi-branch CASE, same parameter — providers: `[DataSources]`, measured the same four — proof: red→green
+- TO-30 `DirectEnumCastOverConstantConditionalEqualNullableParameter`: `ApiGender?`, lookup must unwrap Nullable — providers: `[DataSources]`, measured the same four — proof: red→green
+- TO-31 `DirectEnumCastOverConstantConditionalEqualConstant`: constant, red on ClickHouse only — providers: `[DataSources]`, measured the same four — proof: red→green
+- TO-32 `DirectEnumCastOverConstantConditionalUsesEnumConverter`: a swapped `SetConverter<ApiGender, DataParameter>` must win over the registered enum's mapping — providers: `[DataSources]`, measured the same four — proof: red→green
+- TO-33 `DirectEnumCastOverConstantConditionalContains`: list parameter through the no-column branch — providers: `[DataSources]`, measured SQLite.MS, ClickHouse.* — proof: characterization
 
 ## P9 Verification gates
 
@@ -152,8 +166,16 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
   - TO-26 `ProjectedEnumCastContainsInlineArray` — red on master, green with fix
   - After the guard was scoped: SQLite.MS over the suites above 563 passed, 5 skipped, 0 failed; PostgreSQL.18 and net462 left to `test-all`.
   - After A-1: SQLite.MS over the suites above 557 passed, 5 skipped, 0 failed; new tests on Access.Ace.OleDb 46 of 46 and Firebird.2.5 46 of 46. PostgreSQL.18 and net462 were not rerun after A-1; `test-all` covers them. `test-diff-sweep.ps1 -IncludeWorkingTree` after A-1: chains 0, nestedChains 0, narrowedSets 0, narrowedWithoutReason 0.
+  - TO-27 `DirectEnumCastOverConditionalEqualParameter` — baseline mismatch on the 3 ClickHouse `.LinqService` configs before E-7, green after
+  - TO-28 `DirectEnumCastOverConstantConditionalEqualParameter` — 0 rows on SQLite.MS and ClickHouse before E-8 and E-9, green after
+  - TO-29 `DirectEnumCastOverConstantCaseEqualParameter` — 0 rows on SQLite.MS, ClickHouse server error before E-8; baseline mismatch before E-9; green after
+  - TO-30 `DirectEnumCastOverConstantConditionalEqualNullableParameter` — 0 rows, parameter sent as ordinal, until E-8 unwrapped Nullable; green after
+  - TO-31 `DirectEnumCastOverConstantConditionalEqualConstant` — 0 rows on ClickHouse before E-9, green after; SQLite.MS green throughout
+  - TO-32 `DirectEnumCastOverConstantConditionalUsesEnumConverter` — rows `[1, 2]` before E-8 was narrowed, `[3, 4]` after, on SQLite.MS and ClickHouse.Driver, direct and remote
+  - TO-33 `DirectEnumCastOverConstantConditionalContains` — green with E-8; not measured without it
+  - After A-2: net10.0 Debug, direct and remote, 264 of 264 on 3 ClickHouse configs and SQLite.MS for `DirectEnumCast*` + `ProjectedEnumCast*`; SQLite.MS over the suites above 560 passed, 11 skipped, 0 failed, before E-8 was narrowed. Other providers and net462: `test-all` on the A-2 push.
 - G-02: skipped — no local baselines captured for this worktree, so emitted-SQL drift across providers is unverified locally and left to the CI baselines run; OrderBy and GroupBy SQL compared by hand on SQLite.MS only.
-- G-05: pass — `dotnet build` Release of `Source/LinqToDB` for net10.0, netstandard2.0, net462 exit 0; `Tests/Linq` Release net10.0 exit 0 and net462 built by the run above. After A-1: `Source/LinqToDB` and `Tests/Linq` Release net10.0 exit 0.
+- G-05: pass — `dotnet build` Release of `Source/LinqToDB` for net10.0, netstandard2.0, net462 exit 0; `Tests/Linq` Release net10.0 exit 0 and net462 built by the run above. After A-1: `Source/LinqToDB` and `Tests/Linq` Release net10.0 exit 0. After A-2: `Source/LinqToDB` Release net10.0, netstandard2.0, net462 and `Tests/Linq` Release net10.0, 0 warnings, 0 errors.
 - G-06: pass — `git diff --stat` touches only the E-n files.
 - G-07: pass — no `Tests/Tests.Playground/` changes in `git status`.
 - G-09: pass — review round 1 over 466207b6a by the code-reviewer agent: 4 findings, all fixed under A-1, ledger in `gaps.md`.
@@ -165,12 +187,21 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - The `ForKeys` gate is wider than comparison operands: `Contains`, `Join` and `DistinctBy` over the cast also start working. Each was red on master; `OrderBy` and `GroupBy` SQL is unchanged. Corrected by A-1: this is not automatically error-removal, because an enum constant in the same predicate returned wrong rows until E-5.
 - An API enum that carries its own `MapValue`s resolves its default mapping to the value type (`ConvertBuilder.cs:688`), so E-1 does not apply. Reason: the reporter's enum has none (P1), and such an enum has its own stored values, so a bare column compare would be wrong. Corrected by critic round 2 and measured: on master the `==` constant form of this shape already works with a bare column compare (`[Gender] = 'F'`), and TO-24 pins that.
 
+- `ProcessComparisonWithCase`'s `SqlConditionExpression` arm still folds to FALSE when a provider value stays an enum (`DataType.Enum`) beside columnless string literals on an inlining provider. Unchanged from master and not measured; recorded rather than guarded.
+- A parameter in the ELSE of a multi-branch CASE is evaluated with its client value, so an enum there loses the fold. A missed optimisation only.
+- `IsDistinctPredicate` evaluation compares client values with no enum guard, reachable through `Sql.IsDistinctFrom` with an inlined enum parameter. Same class as A-2, unchanged from master, not measured.
+- A user `ApiGender → Gender` converter is not consulted by E-8, as it is not by D-2's arm (`GenerateSafeConvert`).
+
 ## P11 Amendments
 
 - A-1 (2026-11-09, review round 1) — E-1 made `(ApiEnum)column == ApiEnum.X` build, and `ConvertEnumConversion` then matched the constant against the column enum's map values, found none and compared against the enum's name: measured on SQLite.MS, 0 rows instead of 1 for `==` and 4 instead of 3 for `!=`, where the base commit throws. E-5 declines such a constant so the regular compare converts it. Revised after critic round 2 and a measurement: keyed on type inequality the guard added a `CAST` to `(DtoGender)p.Gender == DtoGender.Female` for an unregistered enum with its own `MapValue`s, so it is now keyed on the constant's default mapping being the operand's enum (TO-24); that revision follows the critic's prescription and had no further critic round. Also from that review: TO-16 gained the `DistinctBy` provider gate from its sibling, and TO-13/TO-14 were measured on Access.Ace.OleDb and Firebird.2.5 and need no exclusion.
   re-derives: P6 (E-5, E-6), P7 (ConvertEnumConversion rows), P8 (TO-16, TO-19, TO-20, TO-21, TO-22, TO-23), P10 (ForKeys entry, MapValue entry)
   class: a consumer keyed on the raw `Convert` shape that runs only once E-1 lets the operand build.
   conventions: testing.md Test layout and A narrowed provider set is a claim; swept with test-diff-sweep.ps1 -IncludeWorkingTree over the added tests.
+- A-2 (2026-11-09, user-approved on #6277) — `tests [all]` run 42546323431 failed the direct-vs-remote baseline compare of `DirectEnumCastOverConditionalEqualParameter` on ClickHouse: direct kept `'M' = 'F'` because the evaluator refused a client enum beside a literal, and remote only holds the provider value (E-7). The adjacent constant-only shape then showed two more defects: a columnless parameter of an enum-to-enum registration reached the driver as its ordinal (E-8), and `ProcessComparisonWithCase` compared client enums with CASE literals, folding to FALSE where values are inlined (E-9). D-1..D-3 stand. Verified on net10.0 Debug: `DirectEnumCast*` + `ProjectedEnumCast*` 248 of 248 on three ClickHouse configs and SQLite.MS, direct and remote; `EnumMappingTests`, `ConverterInsertTests`, `Issue5398Tests`, `ComplexTests2`, `ParameterTests`, `ConditionalTests`, `PredicateTests` on SQLite.MS, direct and remote, 560 passed, 11 skipped. No critic round on this amendment; other providers are left to `test-all`.
+  re-derives: P6 (E-7..E-10), P7 (evaluator, SetDefaultFromEnumType and TryEvaluateNoParameters rows), P8 (TO-27..TO-33), P10 (four A-2 lines)
+  class: a value compared through its client form where the database compares its provider form.
+  conventions: testing.md Test layout; swept with test-diff-sweep.ps1 over the branch's test diff, no hits.
 
 ## P12 Critic verdict
 
@@ -191,3 +222,10 @@ Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0
 - E-5's guard keys on type inequality while E-1 keys on the registration. Traced, not probed: for an unregistered `EnumB` with its own `MapValue`s, `(EnumB)p.Gender == EnumB.Female` on master compares the bare column with `'F'`; with E-5 the regular compare uses the `CAST(Gender AS NVarChar)` placeholder. Rows should match, but the SQL changes for a working query. Settle by probing it on master and head, then scoping the guard to `GetDefaultMappingFromEnumType(MappingSchema, origValue.GetType()) == type.UnwrapNullableType()` or recording the SQL change. Outcome: probed on SQLite.MS, SQL changed as predicted, guard scoped (TO-24).
 - No test covers the constant on the left, or an inline-array `Contains`. Outcome: TO-25 and TO-26 added, both red on master and green with the fix.
 - Addressed in this round: P7 rows and the `class:` line on A-1 added below, and the P10 MapValue line corrected.
+
+**weak** (plan-critic on fable, round 3, delta on A-2). The critic searched the parameter-dependence and evaluation-context paths, every `ExprExpr` fold, `TryEvaluateNoParameters` consumers, `GenerateSafeConvert`, `GetUnderlyingDataType` and the enum-to-enum registrations, and could not construct a cache path that serves a fold for another value. Objections, each with its outcome:
+
+- E-8 preempts a user `SetConverter<ApiGender, DataParameter>`. Outcome: reproduced, rows `[1, 2]` instead of `[3, 4]`; E-8 now requires no such converter (TO-32).
+- E-8 converts an enum with enum-typed `MapValue`s numerically. Outcome: E-8 now requires an explicit `SetDefaultFromEnumType` registration; not separately tested.
+- No test for a columnless `Contains`. Outcome: TO-33 added, green.
+- E-9's condition arm has no type check, ELSE is evaluated with the client value, `IsDistinctPredicate` has no enum guard, and a user `ApiGender → Gender` converter is not consulted. Outcome: unchanged from master, recorded in P10.
