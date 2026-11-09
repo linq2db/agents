@@ -385,6 +385,18 @@ The `details_url` ends in `buildId=<n>`.
 
 **These `gh api … --jq` recipes are the build-metadata interface — don't hand-roll `Invoke-RestMethod` against the Azure builds API.** The `azp-*.ps1` scripts each answer a narrower question (`azp-build-failures` = per-test failures, `azp-job-durations` = timing/ordering, `azp-step-log` = one step's log, `azp-run` = trigger), so "which commit did build N build?", "what has this branch run lately?" and "is this definition red across other PRs too?" have no script — but they *are* covered here, by the two recipes above plus `/_apis/build/builds/<id>`'s `sourceVersion` + `triggerInfo`. (Surfaced on #5828: three hand-rolled `Invoke-RestMethod` calls re-derived exactly these, because the recipes live under a heading about failure *attribution* and don't read as the general build-query entry point.)
 
+**Auto-cancelled PR builds are soft-deleted, so a plain listing misses them — pass `deletedFilter=includeDeleted`.** An auto-cancelled build reports `deleted: true`, and `/_apis/build/builds` hides it by default, even with `resultFilter=canceled`. On 2026-11-09 that filter returned one build across all definitions, while `includeDeleted` showed 35 cancelled `test-all` runs since 2026-10-20.
+
+```
+gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/builds?deletedFilter=includeDeleted&branchName=refs/pull/<n>/merge&queryOrder=queueTimeDescending&api-version=7.1" --jq '.value[] | [.id, .definition.name, .status, (.result // "-"), .queueTime, .finishTime] | @tsv'
+```
+
+**Pipeline trigger settings are readable anonymously, through the definitions endpoint.** `settingsSourceType: 2` on the `pullRequest` trigger means the YAML is in charge, which every pipeline here reports and which #6288's `autoCancel` confirmed by taking effect. `isCommentRequiredForInternalRepoPRs` and `isCommentRequiredForForkedPullRequests` say whether a pipeline runs only from an `/azp` comment: `true` on every `test-*`, `false` on `build` and `default`. Don't read `isCommentRequiredForPullRequest` for this, because `test-cli` reports `false` there despite needing a comment.
+
+```
+gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/definitions?includeAllProperties=true&api-version=7.1" --jq '.value[] | {id, name, triggers: [.triggers[]? | select(.triggerType == "pullRequest")]}'
+```
+
 ### The GitHub legs — the leg's history across PRs, via `gh-leg-history.ps1`
 
 Everything above is Azure. A red GitHub leg (`tests (comment)`) is checked against the same leg on other PRs' runs. Those runs are attributed to master's commit (see *The GitHub half* above), so nothing in the run object names the PR. [`.claude/scripts/gh-leg-history.ps1`](../scripts/gh-leg-history.ps1) `-Leg <substring>` lists the leg's conclusion for each run and attempt, plus the PR each run tested, which it reads from the small `authorize` job log. Then fetch the other PR's failed leg with `gh-run-logs.ps1 -JobFilter <leg>` and compare the **first** failing test and its message: once triggered, a test-infra flake makes the same test fail first every time, at roughly the same point in the log. Two traps:

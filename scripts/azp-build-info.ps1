@@ -44,7 +44,9 @@ startTime - so a queued build you are tracking may sit outside `-Top N` while th
 completed ones fill it. Neither case is distinguishable from "the build is gone", and both
 happened on #5880: 23448 and 23451 disappeared once a push cancelled them, and 23500 was
 absent from `-Top 1` for two hours while queued. Query it by `-BuildId` before concluding
-anything - that path reports it regardless of state.
+anything - that path reports it regardless of state. The cancelled ones are missing because
+an auto-cancelled build is soft-deleted (deleted=true), and the listing API hides those unless
+the query passes deletedFilter=includeDeleted.
 
 That advice needs the id, which is the thing you do not have right after triggering a run. GitHub
 has it already: the PR's check rollup carries the Azure build URL the moment the trigger registers,
