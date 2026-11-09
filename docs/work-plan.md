@@ -102,7 +102,7 @@ One `D-n` block per consequential decision:
 - **why this:** …
 - **failure mode of the choice:** …
 
-The `failure mode` line is what makes a decision defensible rather than merely explained, and is usually where the critic finds its objection.
+The `failure mode` line is what makes a decision defensible rather than merely explained, and is usually where the critic finds its objection. **A line that accepts SQL or baseline churn names the code that produces it and why that cannot be avoided; otherwise it is a `U-n`.** (#6197: D-10 accepted `RowNumber_n` column names across 1,212 baselines without asking which code assigned the alias. The fix was one line.)
 
 **A rejected alternative justified by an observable difference owes a `TO-n` that tells the two apart — or a line in the decision saying none can.** When the `rejected:` reason says the alternative *misses* or *mis-handles* a case, name the input on which the two designs disagree, and write the obligation with the mutation that turns the chosen design into the rejected one. If no reachable input separates them, say so in the decision: the choice can still stand on code-level reasons, but no test will guard it. (#6027 gap ledger: `D-1` rejected an outermost-only scope reset as missing nested references; four Oracle 11 probe shapes under exactly that mutation all still threw the same error.)
 

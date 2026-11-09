@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: keying a lazily built CTE body's ordering isolation on the current state
+
+**Tried:** isolating `CteContext.InitQuery` when an ordering is current; isolating unless read under the scope that created the CTE; an identity check in `GroupByBuilder` that skips pruning a list its source did not produce.
+
+**Failed because:** `AppendJoinedOrderBy` runs before the join keys read the CTE, so a CTE on the outer side saw the joined list as current and hid its own leading ordering (silently wrong rows, where the reviewed head threw). Under the creating scope the body could still prune a joined side's appended list, throwing where master ran. The identity check covered `GroupBy` bodies only, not `OrderBy` or `Distinct`.
+
+**Don't re-attempt:** either condition. Build the body under `IsolateOrderBy` unconditionally, so it cannot touch the reader's list, and decide afterwards whether to publish its ordering: ahead of the current list when the CTE is in the reader's chain or nothing else is current, otherwise dropped. (#6197, `e2df26923`)
+
 ## EXPR-TRANS: passing an enum-to-enum cast through `VisitUnary` for every SQL build
 
 **Tried:** returning `placeholder.WithType(node.Type)` from `ExpressionBuildVisitor.VisitUnary` for a cast to an enum whose default mapping is the operand's enum, first unconditionally and then gated on `BuildPurpose.Sql` alone.

@@ -343,6 +343,9 @@ When the PR changes the validator's own state tracking or a provider flag it rea
 - `ContainsBuilder.cs`, `DeleteBuilder.cs`, `RemoveOrderByBuilder.cs` (the `IgnoreOrderBy` producers) and `TakeSkipBuilder.cs` (which resets the flag).
 - `Internal/Linq/Builder/CteTableContext.cs`: the lazy CTE body build.
 - `Internal/SqlQuery/SqlSelectClause.cs`: `HasModifier`, which stops `ConcatenateOrderBy` at a DISTINCT query.
+- `Internal/Linq/Builder/TableBuilder.CteTableContext.cs` and `CteContext.cs`: where a CTE context is created and when its body is built.
+- `Internal/SqlQuery/QueryHelper.cs` (`IsAggregationQuery`) and `Internal/SqlQuery/Visitors/SqlQueryOrderByOptimizer.cs`: what keeps or lifts an ORDER BY.
+- `Internal/Linq/Builder/WhereBuilder.cs` and `SetOperationBuilder.cs`: wrapping and isolation of an ordered source.
 - `Tests/Base/Attributes/DataSourcesAttribute.cs`.
 
 (#6197: the three passes went 6, 9 and 16 calls over budget. One pass filed a false Minor, a kept GroupBy key "lost behind a wrapper", because it read `VisitSqlPlaceholderExpression` without `BuildSqlExpression`'s `UpdateNesting`. One read of `ExpressionBuilder.Expressions.cs` settled the contradiction between passes, and a DuckDB probe confirmed it.)
