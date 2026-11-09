@@ -243,6 +243,10 @@ To ask "does this expression depend on any source *outside* a given subtree" —
 
 Then rebuild the parent node. Reviewer consequence: flag any assignment to a `SqlParameter`'s `IsQueryParameter` (or other properties) inside a visitor or convert override. `ConvertCoalesceToBinaryFunc(supportsParameters: false)` still does this in place and is the known exception. (#5978: an Informix CASE inlining fix mutated the shared parameter; Copilot caught it, and `InformixTests.DateParameterInCaseStaysBoundElsewhere` pins the WHERE usage.)
 
+### `SetDefaultFromEnumType` is keyed on the exact type — unwrap `Nullable` before asking
+
+`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and the no-column conversion in `ParametersContext` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
+
 ### Convert-visitor overrides run per node — no allocation on the no-op path
 
 A `Convert*` / `Visit*` override in a provider's `SqlExpressionConvertVisitor` runs for every node of its type in every query, and almost every call is a no-op. Decide whether the rewrite applies with an allocation-free pass over the node's existing children. Allocate arrays or lists, or rebuild the node, only once the rewrite is known to apply. Collecting the children into a fresh array before deciding is a per-node cost on every query. (#5978: `ConvertSqlCaseExpression` copied every CASE's results into an array before checking for the one shape it rewrites.)
