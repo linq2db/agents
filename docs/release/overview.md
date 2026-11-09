@@ -68,6 +68,8 @@ Surfaced 2026-05-15 on /release-deps for 6.3.0: an iSeries drift check based on 
 
 **GitHub's prerelease flag is not a reliable signal in this repo.** rc and preview releases have been published with `prerelease: false` (all 13 among the last 40, as of 2026-11-08). Automation that must skip them has to check the tag's `-` suffix as well.
 
+Previews exist for users to test, so distribution channels (NuGet, the MCP Registry) publish them. Only the documentation site, which has one live version, skips them.
+
 ## Topic docs (accrued across releases)
 
 - [`branch-and-pr.md`](./branch-and-pr.md) — branch name + PR body conventions.
