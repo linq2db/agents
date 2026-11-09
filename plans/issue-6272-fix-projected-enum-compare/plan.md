@@ -73,6 +73,8 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - E-2 `Source/LinqToDB/Internal/Linq/Builder/ParametersContext.cs:valueType != MemberType branch` — widen the safe-convert condition per D-2.
 - E-3 `Source/LinqToDB/Internal/Linq/Builder/ParametersContext.cs:GenerateConvertFromObject` — boxed-enum branch per D-3, plus the `_enumToObject` field and `System.Reflection` using.
 - E-4 `Tests/Linq/Linq/EnumMappingTests.cs:ProjectedEnumCast*` — regression and guard tests on the shared `Person` / `Gender` model.
+- E-5 `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:ConvertEnumConversion` — constant arm declines an enum constant whose default mapping is the operand's enum.
+- E-6 `Tests/Linq/Linq/EnumMappingTests.cs:DirectEnumCast*` — tests for the cast written directly in the predicate.
 
 ## P7 Impact map
 
@@ -86,6 +88,9 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - `GenerateConvertFromObject` — searched the symbol under `Source/LinqToDB`, single caller `ParametersContext.cs:268` — covered by E-3
 - `ColumnDescriptor.ApplyConversions` callers — searched `\.ApplyConversions\(` under `Source/LinqToDB`; method unchanged, E-2 alters only its input in `ParametersContext` — covered by E-2
 - Remote: `.LinqService` contexts run every TO — covered by E-4
+- `ConvertEnumConversion` Constant arm, single caller `ExpressionBuildVisitor.cs:4800` — searched the symbol under `Source/LinqToDB` and the corpus for cross-enum casts compared to constants, none outside TO-19/TO-20 — covered by E-5
+- `RestoreCompare` (needs an integer constant), `ReadsAsTheReaderReads` (excludes enums) — searched the consumers keyed on the raw `Convert` shape, unaffected — out-of-scope
+- `ConvertInPredicate` NewArrayInit route, an inline `new[] { ApiGender.Female }.Contains(...)` — critic's census, measured by TO-26 — covered by E-1
 
 ## P8 Test obligations
 
@@ -107,26 +112,65 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - TO-16 `ProjectedEnumCastDistinctBy`: red on SQLite.MS only, PostgreSQL.18 is green on master — providers: `[DataSources]`, measured SQLite.MS, PostgreSQL.18 — proof: red→green
 - TO-17 `ProjectedEnumCastEqualsObjectWithObjectConverter`: the reporter's `object → DataParameter` converter registered — providers: `[DataSources]`, measured SQLite.MS, PostgreSQL.18 — proof: red→green
 - TO-18 `EqualsObjectOfUnmappedEnumThrows`: symmetry guard on the unchanged path, a boxed unrelated enum against the plain column still throws — providers: `[DataSources]`, measured SQLite.MS, PostgreSQL.18 — proof: characterization
+- TO-19 `DirectEnumCastEqualConstant`: cast and constant in one predicate; discriminating input is the mapped `'F'` against the enum name `'Female'` — providers: `[DataSources]`, measured SQLite.MS, Access.Ace.OleDb, Firebird.2.5 — proof: red→green
+- TO-20 `DirectEnumCastNotEqualConstant`: negated form — providers: `[DataSources]`, measured SQLite.MS, Access.Ace.OleDb, Firebird.2.5 — proof: red→green
+- TO-21 `DirectEnumCastEqualParameter`: cast and closure value in one predicate — providers: `[DataSources]`, measured SQLite.MS, Access.Ace.OleDb, Firebird.2.5 — proof: red→green
+- TO-22 `DirectEnumCastOverConditionalEqualParameter`: operand with no recoverable column descriptor — providers: `[DataSources]`, measured SQLite.MS, Access.Ace.OleDb, Firebird.2.5 — proof: red→green
+- TO-23 `ProjectedEnumCastChildReferencesParent`: a child collection comparing against the parent's cast member — providers: `[DataSources]`, measured SQLite.MS, Access.Ace.OleDb, Firebird.2.5 — proof: characterization
+- TO-24 `DirectCastToEnumWithOwnMapValuesEqualConstant`: unregistered enum with its own `MapValue`s keeps the bare column compare; discriminating input is a `CAST` around the column under a guard keyed on type inequality — providers: `[DataSources]`, measured SQLite.MS — proof: control
+- TO-25 `DirectEnumCastConstantOnLeft`: constant on the left of the cast — providers: `[DataSources]`, measured SQLite.MS — proof: red→green
+- TO-26 `ProjectedEnumCastContainsInlineArray`: inline array route of `Contains` — providers: `[DataSources]`, measured SQLite.MS — proof: red→green
 
 ## P9 Verification gates
 
-- G-01: pass — `worktree-test.ps1` over `EnumMappingTests`, `ConverterInsertTests`, `Issue5398Tests`, `ComplexTests2`, `ParameterTests`, `EagerLoadingStrategyUnionTests` on SQLite.MS, PostgreSQL.18 and both `.LinqService` contexts, net10.0 Debug: 978 passed, 5 skipped, 0 failed. Unfixed source on the `ProjectedEnumCast*` set plus TO-18: 38 of 74 red, covering TO-1..TO-7, TO-15, TO-16 (SQLite.MS only) and TO-17. TO-8..TO-14 and TO-18 green on master. TO-1..TO-18 on net462 Release: 70 of 70 passed. TO-13/TO-14 control: red under a pass-through without the `ForKeys` condition.
+- G-01: pass — `worktree-test.ps1` over `EnumMappingTests`, `ConverterInsertTests`, `Issue5398Tests`, `ComplexTests2`, `ParameterTests`, `EagerLoadingStrategyUnionTests` on SQLite.MS, PostgreSQL.18 and both `.LinqService` contexts, net10.0 Debug: 978 passed, 5 skipped, 0 failed. Unfixed source on the `ProjectedEnumCast*` set plus TO-18: 38 of 74 red, covering TO-1..TO-7, TO-15, TO-16 (SQLite.MS only) and TO-17. TO-8..TO-14 and TO-18 green on master. TO-1..TO-18 on net462 Release: 70 of 70 passed. TO-13/TO-14 control: red under a pass-through without the `ForKeys` condition. `test-diff-sweep.ps1 -IncludeWorkingTree` on the implemented tree: chains 0, nestedChains 0, narrowedSets 0, narrowedWithoutReason 0.
+  - TO-1 `ProjectedEnumCastEqualConstant` — red on master, green with fix
+  - TO-2 `ProjectedEnumCastEqualParameter` — red on master, green with fix
+  - TO-3 `ProjectedEnumCastNullableEqualParameter` — red on master, green with fix
+  - TO-4 `ProjectedEnumCastEqualsObject` — red on master, green with fix
+  - TO-5 `ProjectedEnumCastNotEqualsObject` — red on master, green with fix
+  - TO-6 `ProjectedEnumCastEmitsNoSqlCast` — red on master, green with fix
+  - TO-7 `ProjectedEnumCastContains` — red on master, green with fix
+  - TO-8 `ProjectedEnumCastSelect` — green on master and with fix
+  - TO-9 `ProjectedEnumCastOrderBy` — green on master and with fix
+  - TO-10 `ProjectedEnumCastGroupBy` — green on master and with fix
+  - TO-11 `ProjectedEnumCastDistinct` — green on master and with fix
+  - TO-12 `ProjectedEnumCastConcat` — green on master and with fix
+  - TO-13 `ProjectedEnumCastUnionEagerLoad` — green on master and with fix, red under the control mutation
+  - TO-14 `ProjectedEnumCastUnionEagerLoadOrdered` — green on master and with fix, red under the control mutation
+  - TO-15 `ProjectedEnumCastJoinKey` — red on master, green with fix
+  - TO-16 `ProjectedEnumCastDistinctBy` — red on master for SQLite.MS, green with fix
+  - TO-17 `ProjectedEnumCastEqualsObjectWithObjectConverter` — red on master, green with fix
+  - TO-18 `EqualsObjectOfUnmappedEnumThrows` — green on master and with fix
+  - TO-19 `DirectEnumCastEqualConstant` — throws on master, wrong rows without E-5, green with E-5
+  - TO-20 `DirectEnumCastNotEqualConstant` — throws on master, wrong rows without E-5, green with E-5
+  - TO-21 `DirectEnumCastEqualParameter` — red on master, green with fix
+  - TO-22 `DirectEnumCastOverConditionalEqualParameter` — red on master, green with fix
+  - TO-23 `ProjectedEnumCastChildReferencesParent` — green on master and with fix
+  - TO-24 `DirectCastToEnumWithOwnMapValuesEqualConstant` — green on master, red under the type-inequality guard (`CAST([p].[Gender] AS NVarChar(255)) = 'F'`), green with the scoped guard
+  - TO-25 `DirectEnumCastConstantOnLeft` — red on master, green with fix
+  - TO-26 `ProjectedEnumCastContainsInlineArray` — red on master, green with fix
+  - After the guard was scoped: SQLite.MS over the suites above 563 passed, 5 skipped, 0 failed; PostgreSQL.18 and net462 left to `test-all`.
+  - After A-1: SQLite.MS over the suites above 557 passed, 5 skipped, 0 failed; new tests on Access.Ace.OleDb 46 of 46 and Firebird.2.5 46 of 46. PostgreSQL.18 and net462 were not rerun after A-1; `test-all` covers them. `test-diff-sweep.ps1 -IncludeWorkingTree` after A-1: chains 0, nestedChains 0, narrowedSets 0, narrowedWithoutReason 0.
 - G-02: skipped — no local baselines captured for this worktree, so emitted-SQL drift across providers is unverified locally and left to the CI baselines run; OrderBy and GroupBy SQL compared by hand on SQLite.MS only.
-- G-05: pass — `dotnet build` Release of `Source/LinqToDB` for net10.0, netstandard2.0, net462 exit 0; `Tests/Linq` Release net10.0 exit 0 and net462 built by the run above.
-- G-06: pass — `git diff --stat` touches only the three E-n files, 364 insertions, 1 deletion.
+- G-05: pass — `dotnet build` Release of `Source/LinqToDB` for net10.0, netstandard2.0, net462 exit 0; `Tests/Linq` Release net10.0 exit 0 and net462 built by the run above. After A-1: `Source/LinqToDB` and `Tests/Linq` Release net10.0 exit 0.
+- G-06: pass — `git diff --stat` touches only the E-n files.
 - G-07: pass — no `Tests/Tests.Playground/` changes in `git status`.
-- G-09: skipped — the plan-critic read the diff; no separate review pass has run, so a pre-PR adversarial diff review is still owed.
+- G-09: pass — review round 1 over 466207b6a by the code-reviewer agent: 4 findings, all fixed under A-1, ledger in `gaps.md`.
 
 ## P10 Adjudicated
 
 - The exact mechanism of the `CteContext.RegisterField` crash under a general pass-through is not established. D-1 avoids the trigger rather than repairing it. Reason: user decision after two refuted explanations.
 - Other SQL uses of the cast keep failing as on master where no `ForKeys` build reaches them. Reason: option chosen by the user.
-- The `ForKeys` gate is wider than comparison operands: `Contains`, `Join` and `DistinctBy` over the cast also start working. Each was red on master, so this only removes errors; `OrderBy` and `GroupBy` SQL is unchanged.
-- An API enum that carries its own `MapValue`s resolves its default mapping to the value type (`ConvertBuilder.cs:688`), so E-1 does not apply and the error stays as on master. Reason: the reporter's enum has none (P1), and such an enum has its own stored values, so a bare column compare would be wrong.
+- The `ForKeys` gate is wider than comparison operands: `Contains`, `Join` and `DistinctBy` over the cast also start working. Each was red on master; `OrderBy` and `GroupBy` SQL is unchanged. Corrected by A-1: this is not automatically error-removal, because an enum constant in the same predicate returned wrong rows until E-5.
+- An API enum that carries its own `MapValue`s resolves its default mapping to the value type (`ConvertBuilder.cs:688`), so E-1 does not apply. Reason: the reporter's enum has none (P1), and such an enum has its own stored values, so a bare column compare would be wrong. Corrected by critic round 2 and measured: on master the `==` constant form of this shape already works with a bare column compare (`[Gender] = 'F'`), and TO-24 pins that.
 
 ## P11 Amendments
 
-_None._
+- A-1 (2026-11-09, review round 1) — E-1 made `(ApiEnum)column == ApiEnum.X` build, and `ConvertEnumConversion` then matched the constant against the column enum's map values, found none and compared against the enum's name: measured on SQLite.MS, 0 rows instead of 1 for `==` and 4 instead of 3 for `!=`, where the base commit throws. E-5 declines such a constant so the regular compare converts it. Revised after critic round 2 and a measurement: keyed on type inequality the guard added a `CAST` to `(DtoGender)p.Gender == DtoGender.Female` for an unregistered enum with its own `MapValue`s, so it is now keyed on the constant's default mapping being the operand's enum (TO-24); that revision follows the critic's prescription and had no further critic round. Also from that review: TO-16 gained the `DistinctBy` provider gate from its sibling, and TO-13/TO-14 were measured on Access.Ace.OleDb and Firebird.2.5 and need no exclusion.
+  re-derives: P6 (E-5, E-6), P7 (ConvertEnumConversion rows), P8 (TO-16, TO-19, TO-20, TO-21, TO-22, TO-23), P10 (ForKeys entry, MapValue entry)
+  class: a consumer keyed on the raw `Convert` shape that runs only once E-1 lets the operand build.
+  conventions: testing.md Test layout and A narrowed provider set is a claim; swept with test-diff-sweep.ps1 -IncludeWorkingTree over the added tests.
 
 ## P12 Critic verdict
 
@@ -140,4 +184,10 @@ _None._
 - TO-6 asserted no `CAST` on the whole statement, which providers that cast parameters could trip — fixed: the assertion targets a cast around the column.
 - TO-15 / TO-16 pending — done.
 
-Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0 is reasoned, not run; the Release builds compile it but only CI executes it there.
+Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0 is reasoned, not run; the Release builds compile it but only CI executes it there. Resolved afterwards: net462 Release ran TO-1..TO-18, 70 of 70 passed.
+
+**weak** (plan-critic on fable, round 2, delta on A-1). The critic searched `ConvertEnumConversion` callers, the `VisitUnary` enum ladder, the `Equals` lowering, `BuildConstant`, `ApplyConversions`, `GetSqlValue`, `SuggestColumnDescriptor`, `ConvertInPredicate`, `RestoreCompare`, and the test corpus for cross-enum casts compared to constants. It agreed E-5 sits where the defect was produced and that the fall-through yields the mapped value. Objections, kept visible, each with its later outcome:
+
+- E-5's guard keys on type inequality while E-1 keys on the registration. Traced, not probed: for an unregistered `EnumB` with its own `MapValue`s, `(EnumB)p.Gender == EnumB.Female` on master compares the bare column with `'F'`; with E-5 the regular compare uses the `CAST(Gender AS NVarChar)` placeholder. Rows should match, but the SQL changes for a working query. Settle by probing it on master and head, then scoping the guard to `GetDefaultMappingFromEnumType(MappingSchema, origValue.GetType()) == type.UnwrapNullableType()` or recording the SQL change. Outcome: probed on SQLite.MS, SQL changed as predicted, guard scoped (TO-24).
+- No test covers the constant on the left, or an inline-array `Contains`. Outcome: TO-25 and TO-26 added, both red on master and green with the fix.
+- Addressed in this round: P7 rows and the `class:` line on A-1 added below, and the P10 MapValue line corrected.
