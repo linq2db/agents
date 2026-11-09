@@ -88,6 +88,9 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - `GenerateConvertFromObject` — searched the symbol under `Source/LinqToDB`, single caller `ParametersContext.cs:268` — covered by E-3
 - `ColumnDescriptor.ApplyConversions` callers — searched `\.ApplyConversions\(` under `Source/LinqToDB`; method unchanged, E-2 alters only its input in `ParametersContext` — covered by E-2
 - Remote: `.LinqService` contexts run every TO — covered by E-4
+- `ConvertEnumConversion` Constant arm, single caller `ExpressionBuildVisitor.cs:4800` — searched the symbol under `Source/LinqToDB` and the corpus for cross-enum casts compared to constants, none outside TO-19/TO-20 — covered by E-5
+- `RestoreCompare` (needs an integer constant), `ReadsAsTheReaderReads` (excludes enums) — searched the consumers keyed on the raw `Convert` shape, unaffected — out-of-scope
+- `ConvertInPredicate` NewArrayInit route, an inline `new[] { ApiGender.Female }.Contains(...)` — critic's census, reasoned to reach the mapped value, TO-7 covers only the closure-array route — deferred: not probed, listed as open in P12
 
 ## P8 Test obligations
 
@@ -153,12 +156,13 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - The exact mechanism of the `CteContext.RegisterField` crash under a general pass-through is not established. D-1 avoids the trigger rather than repairing it. Reason: user decision after two refuted explanations.
 - Other SQL uses of the cast keep failing as on master where no `ForKeys` build reaches them. Reason: option chosen by the user.
 - The `ForKeys` gate is wider than comparison operands: `Contains`, `Join` and `DistinctBy` over the cast also start working. Each was red on master; `OrderBy` and `GroupBy` SQL is unchanged. Corrected by A-1: this is not automatically error-removal, because an enum constant in the same predicate returned wrong rows until E-5.
-- An API enum that carries its own `MapValue`s resolves its default mapping to the value type (`ConvertBuilder.cs:688`), so E-1 does not apply and the error stays as on master. Reason: the reporter's enum has none (P1), and such an enum has its own stored values, so a bare column compare would be wrong.
+- An API enum that carries its own `MapValue`s resolves its default mapping to the value type (`ConvertBuilder.cs:688`), so E-1 does not apply. Reason: the reporter's enum has none (P1), and such an enum has its own stored values, so a bare column compare would be wrong. Corrected by critic round 2: master does not always error on this shape, because the `==` constant form builds with a `CAST`; see P12.
 
 ## P11 Amendments
 
 - A-1 (2026-11-09, review round 1) — E-1 made `(ApiEnum)column == ApiEnum.X` build, and `ConvertEnumConversion` then matched the constant against the column enum's map values, found none and compared against the enum's name: measured on SQLite.MS, 0 rows instead of 1 for `==` and 4 instead of 3 for `!=`, where the base commit throws. E-5 declines such a constant so the regular compare converts it. Also from that review: TO-16 gained the `DistinctBy` provider gate from its sibling, and TO-13/TO-14 were measured on Access.Ace.OleDb and Firebird.2.5 and need no exclusion.
-  re-derives: P6 (E-5, E-6), P8 (TO-16, TO-19, TO-20, TO-21, TO-22, TO-23), P10 (ForKeys entry)
+  re-derives: P6 (E-5, E-6), P7 (ConvertEnumConversion rows), P8 (TO-16, TO-19, TO-20, TO-21, TO-22, TO-23), P10 (ForKeys entry, MapValue entry)
+  class: a consumer keyed on the raw `Convert` shape that runs only once E-1 lets the operand build.
   conventions: testing.md Test layout and A narrowed provider set is a claim; swept with test-diff-sweep.ps1 -IncludeWorkingTree over the added tests.
 
 ## P12 Critic verdict
@@ -173,4 +177,10 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - TO-6 asserted no `CAST` on the whole statement, which providers that cast parameters could trip — fixed: the assertion targets a cast around the column.
 - TO-15 / TO-16 pending — done.
 
-Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0 is reasoned, not run; the Release builds compile it but only CI executes it there.
+Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0 is reasoned, not run; the Release builds compile it but only CI executes it there. Resolved afterwards: net462 Release ran TO-1..TO-18, 70 of 70 passed.
+
+**weak** (plan-critic on fable, round 2, delta on A-1). The critic searched `ConvertEnumConversion` callers, the `VisitUnary` enum ladder, the `Equals` lowering, `BuildConstant`, `ApplyConversions`, `GetSqlValue`, `SuggestColumnDescriptor`, `ConvertInPredicate`, `RestoreCompare`, and the test corpus for cross-enum casts compared to constants. It agreed E-5 sits where the defect was produced and that the fall-through yields the mapped value. Objections, all open and carried forward visibly:
+
+- E-5's guard keys on type inequality while E-1 keys on the registration. Traced, not probed: for an unregistered `EnumB` with its own `MapValue`s, `(EnumB)p.Gender == EnumB.Female` on master compares the bare column with `'F'`; with E-5 the regular compare uses the `CAST(Gender AS NVarChar)` placeholder. Rows should match, but the SQL changes for a working query. Settle by probing it on master and head, then scoping the guard to `GetDefaultMappingFromEnumType(MappingSchema, origValue.GetType()) == type.UnwrapNullableType()` or recording the SQL change. Left unchanged because a further code change and push were not requested.
+- No test covers the constant on the left, or an inline-array `Contains`.
+- Addressed in this round: P7 rows and the `class:` line on A-1 added below, and the P10 MapValue line corrected.
