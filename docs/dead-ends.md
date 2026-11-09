@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: passing an enum-to-enum cast through `VisitUnary` for every SQL build
+
+**Tried:** returning `placeholder.WithType(node.Type)` from `ExpressionBuildVisitor.VisitUnary` for a cast to an enum whose default mapping is the operand's enum, first unconditionally and then gated on `BuildPurpose.Sql` alone.
+
+**Failed because:** the cast then builds under `IsSupportedSubquery`, a probe at `BuildFlags.None` that failed for it before. Two child collections using the cast under `WithUnionLoadStrategy` throw `ArgumentOutOfRangeException` at `CteContext.RegisterField`, where master passes and a plain column in the same shape passes. Adding `OrderBy` to the children does not help. The exact column/field mismatch was not established.
+
+**Don't re-attempt:** the general pass-through, or patching only the `Math.Min` index in `RegisterField`: the crash needs a select column with no registered field, so an index repair can misalign columns. Gate the pass-through on `BuildFlags.ForKeys`, which is in the translation cache key and is not set by the probe. (#6272, #6277)
+
 ## BUILD: choosing the documented target framework for docfx metadata through `docfx.json`
 
 **Tried:** (1) `metadata[].properties.TargetFramework` alone; (2) a `DocfxTargetFramework` rule in `Directory.Build.targets`; (3) the same rule via `BeforeTargetFrameworkInferenceTargets`; (4) via `BeforeMicrosoftNETSdkTargets`; (5) `TreatAsLocalProperty="TargetFramework"` alone on the netstandard2.0 analyzer projects.
