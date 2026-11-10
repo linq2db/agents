@@ -524,6 +524,9 @@ the superseded reasoning stays readable; the paragraph immediately following is 
 - E-32 `Source/LinqToDB.LINQPad/DatabaseProviders/{AccessProvider,ProviderInfo,DatabaseProviders}.cs`,
   `LinqToDB.LINQPad.csproj` (`GenerateNuGetPackageVersions`), `README.md` — A-19.
 - E-33 `Tests/Tests.Wasm/ProviderMatrix.cs:Rows` — one `Access.LibRed` row, constructed by `AccessTools.GetDataProvider(provider: AccessProvider.LibRed)`, MERGE `Refused` like the four Microsoft flavours — A-21.
+- E-34 `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs:SetParameter` — LibRed arm: a `bool` value bound to `DataType.Byte` / `Int16` / `Int32` (the measured widths) is sent as `1` / `0` of that width, so LibRed stores and compares what ACE does rather than `-1` (and `Byte` stops overflowing) — A-22.
+- E-35 `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByOuterJoinedBooleanKey` — `[ActiveIssue]` on `AllAccessLibRed`, `no-declaration:`, lifted by #5969 (`feature-access-libred-dialect` A-7) — A-22.
+- E-36 `Tests/Linq/DataProvider/AccessTests.cs` — one new test: a `bool` mapped `Byte` / `Int16` / `Int32` round-trips and filters by parameter on every Access flavour — A-22.
 
 ## P7 Impact map (M/L)
 
@@ -584,6 +587,8 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - TO-7 (SC-7) — proof: control — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net462` clean, which is the arm that would fail if a net11-only API or a LibRed type leaked into shared code, plus a search asserting `LibRed` appears in no `<PackageReference>` under `Source/`
 - TO-8 (SC-1, U-8) — proof: control — `a_CreateData.CreateDatabase` green on both new configs, i.e. `Access.sql` and its `.Data` companion executed through LibRed with D-10's `SKIP` markers and D-11's FK change in place; the discriminating inputs are the two FK statements (which failed before D-11) and the five procedure statements (absent for LibRed, still present for the other four), and it runs first because `TestBase.AwaitDatabaseReady` gates every other obligation on it
 - TO-12 (SC-1, A-21) — proof: red-green — `Tests.Wasm` on the GitHub `WASM runtime tests` job: `ProviderNamesAreCovered` is red at `3d821f653` (`["Access.LibRed"] should be empty`, run 42731388762) and green with E-33; the row's four `ClientWorks` cases (Mono and CoreCLR × Debug and TrimPartial) pass — which is also what shows server-side construction, through `AssertClientAsync`'s preflight throw (`WasmRuntimeTests.cs:222-228`; `MatrixRowsConstructTheirProvider` skips a row that failed preflight, `:168`, so it cannot) — with MERGE reporting the refusal; its four `ClientFailsUnderFullTrimming` and four `ClientFailsWithoutReflectionJson` cases (`:85-86`, `:116-122`) are verified #6168 skips (`DeserializeNoConstructor` / `JsonSerializerIsReflectionDisabled`), not failures; `BundleExitsCleanly` and `ResolveAttemptsAreCaptured` stay green with the extra configuration in every bundle; providers: the WASM matrix (server-side construction on the Linux runner, client in Node)
+- TO-13 (SC-1, A-22) — proof: red-green — `OrderByTests.OrderByBooleanStoredAsInt16` (`IncludeDataSources(true, AllAccess)`, `OrderByTests.cs:1079`) on `Access.LibRed.Mdb` and `.Accdb`, direct and `LinqService`: red before E-34 (`[1, 3, 2, 4]` should be `[2, 4, 1, 3]`, measured 2026-11-10) and green after; `DistinctOrderByOuterJoinedBooleanKey` reports the E-35 gate as a verified skip on the same four contexts; control: both tests unchanged on `Access.Ace.OleDb` (E-34's arm is LibRed-only); providers: Access.LibRed.Mdb, Access.LibRed.Accdb, Access.Ace.OleDb
+- TO-14 (SC-1, A-22) — proof: red-green — E-36's test over `AllAccess` (direct and `LinqService`): for each of `Byte`, `Int16`, `Int32`, a `true` / `false` pair inserted by parameter reads back as raw `1` / `0` and as `true` / `false`, and `Where(r => r.Flag == p)` with a captured `p = true` returns exactly the `true` row; red on LibRed before E-34 (`Byte`: `OverflowException`; `Int16` / `Int32`: raw `-1`, measured 2026-11-10), green after; control: `Access.Ace.OleDb` green before and after (raw `1`, measured); providers: AllAccess (Jet flavours on CI's x86 legs only)
 - TO-9 (SC-5, D-11) — proof: control — D-11 is behaviour-preserving for Microsoft's engine: `a_CreateData.CreateDatabase` green on `Access.Jet.OleDb` and `Access.Ace.Odbc` after E-18 and E-18a, with the `Doctor`/`Patient` foreign keys present in the resulting file. The form itself is **already proven on all four MS flavours by the repo**: `Access.sql:383,385` create `FK_Nullable`/`FK_NotNullable` with `REFERENCES RelationsTable(ID1, ID2)` today, so the obligation is about the two edited statements rather than about whether ACE accepts explicit columns
 
 
@@ -1297,6 +1302,69 @@ expected #6168 skips).
 - re-derives: none — E-2's constant is unchanged; this only registers it with a consumer that did not exist when
   P7 was swept.
 
+### A-22 — master's boolean sort tests on LibRed: a bool parameter stored as -1, and a DISTINCT flip (E-34, E-35, TO-13; 2026-11-10, user: "a" twice)
+
+The merge of master through #6203 ("Access: sort boolean ORDER BY keys in .NET order") brought tests that include
+`AllAccess`, so they run on LibRed here. On both LibRed configs, direct and remote, 255 of 261 pass and two fail:
+
+- **`OrderByBooleanStoredAsInt16`** — a `bool` mapped `DataType.Int16`; `IsBooleanSortKey`
+  (`AccessSqlExpressionConvertVisitor.cs:583-589`) skips it, so the SQL is a plain `ORDER BY [r].[Flag]`. **Measured**
+  (scratch probe, both seeded through the parameterized `INSERT … VALUES (@Id, @Flag)` and through `db.Insert`):
+  LibRed stores `true` as **-1**, ACE OLE DB as **1**. `SetParameter` passes the `bool` through unchanged with
+  `DbType.Int16` (`AccessDataProvider.cs:151-189`), so the conversion is the driver's.
+- **`DistinctOrderByOuterJoinedBooleanKey`** — under DISTINCT the rewrite only flips direction (`:565`), which is the
+  ACE limit: **measured**, ACE rejects `ORDER BY -[t].[BoolValue]` under DISTINCT (*"ORDER BY clause … conflicts with
+  DISTINCT"*). LibRed returns `NULL` for unmatched outer-join rows where ACE returns `False` (the test's own comment),
+  so the flip places NULLs on the wrong end. **Measured**: LibRed accepts the negated key under DISTINCT and returns
+  `null, False, True` — the .NET order.
+
+Decisions (user, 2026-11-10: make LibRed work, split between this PR and #5969):
+
+- **E-34, here.** LibRed arm in `SetParameter`: a `bool` bound to `DataType.Byte` / `Int16` / `Int32` goes out as
+  `1` / `0` of that width. Precedents for converting a `bool` in `SetParameter`: `SapHanaDataProvider.cs:150-153`,
+  `InformixDataProvider.cs:147-153`, `OracleDataProvider.cs:224`. **Measured after critic round 4** (scratch probes,
+  deleted; LibRed.Mdb vs Ace.OleDb):
+
+  | `bool` written / queried | LibRed | ACE |
+  |---|---|---|
+  | parameter into `Int16` / `Int32` / `Decimal(10,0)` | `-1` / `-1` / `-1` | `1` / `1` / *Data type mismatch* |
+  | parameter into `Byte` | `OverflowException` | `1` |
+  | inline literal into `Int16` (`VALUES (3, True)`) | `-1` | `-1` |
+  | `Where(r => r.Flag)` renders `[Flag] = True`; over rows `1`, `-1`, `0` | 1, 2 | 1, 2 |
+  | `[Flag] = @p` with `true` typed `Int16` (today) / `short 1` (E-34) | 2 / 1 | 1 / 1 |
+  | read back | True, True, False | True, True, False |
+
+  So the literal predicate treats any non-zero as true on both engines, while a parameter predicate compares the
+  value — and only E-34 makes LibRed's bound value equal ACE's. Both engines share the mixed-data caveat (a row a
+  literal wrote holds `-1`, which a parameter `1` does not match); E-34 brings LibRed to ACE parity, it does not fix
+  that. Widths: `Byte`, `Int16`, `Int32` only — the measured ones; `Decimal` is left alone (ACE refuses it, so there
+  is no parity to reach), and no other integer width maps to an Access column. Rejected: a mapping-schema converter —
+  it would also change the literal, where the engines already agree.
+- **E-35, here; the fix on #5969.** The DISTINCT exception needs a LibRed convert visitor, which exists on #5969
+  (`AccessLibRedSqlExpressionConvertVisitor`) and not here, so this branch gates the test on LibRed and #5969's A-7
+  adds the override, gives the test LibRed's expected values (`NULL`) and removes the gate. Same pattern as
+  `DateTimeFunctionsTests.cs:2038` (`no-issue: needs the LibRed dialect extensions.`). `no-declaration:` per
+  `testing.md` → *Gating an assertion failure*: the expected text is a tuple list with parentheses.
+- **Census** (P7, searched): `DataType = DataType.(Int16|Int32|Int64|Byte|SByte|UInt16|UInt32|UInt64)\)\]\s*public\s+bool`
+  over `Tests/` — `OrderByTests.cs:1066` (this) and `OracleTests.cs:1603` (Oracle-only); so no other LibRed test sees
+  E-34. The remote path converts on the server (the `LinqService` cases measure it).
+- conventions: `testing.md` → *Test layout*, *Gating an assertion failure*; `test-diff-sweep.ps1` counts recorded in
+  G-01 once implemented.
+- re-derives: none in P5 — D-3 (parameters by name) and D-13 (CHAR padding) concern other parameter paths.
+- The DISTINCT shapes LibRed accepts, for #5969's A-7 (measured, same probe): a negated select-list expression, a
+  negated sub-query column and a negated key outside the select list are all accepted with .NET order; a negated
+  select-list **alias** is not (`Column 'Value' was not found`) and linq2db never emits one. ACE rejects all four.
+  What linq2db emits today: the expression shape is already wrapped (`SELECT … FROM (SELECT DISTINCT …) ORDER BY
+  -[t1].[Value_1]`), so only the sub-query-column shape (`DistinctOrderByNullableBooleanSubQueryColumn`) and the
+  outer-join shape reach the flip.
+- **G-01 (A-22), 2026-11-10, net11.0 Debug, local.** TO-13 / TO-14 red with E-34 stashed: `BoolStoredAsInteger`
+  `OverflowException` (Byte) and `OrderByBooleanStoredAsInt16` `[1, 3, 2, 4]`, direct and `LinqService`; E-35's gate
+  reported as verified skips (4). Green with E-34, over master's #6203 test set plus `BoolStoredAsInteger`:
+  `Access.LibRed.Mdb` 259 passed / 4 skipped (E-35) / 0 failed, `Access.LibRed.Accdb` the same, control
+  `Access.Ace.OleDb` 263 / 0 / 0. `test-diff-sweep.ps1 -Base HEAD -Path Tests/ -IncludeWorkingTree`: 0 chains, one
+  narrowed set (`AccessTests.cs:818`, `AllAccess`, reason above it), 0 gates flagged. Not run locally: the Jet
+  flavours (x86 only), `Access.Ace.Odbc`.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
@@ -1509,5 +1577,18 @@ adapter loads in `Internal/DataProvider/Access` (none outside the constructor, d
 - **evidence** — the re-sweep was ODBC-keyed; the class sweep the critic ran is recorded in A-21.
 - Not checked by the critic: any WASM run with the row, Mono's 5-minute whole-matrix budget
   (`WasmBundleRunner.cs:31`) with one more configuration.
+
+**weak** (round 4, A-22 delta: E-34, E-35, E-36, TO-13, TO-14; dispatched jointly with #5969's A-7) — `plan-critic` on
+fable, read-only against this worktree. Nothing refuted; three leads, each answered by a probe the same day (the table
+in A-22):
+- **lead — E-34's predicate consumer unprobed** (`Where(r => r.Flag)` renders `[Flag] = True`; would `1` stop matching?)
+  → measured: the literal predicate matches `1` and `-1` on both engines; the parameter predicate compares exactly,
+  and E-34 is what makes LibRed's bound value equal ACE's. Recorded with the shared mixed-data caveat.
+- **E-34 "integer of that width" had eight arms and one measured cell** → narrowed to `Byte` / `Int16` / `Int32`, each
+  measured (`Byte` overflows today on LibRed); `Decimal` measured and left alone; new E-36 / TO-14 cover all three.
+- **the literal "-1 on both engines" claim carried a rejected alternative unmeasured** → measured (`-1` both).
+- Checked and sound by the critic: the `Tests/` census, E-35's gate vocabulary and width, TO-13's red.
+- Not checked by it: any engine behaviour, the `AccessBulkCopy` path (CreateLocalTable seeds through the parameterized
+  INSERT here, measured), usages outside `Tests/`.
 
 

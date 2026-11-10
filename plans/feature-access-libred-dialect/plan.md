@@ -208,6 +208,10 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - E-23 (A-6) `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — the new overrides on public `LinqToDB.Internal.*` types
 - E-24 (A-6) `Tests/Linq/Linq/TakeSkipTests.cs:TakeWithTies,TakeWithTies2`, `Tests/Linq/Linq/CachingTests.cs:TakeHint` — add `TestProvName.AllAccessLibRed` to the inclusion lists; `Tests/Linq/Linq/DateTimeFunctionsTests.cs:CurrentTimestampUtc` — `AllAccess` → `AllNativeAccess` in the exclusion; `Tests/Linq/Linq/EnumerableSourceTests.cs` — one new test, a local collection whose **first** row has a `NULL` in a nullable column (TO-13's U-10/U-12 cell, absent from the corpus); plus whatever TO-12..TO-16 triage needs (re-exclusion / gate per D-1/D-2)
 - E-25 (A-6) `.claude/plans/feature-access-libred/findings.md` — the `InvariantGlobalization` failure (U-11)
+- E-26 (A-7) `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs:VisitSqlOrderByItem` — `protected virtual bool CanNegateSortKeyUnderDistinct => false`, read where `flip` is decided (`:571`), so the DISTINCT flip-only rule is the native default; `AccessLibRedSqlExpressionConvertVisitor.cs` overrides it `true` (the `IsTickArithmeticSupported` shape, `:31`)
+- E-27 (A-7) `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByOuterJoinedBooleanKey` — drop #5956's E-35 gate; the expected source reads LibRed's `NULL` for unmatched rows (`t?.BoolValue`) where Jet / ACE read `False`, and the comment says which engine does what. The projection is already `bool?` (`LinqDataTypes2.BoolValue`, `Tests/Model/LinqDataTypes.cs:96`), so the query side is untouched and ACE's SQL with it
+- E-29 (A-7) `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByNullableBooleanSubQueryColumn` — the pinned flip order (`NULL` after `True`) is native-only; LibRed expects the .NET order, and the comment says so
+- E-28 (A-7) `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — the new virtual and its override
 
 ## P7 Impact map (M/L)
 
@@ -267,6 +271,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - TO-15 (A-6) `StringJoinTests` item-form cases (separator, `null` items, and the `''`-item cell at `StringJoinTests.cs:401`) on both LibRed configs: rows unchanged, LibRed baselines contain `CONCAT_WS(` where the pre-A-6 capture has `Mid(`; the aggregate STRING_AGG cases and the `withoutSeparator` cases of `StringConcatTests` (`:217,443,461`) unchanged — proof: characterization (observable: baseline diff)
 - TO-16 (A-6) `DateTimeFunctionsTests.CurrentTimestampUtc` (narrowed by E-24) green on LibRed with `GETUTCDATE()` (its `Kind == Unspecified` assertion at `:197-200` holds, U-12); `UtcNow`, `DateTimeOffsetNowUtc` (`AllAccess` in the `Full.DateTime` branch, `:302-311`), `NullabilityCheck` stay green server-side — proof: red→green for `CurrentTimestampUtc` only if it is red with the narrowing alone, else characterization
 - TO-17 (A-6) Symmetry guard: the TO-12..TO-16 fixtures on `Access.Ace.OleDb` — results and baselines identical to the pre-A-6 capture — proof: characterization
+- TO-18 (A-7) `DistinctOrderByOuterJoinedBooleanKey` and `DistinctOrderByNullableBooleanSubQueryColumn` on `Access.LibRed.Mdb` and `.Accdb`, direct and `LinqService`: each red with E-35's gate removed and E-26 absent (NULLs on the wrong end; measured on #5956 2026-11-10 for the first, the flip for the second is master's pinned expectation), green after with `-[…]` under `SELECT DISTINCT` in the SQL; then the whole #6203 set — `DistinctTests` and `OrderByTests` — on both LibRed configs, direct and `LinqService` (the remote server re-runs the convert pass on an already-negated int key), 0 failures; control: the same two fixtures on `Access.Ace.OleDb`, unchanged — proof: red→green + control
 
 ## P9 Verification gates
 
@@ -413,8 +418,26 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     U-9, U-10, U-11, U-12 (new); P7 the eleven A-6 rows (new); P8 TO-12..TO-17 (new); TO-9 (its VALUES branch is now
     decided — TO-13 carries it); TO-11 (the full-suite gate now includes the A-6 shapes); TO-10 / SC-3 unchanged —
     every A-6 edit is LibRed-only, which TO-17 checks on `Access.Ace.OleDb`.
-
-## P12 Critic verdict (M/L)
+- A-7 (2026-11-10, user: "a" — make LibRed work, split with #5956) — master's #6203 ported this plan's A-1 sort-key
+  rewrite (the merged visitor equals this branch's) and brought `DistinctTests.DistinctOrderByOuterJoinedBooleanKey`,
+  which #5956 gates on LibRed (its A-22 / E-35). **Measured on #5956:** LibRed returns `NULL` for the unmatched
+  outer-join rows where Jet / ACE return `False`, and the DISTINCT flip (`AccessSqlExpressionConvertVisitor.cs:565`)
+  then orders those NULLs against .NET; LibRed **accepts** `ORDER BY -[t].[BoolValue]` under `SELECT DISTINCT` and
+  returns `null, False, True`, where ACE rejects it (*"conflicts with DISTINCT"*) — the engine limit the A-1 residual
+  note (top of file, *Open* item 1) recorded for native Jet only.
+  - decision: E-26 — the flip-only rule becomes a native default behind a virtual, overridden for LibRed, in the visitor
+    that already carries this branch's LibRed-only overrides (D-3). E-27 — the test expects each engine's own
+    unmatched-row value. rejected: wrapping the DISTINCT query in a sub-query so a native engine could negate too —
+    changes SQL shape for every flavour, and A-1 / critic round 2 already measured that path as the one that regressed.
+  - measured after critic round 5 (#5956 probe, LibRed.Mdb vs Ace.OleDb): LibRed accepts a negated key under
+    `SELECT DISTINCT` for a select-list expression, a sub-query column and a key outside the select list, each in the
+    .NET order; it rejects a negated alias, which linq2db never emits; ACE rejects all four. linq2db already wraps the
+    expression shape (`… FROM (SELECT DISTINCT …) ORDER BY -[t1].[Value_1]`), so E-26 changes the SQL of the sub-query
+    column and outer-join shapes only — hence E-29.
+  - failure mode: E-26 also reaches window `ORDER BY` items? No — `VisitSqlWindowOrderItem` (`:576-586`) has no
+    DISTINCT input and is untouched; only `VisitSqlOrderByItem` reads the flag.
+  - re-derives: A-1 (its DISTINCT residual is lifted for LibRed); TO-10 / TO-17 (native symmetry — E-26's default keeps
+    native output byte-identical, TO-18's control measures it).
 
 weak — round 1, `plan-critic` on **fable**. The stored `criticModel: opus` is the author's own family and the skill
 requires a different one, so fable was passed explicitly on the dispatch. Objections and responses:
@@ -473,3 +496,20 @@ Critic searched: the `IsDistinctFromSupported` gate and every `SqlPredicate.IsDi
 `TranslateUtcNow` / `CurrentTimestampUtc`, `WrapParameters`, `InvariantGlobalization` across the worktree, the reader
 keying in `ConvertFromDataReaderExpression`. Not checkable by it: the alpha.4 release notes. No round 5 — every
 objection accepted as stated and answered by measurement, none disputed.
+
+weak — round 5 (delta A-7), `plan-critic` on **fable**, 2026-11-10, dispatched jointly with #5956's A-22. Objections and
+responses:
+
+- P6 had no edit-point for `DistinctOrderByNullableBooleanSubQueryColumn`, whose pinned flip expectation E-26 changes
+  on LibRed → E-29.
+- E-27 underspecified on materialization → the projection is already `bool?` (`LinqDataTypes.cs:96`); E-27 says so.
+- lead: the negated-key probe covered one shape → three more measured (A-7 bullet); the alias shape is rejected by
+  LibRed and never emitted.
+- TO-18's regression set was three tests while E-26 changes every nullable key under DISTINCT on LibRed → widened to
+  the whole `DistinctTests` + `OrderByTests` set, direct and remote, with the native control.
+- Stale line citations → corrected to this tree (`:571`, `:576-586`).
+
+Critic checked and found sound: E-26 leaves native output unchanged by construction; window items never read the
+DISTINCT state; the LibRed visitor wiring (`AccessDataProvider.cs:115`, `AccessLibRedSqlOptimizer.cs:15`); E-28 matches
+the `IsTickArithmeticSupported` PublicAPI entries. Not checked by it: engine behaviour. No round 6: every objection
+accepted and answered, none disputed.
