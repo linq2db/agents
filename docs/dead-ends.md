@@ -4,6 +4,46 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: keying a lazily built CTE body's ordering isolation on the current state
+
+**Tried:** isolating `CteContext.InitQuery` when an ordering is current; isolating unless read under the scope that created the CTE; an identity check in `GroupByBuilder` that skips pruning a list its source did not produce.
+
+**Failed because:** `AppendJoinedOrderBy` runs before the join keys read the CTE, so a CTE on the outer side saw the joined list as current and hid its own leading ordering (silently wrong rows, where the reviewed head threw). Under the creating scope the body could still prune a joined side's appended list, throwing where master ran. The identity check covered `GroupBy` bodies only, not `OrderBy` or `Distinct`.
+
+**Don't re-attempt:** either condition. Build the body under `IsolateOrderBy` unconditionally, so it cannot touch the reader's list, and decide afterwards whether to publish its ordering: ahead of the current list when the CTE is in the reader's chain or nothing else is current, otherwise dropped. (#6197, `e2df26923`)
+
+## EXPR-TRANS: passing an enum-to-enum cast through `VisitUnary` for every SQL build
+
+**Tried:** returning `placeholder.WithType(node.Type)` from `ExpressionBuildVisitor.VisitUnary` for a cast to an enum whose default mapping is the operand's enum, first unconditionally and then gated on `BuildPurpose.Sql` alone.
+
+**Failed because:** the cast then builds under `IsSupportedSubquery`, a probe at `BuildFlags.None` that failed for it before. Two child collections using the cast under `WithUnionLoadStrategy` throw `ArgumentOutOfRangeException` at `CteContext.RegisterField`, where master passes and a plain column in the same shape passes. Adding `OrderBy` to the children does not help. The exact column/field mismatch was not established.
+
+**Don't re-attempt:** the general pass-through, or patching only the `Math.Min` index in `RegisterField`: the crash needs a select column with no registered field, so an index repair can misalign columns. Gate the pass-through on `BuildFlags.ForKeys`, which is in the translation cache key and is not set by the probe. (#6272, #6277)
+
+## BUILD: choosing the documented target framework for docfx metadata through `docfx.json`
+
+**Tried:** (1) `metadata[].properties.TargetFramework` alone; (2) a `DocfxTargetFramework` rule in `Directory.Build.targets`; (3) the same rule via `BeforeTargetFrameworkInferenceTargets`; (4) via `BeforeMicrosoftNETSdkTargets`; (5) `TreatAsLocalProperty="TargetFramework"` alone on the netstandard2.0 analyzer projects.
+
+**Failed because:** (1) docfx passes `properties` as global MSBuild properties, which reach every referenced project, so LinqToDB's netstandard2.0 analyzer references logged "Found project reference without a matching metadata reference" (dotnet/docfx#10772); (2) `Directory.Build.targets` is imported after the SDK has split the project into per-framework builds (`IsCrossTargetingBuild=true`, empty TFI); (3) that hook is imported only in the inner build — no effect; (4) it picks the framework, but after `Directory.Build.props` has computed the `SUPPORTS_*` constants from an empty `$(TargetFramework)` (LinqToDB: `TRACE;RELEASE` instead of ten constants), and the custom global flows into `GetTargetFrameworks` negotiation, so LinqToDB answers net10.0-only to its net462 / net8.0 referrers; (5) the framework is right, but Roslyn's workspace matches a loaded reference by output path, and `ArtifactsPivots` (root `Directory.Build.props`) had already pivoted it on the global framework.
+
+**Don't re-attempt:** use a global `TargetFramework` only on entries whose project targets it, plus, on every project in their reference closure that lacks that framework, both `TreatAsLocalProperty="TargetFramework"` and an `ArtifactsPivots=$(Configuration)` pin (`Source/Analyzers.Common.props`). (#6265)
+
+## BUILD: checking out `linq2db.baselines` to rebase or resolve a baselines PR
+
+**Tried:** `git worktree add --detach <dir> origin/baselines/pr_6198` in the baselines clone, to run `git rebase origin/master` on a `CONFLICTING` baselines PR.
+
+**Failed because:** the repo has ~400k files, and some names (OData test cases with the filter in the name) exceed Windows MAX_PATH. The checkout ran past 10 minutes, hit `Filename too long`, and ended with `fatal: Could not reset index file to revision 'HEAD'`. A `git rebase` needs that same working tree.
+
+**Don't re-attempt:** a checkout of that repo on Windows (`core.longpaths` was not tried; the 10-minute checkout alone rules it out for a rebase). Rebase it without a working tree: `.claude/scripts/rebase-baselines-branch.ps1` replays each commit with `merge-tree --write-tree -X ours --merge-base=<parent>` plus `commit-tree`. Procedure: [`pr-and-push.md`](pr-and-push.md) → *After test renames / moves / deletes*. (#6198, baselines #2240)
+
+## PROV-DUCKDB: rounding a decimal to even with `round_even`
+
+**Tried:** `round_even(value, s)` over a `DECIMAL(18,1)` column, to replace an emulation that overflowed.
+
+**Failed because:** it returns `DOUBLE` for a `DECIMAL` argument, so `12345678901234567.3` came back as `1.2345678901234568e+16` and `20000000000000001.5` as `2e+16`. Separately, the arithmetic it was meant to replace fails: `DECIMAL(18) * x` raises `Overflow in multiplication of DECIMAL(18)` once the unscaled result reaches 10^18.
+
+**Don't re-attempt:** `round_even` for exact decimal rounding, or a `value * 0.5` / `value * 2` emulation on values near the column's range. A parity test on `FLOOR(value)` picks the even neighbour with no multiplication. The precision form is still open: #6275. (#6151 A-9)
+
 ## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
 
 **Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
@@ -35,6 +75,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 **Failed because:** both are green on both providers, with results equal to LINQ to Objects. Reach was not instrumented, so neither shape is proven to hit the code path the suspicion named; shape 2's sharing producer is still unknown (the one known sharing case, a SET value with an inner column, has both slots deferred).
 
 **Don't re-attempt:** these two shapes as written. A further probe of shape 2 first needs a statement that provably shares one predicate instance between a value slot and a filter. (#5673, review of 2026-11-01)
+
+## SQL-PROVIDER: deciding the concat null-as-empty wrap from a non-query parameter's value, for Informix's redundant `Nvl`
+
+**Tried:** removing #5673's Informix `Nvl('x:', '')` around a value converter's literal prefix (`StringConcatTests.ConcatAssignedToConvertedColumnKeepsPrefixUnguarded`) in `SqlExpressionConvertVisitor.ConvertConcat`: skip the `Coalesce(item, '')` wrap when the item is a `SqlParameter { IsQueryParameter: false }` (bare or in a `SqlParameterCastExpression`) with a non-null bound value. Then aiming at `master`'s exact SQL, `'x:' || Sku || Nvl('-s', '')`.
+
+**Failed because:** at the concat wrap both Informix operands are *query* parameters inside `SqlParameterCastExpression`, so the check never fired. They become literals only afterwards, when `ConvertCoalesceToBinaryFunc(…, "Nvl", supportsParameters: false)` marks them non-query — in place, on the shared `SqlParameter`. And `master`'s SQL is no consistent target: its build-time `OptimizeAndConvert` folded `Nvl(p, '')` back to `'x:'` but kept `Nvl(suffix, '')`, the identical shape.
+
+**Don't re-attempt:** a value check in the concat wrap for this case, nor reproducing `master`'s half-folded SQL. The fix that worked sits where the inlining happens: `ConvertCoalesceToBinaryFunc` stops at the first inlined parameter with a non-null bound value (#5673 `af200db1c`).
 
 ## MAPPING: inputs that do not separate a handle's schema from the live one
 
@@ -129,6 +177,14 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** `SqlExpressionOptimizerVisitor.VisitIsNullPredicate` folds IS NULL on a non-nullable key to false, so the ELSE collapses back to `NULL = innerKey`, which YDB and Jet reject. Jet cannot type `IIF(x, NULL, NULL)` ("Type mismatch in expression"). Jet has no CAST.
 
 **Don't re-attempt:** those forms. Use `SqlPredicate.IsNull(SqlNullabilityExpression.ApplyNullability(outerKey, true))` with `outerKey` as the true branch, only when the folded predicates carry a parameter. (#6157, `276839ffe`)
+
+## SQL-AST: making outer-only LEFT JOIN predicates run on YDB by folding them into join keys
+
+**Tried:** with `IsComplexJoinConditionSupported = false`, folding a LEFT JOIN `ON` predicate that reads only the outer side into an equality key, `CASE WHEN P THEN outerKey ELSE NULL END = innerKey`, in `MoveJoinConditionsToWhere` — plus a wider push-down into the joined derived table, a `JoinMoveSubQueryUp` flatten guard and an Access opt-in. About 280 lines in `SelectQueryOptimizerVisitor` (#6157, closed; head `8747cea6e`, reachable as `refs/pull/6157/head`).
+
+**Failed because:** not on correctness — an agentic review verified the fold for plain keys, row keys and parameter-decided predicates — but on cost: maintainers rejected that much shared-optimizer code for a provider limitation.
+
+**Don't re-attempt:** without maintainer buy-in first. Current behaviour (#6257): such a predicate stays in `ON` and YDB rejects the query (`each equality predicate argument must depend on exactly one JOIN input`); #6148 is in Backlog. The two `#6157` entries above are the fold's known traps if it is ever revived. Access has the mirror defect independently of the flag: Jet applies an outer-only `ON` conjunct as a filter and returns wrong rows (#6215); a test with that shape gates Access on #6215 (`DerivedAssociationKeepsOtherDerivedRows`).
 
 ## SQL-AST: an end-to-end test telling per-boundary from outermost-only column-subquery scope apart in `SqlQueryValidatorVisitor`
 
@@ -343,3 +399,45 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** top-level `Distinct().Count()` and `Distinct().Take(n).ToList()` arrive with identical flags (`IsSubQuery=False, CreateSubQuery=True`; #6170 instrumentation).
 
 **Don't re-attempt:** read the request instead. Consumers that use the projection in SQL (aggregates, `Contains`, join keys) ask `DistinctContext.MakeExpression` with `SQL` flags; materialization asks with `Expression`. Also, `AggregateExecuteBuilder`'s key-initialization result used to be discarded, so a guard placed only in the context was invisible to aggregates. (#6170, `18af18415`)
+
+## EXPR-TRANS: matching a placeholder built in a sub-query's context against an outer select list by reference
+
+**Tried:** deciding whether a client value's input is a `Distinct` column (#6170 MAJ003) by building the input chain (`Ref(SubQueryContext).ChildID`) with `BuildSqlExpression(chainRoot.BuildContext, chain)` and comparing `placeholder.Sql` by reference to each DISTINCT `SqlColumn.Expression`; then the same after `UpdateNesting(chainRoot.BuildContext, …)`.
+
+**Failed because:** the placeholder is in the input query's coordinates — `SelectQuery` is the input sub-query, `Sql` the expression *inside* it (`t98.ChildID`) — while the DISTINCT column's expression is the input query's own `SqlColumn` wrapping it (`t101[67].ChildID := t98.ChildID`). `UpdateNesting` against the same context changes nothing. Every `SubQueryContext` between the input and the DISTINCT (`OrderBy`, `Take`, a second `Select`, `AsSubQuery`, hints) adds one more `SqlColumn` layer.
+
+**Don't re-attempt:** either reference comparison. Walk the outer column's `SqlColumn` chain to the layer whose `Parent == placeholder.SelectQuery`, then compare that layer's `Expression` to `placeholder.Sql` (`DistinctBuilder.SelectsPlaceholder`). (#6170, `979a9f2ae`)
+
+## SQL-PROVIDER: rounding a double on Access with a midpoint test against a literal
+
+**Tried:** porting `RoundAwayFromZeroByMagnitude` to Access for `Sql.Round(double)` / `Math.Round(double, AwayFromZero)`: first `IIF(m - Int(m) = 0.5, Int(m) + 1, Round(m, 0))`, then `Int(m) + IIF(m - Int(m) >= 0.5, 1, 0)`.
+
+**Failed because:** ACE (OLE DB and ODBC) compares a Double with the literal `0.5` imprecisely. A probe showed that `F = 0.49999999999999994` is stored exactly and that `F - Int(F)` comes back exact, yet `IIF(F < 0.5, 1, 0)` returns 0. `Round` was not the culprit: removing it changed nothing.
+
+**Don't re-attempt:** comparing a double with a fractional literal in Access SQL when the outcome must be exact. Use arithmetic: `Int(m) + Int((m - Int(m)) * 2)`, since the doubling is exact (`bdc4a2ff7`). The same caution applies to any other Access emulation that tests a double against `0.5`. (#6151)
+
+## SQL-PROVIDER: separating PostgreSQL's numeric and double rounding routes with residue values
+
+**Tried:** a control for `Math.Round(double, p, AwayFromZero)` that should go red if the `Sql.Round(double, p)` decimal cast (`RoundThroughDecimal`) leaked onto the `Math.Round` path. Residue doubles {1.15 @1, 2.675 @2, 1.005 @2} were run with the leak mutated in.
+
+**Failed because:** two reasons, both measured.
+- The mutant stays green. PostgreSQL's away-from-zero formula is `FLOOR(v * POWER(10, p) + 0.5) / POWER(10, p)`, and `POWER(10, int)` resolves to `power(double precision, double precision)`. So `v::decimal * POWER(10, p)` is a double again, and the cast changes no value.
+- .NET's `Math.Round(double, digits, mode)` scales by `10^digits` before rounding. 1.15 and 2.675 become exact ties (1.2, 2.68), which is what a decimal route gives too.
+
+**Don't re-attempt:** separating the routes through that formula. The cast is observable only in a native `ROUND(numeric, p)` arm (PostgreSQL's to-even path). Compute any `separates:` row's two answers with `dotnet fsi` and a SQL probe before writing it. (#6151)
+
+## EXPR-TRANS: asserting the SQL of a constant member call inside a predicate
+
+**Tried:** `Where(p => p.ID == 1 && Sql.Truncate(2.7m) == 2m)` plus a `ToSqlQuery().Sql` assertion, as a control for `TranslateTruncateMethod`'s client-evaluation guard.
+
+**Failed because:** the comparison is constant as a whole, so it is folded on the client before any member translator runs. With the guard removed, the SQL was still `WHERE [p].[PersonID] = 1` (SQLite.MS, measured).
+
+**Don't re-attempt:** a constant-only comparison as a translator control. Put a column on one side of the comparison, or assert in a projection. (#6151)
+
+## BUILD: a `net11.0-browser` asset to give browser-wasm apps a different build
+
+**Tried:** packing `lib/net11.0` (runtime-async) beside `lib/net11.0-browser` (without it), so a Mono browser app would load the second one.
+
+**Failed because:** a browser-wasm app targets plain `net11.0` with `RuntimeIdentifier=browser-wasm`, so NuGet resolves `lib/net11.0` and never selects the `-browser` asset. Measured with packed test packages on a `Microsoft.NET.Sdk.WebAssembly` app under Node: Mono failed with `Runtime Async is not supported on this platform`, and CoreCLR loaded the same `lib/net11.0`. NuGet keys on TFM + RID only, so no layout can give Mono and CoreCLR different files.
+
+**Don't re-attempt:** a platform TFM for a RID-only distinction. Use `runtimes/browser-wasm/lib/<tfm>`, which both browser runtimes load. (#5944)

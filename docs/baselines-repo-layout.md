@@ -64,6 +64,8 @@ $ git -C ../linq2db.baselines diff --name-status origin/master...origin/baseline
 
 The failure is worse than a stale read because the wrong answer is *self-consistent*: file lists, per-file diffs and `show` all agree with each other. The tell is a path that should exist and doesn't — cross-check the changed test names against the PR's own `nameStatus` before trusting any count. (Surfaced on PR #5727: mid-review `FETCH_HEAD` moved from the baselines branch to baselines `master`, and the same `--name-only` command that had correctly reported the PR's 136 `EagerLoadingTests` files then reported 183 `ConcurrencyRefreshTests` files — unrelated baselines that master had gained. Caught only because a sample path 404'd; on the counts alone it would have produced a confidently wrong Baselines section.) The `worktree.md` → *Never base a worktree on `FETCH_HEAD`* rule is the same hazard on the checkout side.
 
+**A stacked child's baselines PR dies with its parent's baselines branch.** For a PR stacked on another, CI opens `baselines/pr_<child>` against `baselines/pr_<parent>`, not baselines `master`. Deleting the parent's branch (merging or closing the parent's baselines PR) closes the child's tracking PR, and its branch goes with it, so the child then reads as "no baselines" while its delta is simply gone. Nothing rebuilds it but a fresh `test-all` on the child, now cut from baselines `master`; trigger one before a baselines review, and post the review meanwhile with the section marked *not reviewed* rather than waiting. (#6111, 2026-11-06: linq2db.baselines#2273, 451 files, closed when `baselines/pr_5673` was deleted.)
+
 ### A baseline file's path carries the provider and nothing else — no TFM, no OS
 
 `<Provider>/Tests/…/<FQN>(<Provider>).sql` is the whole key. One CI job runs the same tests across several
@@ -116,6 +118,14 @@ Files that vanish from that list are byte-identical to the pre-collision state �
 Two consequences worth reporting. The finding is "not attributable to this PR" with a measurement behind it rather than a plausible story — and the baselines PR itself then carries N files that are *reverts* of the other PR's values, which matters to whoever merges it. Do **not** phrase either as an instruction to sync with master (see [`review-conventions.md`](review-conventions.md) → *Notes vs findings*).
 
 (Surfaced on #5844: 387 modified files across `CharTest2/11/12`, `LeftJoin5`, `CheckField6`, three `MergeTests` and more. All but one were byte-identical to `ae40ecc3b84`, the state before #5864's baselines merged 17 minutes after the branch's own master merge — and #5864's subject named two of the clusters: *"merge-source order, CharTest isolation"*. `LeftJoin5` and `CheckField6` returned literally empty diffs.)
+
+### The other direction — a merged linq2db PR whose baselines PR never merged
+
+When a linq2db PR merges but its `baselines/pr_<n>` PR stays open, master's code and baselines master disagree: every later PR whose run covers the affected tests re-records the new output and shows it as its own drift. The cluster is the inverse of the one above — the files carry values master *should* have, not ones it used to have. Find open baselines PRs whose linq2db PR is merged ([`review-queue-conflicts.ps1`](../scripts/review-queue-conflicts.ps1) `-AllBaselines` reports them as `staleSources`) and diff one cluster file against that branch; a match attributes it. The fix is merging that baselines PR (*Merging a baselines PR* below), not a change to the PR under review. Tests added by PRs merged after the stale run keep the old values on master, so a residue drifts on the next run that covers them.
+
+To preview what a branch will show after baselines master moves, simulate the merge: `git merge-tree --write-tree origin/master origin/baselines/pr_<n>`, then diff `origin/master` against the printed tree. A two-dot `git diff origin/master origin/baselines/pr_<n>` reports master's new content as reverse drift on files the branch never touched.
+
+(#6110, 2026-11-06: ~1.4k YDB files lost the `$` in `DECLARE $p` — #5763 bumped Ydb.Sdk to 0.38.0, which stopped prefixing `DbParameter.ParameterName`, and its baselines PR #2266 stayed open.)
 
 ### Merging a baselines PR
 

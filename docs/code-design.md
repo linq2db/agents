@@ -224,6 +224,12 @@ RS0030 bans by documentation ID, so **per overload**. A new .NET major adds over
 3. **Build** `-c Release` for the new TFM, so each added ban either passes or exposes the call sites that already bind to the new overload.
 4. **Record** the added entries, or "none", in the PR body.
 
+#### net11.0 runtime-async needs a separate browser-wasm build
+
+The root `Directory.Build.targets` compiles every net11.0 target with `runtime-async=on`. Mono, the default browser-wasm runtime and so every Blazor WebAssembly app unless it sets `UseMonoRuntime=false`, cannot run those methods (`Runtime Async is not supported on this platform`, or `InvalidProgramException`). A package a browser app can load therefore sets `PackBrowserWasmAsset=true` and ships a second net11.0 build, without runtime-async, at `runtimes/browser-wasm/lib/net11.0`. Today that is `linq2db` and the `Remote.HttpClient.Client`, `Remote.SignalR.Client` and `Remote.Grpc` packages, and `Build/Azure/scripts/verify-browser-wasm-asset.ps1` checks them after pack. NuGet cannot tell Mono from CoreCLR, so CoreCLR browser apps load the same build.
+
+Two consequences. A new browser-reachable package, or the first `async` method in one that lacks the property (`Extensions`, `Compat`, `Tools` have none today), needs `PackBrowserWasmAsset` and an entry in the verify script. A repo project that consumes linq2db for a browser app passes `BrowserWasmAssetBuild=true` on every edge to it, or globally, because the SDK adds transitive project references bare. (#5944)
+
 #### Comments in `BannedSymbols.txt` are `//` lines, never `#`
 
 The banned-API analyzer starts a comment at `//` **anywhere on a line**, and has no `#` comment. A `# avoid culture-dependent calls` line is read as a symbol that resolves to nothing, and is ignored. A `# https://github.com/...` header is cut at the URL's `//` to the symbol `# https:`. Two such headers are then the same symbol, and every TFM's Release build fails with `RS0031: The symbol '' is listed multiple times`, reported at the **older** header's line. Write section headers as `// ...` lines; a URL is fine there, because the line is already a comment. (#4314: a new `# https://github.com/linq2db/linq2db/issues/4314` header broke the build at the existing `# https://…/5188` line.)
@@ -242,6 +248,10 @@ To ask "does this expression depend on any source *outside* a given subtree" —
 - inline: `QueryHelper.MarkAsNonQueryParameters` / `SqlParameter.WithIsQueryParameter(false)`, whose copy keeps `AccessorId`, so `SqlParameterValues` still resolves its value per execution
 
 Then rebuild the parent node. Reviewer consequence: flag any assignment to a `SqlParameter`'s `IsQueryParameter` (or other properties) inside a visitor or convert override. `ConvertCoalesceToBinaryFunc(supportsParameters: false)` still does this in place and is the known exception. (#5978: an Informix CASE inlining fix mutated the shared parameter; Copilot caught it, and `InformixTests.DateParameterInCaseStaysBoundElsewhere` pins the WHERE usage.)
+
+### `SetDefaultFromEnumType` is keyed on the exact type — unwrap `Nullable` before asking
+
+`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and the no-column conversion in `ParametersContext` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
 
 ### Convert-visitor overrides run per node — no allocation on the no-op path
 

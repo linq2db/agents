@@ -79,6 +79,8 @@ When a `gh api` call returns HTTP 422 with body `{"errors":["An internal error o
 
 Surfaced 2026-05-06 during PR #5467 review posting against `POST /repos/{o}/{r}/pulls/{n}/reviews`.
 
+**The same outage can arrive as `unexpected end of JSON input`.** That is `gh` failing to parse an **HTTP 500 with `Content-Length: 0`**: there is no body, so no error wording. The scripts relay `gh`'s line (`post-pr-review: failed to create review: unexpected end of JSON input`), which reads like a malformed payload. Before touching the manifest, check it once: `gh api -i …` shows the status line, or parse the payload with `ConvertFrom-Json`. Then treat it as the outage above. Confirm nothing was created (one `select(.state == "PENDING")` over the paged reviews) before the single retry. (2026-11-06, #5673: four attempts within ~2 minutes all failed this way, and a GraphQL `Something went wrong` hit `gh pr edit` in the same window. The unchanged manifest posted on the user's retry a few minutes later.)
+
 ### A comment the user remembers and you cannot find — read its edit history
 
 A review, issue comment or body that has been edited keeps its history, and the REST/`--json` views show only the *current* text. When the user refers to a comment that isn't there, or a review's body is meaningless (`111`, `.`, a single word), fetch the revisions before concluding anything:

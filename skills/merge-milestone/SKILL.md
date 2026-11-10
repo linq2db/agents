@@ -101,7 +101,9 @@ Oldest first, so the longest-lived branches take the fewest re-syncs.
   full CI round.
 
 **b. Gate.** `& .claude/scripts/wait-pr-checks.ps1 -Pr <n>` with `run_in_background`, then wait for the
-completion notification — do not poll its output file. Exit 0 = green, 1 = non-green, 2 = timed out.
+completion notification — do not poll its output file. Exit 0 = green, 1 = non-green, 2 = timed out,
+4 = a fork PR's workflow run awaits maintainer approval — approving runs the fork's code on CI, so ask the
+user before approving the printed run id, then re-arm.
 
 On non-green, read the failure before touching anything:
 `gh run view --repo linq2db/linq2db --job <job-id> --log-failed`, with the job id from the check's
@@ -110,6 +112,19 @@ On non-green, read the failure before touching anything:
 
 **c. Merge.** `gh pr merge <n> --repo linq2db/linq2db --squash --admin`, then confirm it actually landed
 (`gh pr view <n> --json state,mergeCommit`) — the merge command is often silent on success.
+
+**A PR in a GitHub stack refuses `gh pr merge`** with *"This pull request is part of a stack and must be merged
+using the asynchronous merge REST API"*. Merge it through `merge-async`, pinning the head, then read the result:
+
+```
+gh api -X PUT repos/linq2db/linq2db/pulls/<n>/merge-async -f sha=<head-sha> -f merge_action=direct_merge -f merge_method=squash -f "commit_title=<PR title> (#<n>)" -F bypass_rules=true
+gh api repos/linq2db/linq2db/pulls/<n>/merge-async/<uuid>
+```
+
+`bypass_rules=true` is the `--admin` equivalent; `status: merged` carries the merge commit sha. GitHub then
+retargets the stacked child to `master` and deletes the parent branch, which makes a merge-style child
+`CONFLICTING` — sync it per [`pr-and-push.md`](../../docs/pr-and-push.md) → *A branch cut from another open
+branch goes `CONFLICTING`…*. (#5673, 2026-11-06.)
 
 **d. Baselines.** If the PR has one, its PR is a draft and the repo rejects merge commits:
 

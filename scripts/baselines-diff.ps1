@@ -301,19 +301,33 @@ function ConvertFrom-SqlPath {
     if ($lastSlash -lt 0) { return $null }
     $filename = $rest.Substring($lastSlash + 1)
 
-    $openParen = $filename.IndexOf('(')
-    $closeParen = $filename.LastIndexOf(')')
-    if ($openParen -lt 0 -or $closeParen -lt 0 -or $closeParen -lt $openParen) { return $null }
-    $before = $filename.Substring(0, $openParen)
-    $paramsRaw = $filename.Substring($openParen + 1, $closeParen - $openParen - 1)
+    # A parameterized fixture names its arguments before the method — `Ns.Class(False).Method(Provider).sql` — so
+    # the first `(` belongs to the class; splitting there would fold every method of the fixture into one testBase.
+    $fixture = [regex]::Match($filename, '^(?<cls>[^()]+)(?<fix>\([^()]*\))\.(?<method>[^.()]+)\((?<params>.*)\)')
+    if ($fixture.Success) {
+        $method    = $fixture.Groups['method'].Value
+        $paramsRaw = $fixture.Groups['params'].Value
+        $clsPlain  = $fixture.Groups['cls'].Value
+        $classFQN  = $clsPlain + $fixture.Groups['fix'].Value
+        $classDot  = $clsPlain.LastIndexOf('.')
+        $className = if ($classDot -lt 0) { $classFQN } else { $classFQN.Substring($classDot + 1) }
+        $namespace = if ($classDot -lt 0) { '' } else { $clsPlain.Substring(0, $classDot) }
+    }
+    else {
+        $openParen = $filename.IndexOf('(')
+        $closeParen = $filename.LastIndexOf(')')
+        if ($openParen -lt 0 -or $closeParen -lt 0 -or $closeParen -lt $openParen) { return $null }
+        $before = $filename.Substring(0, $openParen)
+        $paramsRaw = $filename.Substring($openParen + 1, $closeParen - $openParen - 1)
 
-    $lastDot = $before.LastIndexOf('.')
-    if ($lastDot -lt 0) { return $null }
-    $method = $before.Substring($lastDot + 1)
-    $classFQN = $before.Substring(0, $lastDot)
-    $classDot = $classFQN.LastIndexOf('.')
-    $className = if ($classDot -lt 0) { $classFQN } else { $classFQN.Substring($classDot + 1) }
-    $namespace = if ($classDot -lt 0) { '' } else { $classFQN.Substring(0, $classDot) }
+        $lastDot = $before.LastIndexOf('.')
+        if ($lastDot -lt 0) { return $null }
+        $method = $before.Substring($lastDot + 1)
+        $classFQN = $before.Substring(0, $lastDot)
+        $classDot = $classFQN.LastIndexOf('.')
+        $className = if ($classDot -lt 0) { $classFQN } else { $classFQN.Substring($classDot + 1) }
+        $namespace = if ($classDot -lt 0) { '' } else { $classFQN.Substring(0, $classDot) }
+    }
 
     # Statement form — PS unwraps @() in a single-expression if/else into $null.
     $params = @()

@@ -103,3 +103,45 @@ Seven findings in four classes: GAP-05 × 3, GAP-02 × 2, GAP-03 × 1, GAP-08 ×
 - Round 2's mechanism "evidence held in the plan, routed elsewhere" recurs in MAJ004 (TO-35's master-green row beside A-5's L-7 attribution).
 - Round 1's ordering-cell seed rule (`work-plan.md:159`, 41b2bee) landed before A-6 / A-8 and was not applied to TO-54 / TO-65 / TO-66; round 1's dominant class GAP-05 returns as this round's most frequent.
 - Round 1's GAP-08 note recurs in shape: A-4's required G-02 stayed "not re-run" through A-9.
+
+## Round 5 — reviewed HEAD `421f25d0abf8c28d078fb230b919c90fb14ccd62`
+
+Review of PR #6197 (2026-11-09). The delta since the last ledger round is P11 A-10 and A-11. Round 4 (igor-tkachev's point 4, amended as A-11) has no ledger and is not attributed here. igor-tkachev's optional alias remark is folded in as **Alias**. **Stale-keys** is not a code finding, but its row applies.
+
+### Attribution
+
+- **MAJ006** (GroupBy in a lazy CTE body consumes the outer ordering, `GroupByBuilder.cs:206`) — GAP-02 — U-6 (plan.md:70) concludes "the list it prunes holds only its own source's entries" for the join-inner case alone, although U-3 (plan.md:67) lists `CteContext.cs:78` as an unisolated build and P3 (plan.md:46) says the lazy body "can fall outside the scope that should own it"; D-6's skip (plan.md:153) then equates "not within the data sequence" with "outer-correlated", and no `U-n` asks what else is not within it — — — preventable: yes
+  - Second class GAP-03: the P7 deferral (plan.md:240) has a reason, but that reason covers entries anchored inside a CTE, which is a master defect. MAJ006 is a regression from the PR's own pruning (master's SQLite rows are correct), so this is not `out-of-plan-scope`. P7:235 and U-2 classify writers and readers of the list. No row asks in whose scope the new remover E-7 / E-11 runs.
+  - Obligations: TO-44 and TO-49 (plan.md:317-318) put the CTE below the GroupBy. No `TO-n` has the GroupBy inside the body under an outer ordering.
+  - D-9's census of what empties the capture (plan.md:189) omits this population. The A-10 critic searched "every producer of `_currentOrderBy`" (plan.md:493), which is a census by writer, not by owning scope. A-10's `re-derives:` omits P4 and P7, so U-6 was not reopened.
+- **MIN007** (PR body stale at lines 17/69, 70 and 19) — GAP-06 — P3 (plan.md:61) states the A-4 deltas, including the CTE-anchored throw, "go in the PR body's behaviour-change section", and `work-plan.md:78` requires a re-check after each push; the body was not updated for A-4 (D-6, D-7) or A-10 (D-10, which fixed both P10 L-7 defects still listed at line 70) — — — preventable: yes
+  - Not GAP-08: `definition-of-done.md:27` has no `G-nn` (`work-plan.md:220-228` maps G-01 … G-09 only), so P9 had nowhere to record it and no gate was skipped.
+- **SUG004** (`DistinctByMethodTests.cs:1595`, comment and loose `[ThrowsCannotBeConverted]` on TO-47) — GAP-05 — A-5 (plan.md:433) recorded the generic-failure claim, D-9 (plan.md:186) made the D-7 exit throw, and A-10's `re-derives:` P8 list (plan.md:466) omits TO-47, so its attribute kept accepting any conversion failure while its P8 row (plan.md:321) names `Error_DistinctByRequiresOrderBy` — G-01 — preventable: partly
+  - Not GAP-10: the falsified sentence is in the plan and A-10 changed that exit. Nearest rule: the early-return shape at `work-plan.md:291`, which D-9's return-to-throw change does not literally match.
+- **NIT002** (`DistinctByBuilder.cs:114-117`, two alignments in one block) — GAP-07 — `code-design.md:411` *Column-aligned formatting is intentional* exists, but A-11's `conventions:` line (plan.md:470) embeds only `testing.md` rules, so it was not in front of the author of ce0e2d156 — G-06 — preventable: partly
+  - One line in one block. A plan embed would rarely catch this instance.
+- **NIT003** (`DistinctByMethodTests.cs:1481`, one-line chain) — GAP-06 — A-4's `conventions:` line (plan.md:429) embeds "one call per line"; the chain was added under it in ef6b80a62 for TO-41's A-5 assertion — G-01 — preventable: yes
+  - Second class GAP-08: `test-diff-sweep` flagged it at A-10 (plan.md:383, `:1480`, confirmed at d1ff0067a) and G-01 waived it as "pre-existing". It is absent from the base file, and `definition-of-done.md:11` forbids waiving a branch hit.
+- **Alias** (`RowNumber_n` column names across 1,212 baselines, D-10 / 585c15e56) — GAP-02 — D-10's failure-mode line (plan.md:196) and critic nit A-10 (plan.md:491) recorded `[t1].[RowNumber_2]` for `ParentID` as accepted "baseline churn"; neither asked which code assigns the alias, and the plan only amended the sentence — G-02 — preventable: yes
+  - Second class GAP-08: A-10's `re-derives:` (plan.md:466) sends G-02 to "the CI baselines PR", the same deferral as round 3's Cosmetic row. No G-02 result exists after A-3.
+- **Stale-keys** (28 files, `DistinctByAfterCteKeepsValidSql` and `Confirm_Union_RootAfterCteDistinctBy`, 14 each) — GAP-08 — P7 (plan.md:262) names exactly these two renames and `close-stale-baselines.ps1`, and P9 records no run of it; G-02 for A-4 reads "not re-run … the CI baselines PR is the record" (plan.md:374) — G-02 — preventable: yes
+  - G-02 is the closest gate. No gate owns stale-key closure.
+
+### Aggregate
+
+Seven rows: GAP-02 × 2, GAP-06 × 2, GAP-05 × 1, GAP-07 × 1, GAP-08 × 1, and no GAP-10. No class dominates, but a shared cause runs through MIN007, SUG004 and Stale-keys: the plan named the downstream artifact, and an amendment invalidated or owed it without anything walking it. The change that would have prevented the most (those three) is making an `A-n` enumerate its artifacts outside the plan (PR body, each `TO-n` whose exit changed, pending baseline closures) and checking them at `-Done`. MAJ006, the only severe finding, needs a separate fix: the plan held both halves of the mechanism (U-3 and P3 against U-6) and never joined them, because the census tracked who writes the shared list rather than whose scope a new remover runs in.
+
+### Recommended durable fixes (route to `/session-reflect` → plan-rule; not applied)
+
+- GAP-06 × 1 + GAP-05 × 1 + GAP-08 × 1 → `definition-of-done.md:27` and `work-plan.ps1 -Action validate -Done`, with the `re-derives:` semantics in `work-plan.md` P11 — give the PR-body re-check a gate id recording the head it was checked at, no older than the last `A-n`; make `re-derives:` name the body sections and every `TO-n` whose exit or message the amendment changes; make a P7 row promising a stale-key close stay open until P9 records the run.
+- GAP-02 × 1 (MAJ006, with its GAP-03 note) → the step-5 scout brief in `work-plan/SKILL.md` — when a change adds a mutation of shared builder state, list every lazy or re-entrant path that runs the mutator while another scope owns that state, and master-probe one; a `deferred:` row states which direction of the interaction its reason covers.
+- GAP-02 × 1 (Alias, plus the G-02 notes on Alias and Stale-keys) → the P5 failure-mode semantics and P9 G-02 in `work-plan.md` — a failure-mode line accepting SQL or baseline churn names the code that produces it and why that cannot be avoided, otherwise it is a `U-n`; an `A-n` predicting SQL change cannot discharge G-02 with "the CI baselines PR" without a recorded sample read.
+
+### Continuity with Rounds 1–3
+
+- Round 3's "list every population that reaches a changed exit" landed (`plan-critic.md:103`, `work-plan/SKILL.md` step 5). MAJ006 is that shape on a different axis: populations by node kind and by emptying producer were covered, but not by owning scope. The rule is present and its axis is too narrow, so the new fix above extends it rather than re-proposing it.
+- Round 3's "`pre-existing` cites a master run" landed for `P11` (`work-plan.md:269`). NIT003's "pre-existing" meant pre-existing in the branch, a sense that rule does not address.
+- Round 3's Cosmetic GAP-08 (G-02 "not re-run") recurs in Alias and Stale-keys. The deferral at plan.md:374 stayed open through A-11.
+- Round 2's mechanism, "evidence held in the plan, routed elsewhere", recurs in MAJ006 (P3 and U-3 against U-6) and Alias (recorded symptom, no mechanism).
+- Round 1 and round 3's dominant class, GAP-05, is down to one row, and it is an amendment-tracking miss rather than a non-separating seed.
+- Not attributable to any finding: the `validate -Done` failures passed as context (missing G-01 rows for TO-70/74/76/77/79; no recorded red mutant run for TO-37/41/43/45/46/47/49/61). Fixing them would not have surfaced any of these seven.

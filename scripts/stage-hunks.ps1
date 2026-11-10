@@ -34,7 +34,9 @@ context line is preserved and the ranges are recomputed.
 `-CutFile <path> -Cut '<start>|||<end>', ...` is the exact fallback when hunks will not separate -
 typically an insertion directly beside an edited line, which git always reports as one hunk.
 It stages the file's **working-tree** content with each span (start marker through end marker,
-plus the blank line after it) removed, so everything except the later commit's parts goes in.
+plus the line break after it and a following blank line, if any) removed, so everything except the
+later commit's parts goes in. To cut a block that is the last one before a closing brace, start the
+marker at the preceding line's break ("`r`n`t`t[Test..."), or the brace joins the line above (#6145).
 Markers are literal text; `<path>` is relative to the worktree. A start marker that begins mid-line
 leaves that line's indentation behind, so include the leading tabs in it. The file's UTF-8 BOM, if any,
 is preserved. A marker may span lines: pass a double-quoted PowerShell string with `` `r`n `` for a CRLF

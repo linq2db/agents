@@ -142,6 +142,8 @@ Launching a wait is only worth it when it converts into a completion notificatio
 
 **`wait-pr-checks.ps1` exiting 0 does not mean the PR can merge.** Its "Azure contexts are informational" rule is a claim about *coverage* — `build.yml` really is a superset of Azure's `build` pipeline — but branch protection does not read it that way: `master`'s `required_status_checks.contexts` is exactly `["build"]`, the Azure one. So the script can report *all gated legs green* while `gh pr view --json mergeStateStatus` still says `BLOCKED`, which reads as a puzzling contradiction if you take exit 0 as a merge signal. Treat exit 0 as "the DB-free gate is in", then check the PR's own merge state, and use [`azp-wait.ps1`](../scripts/azp-wait.ps1) for the Azure leg that actually gates. `gh api repos/linq2db/linq2db/branches/master/protection` is the one call that settles what is required — it also carries the review requirement, which is the *other* half of a `BLOCKED` a green build cannot clear. (6.5.0 prep PR #5905.)
 
+**`.conclusion // .status` in a `statusCheckRollup` `--jq` prints blank for a running check.** An unfinished `CheckRun` can carry `conclusion: ""`, and jq's `//` falls through only on `null` / `false`, so the status is never reached and the leg reads as no result. Test it explicitly: `if (.conclusion // "") == "" then .status else .conclusion end`. (#6265: Azure `build` legs in progress printed `""`.)
+
 ## A green provider leg covers only the TFMs it ran
 
 On test-all, the Azure Windows SQL Server ≤2016 legs run the Linq tests on NETFX only; the Windows 2017+ legs run only the EF Core NETFX tests, and the Linq tests for 2017+ run on the GHA Linux legs (net10). The GHA Access and SqlCe legs are net462 x86, and GHA `Win s_SQLite` runs only EF Core. So "passes on SQL Server 2022" is not net462 coverage. List a build's steps with `azp-step-log.ps1 -BuildId <id> -StepName "Tests ("` (a substring match) before reading a green leg as cross-TFM evidence. (#5983: the TFM-dependent failure looked version-dependent.)
@@ -382,6 +384,18 @@ gh api repos/linq2db/linq2db/commits/<headSha>/check-runs --jq '.check_runs[] | 
 The `details_url` ends in `buildId=<n>`.
 
 **These `gh api … --jq` recipes are the build-metadata interface — don't hand-roll `Invoke-RestMethod` against the Azure builds API.** The `azp-*.ps1` scripts each answer a narrower question (`azp-build-failures` = per-test failures, `azp-job-durations` = timing/ordering, `azp-step-log` = one step's log, `azp-run` = trigger), so "which commit did build N build?", "what has this branch run lately?" and "is this definition red across other PRs too?" have no script — but they *are* covered here, by the two recipes above plus `/_apis/build/builds/<id>`'s `sourceVersion` + `triggerInfo`. (Surfaced on #5828: three hand-rolled `Invoke-RestMethod` calls re-derived exactly these, because the recipes live under a heading about failure *attribution* and don't read as the general build-query entry point.)
+
+**Auto-cancelled PR builds are soft-deleted, so a plain listing misses them — pass `deletedFilter=includeDeleted`.** An auto-cancelled build reports `deleted: true`, and `/_apis/build/builds` hides it by default, even with `resultFilter=canceled`. On 2026-11-09 that filter returned one build across all definitions, while `includeDeleted` showed 35 cancelled `test-all` runs since 2026-10-20.
+
+```
+gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/builds?deletedFilter=includeDeleted&branchName=refs/pull/<n>/merge&queryOrder=queueTimeDescending&api-version=7.1" --jq '.value[] | [.id, .definition.name, .status, (.result // "-"), .queueTime, .finishTime] | @tsv'
+```
+
+**Pipeline trigger settings are readable anonymously, through the definitions endpoint.** `settingsSourceType: 2` on the `pullRequest` trigger means the YAML is in charge, which every pipeline here reports and which #6288's `autoCancel` confirmed by taking effect. `isCommentRequiredForInternalRepoPRs` and `isCommentRequiredForForkedPullRequests` say whether a pipeline runs only from an `/azp` comment: `true` on every `test-*`, `false` on `build` and `default`. Don't read `isCommentRequiredForPullRequest` for this, because `test-cli` reports `false` there despite needing a comment.
+
+```
+gh api "https://dev.azure.com/linq2db/linq2db/_apis/build/definitions?includeAllProperties=true&api-version=7.1" --jq '.value[] | {id, name, triggers: [.triggers[]? | select(.triggerType == "pullRequest")]}'
+```
 
 ### The GitHub legs — the leg's history across PRs, via `gh-leg-history.ps1`
 

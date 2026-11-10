@@ -3,31 +3,31 @@
   "machineNote": "captured on the maintainer Windows dev box; cross-machine deltas are directional only",
   "targets": {
     "LinqToDB": {
-      "capturedOn": "2026-10-26",
-      "commit": "c584be259",
-      "buildCommand": "analyzer-profile-build.ps1 -SolutionPath Source/LinqToDB/LinqToDB.csproj -ExtraArgs @('-f','net10.0')",
+      "capturedOn": "2026-11-07",
+      "commit": "4a64f2250",
+      "buildCommand": "& .claude/scripts/analyzer-profile-build.ps1 -SolutionPath Source/LinqToDB/LinqToDB.csproj -LogPath .build/.agents/analyzer-perf-LinqToDB.log -ExtraArgs @('-f','net10.0')",
       "project": "LinqToDB",
-      "projectTotalSeconds": 853.238,
+      "projectTotalSeconds": 547.62,
       "analyzers": [
         {
           "analyzer": "CodeGenerators.ProjectFlagsAnalyzer (LINQ2DB0004, LINQ2DB0005, LINQ2DB0006)",
           "rules": "(LINQ2DB0004, LINQ2DB0005, LINQ2DB0006)",
-          "totalSeconds": 2.814
-        },
-        {
-          "analyzer": "CodeGenerators.BuildContextMappingSchemaAnalyzer (LINQ2DB0007)",
-          "rules": "(LINQ2DB0007)",
-          "totalSeconds": 1.741
-        },
-        {
-          "analyzer": "CodeGenerators.SqlBuilderAliasAnalyzer (LINQ2DB0001)",
-          "rules": "(LINQ2DB0001)",
-          "totalSeconds": 0.738
+          "totalSeconds": 1.143
         },
         {
           "analyzer": "CodeGenerators.ServerSideOnlyContractAnalyzer (LINQ2DB0002, LINQ2DB0003)",
           "rules": "(LINQ2DB0002, LINQ2DB0003)",
-          "totalSeconds": 0.223
+          "totalSeconds": 0.637
+        },
+        {
+          "analyzer": "CodeGenerators.BuildContextMappingSchemaAnalyzer (LINQ2DB0010, LINQ2DB0011)",
+          "rules": "(LINQ2DB0010, LINQ2DB0011)",
+          "totalSeconds": 0.514
+        },
+        {
+          "analyzer": "CodeGenerators.SqlBuilderAliasAnalyzer (LINQ2DB0001)",
+          "rules": "(LINQ2DB0001)",
+          "totalSeconds": 0.43
         }
       ]
     },

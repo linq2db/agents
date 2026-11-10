@@ -20,3 +20,31 @@ No plan covers any of these findings: `plan.md` line 6 scopes the plan to the #6
 - GAP-03 ×2 → `work-plan/SKILL.md` step 5 scout brief: when a change introduces/consumes a multi-input eligibility predicate (options, connection capability, registered interceptors), `P7` lists every evaluation site, product and test, with the exact inputs each reads (query vs connection options; remote server vs client).
 - GAP-03 + GAP-05 (MAJ012, MIN020) → `testing.md`: a test of an opt-in execution path opts in explicitly and asserts the path engaged; a test predicting the DbBatch backend accounts for interceptors (SqlServer.CS(.MS) carry `SequentialAccessCommandInterceptor`): build the connection from explicit `DataOptions` (706a455be) or derive the expectation from the product gate.
 - GAP-08 ×2 → `definition-of-done.md` items 1 and 26: sweep hits in branch test code a plan doesn't cover are not waivable as "outside this plan"; re-run the sweep before every push touching `Tests/`; widen the PR-body item to every factual claim, with "no public API added" checked against the `PublicAPI.Unshipped.txt` diff.
+
+## Round 3 — reviewed HEAD 9818a4f1a
+
+Round 2 (review 5758576142 at `f12cf5b9e`: MAJ012, MIN021, MIN022, SUG013–015, NIT010, all fixed by the author) was not attributed here. All four round-3 findings are in test code the PR author committed outside `/work-plan` (the A-8 commits); the plan recorded those commits afterwards (A-8), and its `conventions:` sweep and critic round 13 named every finding's `file:line` before the review ran.
+
+## Attribution
+
+- **MIN024** (MIN023 regression tests narrowed to AllSQLite, direct only) — GAP-07 — `testing.md` *A narrowed provider set is a claim* / *State the reason at the attribute* existed, but no plan step reached the author before `b2b8be100`; the reviewer-proposed `[DataSources]` and its nine-family red were known at commit time; TO-21 adopted the narrowed set and G-01 counted it satisfied by CI green — G-01 — preventable: no
+- **MIN025** (SUG016 test omits SQL Server / Firebird 2.5) — GAP-07 — same chain for `16b35167f`; possible second class GAP-05 if the chosen legs never showed the direct-vs-remote divergence, not settleable from the artifacts — G-01 — preventable: no
+- **MIN026** (`67d0d1c0f` test SQLite-only) — GAP-07 — same chain; second class GAP-05: TO-23 is characterization and its red side is recorded as never shown — G-01 — preventable: no
+- **NIT011** (one-line call chains, `ParameterTests.cs:565-573`, `PredicateTests.cs:1026`) — GAP-07 — *Test layout* existed and never reached the author of `b2b8be100` / `67d0d1c0f`; round 1's NIT006 fix (re-run the sweep before every push) was honoured and detected them — G-01 — preventable: no
+
+Not rows: the unregistered optimizer exits `:314` / `:492` are out-of-plan-scope with a reason (P7, pre-existing on master); the LikeSql comment wording would be GAP-10 if ever posted as a finding.
+
+## Aggregate
+
+4/4 GAP-07, one root: a co-author's push outside the plan process, with the rules and the measured failure set already in existence; the after-the-fact amendment could only detect, not prevent. As a detector the mechanism worked: A-8's sweep and critic round 13 predicted every finding at its exact `file:line`. Across plans the narrowed-set rule was also broken on #6194 (`feature-fix-string-args-varchar-type/gaps.md`, MIN004), so the failure is delivery to the committing author, not the rule's wording.
+
+## Continuity
+
+- NIT006 → NIT011: recurs in class (sweep-detectable one-line chains); round 1's fix landed and fired; the recurrence comes from a co-author's push, not a skipped gate.
+- MIN020 → MIN024–026: related (test coverage narrower than the mechanism), different rule; MIN020's fix landed (`testing.md`).
+- MAJ012, MIN018, MIN019, NIT005: no recurrence.
+
+## Recommended durable fixes
+
+- GAP-07 ×4 → `.github/copilot-instructions.md` (linq2db repo, needs a linq2db commit): inline *A narrowed provider set is a claim* / *State the reason at the attribute* ("a reviewer-proposed `[DataSources]` is narrowed only by a measured failure, stated at the attribute") and *Test layout*'s one call per line; its `## Testing` section holds only "Use Shouldly". Value depends on Copilot review running on co-author pushes.
+- GAP-07 ×4 → `work-plan/SKILL.md` amend step 4: an amendment adopting another author's commits after the fact gives each sweep hit a disposition (fix here with the author's OK, or a named review item), and an adopted `TO-n` whose provider set the plan records as below the measured failure set stays open in G-01 instead of being counted satisfied by CI green.

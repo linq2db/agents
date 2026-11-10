@@ -58,7 +58,11 @@ param(
     [string] $Section,
     [string] $Match,
     [int] $Context = 240,
-    [int] $MaxLineChars = 1500
+    [int] $MaxLineChars = 1500,
+
+    # Directory holding <key>/plan.md. Defaults to the corpus plans/ folder. Embargoed work keeps its plan in a
+    # gitignored folder instead (work-plan SKILL -> Embargoed work), because the corpus is public.
+    [string] $PlansRoot
 )
 
 Set-StrictMode -Version Latest
@@ -69,7 +73,7 @@ $ErrorActionPreference = 'Stop'
 $global:ScriptBaseName = 'work-plan'
 
 $CorpusRoot   = (Resolve-Path "$PSScriptRoot/..").Path
-$PlansRoot    = Join-Path $CorpusRoot 'plans'
+$PlansRoot    = if ($PlansRoot) { [IO.Path]::GetFullPath($PlansRoot) } else { Join-Path $CorpusRoot 'plans' }
 $TemplatePath = Join-Path $CorpusRoot 'docs/work-plan-template.md'
 
 # ---------------------------------------------------------------- helpers
@@ -457,6 +461,8 @@ function Invoke-Validate {
         # A mutation P8 names must have a recorded red in G-01: a named mutation nobody ran is a claim, not a
         # control (work-plan.md -> "A control obligation records the mutation").
         $mutationRx = '[Mm]utations?\s+(?:"([^"]+)"|`([^`]+)`(?:\s*(?:\u2192|->)\s*`([^`]+)`)?)'
+        $waiverBlock = Get-Block -Blocks $blocks -Id 'P10'
+        $waiverRows  = if ($null -ne $waiverBlock) { @($waiverBlock.lines) } else { @() }
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to   = $Matches[1]
@@ -465,11 +471,47 @@ function Invoke-Validate {
                 $name = if ($m.Groups[1].Success) { $m.Groups[1].Value }
                         elseif ($m.Groups[3].Success) { "$($m.Groups[2].Value)`` $([char]0x2192) ``$($m.Groups[3].Value)" }
                         else { $m.Groups[2].Value }
-                if ($seen.Add($name) -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
+                $waived = @($waiverRows | Where-Object { $_ -match $toRx -and $_.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
+                if ($seen.Add($name) -and -not $waived -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
                     $msg = "P9 : G-01 records no run of $to's mutation '$name' -- name the red it produced, or drop the claim"
                     if ($Done) { $errors += $msg } else { $warnings += $msg }
                 }
             }
+        }
+
+        # A `proof: control` obligation needs its red on record even when P8 names the mutation in prose, which the
+        # check above cannot see, and a G-01 row that itself says the run is missing is not a pass. #6151: TO-9 read
+        # "pass; the mutation run is not recorded", and its mutant was later measured green.
+        $g01Lines = @($g01 -split "`r?`n")
+        foreach ($row in (Get-BlockRows -Block $p8)) {
+            if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
+            $to = $Matches[1]
+            if ($row -match '(?i)proof:\s*characterization' -and $row -match '(?i)\bseparates:') {
+                $warnings += "P8 : $to is proof: characterization but keeps a separates: clause -- a characterization separates nothing; find an input that does, or drop the clause"
+            }
+            if ($row -notmatch '(?i)proof:\s*control') { continue }
+            $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
+            $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
+            if ($joined.Length -gt 0 -and ($joined -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+                $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
+                if ($Done) { $errors += $msg } else { $warnings += $msg }
+            }
+        }
+
+        # A sweep hit on branch test code is a branch finding (definition-of-done.md), not a deferral. #6151: G-01
+        # recorded a one-line chain as "review item" and passed; review then raised it.
+        if (@($g01Lines | Where-Object { $_ -match 'test-diff-sweep' -and $_ -match '(?i)review item' }).Count -gt 0) {
+            $msg = "P9 : G-01's test-diff-sweep line leaves a hit as 'review item' -- fix it on the branch, or record why it is not a layout hit"
+            if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
+
+        # An analyzer edit-point owes a per-branch fixture census with a denominator (work-plan.md). #6151: two
+        # MemberMapShadowAnalyzer branches had no fixture while G-01 listed fixture names only.
+        $analyzerRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match 'Source/CodeGenerators/\S*\.cs\b' } })
+        if ($analyzerRows.Count -gt 0 -and $g01 -notmatch '(?i)\b\d+\s+branch(es)?\b[^\n]*\b\d+\s+uncovered\b') {
+            $msg = "P9 : P6 edits an analyzer under Source/CodeGenerators/ but G-01 records no 'N branches, M uncovered' census -- map each analyzer branch to a fixture"
+            if ($Done) { $errors += $msg } else { $warnings += $msg }
         }
     }
 
@@ -477,9 +519,15 @@ function Invoke-Validate {
     # (definition-of-done.md). #6061: the sweep first ran after two review rounds, which drew four layout findings.
     # Not keyed on a pass/fail word in G-01: that plan's rows said "green" and "passed".
     $p6TestRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '`Tests/|\bTests/Linq/' } })
+    # Also an error at Tier M/L once an amendment post-dates 2026-10-28, when this check landed: #6111's warning
+    # stood unheeded through A-4, and two round-2 layout findings were what the sweep lists.
     if ($g01Rows.Count -gt 0 -and $p6TestRows.Count -gt 0 -and $g01 -notmatch 'test-diff-sweep') {
         $msg = "P9 : P6 edits Tests/ but G-01 records no test-diff-sweep.ps1 counts on the implemented tree -- run it before the commit and cite its counts"
-        if ($Done) { $errors += $msg } else { $warnings += $msg }
+        $p11Block = Get-Block -Blocks $blocks -Id 'P11'
+        $lateAmendment = $planTier -ne 'S' -and $null -ne $p11Block -and @(
+            [regex]::Matches(($p11Block.lines -join "`n"), '(?m)^-\s+(?:\*\*)?A-\d+\s*\((\d{4}-\d{2}-\d{2})') |
+                Where-Object { $_.Groups[1].Value -gt '2026-10-28' }).Count -gt 0
+        if ($Done -or $lateAmendment) { $errors += $msg } else { $warnings += $msg }
     }
 
     # P10 entries need a reason.
@@ -575,10 +623,18 @@ function Invoke-Validate {
         $isError = {
             param($e, $trigger, [string]$cutoff)
             if ($trigger -eq 'path' -and $cutoff -lt '2026-11-02') { $cutoff = '2026-11-02' }
+            if ($trigger -eq 'tests' -and $cutoff -lt '2026-11-07') { $cutoff = '2026-11-07' }
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             $dated.Success -and $dated.Groups[1].Value -ge $cutoff
         }
-        $because = { param($trigger) if ($trigger -eq 'path') { 'it names a path P6 does not list' } else { 'a P6 row cites it' } }
+        $because = {
+            param($trigger)
+            switch ($trigger) {
+                'path'  { 'it names a path P6 does not list' }
+                'tests' { 'it adds TO-n rows and P6 edits Tests/' }
+                default { 'a P6 row cites it' }
+            }
+        }
 
         foreach ($e in $entries) {
             $trigger = & $addsEditPoints $e
@@ -636,6 +692,12 @@ function Invoke-Validate {
         foreach ($e in $entries) {
             # A Tests/ path anywhere on the row counts: an E-n leading with a source file can still add tests (#5943 E-39).
             $trigger = & $addsEditPoints $e 'Tests/'
+            # Tests added inside an E-n that cites no A-n escape the trigger above (#6111 A-3 / A-4 into E-9):
+            # adding or re-deriving TO-n rows on a plan that edits Tests/ counts too.
+            if (-not $trigger -and $p6TestRows.Count -gt 0 -and
+                ($e.text -match '(?i)\bnew\b[^.\n]{0,40}\bTO-\d+' -or $e.text -match '(?i)re-derives:[^\n]*\bTO-\d+')) {
+                $trigger = 'tests'
+            }
             if (-not $trigger) { continue }
             if ($e.text -match '(?i)\bconventions:') { continue }
 
@@ -647,7 +709,8 @@ function Invoke-Validate {
         # (plan-critic.md vector 8). #6178 round 3: A-6 moved the route into the contract file and updated one of
         # the two comments describing that file. Warn from 2026-10-28; older entries predate the rule.
         foreach ($e in $entries) {
-            if ($e.text -notmatch '(?i)/review-pr|/verify-review|/code-review|review round') { continue }
+            # Also another reviewer's review cited by login or id (#6111 A-4: "igor-tkachev's review (5692750948 …)").
+            if ($e.text -notmatch "(?i)/review-pr|/verify-review|/code-review|review round|[\w-]+'s review\b|\breview \(?\d{9,}") { continue }
             if ($e.text -match '(?im)^\s*class:') { continue }
             $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
             if (-not ($dated.Success -and $dated.Groups[1].Value -ge '2026-10-28')) { continue }
@@ -972,9 +1035,10 @@ function Invoke-GapReport {
     $unparsed = @()
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $t = $lines[$i].Trim()
-        # The label may hold one level of nested parentheses (`DisableBaseline(disable: false)`); a row the pattern
-        # still misses is reported, not dropped (#6061: two such rows vanished from the aggregate without a word).
-        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\((?:[^()]|\([^()]*\))*\))?\s*[-—]+\s*(.+)$') {
+        # The label may hold two levels of nested parentheses (`DisableBaseline(disable: false)`,
+        # `CAST(x AS NVarChar(Max))`, #6194); a row the pattern still misses is reported, not dropped (#6061: two such
+        # rows vanished from the aggregate without a word).
+        if ($t -notmatch '^-\s+\*\*([A-Za-z0-9-]+)\*\*(?:\s*\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\))?\s*[-—]+\s*(.+)$') {
             if ($lines[$i] -match '^-\s+\*\*[A-Za-z0-9-]+\*\*') { $unparsed += $t }
             continue
         }

@@ -3,9 +3,10 @@ close-stale-baselines.ps1 — close the stale baselines PR for a linq2db PR and
 delete its branch, then prune the local baselines clone.
 
 Codifies .claude/docs/pr-and-push.md -> "After test renames / moves / deletes:
-clean up stale baselines" (also the CONFLICTING-baselines case). GLUE ONLY — the
-TRIGGER decision (a follow-up actually renamed/moved/deleted a test, or master
-moved and the baselines PR went CONFLICTING) and the user go-ahead for this
+clean up stale baselines". A baselines PR that went CONFLICTING while its source
+PR is open is rebased instead (rebase-baselines-branch.ps1). GLUE ONLY — the
+TRIGGER decision (a follow-up actually renamed/moved/deleted a test, or the
+source PR merged / was abandoned) and the user go-ahead for this
 destructive action on a sibling repo stay with the agent/skill.
 
   pwsh -NoProfile -File .claude/scripts/close-stale-baselines.ps1 -Pr 5503

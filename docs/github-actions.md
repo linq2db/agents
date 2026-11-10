@@ -109,6 +109,22 @@ own list being non-empty (`if: needs.prepare.outputs.any == 'true'`) so it is *s
 instantiated with nothing in it. Worth doing for the upstream build job too, or a surface with
 nothing to run still pays for it.
 
+## A job gated on a detection job must fail open
+
+`needs: changes` with `if: ${{ !failure() && needs.changes.outputs.docs == 'true' }}` (or no status function at
+all, which means an implicit `success()`) **skips** the gated job when `changes` fails or times out. A skipped job
+satisfies a required check, so a broken detection reads as green on exactly the PRs it should have built. Gate on
+the detection's *result* instead, so anything but a successful "no" runs the job:
+
+```yaml
+if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.result != 'success' || needs.changes.outputs.docs == 'true') }}
+```
+
+And run the detecting command as its own assignment, not inside the `if` of a pipe, so its failure fails the step
+under the default `bash -e` rather than becoming "no match": `files=$(git diff --name-only --no-renames "$BASE...$HEAD")`,
+then `grep … <<< "$files"`. (#6265, `docs.yml`: the first version used `!failure()`, and a `changes` job timing out on
+the full-history clone would have skipped the docs build.)
+
 ## A cancelled job with zero steps never got a runner
 
 A job that is `cancelled` with no steps and an empty `runner_name` was never picked up. The reason is

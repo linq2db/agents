@@ -36,6 +36,7 @@ turn-conduct.md -> "Cap a background wait at 50 minutes".
 
 .OUTPUTS
 Exit 0 = every gated leg SUCCESS. Exit 1 = at least one non-green. Exit 2 = timed out. Exit 3 = gh failed 3 polls in a row.
+Exit 4 = a workflow run on the head is action_required (fork PR awaiting maintainer approval); the run id is printed.
 #>
 [CmdletBinding()]
 param(
@@ -106,6 +107,19 @@ while ($true) {
 		(Get-Date).ToString('HH:mm:ss'), $Pr, $all.Head.Substring(0, 8), $rows.Count, $Gate.Count, $pending.Count, ($missing -join ',')
 
 	if ($pending.Count -eq 0 -and $missing.Count -eq 0) { break }
+
+	# A fork PR's workflow run parks in action_required until a maintainer approves it; its legs never
+	# register, so without this the wait burns the full timeout on "missing" (#6146).
+	if ($missing.Count -gt 0) {
+		$runs = gh run list --repo $Repo --commit $all.Head --json 'databaseId,workflowName,conclusion' | ConvertFrom-Json
+		$held = @($runs | Where-Object { $_.conclusion -eq 'action_required' })
+		if ($held.Count) {
+			foreach ($r in $held) {
+				"AWAITING APPROVAL: $($r.workflowName) run $($r.databaseId) - approve with: gh api -X POST repos/$Repo/actions/runs/$($r.databaseId)/approve"
+			}
+			exit 4
+		}
+	}
 
 	if ((Get-Date) -gt $deadline) {
 		"TIMEOUT after $TimeoutMinutes min. pending: $(($pending.Name) -join ', ') missing: $($missing -join ', ')"

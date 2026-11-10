@@ -43,6 +43,10 @@ Parameters
                        line pair is compared again with every `<fn>(inner, …last)`
                        call replaced by `inner`, nested calls included; see
                        `wrapper` below. Omitted: `wrapper` is null.
+  -StripRegex <re>     a regex removed from both sides of each modified file's
+                       change-block before they are compared again (e.g. `\$` for
+                       a YDB parameter-sigil change); see `strip` below. Omitted:
+                       `strip` is null.
   -SourceRepo <path>   default: the linq2db checkout this script sits in. Read
                        with -SourceRef for `staleKeys`.
   -SourceRef <ref>     default `origin/pr/<Pr>` — the PR head whose `Tests/` tree
@@ -109,6 +113,12 @@ rewrites every line it touches. `pairs` counts the line pairs of symmetric chang
 `otherPairs` the ones that still differ once the wrapper is stripped. Those carry a real change,
 such as a literal written at another precision inside the wrap. (#6116: 653 of 659 pairs were
 wrap-only, and the 6 left were the review's defect.)
+
+`strip` ({ pattern, stripOnlyFiles, otherFiles, otherSamples }) answers "is this drift only the
+text the pattern matches?" for a change no other field normalises. A modified file is strip-only
+when its removed and added lines read the same, in order, once the pattern is deleted from both;
+`otherFiles` lists the rest. (#6257: `\$` showed that 1445 of 1446 YDB files only lost the
+parameter sigil, and the one left was the PR's change.)
 
 `parens` ({ parenOnlyFiles, otherFiles, openRemoved, openAdded, otherSamples }) answers "does
 this delta only add or drop parentheses?", which `permutation` and `renames` cannot: a dropped
@@ -203,6 +213,7 @@ param(
     [string]   $Signal            = '^\s*DECLARE\s',
     [string]   $IdentifierPrefixes = '@:?$',
     [string]   $StripWrapper,
+    [string]   $StripRegex,
     [string]   $SourceRepo,
     [string]   $SourceRef,
     [string]   $SinceCommit,
@@ -514,6 +525,10 @@ $wrapperPairs   = 0
 $wrapperOther   = 0
 $wrapperSamples = [System.Collections.Generic.List[object]]::new()
 
+$stripRe        = if ($StripRegex) { [regex]::new($StripRegex) } else { $null }
+$stripOnlyCount = 0
+$stripOther     = [System.Collections.Generic.List[string]]::new()
+
 # Replaces each `<fn>(inner, last)` with `inner`, innermost call first, so a nested wrap collapses too. A call with no
 # top-level comma is kept, under a placeholder name so the loop terminates. Quotes are honoured: a comma or parenthesis
 # inside a string literal does not count.
@@ -620,6 +635,13 @@ function Flush-File {
             foreach ($l in $Removed) { $script:parenOpenRemoved += ([regex]::Matches($l, '\(')).Count }
         }
         else { $script:parenOther.Add($File) }
+    }
+
+    if ($script:stripRe -and -not $script:addedPaths.Contains($File)) {
+        $sA = ($Added   | ForEach-Object { $script:stripRe.Replace($_, '') }) -join "`n"
+        $sD = ($Removed | ForEach-Object { $script:stripRe.Replace($_, '') }) -join "`n"
+        if ([string]::Equals($sA, $sD, [System.StringComparison]::Ordinal)) { $script:stripOnlyCount++ }
+        else { $script:stripOther.Add($File) }
     }
 
     $script:stats.Add([pscustomobject]@{
@@ -867,6 +889,14 @@ $result = [ordered]@{
             wrapperOnlyPairs = $wrapperPairs - $wrapperOther
             otherPairs       = $wrapperOther
             otherSamples     = @($wrapperSamples)
+        }
+    } else { $null }
+    strip     = if ($StripRegex) {
+        [ordered]@{
+            pattern        = $StripRegex
+            stripOnlyFiles = $stripOnlyCount
+            otherFiles     = $stripOther.Count
+            otherSamples   = @($stripOther | Select-Object -First 25)
         }
     } else { $null }
 }

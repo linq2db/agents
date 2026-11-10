@@ -28,7 +28,10 @@ The JSON goes to -OutFile; stdout carries one summary line (see Write-JsonOutput
     pr, user, prAuthor, headSha,
     latestOwnReview:  { id, state, submitted_at, commit_id } | null,
     pendingOwnReview: { id, commit_id } | null,   // replaced, never PUT - verify-review step 2
-    idFloor:   { BLK, MAJ, MIN, SUG, NIT },       // max ID per severity in our reviews + 1
+    idFloor:   { BLK, MAJ, MIN, SUG, NIT },       // max ID per severity in our reviews and in other
+                                                  //   agentic reviews (body carries the disclaimer) + 1
+    idFloorOwn: { ... },                          // the same, from our reviews only
+    agenticReviewers: [ <login> ],                // other users whose agentic reviews raised the floor
     findings:  [ {
       id, severity, number,
       location: { kind: line|file|body, review_id, review_state, comment_id, node_id,
@@ -228,6 +231,21 @@ $findings = foreach ($group in ($candidates | Group-Object { $_.id })) {
 $severityRank = @{ BLK = 0; MAJ = 1; MIN = 2; SUG = 3; NIT = 4 }
 $findings = @($findings | Sort-Object { $severityRank[$_.severity] }, { $_.number })
 
+$idFloorOwn = [ordered]@{}
+foreach ($s in $severities) { $idFloorOwn[$s] = $maxBySev[$s] + 1 }
+
+# Other agentic reviewers share the ID space (review-conventions.md -> ID-continuation floor, rule 5):
+# a floor from our reviews alone can reissue an ID another agent already spent (#5673: igor's MIN023 / SUG016).
+$agenticMarker  = 'Agentic review'
+$agenticReviews = @($ctx.reviews | Where-Object { $_.user -ne $User -and ([string]$_.body).Contains($agenticMarker) })
+$agenticIds     = @{}
+foreach ($r in $agenticReviews) { $agenticIds[[long]$r.id] = $true; Add-Ids ([string]$r.body) }
+foreach ($c in $comments) {
+    if ($c.user -ne $User -and $null -ne $c.pull_request_review_id -and $agenticIds.ContainsKey([long]$c.pull_request_review_id)) {
+        Add-Ids ([string]$c.body)
+    }
+}
+
 $idFloor = [ordered]@{}
 foreach ($s in $severities) { $idFloor[$s] = $maxBySev[$s] + 1 }
 
@@ -248,6 +266,8 @@ Write-JsonOutput ([ordered]@{
     latestOwnReview  = if ($latest) { [ordered]@{ id = $latest.id; state = $latest.state; submitted_at = $latest.submitted_at; commit_id = $latest.commit_id } } else { $null }
     pendingOwnReview = if ($pending) { [ordered]@{ id = $pending.id; commit_id = $pending.commit_id } } else { $null }
     idFloor          = $idFloor
+    idFloorOwn       = $idFloorOwn
+    agenticReviewers = @($agenticReviews | ForEach-Object { $_.user } | Select-Object -Unique)
     findings         = @($findings)
     unnumbered       = @($unnumbered)
     openNotes        = @($openNotes)
