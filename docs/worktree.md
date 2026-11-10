@@ -79,7 +79,7 @@ Two consequences, **for the non-nested layout**:
 
 ## Running tests from a worktree
 
-To run one filter against several versions of `Source/` (head, master or another ref, a text mutation), use [`worktree-probe-arms.ps1`](../scripts/worktree-probe-arms.ps1) rather than a throwaway script: it restores through git and keeps file bytes intact.
+To run one filter against several versions of `Source/` (head, master or another ref, a text mutation), use [`worktree-probe-arms.ps1`](../scripts/worktree-probe-arms.ps1) rather than a throwaway script: it restores through git and keeps file bytes intact. Its arms share one `BaselinesPath`, so the SQL files there are the last arm's — take a per-arm answer from the assertion messages in each arm's run log, or run [`ab-probe.ps1`](../scripts/ab-probe.ps1) `-ScratchBaselines`. To compare a local run's SQL with a PR's CI baselines, use [`baselines-capture-compare.ps1`](../scripts/baselines-capture-compare.ps1) `-Pr <n> -CapturePath <BaselinesPath> -Since <run start>`, not a hand-rolled diff. (#6194 verify round: a shared-path SQL file was read as master's, and the compare was rebuilt as a scratch script.)
 
 `test-runner`, `/test`, and `/test-providers` accept an explicit repo-root override so a worktree can be the test target instead of the primary clone — without it the skills resolve project paths against the inherited primary-clone cwd and build/test the *primary* clone, not the worktree. A hand-run `dotnet test` there also burns calls on .NET 10 MTP CLI quirks: it needs `--project`, and without `--provider` the `[IncludeDataSources]` tests resolve zero providers ("0 tests").
 

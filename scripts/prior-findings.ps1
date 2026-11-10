@@ -27,23 +27,33 @@ The JSON goes to -OutFile; stdout carries one summary line (see Write-JsonOutput
   {
     pr, user, prAuthor, headSha,
     latestOwnReview:  { id, state, submitted_at, commit_id } | null,
+    latestOwnRound:   { kind: review|issue-comment, id, at, commit_id, commit_inferred } | null,
+                                                  // the newest round, a review or a PR comment carrying
+                                                  //   finding checkboxes; a comment's commit_id is the
+                                                  //   newest PR commit dated before it (inferred; the
+                                                  //   context's commits[] omits master-sync merges, so
+                                                  //   it is exact only over the PR's own files) - the
+                                                  //   base for the verify round's `_since` delta
     pendingOwnReview: { id, commit_id } | null,   // replaced, never PUT - verify-review step 2
+    gapsLedger:       <path> | null,              // .claude/plans/<headRefName, / -> ->/gaps.md, folded into the floors
     idFloor:   { BLK, MAJ, MIN, SUG, NIT },       // max ID per severity in our reviews and in other
                                                   //   agentic reviews (body carries the disclaimer) + 1
     idFloorOwn: { ... },                          // the same, from our reviews only
     agenticReviewers: [ <login> ],                // other users whose agentic reviews raised the floor
     findings:  [ {
       id, severity, number,
-      location: { kind: line|file|body, review_id, review_state, comment_id, node_id,
-                  thread_id, thread_resolved, resolved_by, path, line, original_line, commit_id },
-      checkbox,                                   // body findings only: ' ' | 'x' | '~'
+      location: { kind: line|file|body|issue-comment, review_id, review_state, comment_id, node_id,
+                  thread_id, thread_resolved, resolved_by, path, line, original_line, commit_id,
+                  commit_inferred },              // issue-comment: a round posted as a PR comment;
+                                                  //   no checkbox flip path (apply-verify-writes edits reviews)
+      checkbox,                                   // body / issue-comment findings only: ' ' | 'x' | '~'
       original_text,
       replies: [ { user, id, created_at, body } ],
       alsoAt:  [ <earlier location> ]             // the same ID posted before; newest wins
     } ],
     unnumbered:     [ ... ],  // our thread-starting comments with no ID (out-of-scope notes, FYIs)
-    openNotes:      [ { review_id, text } ],      // unchecked body checkboxes that carry no ID
-    authorComments: [ { id, created_at, body } ]  // PR-author conversation comments after our latest review
+    openNotes:      [ { review_id | comment_id, text } ], // unchecked checkboxes that carry no ID
+    authorComments: [ { id, created_at, body } ]  // PR-author conversation comments after latestOwnRound
   }
 
 An ID counts as a finding only where it opens a comment (`**Major · MAJ001**`) or a body
@@ -180,12 +190,8 @@ foreach ($c in ($comments | Where-Object { $_.user -eq $User } | Sort-Object { [
 $checkboxLine = [regex]'^\s*- \[( |x|X|~)\] (.*)$'
 $findingStart = [regex]'^\*\*(BLK|MAJ|MIN|SUG|NIT)(\d{3})\*\*'
 
-foreach ($r in $ownReviews) {
-    $body = [string]$r.body
-    Add-Ids $body
-    if (-not $body) { continue }
-
-    $lines = $body -split "`n"
+function Read-CheckboxFindings([string]$Body, $Location, $Time, $Note) {
+    $lines = $Body -split "`n"
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $cb = $checkboxLine.Match($lines[$i].TrimEnd("`r"))
         if (-not $cb.Success) { continue }
@@ -206,17 +212,54 @@ foreach ($r in $ownReviews) {
                 id            = "$($id.Groups[1].Value)$($id.Groups[2].Value)"
                 severity      = $id.Groups[1].Value
                 number        = [int]$id.Groups[2].Value
-                time          = Get-Time $r.submitted_at
-                location      = [ordered]@{ kind = 'body'; review_id = $r.id; review_state = $r.state; commit_id = $r.commit_id }
+                time          = $Time
+                location      = $Location
                 checkbox      = $state
                 original_text = $text.ToString()
                 replies       = @()
             })
         }
         elseif ($state -eq ' ') {
-            $openNotes.Add([ordered]@{ review_id = $r.id; text = $text.ToString() })
+            $entry = [ordered]@{}
+            foreach ($k in $Note.Keys) { $entry[$k] = $Note[$k] }
+            $entry.text = $text.ToString()
+            $openNotes.Add($entry)
         }
     }
+}
+
+foreach ($r in $ownReviews) {
+    $body = [string]$r.body
+    Add-Ids $body
+    if (-not $body) { continue }
+
+    Read-CheckboxFindings $body ([ordered]@{ kind = 'body'; review_id = $r.id; review_state = $r.state; commit_id = $r.commit_id }) (Get-Time $r.submitted_at) ([ordered]@{ review_id = $r.id })
+}
+
+# A round can be posted as a PR conversation comment instead of a review (#6194 rounds 2-3). Its
+# checkboxes are findings like a review body's; the head it reviewed is inferred from the commit list.
+$commitTimes = @($ctx.commits | Where-Object { $_.date } |
+    ForEach-Object { [pscustomobject]@{ sha = $_.sha; at = [datetimeoffset]$_.date } } | Sort-Object at)
+
+function Get-HeadAt($Time) {
+    $at = @($commitTimes | Where-Object { $_.at -le $Time })
+    if ($at.Count -gt 0) { return $at[-1].sha }
+    return $null
+}
+
+$roundMarker   = [regex]'(?m)^\s*- \[( |x|X|~)\] \*\*(BLK|MAJ|MIN|SUG|NIT)\d{3}\*\*'
+$roundComments = [System.Collections.Generic.List[object]]::new()
+
+foreach ($c in @($ctx.issueComments | Where-Object { $_.user -eq $User })) {
+    $body = [string]$c.body
+    Add-Ids $body
+    if (-not $roundMarker.IsMatch($body)) { continue }
+
+    $time = Get-Time $c.created_at
+    $head = Get-HeadAt $time
+    $roundComments.Add([pscustomobject]@{ id = $c.id; at = $time; commit_id = $head })
+
+    Read-CheckboxFindings $body ([ordered]@{ kind = 'issue-comment'; comment_id = $c.id; commit_id = $head; commit_inferred = $true }) $time ([ordered]@{ comment_id = $c.id })
 }
 
 # One entry per ID: the most recent location is the one to act on, earlier ones ride along.
@@ -230,6 +273,15 @@ $findings = foreach ($group in ($candidates | Group-Object { $_.id })) {
 }
 $severityRank = @{ BLK = 0; MAJ = 1; MIN = 2; SUG = 3; NIT = 4 }
 $findings = @($findings | Sort-Object { $severityRank[$_.severity] }, { $_.number })
+
+# The branch's gap ledger cites every ID a round spent, including ones whose comments were since edited away.
+$planKey    = ([string]$ctx.pr.headRefName) -replace '/', '-'
+$gapsLedger = if ($planKey) { Join-Path $PSScriptRoot "../plans/$planKey/gaps.md" } else { $null }
+if ($gapsLedger -and (Test-Path -LiteralPath $gapsLedger -PathType Leaf)) {
+    $gapsLedger = (Resolve-Path -LiteralPath $gapsLedger).Path
+    Add-Ids ([System.IO.File]::ReadAllText($gapsLedger))
+}
+else { $gapsLedger = $null }
 
 $idFloorOwn = [ordered]@{}
 foreach ($s in $severities) { $idFloorOwn[$s] = $maxBySev[$s] + 1 }
@@ -253,7 +305,13 @@ $submitted = @($ownReviews | Where-Object { $_.submitted_at } | Sort-Object { [d
 $latest    = if ($submitted.Count -gt 0) { $submitted[0] } else { $null }
 $pending   = @($ownReviews | Where-Object { $_.state -eq 'PENDING' }) | Select-Object -First 1
 
-$since = if ($latest) { [datetimeoffset]$latest.submitted_at } else { [datetimeoffset]::MinValue }
+$rounds = @(@(
+    @($submitted | ForEach-Object { [ordered]@{ kind = 'review'; id = $_.id; at = [datetimeoffset]$_.submitted_at; commit_id = $_.commit_id; commit_inferred = $false } })
+    @($roundComments | ForEach-Object { [ordered]@{ kind = 'issue-comment'; id = $_.id; at = $_.at; commit_id = $_.commit_id; commit_inferred = $true } })
+) | Sort-Object { $_.at } -Descending)
+$latestRound = if ($rounds.Count -gt 0) { $rounds[0] } else { $null }
+
+$since = if ($latestRound) { $latestRound.at } else { [datetimeoffset]::MinValue }
 $authorComments = @($ctx.issueComments |
     Where-Object { $_.user -eq $prAuthor -and $_.created_at -and [datetimeoffset]$_.created_at -gt $since } |
     ForEach-Object { [ordered]@{ id = $_.id; created_at = $_.created_at; body = [string]$_.body } })
@@ -264,7 +322,9 @@ Write-JsonOutput ([ordered]@{
     prAuthor         = $prAuthor
     headSha          = $ctx.headSha
     latestOwnReview  = if ($latest) { [ordered]@{ id = $latest.id; state = $latest.state; submitted_at = $latest.submitted_at; commit_id = $latest.commit_id } } else { $null }
+    latestOwnRound   = if ($latestRound) { [ordered]@{ kind = $latestRound.kind; id = $latestRound.id; at = $latestRound.at.ToString('o'); commit_id = $latestRound.commit_id; commit_inferred = $latestRound.commit_inferred } } else { $null }
     pendingOwnReview = if ($pending) { [ordered]@{ id = $pending.id; commit_id = $pending.commit_id } } else { $null }
+    gapsLedger       = $gapsLedger
     idFloor          = $idFloor
     idFloorOwn       = $idFloorOwn
     agenticReviewers = @($agenticReviews | ForEach-Object { $_.user } | Select-Object -Unique)
@@ -274,8 +334,10 @@ Write-JsonOutput ([ordered]@{
     authorComments   = $authorComments
 }) -OutFile $OutFile -Summary ([ordered]@{
     findings         = @($findings).Count
-    lineOrFile       = @($findings | Where-Object { $_.location.kind -ne 'body' }).Count
+    lineOrFile       = @($findings | Where-Object { $_.location.kind -in 'line', 'file' }).Count
     body             = @($findings | Where-Object { $_.location.kind -eq 'body' }).Count
+    issueComment     = @($findings | Where-Object { $_.location.kind -eq 'issue-comment' }).Count
+    latestOwnRound   = if ($latestRound) { "$($latestRound.kind) $($latestRound.id) @ $($latestRound.commit_id)" } else { $null }
     unnumbered       = $unnumbered.Count
     openNotes        = $openNotes.Count
     authorComments   = $authorComments.Count
