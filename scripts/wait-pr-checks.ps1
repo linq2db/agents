@@ -137,7 +137,13 @@ $rows | Sort-Object Name | ForEach-Object { '  {0,-32} {1,-12} {2}' -f $_.Name, 
 $all.Rows | Where-Object { $Gate -notcontains $_.Name } | Sort-Object Name | ForEach-Object { '  {0,-40} {1,-12} {2}' -f $_.Name, $_.Status, $_.Result }
 ''
 
-$bad = @($rows | Where-Object { $_.Result -ne 'SUCCESS' })
+# Two runs on one head (a duplicate trigger) leave each leg twice, one CANCELLED by concurrency: a
+# CANCELLED row is superseded when the same leg also SUCCEEDED; any other non-SUCCESS row still fails (#6194).
+$bad = @($rows | Group-Object Name | ForEach-Object {
+	$ok   = @($_.Group | Where-Object Result -eq 'SUCCESS').Count -gt 0
+	$rest = @($_.Group | Where-Object { $_.Result -ne 'SUCCESS' -and -not ($ok -and $_.Result -eq 'CANCELLED') })
+	if ($rest.Count) { $rest }
+})
 if ($bad.Count) {
 	"NON-GREEN: $(($bad.Name) -join ', ')"
 	exit 1
