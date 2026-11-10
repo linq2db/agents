@@ -433,3 +433,11 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** the comparison is constant as a whole, so it is folded on the client before any member translator runs. With the guard removed, the SQL was still `WHERE [p].[PersonID] = 1` (SQLite.MS, measured).
 
 **Don't re-attempt:** a constant-only comparison as a translator control. Put a column on one side of the comparison, or assert in a projection. (#6151)
+
+## BUILD: a `net11.0-browser` asset to give browser-wasm apps a different build
+
+**Tried:** packing `lib/net11.0` (runtime-async) beside `lib/net11.0-browser` (without it), so a Mono browser app would load the second one.
+
+**Failed because:** a browser-wasm app targets plain `net11.0` with `RuntimeIdentifier=browser-wasm`, so NuGet resolves `lib/net11.0` and never selects the `-browser` asset. Measured with packed test packages on a `Microsoft.NET.Sdk.WebAssembly` app under Node: Mono failed with `Runtime Async is not supported on this platform`, and CoreCLR loaded the same `lib/net11.0`. NuGet keys on TFM + RID only, so no layout can give Mono and CoreCLR different files.
+
+**Don't re-attempt:** a platform TFM for a RID-only distinction. Use `runtimes/browser-wasm/lib/<tfm>`, which both browser runtimes load. (#5944)
