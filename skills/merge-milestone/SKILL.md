@@ -133,6 +133,10 @@ gh pr ready <b> --repo linq2db/linq2db.baselines
 gh pr merge <b> --repo linq2db/linq2db.baselines --squash
 ```
 
+A baselines PR can sit in a GitHub stack too and refuse `gh pr merge` with the same *"part of a stack"* error.
+Use the `merge-async` recipe from step c against `repos/linq2db/linq2db.baselines`, without
+`bypass_rules` — it isn't needed there. (#6194 / baselines #2269, 2026-11-10.)
+
 Then move to the next PR. Report each PR's outcome as it completes rather than saving a summary for the
 end — the run is long and the user needs to see it progressing.
 
