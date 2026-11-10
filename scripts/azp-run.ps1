@@ -94,6 +94,11 @@ triggered run is visible in the URLs printed before the error), or when
 verification times out. Exit 2, with nothing posted, when the PR conflicts with its base;
 exit 3, with nothing posted, when the PR head is behind master; exit 4 when Azure
 refused the pipeline's YAML (the reason is on stderr).
+
+`-BranchMatrix` (with `test-all`) also dispatches `tests.yml` on the PR's own branch with
+`surface=[all]`, before posting. The `tests (comment)` run uses master's copy of the
+workflow, so a branch that changes the matrix, the TFMs or the SDK pin (#5942 and its
+stack) is exercised only by that second run.
 #>
 
 param(
@@ -102,7 +107,8 @@ param(
     [string]$Repo = 'linq2db/linq2db',
     [int]$SettleSeconds = 5,
     [int]$VerifyTimeoutSeconds = 60,
-    [switch]$AllowStale
+    [switch]$AllowStale,
+    [switch]$BranchMatrix
 )
 
 $ErrorActionPreference = 'Stop'
@@ -157,6 +163,17 @@ if (-not $AllowStale) {
             ForEach-Object { [Console]::Error.WriteLine($_) }
         exit 3
     }
+}
+
+# The comment path runs master's tests.yml; a branch that changes the matrix or the SDK needs its own copy run.
+if ($BranchMatrix -and $Pipeline -contains 'test-all') {
+    $headRef = gh pr view $Pr --repo $Repo --json headRefName --jq .headRefName
+    $url     = gh workflow run tests.yml --repo $Repo --ref $headRef -f 'surface=[all]' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        [Console]::Error.WriteLine("azp-run: branch-matrix dispatch on '$headRef' failed: $url")
+        exit $LASTEXITCODE
+    }
+    Write-Output "azp-run: 'tests [all]' on $headRef dispatched: $url"
 }
 
 $notStarted = @()
