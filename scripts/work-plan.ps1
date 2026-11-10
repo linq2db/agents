@@ -58,7 +58,11 @@ param(
     [string] $Section,
     [string] $Match,
     [int] $Context = 240,
-    [int] $MaxLineChars = 1500
+    [int] $MaxLineChars = 1500,
+
+    # Directory holding <key>/plan.md. Defaults to the corpus plans/ folder. Embargoed work keeps its plan in a
+    # gitignored folder instead (work-plan SKILL -> Embargoed work), because the corpus is public.
+    [string] $PlansRoot
 )
 
 Set-StrictMode -Version Latest
@@ -69,7 +73,7 @@ $ErrorActionPreference = 'Stop'
 $global:ScriptBaseName = 'work-plan'
 
 $CorpusRoot   = (Resolve-Path "$PSScriptRoot/..").Path
-$PlansRoot    = Join-Path $CorpusRoot 'plans'
+$PlansRoot    = if ($PlansRoot) { [IO.Path]::GetFullPath($PlansRoot) } else { Join-Path $CorpusRoot 'plans' }
 $TemplatePath = Join-Path $CorpusRoot 'docs/work-plan-template.md'
 
 # ---------------------------------------------------------------- helpers

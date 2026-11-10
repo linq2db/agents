@@ -78,6 +78,8 @@ Discovered while building the current set of scripts — worth knowing before yo
 
 - **`` `t `` / `` `n `` inside a double-quoted string is a tab/newline escape, not a literal backtick.** Building output with `"…`type:`…"` injects a TAB before `ype:` (the backtick + `t`), so a label like `` `type:` `` renders as `<TAB>ype:`. Use single-quoted strings for literal text containing backtick-adjacent letters, or escape the backtick (`` `` ``). Em-dashes / other non-ASCII in *captured* output are a separate hazard (console code-page mangling — see [`windows-dev-gotchas.md`](windows-dev-gotchas.md)); writing the script to a file with the `Write` tool (UTF-8) avoids the inline-mangling path.
 
+- **A bulk edit that inserts a `using` after the last `using` line can land inside an `#if` block.** Some files end their usings with a conditional group (`#if BUGCHECK … #endif`), and the inserted line then compiles only under that symbol. Insert after the last `using` outside preprocessor regions, and confirm with a build of every edited project before trusting the script's "updated" lines.
+
 ## Invoking a script — argument-passing traps
 
 This applies equally to **inline `pwsh -NoProfile -Command "…"` containing `$variables`** — not just `-File`. Bash expands `$c` / `$j` / etc. as its *own* (undefined) variables before pwsh ever sees them, so `pwsh -Command "$c = Get-Content … | ConvertFrom-Json; …"` reaches pwsh as `= Get-Content …` and dies with `The term '=' is not recognized` (hit twice in one session parsing JSON with `ConvertFrom-Json`). Any pwsh needing `$vars` — JSON parsing, multi-statement transforms — must go through the PowerShell tool, never `Bash(pwsh -Command …)`.

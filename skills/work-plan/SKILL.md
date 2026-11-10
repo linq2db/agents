@@ -43,6 +43,8 @@ Invoked directly, or by `/fix-issue` after the branch exists and existing test c
 2. **If a plan already exists, switch to `amend` mode. Never overwrite one.** `-Action init` refuses an existing plan unless `-Force`, and `-Force` is the user's call, not yours.
 3. If the branch does not exist yet, stop and say so — the branch comes first (agent-rules → *Creating a new branch*). Do not create it from here.
 
+**Embargoed work never puts its plan in the corpus.** The corpus is a public repository, so a plan for an undisclosed security fix would publish it. Keep that plan in a gitignored folder (`.build/.agents/<key>/plan.md` in the worktree), pass `-PlansRoot <that folder's parent>` to every `work-plan.ps1` call, skip step 9's commit, and keep the critic's output out of the corpus too.
+
 **In a worktree, the plan lands in that worktree's own `.claude/` checkout**, which the `post-checkout` hook bootstraps on `master`. Before committing a plan from a worktree, confirm with `git -C <worktree>/.claude status -sb` (a primary clone predating #5821 leaves it detached — `switch master` first, otherwise the commit is stranded). See [`worktree.md`](../../docs/worktree.md).
 
 ### 2. Classify the tier
