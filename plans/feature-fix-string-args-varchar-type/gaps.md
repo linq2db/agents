@@ -48,3 +48,25 @@ GAP-02 is 3 of 4 rows; MAJ004 and OOS-6261 share one SC-15 "because" clause (ISN
 - GAP-02 × 2 (MAJ004, OOS-6261) + secondary GAP-05 → `agents/plan-critic.md`, a vector under P8 provability: when a rule's output includes a sentinel (a null length meaning MAX / unknown) or its rationale names one member as why a branch is safe, demand one arm per input regime reaching the branch (long/MAX argument first vs not, a function converting its argument internally, MAX through a widened concat) and a P7 note per reader on the sentinel; a regime objection answered in prose stays open.
 - GAP-05 × 1 (SUG003) → `docs/work-plan.md` P12 disposition semantics: when an amendment is handed to an external author, each open critic objection naming a concrete input ships as a TO-n arm (asserting the intended answer) in the handed test set, or as a P10 L-n; "posted as a case to check" leaves nothing red against the author's commit.
 - Not owed: CRIT9-4 — the probe rule exists, and G-09 caught it.
+
+## Round 3 — reviewed HEAD 34d1318a4
+
+Round delta `ac26ede6c..34d1318a4` (sdanyliv's `c8820d6a5`, implementing igor-tkachev's MIN001, plus a master merge); fix head `034854fb0`. Attributed against the plan as it stood at A-7; A-8 and critic round 10 as evidence.
+
+- **MIN005** (Unicode-only default-typed function with a MAX argument but a non-MAX result cut the concatenation after it at 4000) — GAP-05 — A-7's `class:` line held the MAJ004 fix up with a prose invariant ("`{ NonUnicode: false } => {U, 1}` never returns null either") that `:291`'s premise depends on, while A-7's `re-derives:` added MAX arms for the mixed `_` arm only; no `TO-n` sent a MAX argument through the Unicode-only arm, which received the sentinel and discarded it by returning a constant, so when `c8820d6a5` changed it to `=> shape` nothing went red. TO-24, written afterwards, is that arm. Secondary GAP-09: `c8820d6a5` rewrote an arm the A-7 E-8 row spelled out, with no `A-n`; file-keyed `-Reconcile` passed, and the `review-pr` mutation re-run had no recorded mutation for this regime — G-01 — preventable: partly
+- **MIN001** (igor-tkachev: a Unicode-only function counted one character with a known argument length) — not-a-gap: reviewer-disagrees-with-P10 — L-10 adjudicated "1 vs 4000" (the A-6 fork, critic round 8 objection 1) and never listed the argument's own length, which was already in the arm's input; settled in the finding's favour by `c8820d6a5` and A-8.
+
+### Aggregate
+
+One attributable finding. MIN005 is the third null-length (MAX-sentinel) defect in this file in two rounds (MAJ004, CRIT9-4, MIN005): each round fixed the arm it found and wrote the other arms' null-freedom into a `class:` line no test defends. No GAP-10.
+
+### Continuity
+
+- Round 2's plan-critic sentinel vector landed (`26533f0`) and fired on A-7's readers side; it did not fire for the Unicode-only arm because it triggers on a rule that *outputs* the sentinel, and that arm output the constant `{U, 1}`.
+- Round 2's handed-amendment rule does not apply: `c8820d6a5` was a co-author implementing another reviewer's suggestion, not a handed amendment.
+- The co-author-without-amendment pattern recurs for the third round (`5a353b206`, `c4fbb5d4f`, `c8820d6a5`); the corpus cannot reach that author, so the defence is arms that go red.
+
+### Recommended durable fixes
+
+- GAP-05 × 1 (MIN005) → `agents/plan-critic.md`, extend the `26533f0` sentinel bullet: cover a sentinel a rule *receives* — a branch that replaces it with a constant or `?? n` is an input regime and needs a `TO-n` arm that goes red if the branch passes its input through; a `class:` sentence asserting a negative invariant a fix relies on ("no arm returns null") names the arm or G-01 mutation pinning it per branch, or stays an open `weak`.
+- Not owed: the GAP-09 secondary (`review-pr/SKILL.md` already runs the reconcile and mutation re-run; the fix above gives it something to run); MIN001 drives no fix.
