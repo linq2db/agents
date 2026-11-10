@@ -523,6 +523,7 @@ the superseded reasoning stays readable; the paragraph immediately following is 
   variable, `$expectedDbs` entry. *(corpus edit — committed to the agents repo, not the linq2db branch)*
 - E-32 `Source/LinqToDB.LINQPad/DatabaseProviders/{AccessProvider,ProviderInfo,DatabaseProviders}.cs`,
   `LinqToDB.LINQPad.csproj` (`GenerateNuGetPackageVersions`), `README.md` — A-19.
+- E-33 `Tests/Tests.Wasm/ProviderMatrix.cs:Rows` — one `Access.LibRed` row, constructed by `AccessTools.GetDataProvider(provider: AccessProvider.LibRed)`, MERGE `Refused` like the four Microsoft flavours — A-21.
 
 ## P7 Impact map (M/L)
 
@@ -582,6 +583,7 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - TO-6 (SC-6) — proof: characterization — `release-test-cli-scaffold.ps1` run for the new key, then an empty `git diff` over its five output directories on a second run, plus `Tests.T4` compiling with the committed output (idempotence, not behaviour)
 - TO-7 (SC-7) — proof: control — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net462` clean, which is the arm that would fail if a net11-only API or a LibRed type leaked into shared code, plus a search asserting `LibRed` appears in no `<PackageReference>` under `Source/`
 - TO-8 (SC-1, U-8) — proof: control — `a_CreateData.CreateDatabase` green on both new configs, i.e. `Access.sql` and its `.Data` companion executed through LibRed with D-10's `SKIP` markers and D-11's FK change in place; the discriminating inputs are the two FK statements (which failed before D-11) and the five procedure statements (absent for LibRed, still present for the other four), and it runs first because `TestBase.AwaitDatabaseReady` gates every other obligation on it
+- TO-12 (SC-1, A-21) — proof: red-green — `Tests.Wasm` on the GitHub `WASM runtime tests` job: `ProviderNamesAreCovered` is red at `3d821f653` (`["Access.LibRed"] should be empty`, run 42731388762) and green with E-33; the row's four `ClientWorks` cases (Mono and CoreCLR × Debug and TrimPartial) pass — which is also what shows server-side construction, through `AssertClientAsync`'s preflight throw (`WasmRuntimeTests.cs:222-228`; `MatrixRowsConstructTheirProvider` skips a row that failed preflight, `:168`, so it cannot) — with MERGE reporting the refusal; its four `ClientFailsUnderFullTrimming` and four `ClientFailsWithoutReflectionJson` cases (`:85-86`, `:116-122`) are verified #6168 skips (`DeserializeNoConstructor` / `JsonSerializerIsReflectionDisabled`), not failures; `BundleExitsCleanly` and `ResolveAttemptsAreCaptured` stay green with the extra configuration in every bundle; providers: the WASM matrix (server-side construction on the Linux runner, client in Node)
 - TO-9 (SC-5, D-11) — proof: control — D-11 is behaviour-preserving for Microsoft's engine: `a_CreateData.CreateDatabase` green on `Access.Jet.OleDb` and `Access.Ace.Odbc` after E-18 and E-18a, with the `Doctor`/`Patient` foreign keys present in the resulting file. The form itself is **already proven on all four MS flavours by the repo**: `Access.sql:383,385` create `FK_Nullable`/`FK_NotNullable` with `REFERENCES RelationsTable(ID1, ID2)` today, so the obligation is about the two edited statements rather than about whether ACE accepts explicit columns
 
 
@@ -1259,6 +1261,42 @@ the premise of D-12 and of the net11-only shape of A-19 and the CLI. User's call
     green on every #5942 CI leg; net10.0 0 failures. The two full-run gRPC failures (timeout, SSL EOF) passed on
     re-run. Third-party notices: the five LibRed/ANTLR components gain a net10.0 version.
 
+### A-21 — the WASM provider matrix gains an `Access.LibRed` row (E-33, TO-12; 2026-11-10)
+
+`Tests/Tests.Wasm` arrived with a master merge (#6178, WASM runtime tests) after this plan's P7 sweeps ran, and
+its `ProviderNamesAreCovered` requires every `ProviderName` constant to have a matrix row or an alias entry. E-2's
+`AccessLibRed` has neither, so the GitHub `WASM runtime tests` job has been red on this branch and on #5969 since the
+2026-11-09 merge (run 42731388762: one failure, `ProviderNamesAreCovered`; the TrimFull errors in that log are the
+expected #6168 skips).
+
+- **Row, not alias.** `Aliases` holds names that need detection (a family, a version without a client library);
+  `Access.LibRed` names exactly one provider and constructs without a connection
+  (`AccessProviderDetector.GetDataProvider`'s `(AccessProvider.LibRed, _)` arm precedes the `AutoDetect` one), so it
+  is a row like the four concrete Access names. MERGE is `Refused`: `AccessLibRedSqlBuilder` derives from
+  `AccessSqlBuilderBase`, whose refusal the matrix comment already records.
+- **`LoadsProviderAssembly` stays `false`, unmeasured.** The four Microsoft rows declare it `false`; whether the
+  WASM client loads `LibRed.Ado` for this row is TO-12's to show. `Tests.Wasm` references `LibRed.Ado` through
+  `linq2db.TestProjects.props` → `linq2db.Providers.props` (net10.0/net11.0), so server-side construction works.
+- **Re-sweep after the merges** (`work-plan` → *After merging master into a planned branch*): `git diff --name-only
+  93c54d54e 3d821f653` over `Source Tests Build Data`, then `AccessAceOdbc|AllAccessOdbc|AccessProvider\.ODBC` over
+  the worktree. Files the plan does not name: `ProviderMatrix.cs` (this amendment), and ODBC-only gates and tests in
+  `ProviderSpecificReaderValueTests.cs:322`, `MiniProfilerTests.cs:169`, `IntervalTranslationTests.Coarse.cs:296`,
+  `IssueTests.cs:1027,1115,1173`, `PreferClientCalculationTests.cs:847,877,1454,1981` — each scoped to ODBC
+  behaviour LibRed does not share, and the post-merge `Lin zz_Access_LibRed` leg is green (GitHub run 42731918635).
+  That sweep is ODBC-keyed and a green leg cannot see a provider-name census outside `Tests/Linq`, which is the
+  class that failed here; critic round 3 ran that class sweep (`typeof\(ProviderName\)` worktree-wide — the only
+  reflection census is `WasmRuntimeTests.cs:185`; `Access|LibRed|OleDb|Odbc` over the merge-range files carrying
+  provider lists — `McpInfoTool`, `ScaffoldCommand.Options` / `.Execute` already list LibRed) and it is clean.
+- **The `ProviderName.Access` alias reason stays.** `ProviderMatrix.cs:181` says the family is resolved by opening a
+  connection. LibRed resolves without one only when the configuration name contains `LibRed`
+  (`AccessProviderDetector.cs:167`); the bare `"Access"` name never does, so it still falls to the OLE DB / ODBC
+  assembly-presence pick (`:175-177`) and the connection probe for the version (`:66-67`).
+- conventions: `testing.md` → *Test layout* (the row follows the matrix's own column layout; no new test method);
+  `test-diff-sweep.ps1 -Base origin/feature/csharp15-runtime-async -Path Tests/Tests.Wasm/ -IncludeWorkingTree`:
+  0 chains, 0 narrowed sets, 0 gates.
+- re-derives: none — E-2's constant is unchanged; this only registers it with a consumer that did not exist when
+  P7 was swept.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
@@ -1452,5 +1490,24 @@ flavours.
 **Round cap reached.** `/work-plan` allows one revise-and-resubmit; this was it, so the plan goes to
 the user with both verdicts rather than to a third critic pass. The standing methodological finding —
 every measurement here is raw ADO until TO-11 runs — is recorded as U-20 rather than resolved.
+
+**holds** (round 3, A-21 delta: E-33, TO-12) — `plan-critic` on fable, run against this worktree (head `3d821f653` plus
+the uncommitted E-33 row). fable contributed no design here. What it searched: every consumer of `ProviderMatrix.Rows`
+in `Tests/Tests.Wasm` (preflight, `Cases`, `UnavailableCases`, `MatrixRowsConstructTheirProvider`,
+`ProviderNamesAreCovered`, `GetRunAsync`, `WasmServer.Find`), construction without a connection
+(`AccessTools.cs:30-33` → detector `:75-81`, `:138-139`), the server-side `LibRed.Ado` reference chain, client-side
+adapter loads in `Internal/DataProvider/Access` (none outside the constructor, detector and OLE DB/ODBC paths — so
+`LoadsProviderAssembly = false` is consistent, and a wrong guess goes red in `ClientWorks`), the MERGE refusal
+(`AccessSqlBuilderBase.cs:201`), `typeof(ProviderName)` worktree-wide, and the merge-range provider lists.
+- **lead** — TO-12 under-listed the row's cases (the eight #6168 gate cases, `BundleExitsCleanly`,
+  `ResolveAttemptsAreCaptured`) and must stay pending until the WASM job is read green on the branch head. → TO-12
+  widened.
+- **wording** — `MatrixRowsConstructTheirProvider` skips a row that failed preflight, so it cannot show
+  construction; `ClientWorks` does. → TO-12 re-attributed.
+- **nit** — the `ProviderName.Access` alias reason. → checked against the detector and kept, with the reason
+  recorded in A-21 (the bare name never resolves to LibRed).
+- **evidence** — the re-sweep was ODBC-keyed; the class sweep the critic ran is recorded in A-21.
+- Not checked by the critic: any WASM run with the row, Mono's 5-minute whole-matrix budget
+  (`WasmBundleRunner.cs:31`) with one more configuration.
 
 
