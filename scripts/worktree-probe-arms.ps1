@@ -17,7 +17,8 @@ Usage
 
   -Worktree   required; absolute worktree root. Source/ must be clean.
   -Filter     required; passed to worktree-test.ps1. Include the CreateData.CreateDatabase term.
-  -Provider   required; comma list. `.LinqService` runs with its base provider.
+  -Provider   required; comma list of base names. A base provider's run includes its `.LinqService` cases;
+              never pass a `.LinqService` name (worktree-test.ps1 refuses it).
   -Arms       comma list, default `head`. `head` is the current tree; anything else is a ref
               whose Source/ is checked out for that arm.
   -Mutate     optional; one more arm, `mutant`, on the current tree with the literal text replaced

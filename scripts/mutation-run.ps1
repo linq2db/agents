@@ -22,7 +22,7 @@ Input (-ManifestFile <path>; JSON):
     "tfm":           "net10.0",                       // optional, this default
     "configuration": "Testing",                       // optional, this default
     "filter":        "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~X",  // required
-    "providers":     ["YDB", "YDB.LinqService"],      // optional
+    "providers":     ["YDB"],                         // optional; base names, a run includes the .LinqService cases
     "green":         true,                            // optional, default true: run the unmutated tree first
     "restartContainer": "ydb",                        // optional: `docker restart <name>` before every run
                                                       // (a degrading local container, e.g. ydb, otherwise times out)

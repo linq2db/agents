@@ -36,7 +36,10 @@ Input (named parameters):
                            separated by whitespace instead of '|' / '&' - the usual PowerShell
                            `'A|' + (...) -join '|'` precedence slip, which the test host otherwise
                            reports as an unhandled TestPlatformFormatException at start.
-  -Provider      <list>    optional; passed through to --provider (comma list)
+  -Provider      <list>    optional; passed through to --provider (comma list). Base names
+                           only: a provider's run includes its `.LinqService` cases, and a
+                           `.LinqService` name is refused (see testing.md -> "pass the BASE
+                           provider name").
   -Configuration <string>  optional; default Debug
   -LogPath       <path>    optional; absolute path for the captured output.
                            Default: <RepoRoot>/.build/.agents/worktree-test-<project>[-<tfm>]-<pid>-<HHmmssfff>.log.
@@ -124,11 +127,9 @@ Input (named parameters):
                            -NoBuild); the rest pass -NoBuild. For a probe or sweep across
                            providers, where a combined run's failures cannot be told apart
                            by provider at a glance and one database is driven by one
-                           process at a time. Exclusive with -LogPath. Refuses a
-                           `.LinqService` provider: run on its own it executes only
-                           CreateDatabase, so the remote cases and the remote-vs-direct
-                           baselines check silently never run. Verify remote cases with
-                           a combined run (direct + .LinqService in one -Provider list).
+                           process at a time. Exclusive with -LogPath. Each base
+                           provider's run includes its remote cases and the
+                           remote-vs-direct baselines check.
   -OutFile       <path>    optional; write the result JSON there, print one compact line
                            (see below). The way to keep a -PerProvider result.
   -GroupFailures           optional; adds `failureGroups`: every failure (not just the
@@ -229,13 +230,13 @@ if ($Filter -match '[^\s|&(!]\s+(FullyQualifiedName|Name|ClassName|Category|Test
 # -PerProvider: one run, log and summary per provider, sequentially - a failure is attributed to its provider and each
 # provider's database is driven by one process at a time. The first run may build; the rest reuse its output.
 $Provider = @($Provider | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+# DataSources adds <provider>.LinqService to every base provider it runs, so a .LinqService name becomes
+# <provider>.LinqService.LinqService, which has no connection string: it runs only CreateDatabase (#6116) and adds nothing.
+$remote = @($Provider | Where-Object { $_ -like '*.LinqService' })
+if ($remote.Count -gt 0) { Exit-WithError -Message "a .LinqService provider is never passed: $($remote -join ', ')" -NextAction 'pass the base provider; its run includes the .LinqService cases' }
 if ($PerProvider) {
     if ($Provider.Count -lt 1) { Exit-WithError -Message '-PerProvider needs -Provider' -NextAction 'pass -Provider a,b,c' }
     if ($LogPath)             { Exit-WithError -Message '-PerProvider writes one log per provider; drop -LogPath' -NextAction 'omit -LogPath' }
-    # A .LinqService provider run on its own executes only CreateDatabase (observed on #6116), so its remote cases and
-    # the remote-vs-direct baselines check never run.
-    $remote = @($Provider | Where-Object { $_ -like '*.LinqService' })
-    if ($remote.Count -gt 0) { Exit-WithError -Message "-PerProvider cannot run a remote provider apart from its direct one: $($remote -join ', ')" -NextAction 'drop -PerProvider and pass the direct and .LinqService providers in one run' }
 
     $passThrough = @()
     foreach ($kv in $PSBoundParameters.GetEnumerator()) {
