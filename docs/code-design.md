@@ -224,6 +224,12 @@ RS0030 bans by documentation ID, so **per overload**. A new .NET major adds over
 3. **Build** `-c Release` for the new TFM, so each added ban either passes or exposes the call sites that already bind to the new overload.
 4. **Record** the added entries, or "none", in the PR body.
 
+#### net11.0 runtime-async needs a separate browser-wasm build
+
+The root `Directory.Build.targets` compiles every net11.0 target with `runtime-async=on`. Mono, the default browser-wasm runtime and so every Blazor WebAssembly app unless it sets `UseMonoRuntime=false`, cannot run those methods (`Runtime Async is not supported on this platform`, or `InvalidProgramException`). A package a browser app can load therefore sets `PackBrowserWasmAsset=true` and ships a second net11.0 build, without runtime-async, at `runtimes/browser-wasm/lib/net11.0`. Today that is `linq2db` and the `Remote.HttpClient.Client`, `Remote.SignalR.Client` and `Remote.Grpc` packages, and `Build/Azure/scripts/verify-browser-wasm-asset.ps1` checks them after pack. NuGet cannot tell Mono from CoreCLR, so CoreCLR browser apps load the same build.
+
+Two consequences. A new browser-reachable package, or the first `async` method in one that lacks the property (`Extensions`, `Compat`, `Tools` have none today), needs `PackBrowserWasmAsset` and an entry in the verify script. A repo project that consumes linq2db for a browser app passes `BrowserWasmAssetBuild=true` on every edge to it, or globally, because the SDK adds transitive project references bare. (#5944)
+
 #### Comments in `BannedSymbols.txt` are `//` lines, never `#`
 
 The banned-API analyzer starts a comment at `//` **anywhere on a line**, and has no `#` comment. A `# avoid culture-dependent calls` line is read as a symbol that resolves to nothing, and is ignored. A `# https://github.com/...` header is cut at the URL's `//` to the symbol `# https:`. Two such headers are then the same symbol, and every TFM's Release build fails with `RS0031: The symbol '' is listed multiple times`, reported at the **older** header's line. Write section headers as `// ...` lines; a URL is fine there, because the line is already a comment. (#4314: a new `# https://github.com/linq2db/linq2db/issues/4314` header broke the build at the existing `# https://…/5188` line.)
