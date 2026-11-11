@@ -2,7 +2,7 @@
 area: TESTS-EFCORE
 kind: area-index
 sources: [code]
-confidence: low
+confidence: medium
 last_verified: 2026-11-11
 last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 0/0
@@ -39,7 +39,7 @@ EFCore-specific provider-selection attributes and test utilities.
 
 - `EFDataSourcesAttribute` -- extends `DataSourcesBaseAttribute`. `GetProviders()` returns `TestConfiguration.UserProviders` filtered against `TestConfiguration.EFProviders` (exclusion mode). `[EFDataSources]` is the standard parameter attribute used across almost every test fixture.
 - `EFIncludeDataSourcesAttribute` -- inclusion-mode variant. `GetProviders()` intersects user providers with `TestConfiguration.EFProviders`. Used for provider-specific tests (`[EFIncludeDataSources(TestProvName.AllSqlServer)]`).
-- `TestConfiguration.EFProviders` (`Tests/Base/TestConfiguration.cs:200`) -- the EF-supported provider list: `SQLiteMS`, `AllSqlServer2016PlusMS`, `AllPostgreSQL13Plus`, and `AllMySqlConnector` (the `NET10_0` exclusion is not re-verified by the latest delta -- `TestBase`/`ContextTestBase` no longer carry `#if !NET10_0` MySQL guards). All EF test attributes filter through this list.
+- `TestConfiguration.EFProviders` (`Tests/Base/TestConfiguration.cs:260`) -- the EF-supported provider list: `SQLiteMS`, `AllSqlServer2016PlusMS`, `AllPostgreSQL13Plus`, and `AllMySqlConnector`, passed through `CustomizationSupport.Interceptor.GetSupportedProviders` and `ApplyEFProviderOverride` (which keeps the intersection of the curated list and `--provider`). The list has no `NET10_0` exclusion, and `TestBase`/`ContextTestBase` no longer carry `#if !NET10_0` MySQL guards. All EF test attributes filter through this list.
 - `QueryableExtensions` -- two helpers: `AsLinqToDB(bool)` and `AsTracking(bool)`, convenience for conditional `ToLinqToDB()` / `AsNoTracking()` in test code.
 - `AAA` -- Arrange/Act/Assert fluent DSL (`ArrangeResult<T,TMock>`, `ActResult<T,TMock>`) used by a subset of tests.
 - `ExceptionExtensions` -- single helper `Throw(this Exception)` returning `Unit`; used with `AAA` DSL for act-throws patterns.
@@ -695,4 +695,6 @@ Read (this run -- delta):
 - `Tests/FSharpTests.cs` (`#if EF8` -> `#if EF10`, ActiveIssue(4646) dead-code gate removed, `Issue4646Table` cleanup before each test)
 - `Tests/IssueTests.cs` (11 Issue6181 tests, `[NoBaselines]` on `TestImplicitConnectionManagement`)
 - `Tests/ToolsTests.cs` (`[NoBaselines]` on `TestTemporalTables`)
+Citation repair (2026-11-11):
+- The only path-and-line citation in this file (TestConfiguration.cs, old line 200, for `EFProviders`) was stale. The field is now at `Tests/Base/TestConfiguration.cs:260` and the citation was updated. The claim was reworded: the list wraps `ApplyEFProviderOverride(...)` and contains no `NET10_0` exclusion. Verified by re-reading `Tests/Base/TestConfiguration.cs` lines 255-290. No other `Source/...` or `Tests/...` `path:line` citations exist in the file (whole file searched). All citations now verify, so `confidence` is restored to `medium`.
 </details>

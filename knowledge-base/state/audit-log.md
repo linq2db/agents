@@ -3164,3 +3164,9 @@ Cross-source: no code pattern fired, so no cross entries were possible (the issu
 ## 2026-11-11T15:47:33Z — deferred-coverage queue updated
 - DOCS: -10 cleared
 
+## 2026-11-11T16:01:57Z — agent audit notes
+- Type-name pattern regex uses == only. QueryRunner.cs uses .Contains(literal) for the same smell, consider widening the regex to GetType\(\)\.Name\.(Contains|StartsWith|EndsWith|Equals)\( or ==.
+
+## 2026-11-11T16:03:18Z — agent audit notes
+- Index had no DmlService entries, so no dedup, update or fixed patches. The coverage block above is wrapped as an artifact so the envelope stays well-formed. issues-index.json has no mention of DmlService, so gh_issue is null on all entries.
+
