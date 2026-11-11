@@ -18,3 +18,20 @@ Unestablished: whether step 4 embedded *A narrowed provider set is a claim* (if 
 - GAP-07 × 2 → `skills/work-plan/SKILL.md:71` (step 4 embed): add that a new bare `[DataSources]` test inherits a same-mechanism sibling's measured gates or runs those providers.
 - GAP-07 × 2 → `agents/plan-critic.md:55`: widen "same-shape tests in that fixture" to the home fixture of each operator or load strategy the test exercises, and state that a bare `[DataSources]` is in scope.
 - GAP-03 × 1 → `skills/work-plan/SKILL.md:107` (reword): extend the trigger to branches that key on the raw input expression and run once the operand builds, and require a flag-gated change to sweep the consuming methods as well as the flag's setters and readers.
+
+## Round 2 — reviewed HEAD 2f77524bd
+
+- **SUG001** (E-2's widened arm, `ParametersContext.cs:290`, fires for any two different enums; unpinned for the unregistered case) — GAP-05 — D-2's failure mode named the case, but P8 never turned it into a TO; TO-24's `DtoGender` has the same MapValues as `Gender` and covers a constant only, so it cannot go red. Second class GAP-02: the consequence was recorded in prose and never measured; `DirectCastToEnumWithOtherMapValuesEqualParameter` shows master returning 0 rows instead of 1 (`CAST([p].[Gender] AS NVarChar(255)) = 'Female'`), so E-2 also fixes a bug outside the feature — — — preventable: yes
+
+### Aggregate
+
+1 finding: GAP-05, second class GAP-02. A D-block failure mode stated in prose with no discriminating TO, next to a sibling TO whose fixture coincides with the intended case.
+
+### Recommended durable fix
+
+- GAP-05 → `docs/work-plan.md` P8 semantics and an `agents/plan-critic.md` attack vector: every "failure mode of the choice" line maps to a TO whose fixture discriminates the failing input from the intended one (measured red/green), or says why none is needed; the critic checks that a sibling TO's fixture does not coincide with the intended case.
+
+### Continuity with round 1
+
+- GAP-05 recurs: round 1's MAJ001 also lacked an obligation next to a TO that existed but did not discriminate (closed by TO-19/TO-20).
+- GAP-03, GAP-07 and GAP-10 do not recur.
