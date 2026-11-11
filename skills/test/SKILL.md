@@ -1,6 +1,6 @@
 ---
 name: test
-description: Write a new linq2db test, run an existing test / filter, or both. Performs the write/run steps documented in `.claude/agents/test-writer.md` / `test-runner.md` (a tool with a named-subagent facility can delegate to them; otherwise perform the steps directly) and reports a single pass/fail summary at the end. Env management (docker containers, `UserDataProviders.json`) lives in the `/test-providers` skill, not here — `/test` reads the configured state but never edits it.
+description: Write a new linq2db test, run an existing test / filter, or both, following the test-writer / test-runner agent steps, and report one pass/fail summary. Reads the configured env but never edits it — docker and `UserDataProviders.json` belong to `/test-providers`.
 ---
 
 # /test

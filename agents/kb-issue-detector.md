@@ -132,7 +132,8 @@ The detector controls only `open ↔ fixed`. Other transitions (`triaged`, `acce
 
 - `full-scan`: gate is "every Tier-1 + Tier-2 file in every area scanned for every pattern". Aggregate `=== COVERAGE-SUMMARY ===` across the run.
 - `area-scan`: same, scoped to one area.
-- `delta`: gate is "every changed file in scope scanned"; coverage block reports the delta only.
+- `delta`: gate is "every changed file in scope scanned **for every pattern**"; coverage block reports the delta only.
+- **Every mode emits a `=== COVERAGE-SUMMARY ===` with a verdict per catalog pattern per file — `fired` / `not-fired` / `n-a`.** A TODO/FIXME grep is one pattern, not a scan: read each file in full and judge the reading-based patterns (complexity, duplication, swallowed errors, missing docs, cross-provider inconsistency) as well. (2026-11-11 `/kb-refresh`: almost every delta detector grepped TODOs only, even when told to run the full catalog; a re-scan that required per-pattern verdicts found 17 real issues in the same files.)
 
 ## False-positive discipline
 

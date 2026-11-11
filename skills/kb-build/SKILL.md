@@ -1,6 +1,6 @@
 ---
 name: kb-build
-description: Build the persistent knowledge base under .claude/knowledge-base/ from scratch. Phased and resumable — each step is sized to a single session and gates on coverage. Re-running picks up at the first incomplete step. Spawns kb-architect / kb-historian / kb-github-curator / kb-issue-detector as needed; never invents content directly.
+description: Build the knowledge base under .claude/knowledge-base/ from scratch — phased, resumable, one session per step, coverage-gated; re-running resumes at the first incomplete step. Spawns the kb-architect / kb-historian / kb-github-curator / kb-issue-detector agents; never invents content.
 ---
 
 # /kb-build

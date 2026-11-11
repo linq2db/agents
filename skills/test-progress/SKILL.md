@@ -1,6 +1,6 @@
 ---
 name: test-progress
-description: Report the live test-progress heartbeat for linq2db test runs (read-only). The heartbeat is written by runs launched per this instruction set (test-runner passes --test-progress), so this skill reads the latest .build/.agents/test-progress.*.json and relays a one-line status — current test, completed/total, pass/fail tally. Use when the user says "/test-progress", "how far along are the tests", "watch the test run", "test status".
+description: Report the live heartbeat of a linq2db test run (read-only) — reads the latest .build/.agents/test-progress.*.json and relays current test, completed/total and pass/fail tally. Use when the user says "/test-progress", "how far along are the tests", "watch the test run", "test status".
 ---
 
 # /test-progress

@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Orchestrate the full workflow for reproducing and testing a linq2db issue — load the issue, clarify scope, create an `issue/<n>-<slug>` branch, and drive a regression test through test-writer + test-runner. Does not write the fix code itself; the user drives the fix and the skill wraps the testing loop around it.
+description: Orchestrate reproducing and testing a linq2db issue — load it, clarify scope, create an `issue/<n>-<slug>` branch, drive a regression test through test-writer + test-runner. The user writes the fix; the skill wraps the testing loop around it.
 ---
 
 # /fix-issue

@@ -1,6 +1,6 @@
 ---
 name: merge-duplicates
-description: Merge duplicate linq2db/linq2db issues into a canonical one. Consolidates non-overlapping details from dupes into a new comment on the canonical (with attribution, preserving code fences), propagates dupe-only labels onto canonical, posts a closing comment on each dupe, and closes each dupe with GitHub's `duplicate` state reason. Never edits any body or comment — always adds new content. Always gated by explicit user confirmation of the full action bundle. Closes dupes last so no rollback is ever needed.
+description: Merge duplicate linq2db/linq2db issues into a canonical one — consolidates dupe-only details into an attributed new comment, copies dupe-only labels, then comments on and closes each dupe as `duplicate`. Never edits a body or comment; the whole action bundle is user-confirmed.
 ---
 
 # merge-duplicates

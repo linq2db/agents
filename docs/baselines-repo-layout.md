@@ -38,6 +38,8 @@ A special `a_CreateData/a_CreateData.CreateDatabase(<Provider>).sql` per provide
 
 **Metrics baselines** — one folder per TFM at the repo root: `NET100/`, `NET90/`, `NET80/`, `NETFX/`. Files are named `<Provider>.<OS>.Metrics.txt`, e.g. `SqlServer.2022.MS.Unix.Metrics.txt`, `SqlServer.2022.MS.Win32NT.Metrics.txt`. These are plain-text performance-metric captures. Review them as their own group — the cross-provider SQL-distinctions logic does not apply.
 
+**Never run a repo-wide `git status` or `git diff` in the baselines clone.** One `.sql` per test per provider makes the unscoped output tens of megabytes, which has to be persisted to a tool-result file before it can be read at all. Scope it — `git -C ../linq2db.baselines status --short --untracked-files=no -- "*<TestClass>*"` — and when the question is only "did this run write baselines", check one expected file's mtime instead. (2026-08-26: 31.8 MB from an unscoped `status --short`.)
+
 ### Branch naming
 
 PR baselines live on `baselines/pr_<pr_number>`. Absence of the branch means the PR produced no baseline changes.

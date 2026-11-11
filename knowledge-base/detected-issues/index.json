@@ -12199,13 +12199,14 @@
       "Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDmlService.cs:17",
       "Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteDmlService.cs:17"
     ],
-    "status": "open",
     "gh_issue": null,
     "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
-    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
     "first_detected_at": "2026-11-11",
-    "last_seen_at": "2026-11-11",
-    "confidence": "high"
+    "confidence": "high",
+    "status": "dismissed",
+    "dismissed_reason": "IsTableNotFoundException has one caller (QueryRunner.DropTable.IsTableNotFound) and only matters when DROP TABLE IF EXISTS is not handled in SQL. Every stub provider emits it server-side: native IF EXISTS (base, MySQL, DuckDB, Informix, SQLite) or a guarded block (Oracle SQLCODE -942, SapHana, Firebird, DB2, SqlServer, Sybase). Only Access and SqlCe lack it and both implement detection.",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-6464",

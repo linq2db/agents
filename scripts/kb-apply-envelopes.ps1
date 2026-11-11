@@ -14,7 +14,11 @@
        - `=== ARTIFACT: ... ===` blocks without `=== END ARTIFACT ===` -> closer inserted
          before the next fence header (unclosed artifacts apply as 0 artifacts, ok=true);
        - a `DEFERRED-COVERAGE` body written as `<path> -- <reason>` lines -> the JSON
-         `{"files":[{path,reason}]}` form apply-fences parses.
+         `{"files":[{path,reason}]}` form apply-fences parses;
+       - a `DEFERRED-COVERAGE-CLEAR` body written as plain path lines -> `{"paths":[...]}`;
+       - an `ARTIFACT` / `INDEX-PATCH` path prefixed `.claude/knowledge-base/` -> KB-relative;
+       - a `COVERAGE-SUMMARY` wrapped inside an `ARTIFACT` fence -> a bare
+         `COVERAGE-SUMMARY` fence (otherwise it writes a stray file into the KB).
     2. Runs `kb-state.ps1 apply-fences` on it.
     3. Collects a per-file result line { file, ok, artifacts, patches, gate }.
 
@@ -55,6 +59,17 @@ function Repair-Envelope([string]$t) {
     $t = [regex]::Replace($t, '(?m)^=== END KB-INDEXER OUTPUT v\d+ ===', '=== END KB-INDEXER OUTPUT ===')
     if ($t -notmatch '(?m)^=== KB-INDEXER OUTPUT v1 ===') { $t = "=== KB-INDEXER OUTPUT v1 ===`n" + $t }
     if ($t -notmatch '(?m)^=== END KB-INDEXER OUTPUT ===') { $t = $t.TrimEnd() + "`n=== END KB-INDEXER OUTPUT ===`n" }
+
+    $t = [regex]::Replace($t, '(?m)^(=== (?:ARTIFACT|INDEX-PATCH|INDEX-WRITE): )\.claude/knowledge-base/', '$1')
+    $t = [regex]::Replace($t, '(?ms)^=== ARTIFACT: [^\r\n]+ ===\r?\n(=== COVERAGE-SUMMARY ===\r?\n.*?)\r?\n=== END ARTIFACT ===', {
+        param($c) $c.Groups[1].Value.TrimEnd() + "`n=== END COVERAGE-SUMMARY ==="
+    })
+    $t = [regex]::Replace($t, '(?ms)^(?<open>=== DEFERRED-COVERAGE-CLEAR: [^\r\n=]+? ===\r?\n)(?<body>.*?)(?<close>\r?\n=== END DEFERRED-COVERAGE-CLEAR ===)', {
+        param($d)
+        if ($d.Groups['body'].Value.TrimStart().StartsWith('{')) { return $d.Value }
+        $paths = @($d.Groups['body'].Value -split '\r?\n' | ForEach-Object { $_.Trim().TrimStart('-', '*', ' ').Trim('`') } | Where-Object { $_ })
+        $d.Groups['open'].Value + (@{ paths = $paths } | ConvertTo-Json -Depth 3 -Compress) + $d.Groups['close'].Value
+    })
 
     if ([regex]::Matches($t, '(?m)^=== ARTIFACT: ').Count -gt [regex]::Matches($t, '(?m)^=== END ARTIFACT ===').Count) {
         $t = [regex]::Replace($t, '(?ms)(^=== ARTIFACT: [^\r\n]+ ===\r?\n.*?)(?=^=== (?:ARTIFACT: |END KB-INDEXER OUTPUT ===|AUDIT-NOTE ===|DEFERRED-COVERAGE|INDEX-PATCH|COVERAGE-SUMMARY|UNCLASSIFIED-FILE))', {

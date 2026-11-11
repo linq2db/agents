@@ -1,6 +1,6 @@
 ---
 name: kb-status
-description: Read-only status report for the knowledge base — phase progress, source freshness (per-source cursor age), counts (areas, decisions, detected-issues by severity, GH index sizes), staleness summary (files with last_verified older than 90 days), consultation/usage stats (how often the KB is actually read during sessions), and the last few entries from audit-log.md.
+description: Read-only knowledge-base status report — phase progress, per-source cursor age, counts (areas, decisions, detected issues, GH indexes), files unverified for 90+ days, KB consultation stats and the latest audit-log.md entries.
 ---
 
 # /kb-status

@@ -90,6 +90,8 @@ Three outcomes per `added` entry:
 
 This check runs regardless of milestone. It is a design-quality gate, not a stability gate: the cost of relaxing visibility later is zero; the cost of reducing visibility later is a breaking change.
 
+**Non-referenceable packages are exempt from this step: `linq2db.cli` and the LINQPad driver.** `Source/LinqToDB.CLI` packs as a tool (`PackAsTool`) and `Source/LinqToDB.LINQPad` is loaded by LINQPad, so no consumer references either assembly and the namespace signal has no contract to protect (`LinqToDB.LINQPad.csproj` carries no PublicAPI baselines for that reason). Types widened to `public` in `LinqToDB.CommandLine.*` or `LinqToDB.LINQPad.*` — typically so their test projects can reach them — draw no finding and no `Internal.*` move; `Source/LinqToDB` and every other referenceable package are checked as above. (Maintainer ruling on #5678, 2026-07-29: *"cli is non-consumable artifact - we don't care about visible types and namespace"*; the driver by the same reasoning, `LinqToDB.LINQPad.csproj:232`.)
+
 ### SQL AST namespace exception
 
 Before emitting a BLK per the last row above, check whether the modified / removed symbol is a SQL AST type (query-tree building block used only during query construction, translation, and rendering) that happens to live under the public `LinqToDB.SqlQuery` namespace rather than `LinqToDB.Internal.SqlQuery` where it belongs. See [`code-design.md`](code-design.md) → **SQL AST types live in `LinqToDB.Internal.SqlQuery`** for the underlying rule.

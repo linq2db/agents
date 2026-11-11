@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: Create a new issue on linq2db/linq2db covering Task/Bug/Feature work types. Verifies claims against the current codebase, drafts a structured body with file:line references, checks for duplicates, proposes issue type + up to 3 labels + milestone, and posts only after explicit user confirmation. Sets the GitHub issue type via REST PATCH after creation.
+description: Create a linq2db/linq2db Task/Bug/Feature issue — verifies claims against the code, drafts a body with file:line references, checks duplicates, proposes type, up to 3 labels and milestone, posts only after confirmation and sets the issue type via REST.
 ---
 
 # create-issue

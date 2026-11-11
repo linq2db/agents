@@ -147,3 +147,19 @@ Start-Process -FilePath $exe -ArgumentList ... -WindowStyle Hidden `
 Budget: a single linq2db test-exe invocation costs ~4 min even for one test (host startup plus discovery over ~14k tests dominate), and a full single-provider suite ~18 min.
 
 When a large file is read and the `Read` tool **truncates** it (e.g. "showing lines 1-N of M total"), an individual long line can come back misrendered -- a single multi-thousand-char `kb-areas.md` table row returned `**/*.cs` where the real on-disk bytes were `**/*Builder.cs`, and two `Edit` calls failed because the `old_string` didn't match. Before composing an `Edit` `old_string` for a line in a large or truncated file, re-fetch the exact bytes with `Grep` (the matching line) or a targeted `Read` (`offset=<line>, limit=1`) -- don't trust a line copied out of a truncated full-file read.
+
+## Git Bash trigger list
+
+MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` calls. [`agent-rules.md`](agent-rules.md) → *Windows Git Bash gotchas* keeps the three most-hit; this is the full list of one-line triggers, with tool-neutral detail in [`windows-dev-gotchas.md`](windows-dev-gotchas.md):
+
+- `gh api` rejects a leading-slash endpoint (use `gh api user`, never `gh api /user`).
+- `gh search issues --repo linq2db/linq2db` returns `[]` even when matches exist — search with `gh issue list --repo linq2db/linq2db --search "<terms>" --state all`: [`issue-search.md`](issue-search.md).
+- `git show <ref>:<path>` fails with `ambiguous argument` when `<ref>` contains `/` — use `git ls-tree` + `git cat-file -p` instead.
+- **`git ls-tree … -- '<glob>'` does not glob, and an empty result is not absence.** Enumerate with `git diff --name-only <base>...<ref>` or `git ls-files`, then `Grep`: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *`git show <ref>:<path>` is path-mangled…*.
+- **`gh … --body` is banned.** Always `--body-file <path>` or `--body-file -`; for `/azp run …` use `.claude/scripts/azp-run.ps1`.
+- `git fetch <headRefName>` may produce no usable ref or delete the one it made — spell **both** refspec sides in full (the `require-qualified-fetch-refspec.js` hook blocks a bare source): [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *Fetch a PR head via `refs/pull/<n>/head` into `origin/pr/<n>`*.
+- Transient `fatal error — add_item (… errno 1)`: retry once, then treat the Bash tool as unavailable for `git` / `gh` for the session — except a hook-running `git commit` / `push`, which fails the same way from PowerShell: wait and retry, never `--no-verify`. [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *Transient `fatal error — add_item`…*.
+- `docker exec <container> /<path>` mangles the path: prefix with `MSYS_NO_PATHCONV=1` and wrap in `bash -c '…'`.
+- Captured `gh` / `git` stdout decodes via the console code page, not UTF-8 — don't capture body-ish output into a pwsh variable; use `Invoke-Gh` helpers, a file roundtrip, or ASCII-only anchors.
+- `Glob` returns "No files found" for files that exist: a path documented in CLAUDE.md / a SKILL / `agent-rules.md`, anything under a gitignored directory (`.build/.agents/`, even as the explicit `path`; `Grep` with that directory as `path` misses too — pass the file), and a `path` set to a worktree's `.claude/` root. `Read` the known path directly (or list a gitignored directory with `Get-ChildItem`) before concluding it's missing or reimplementing the helper: *`Glob` may return empty for documented paths on Windows* above.
+- A tracked file stays `M` after `git restore` / `git stash` with an identical-looking diff — don't chase it, and don't reach for `--assume-unchanged`: [`windows-dev-gotchas.md`](windows-dev-gotchas.md) → *A file that stays dirty after `git restore`*.

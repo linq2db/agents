@@ -1,6 +1,6 @@
 ---
 name: session-reflect
-description: Harvest the current conversation for insights worth capturing. Scans the transcript for user corrections, confirmed approaches, ad-hoc procedures, permission-prompt patterns, command-usage redundancy, knowledge gaps, and review-rule gaps, then proposes concrete additions to `.claude/` (docs, skills, agents, scripts, feedback rules) or the user-level auto-memory system. Read-only until per-finding confirmation.
+description: Harvest the current conversation for insights — user corrections, confirmed approaches, ad-hoc procedures, permission-prompt patterns, redundant commands, knowledge and review-rule gaps — and propose additions to `.claude/` or auto-memory. Read-only until per-finding confirmation.
 ---
 
 # /session-reflect

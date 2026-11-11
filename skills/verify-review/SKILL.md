@@ -1,6 +1,6 @@
 ---
 name: verify-review
-description: Re-verify prior `/review-pr` findings on a linq2db PR against the current PR HEAD. Collects all prior reviews, parses findings by severity-ID, reruns code-reviewer and baselines-reviewer in `verify` mode, then applies in-place edits (checkbox flips on prior review bodies, annotations + thread resolves on prior review comments) and posts a new draft review for partial fixes and new findings. The final gate can also save the whole verification to a state file instead of posting, for another session to pick up with `/verify-review resume <n>`. Requires explicit user confirmation before any GitHub write.
+description: Re-verify prior `/review-pr` findings on a linq2db PR at current HEAD — reruns code-reviewer and baselines-reviewer in verify mode, flips checkboxes, resolves fixed threads, posts a draft review for the rest or saves state for `/verify-review resume <n>`. GitHub writes are user-confirmed.
 ---
 
 # verify-review

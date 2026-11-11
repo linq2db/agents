@@ -1,6 +1,6 @@
 ---
 name: dogfood-analyzer
-description: Dogfood a shipped linq2db analyzer/code-fix rule against the real test corpus — build it as a package, attach it to Tests/Linq, run it in report mode (no crash / no false positives / no missed sites) and code-fix mode (compiles / trivia preserved / every convertible site rewritten / skipped sites justified). Use when the user says "dogfood-analyzer", "/dogfood-analyzer", "dogfood the analyzer", or "run the analyzer over the tests". Read-only on the primary clone; all work happens in a throwaway worktree and is never committed.
+description: Dogfood a shipped analyzer/fix rule on Tests/Linq in a throwaway worktree — report mode (no crash, false positives, missed sites), fix mode (compiles, all sites rewritten). Use when the user says "dogfood-analyzer", "/dogfood-analyzer", "dogfood the analyzer", or "run the analyzer over the tests".
 ---
 
 # dogfood-analyzer

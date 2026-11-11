@@ -56,6 +56,8 @@ A multi-agent fan-out (a `Workflow`, parallel reviewers, an `Explore` swarm) ear
 - **Route by verifiability, not by predicted complexity.** Which decomposition wins is an empirical fact about the work, not something readable off the task's phrasing — picking a fan-out shape from the description alone underperforms. Let the presence of a concrete check decide, not a guess at how hard the task is.
 - **An adversarial critic that must cite checkable objections is the case this rule permits, not one it forbids.** `plan-critic` is briefed to break a plan with grep-able impact-map gaps and red-able test obligations, on a different model so it can disagree — its objections are objective checks. A critic asked only "is this right?" is the noise case.
 
+**Parallel agents that edit files each own a disjoint file set — and that includes the files your own edits touch.** Two writers on one file overwrite each other. A renamed bold lead-in or heading breaks every `→ *name*` reference to it, so rename only in the same pass that updates those references, then run `check-corpus-anchors.ps1`. (2026-11-11 audit: renaming two `agent-rules.md` lead-ins broke references in `ci-tests.md` and `work-plan.md` while other agents were editing those files.)
+
 Pairs with *Distinct lenses for parallel reviewers* and *Cross-model verification …* below (both presuppose a fan-out already justified) and with the `Workflow` verify-gate / *Frame subagent prompts to allow failure* discipline in [`agent-rules.md`](agent-rules.md).
 
 ## Distinct lenses for parallel reviewers — avoid the echo chamber
@@ -74,7 +76,7 @@ A bare role opener ("act as a senior reviewer") adds little on a current capable
 
 Two corpus-authoring heuristics — both model-dependent, so apply as tie-breakers, not dogma:
 
-- **A prohibition ("never do X", "don't touch Y") tends to land more reliably than a prescription ("always do X in manner Z").** When a *new* rule can be framed as a hard boundary rather than a procedure, prefer the boundary — it's shorter and less brittle. This is **not** license to rewrite the corpus's war-story-backed prescriptive rules; those earn their specificity. It's a default for what to write next.
+- **A prohibition ("never do X", "don't touch Y") tends to land more reliably than a prescription ("always do X in manner Z").** When a *new* rule can be framed as a hard boundary rather than a procedure, prefer the boundary — it's shorter and less brittle. This is **not** license to rewrite the corpus's war-story-backed prescriptive rules; those earn their specificity. It's a default for what to write next. (Model-dependent premise, flagged 2026-11-11 for re-test: current prompting guidance leans toward stating the wanted behaviour plus its reason. Before relying on this, compare a prohibition and a prescription of the same rule on a scripted scenario with the current model; keep the heuristic dated, or flip it to "prescribe with the reason; add the prohibition only for irreversible actions".)
 - **A single flat instruction file usually works about as well as finely-split per-pattern rules.** Resist splitting one rule into many narrowly-scoped variants: the marginal adherence gain is small and the duplication / maintenance cost is real. This is the authoring-side counterpart to `/audit-agents`'s refactor-candidate (over-budget file, overlapping skills) checks — consolidate rather than proliferate.
 
 ## Per-stage stop conditions in multi-stage skills
@@ -92,6 +94,20 @@ Subagent tool declarations are advisory — the harness does *not* enforce them,
 ## A subagent's reported result is a claim, not evidence
 
 The `git status` check catches unauthorized *side effects*; it says nothing about whether the summary is true. A subagent can report a clean pass it never observed — `test-runner` once reported *"passed: 1, failed: 0"* for a run that had failed on two of four databases, reading a stale heartbeat instead of the run it launched. Before acting on a pass/fail summary that gates a decision, confirm it against something the agent didn't author. **Implausible metrics are the tell**: a count, duration or file count that can't match the work described (1 test in 3.066 s across four databases) means it measured something else — re-derive the whole result rather than reconciling the one number that looks off.
+
+## Capability self-assessment
+
+Before reporting a task as infeasible ("can't bisect", "can't build", "runtime test outside my reach"), do a one-pass environment check:
+
+- `docker ps -a --filter name=<container>` for provider containers — use the **container name** from [`test-databases.md`](test-databases.md) (`pgsql19`, `sql2022`, `firebird50`), **not** the engine/provider name; `--filter name=postgres` returns nothing even when `pgsql19` exists. When unsure, run `docker ps -a` unfiltered.
+- `Glob` under `.claude/scripts/` for helper scripts wrapping multi-step sequences.
+- `UserDataProviders.json` (root) and a sibling `linq2db` clone's copy (e.g. `../linq2db/UserDataProviders.json`) for connection strings.
+- Existing skills (`/test`, `/test-providers`) for workflow coverage.
+- `/kb-ask` or `areas/<AREA>/` for prior context on the subsystem — known issues, decisions, patterns — before declaring something unknown or infeasible.
+- **Query-build performance** → [`measuring-query-build.md`](measuring-query-build.md) (BenchmarkDotNet's child-process toolchain fails in this repo — use the manual-runner pattern; `dotnet-trace` is installed and [`../scripts/speedscope-top.csx`](../scripts/speedscope-top.csx) reads its output). A work count is not a time measurement: [`bug-investigation.md`](bug-investigation.md) → *Perf work*.
+- **CI investigation has a script per question** — red Azure tests → `azp-build-failures.ps1`; red GitHub leg → `gh-run-logs.ps1` then `ci-test-verdicts.ps1 -Dir <logsDir> -Verdict failure,host-failure,signature-mismatch,gate-too-wide,gate-collision` (a gate that passes is a red too); any step's log → `azp-step-log.ps1`; timing → `azp-job-durations.ps1`; build metadata → the `gh api` recipes. Never hand-roll `/timeline`, `/logs` or `/_apis/build/builds`: [`ci-tests.md`](ci-tests.md) → *Reading failed CI test runs*.
+- When the capability exists but the runtime cost is real, surface the cost and let the user decide.
+- Before escalating to a larger model, diagnose "stuck" as effort vs. capability — next section.
 
 ## Diagnose "stuck" as effort vs. capability before escalating
 

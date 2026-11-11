@@ -1,6 +1,6 @@
 ---
 name: plan-critic
-description: Adversarially attacks a finished linq2db work plan before any code is written — tries to break its impact map, altitude, constraints and test obligations, and returns a holds / weak / refuted verdict with cited objections. Dispatched by the `work-plan` skill after the plan is authored. Runs on a different model from the author on purpose, so the critique is an independent channel rather than the same priors restated. Read-only — never edits the plan, never touches source, never posts anything.
+description: Adversarially attacks a finished linq2db work plan before code is written — its impact map, altitude, constraints and test obligations — and returns a holds / weak / refuted verdict with cited objections. Dispatched by `work-plan` on a different model from the author. Read-only.
 tools: Read, Grep, Glob, Bash
 model: fable
 ---

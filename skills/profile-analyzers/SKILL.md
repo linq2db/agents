@@ -1,6 +1,6 @@
 ---
 name: profile-analyzers
-description: Measure Roslyn analyzer build-time cost. Two modes - `solution` runs a whole-solution rebuild with `/reportanalyzer` and ranks every analyzer (release-time regression check after an analyzer-package bump); `rules` measures linq2db's *own* analyzers (internal LINQ2DB0xxx against Source/LinqToDB, shipped L2DB1xxx against Tests/Linq) and reports a per-rule table of times, a total, and a verdict against a committed baseline. Use when the user asks to profile analyzers, says "analyzers got slow", "which analyzers are slowest", "why is the build slow", "how expensive is this rule", or as part of `/create-analyzer` / `/dogfood-analyzer` / `/release-deps`.
+description: Time analyzer builds — `solution` ranks all, `rules` times linq2db's own vs a baseline. Use when the user says "profile analyzers", "analyzers got slow", "which analyzers are slowest", "why is the build slow", "how expensive is this rule", or from /create-analyzer, /dogfood-analyzer, /release-deps.
 ---
 
 # /profile-analyzers
@@ -89,7 +89,7 @@ For programmatic consumption: `-AsJson` returns `{ slowestPairs, busiestAnalyzer
 
 **Expect a possible `CS2012` on the *next* build in the same tree.** `-p:UseSharedCompilation=false` gives every project its own `csc.exe` instead of reusing the compiler server, and those processes can outlive the run holding handles on the analyzer and source-generator assemblies — exactly the DLLs every other project loads as an analyzer. The next `dotnet build` then dies with `CS2012: Cannot open '…LinqToDB.Analyzers.dll' (or CodeGenerators.dll) for writing`, which reads like a corrupt tree rather than a stale lock.
 
-Retry once — the handles are released as those processes exit. Do **not** reach for `dotnet build-server shutdown` or kill `dotnet` / `csc` / `VBCSCompiler`: both are machine-global on a box shared with parallel sessions, other worktrees and the user's IDE, and both are prohibited (enforced by the `ban-build-server-shutdown.js` hook; see [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*). Running the profiling build in a **throwaway worktree** confines the locks to a tree you are about to delete, which is the actual fix and is what `rules` mode mandates; for `solution` mode, if a retry doesn't clear it, say what is blocked and let the user decide (see [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*).
+Retry once — the handles are released as those processes exit. Do **not** reach for `dotnet build-server shutdown` or kill `dotnet` / `csc` / `VBCSCompiler`: both are machine-global on a box shared with parallel sessions, other worktrees and the user's IDE, and both are prohibited (a user-level hook may also block them; see [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*). Running the profiling build in a **throwaway worktree** confines the locks to a tree you are about to delete, which is the actual fix and is what `rules` mode mandates; for `solution` mode, if a retry doesn't clear it, say what is blocked and let the user decide (see [`worktree.md`](../../docs/worktree.md) → *Removing a worktree blocked by file locks*).
 
 ### 4. Present the three rankings
 

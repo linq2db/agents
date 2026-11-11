@@ -4,9 +4,7 @@ A **work plan** is a per-branch design document written *before* the first sourc
 
 ## Why the artifact exists
 
-Review had no durable statement of intent. `code-reviewer`'s entire picture of design intent was the PR body, linked issues one level deep, a 3–8 bullet change summary written on the spot, and one user-typed sentence at the scope gate — **all four regenerated per review**. Successive reviews of one branch therefore measured against a different yardstick each round, which is why they re-raised settled points instead of converging. A plan fixes the yardstick.
-
-The second cost was that an accepted trade-off had nowhere to live: a deferral adjudicated in round 1 left no artifact, so round 2 raised it again. That is what `P10` is for.
+Without one, every review regenerated its picture of intent (PR body, linked issues, an on-the-spot change summary, one scope-gate sentence), so successive rounds measured against a different yardstick and re-raised settled points; a plan fixes the yardstick. `P10` exists because an accepted trade-off otherwise has nowhere to live, and round 2 re-raises a deferral round 1 adjudicated.
 
 ## Location and key
 
@@ -29,9 +27,7 @@ Deterministic, derivable before a PR number exists, and never needs renaming.
 derivable from the branch name, so `.claude/plans/<branch-with-slashes-replaced>/plan.md` can be checked in one call
 before anything else happens. An auto-memory entry summarising the same work is a *point-in-time* record: it can
 predate the plan's latest decisions, and it can cite a plan path that a later session superseded. Where they
-disagree, the plan wins, and the memory is what needs updating. The failure is silent and expensive — nothing in a
-stale memory announces that it is stale, so the session proceeds confidently in the wrong direction and only a human
-stops it. (2026-09-21, #5708: a session resumed from a memory written four hours before the decision it described
+disagree, the plan wins, and the memory is what needs updating. (2026-09-21, #5708: a session resumed from a memory written four hours before the decision it described
 was reversed, and which pointed at a superseded plan file. It spent fifteen tool calls repairing native `PIVOT`
 emission — a defect it found, reproduced and fixed correctly — inside the code path the live plan's `D-1` deletes
 outright, and the live plan's `P3` named "do not re-plumb the dynamic API onto native PIVOT" as an explicit
@@ -79,7 +75,7 @@ What must **not** change. For linq2db the recurring ones: the public API contrac
 
 ### P4 Unknowns (M/L)
 
-The blind-spot pass that [`agent-rules.md`](agent-rules.md) → *Do a blind-spot pass before coding in an unfamiliar subsystem* already demands but produces no artifact for. One row per assumption, unresolvable unknown, or unmentioned edge case. Each row ends `resolved-by <user answer | scout | probe>` or `OPEN`.
+The blind-spot pass — the unknown-unknowns a change in an unfamiliar subsystem could hit (edge cases, provider quirks, cross-cutting invariants, the assumptions the design rests on) — made into an artifact. One row per assumption, unresolvable unknown, or unmentioned edge case. Each row ends `resolved-by <user answer | scout | probe>` or `OPEN`.
 
 **No `OPEN` row survives approval** — `-Validate` fails on one. Mark a row `OPEN` when it is genuinely unresolved; do **not** silently pick a plausible interpretation and build on it.
 
