@@ -3,8 +3,8 @@ area: MAPPING
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 3/3
 coverage_tier_2: 46/46
 ---
@@ -74,6 +74,8 @@ Constructed via `new MappingSchema(string? configuration, params MappingSchema[]
 
 `MappingSchema.Default` is a singleton `LockedMappingSchema` (`Internal.Mapping`, out of this area) initialised in the nested `DefaultMappingSchema` ctor (`MappingSchema.cs:1446-1492`): it seeds the scalar-type table (`AddScalarType(typeof(string), DataType.NVarChar)`, etc.), registers `DBNull -> object?` and `DateTime -> string` converters, and primes `ValueToSqlConverter`. Provider-specific schemas (e.g. `SqlServerMappingSchema`) extend `LockedMappingSchema` and chain off `Default`.
 
+The `DateOnly -> string` default converter is no longer registered under `#if SUPPORTS_DATEONLY`. Modern runtimes also load the netstandard2.0 build, which cannot name `DateOnly` at compile time (#6077), so the `DefaultMappingSchema` ctor now calls local `SetDateOnlyToStringConverter()` (`MappingSchema.cs:~1488-1519`). It resolves `Type.GetType("System.DateOnly")` at runtime (returns if absent), binds a delegate to the compiled generic `FormatInvariantDate<T>` (`T : IFormattable`, format `yyyy-MM-dd`, invariant culture), wraps it as `Expression.Invoke(Constant(func), p)` so it stays an invoked delegate (client-side, same shape `SetConverter<DateOnly,string>` stores), writes it straight into `Schemas[0].SetConvertInfo` under `_syncRoot` plus `ResetID()`, then derives the nullable companion via `SetNullableConversion`. Delegate is precompiled so a user-set expression compiler does not run inside the `MappingSchema` type initializer.
+
 ### 2. `EntityDescriptor` construction
 
 `EntityDescriptor.Init` (`EntityDescriptor.cs:278-410`) is the single hot path that produces an entity column/association set:
@@ -94,6 +96,8 @@ Constructed via `new MappingSchema(string? configuration, params MappingSchema[]
 
 `EntityDescriptor.FindColumnDescriptor(MemberInfo)` (`EntityDescriptor.cs:~606-626`) no longer scans `Columns` linearly: it lazily builds a `Dictionary<MemberInfo, ColumnDescriptor>` (`_columnsByMember`, via `LazyInitializer.EnsureInitialized` and `BuildColumnsByMember`, first-wins through `TryAdd` to mirror the old `FirstOrDefault`). The query builder calls it once per column per generic assignment, so the linear scan was quadratic on wide entities (#5719).
 
+`EntityDescriptor.FindAssociationDescriptor(MemberInfo)` (`EntityDescriptor.cs:~633-636`) still scans `Associations` linearly, but now matches with `MemberInfo.EqualsTo(memberInfo, ObjectType)`, i.e. member identity is compared relative to the entity type rather than the declaring/reflected type alone, so an inherited association member looked up through a derived entity resolves.
+
 ### 3. `ColumnDescriptor` construction + lambda compilation
 
 Constructor (`ColumnDescriptor.cs:32-148`) resolves column metadata from three sources in priority order: explicit `ColumnAttribute` properties, the schema `GetDataType(MemberType)` / `GetUnderlyingDataType`, then per-member fallbacks (`[DataType]`, `[Nullable]`, nullability annotations, `[PrimaryKey]`, `[Sequence]`, `[ValueConverter]`, `[Duration]`, `[Skip*]`).
@@ -103,6 +107,8 @@ Constructor (`ColumnDescriptor.cs:32-148`) resolves column metadata from three s
 `HasValuesToSkipOnInsert` / `HasValuesToSkipOnUpdate` now test `Affects.HasFlag(SkipModification.X)` instead of a bitmask `!= 0` (behaviour-neutral).
 
 `GetDbDataType(completeDataType)` (`ColumnDescriptor.cs:414-430`) resolves the DB type from `ValueConverter?.ToProviderExpression.Body.Type` when a `[ValueConverter]` is present (`:427`), rather than from `MemberType` -- a converter-backed member with no DB type of its own (e.g. an F# `decimal option`) picks up the provider type of its *converted* value instead of failing to resolve. This also makes a duration column resolve to `long` / `long?` as its provider type.
+
+**`[ValueConverter]` identity.** `ValueConverterAttribute.GetObjectID()` (`ValueConverterAttribute.cs:~41-86`) used to be `.{Configuration}.{ConverterType id}.`. It now appends a `GetConverterID(ValueConverter)` segment (converter type id, `HandlesNulls`, and an id for each of `ToProviderExpression` / `FromProviderExpression`) so two schemas converting one member differently do not share a mapping-cache identity (otherwise whichever reached the caches first converted for both). `GetLambdaID` identifies a lambda by its text after substituting captured variables by their values (`TryEvaluateCapturedValue`), and appends the identity of every `Delegate` found (captured or constant), so one helper delegate invoked with different arguments yields different ids. Formatting uses `string.Create(CultureInfo.InvariantCulture, ...)`.
 
 Lazily-compiled lambda factories (`ColumnDescriptor.cs:518-856`):
 
@@ -229,5 +235,10 @@ Read (this run -- delta):
 
 Read (this run -- delta):
 - `Source/LinqToDB/Mapping/SqlQueryDependentAttribute.cs` (M) -- `ObjectsEqual` gains a `FormattableString` branch (`FormattableStringHelper.AreEqual(fs1, fs2, ObjectsEqual)`, new `using LinqToDB.Internal.Common`) so interpolated-string arguments compare by format and arguments in expression-tree cache comparison. XML doc updated.
+
+Read (this run -- delta):
+- `Source/LinqToDB/Mapping/EntityDescriptor.cs` (M) -- `FindAssociationDescriptor` matches via `EqualsTo(memberInfo, ObjectType)` (type-relative member identity) instead of plain `EqualsTo(memberInfo)`.
+- `Source/LinqToDB/Mapping/MappingSchema.cs` (M) -- `DateOnly -> string` default converter moved from `#if SUPPORTS_DATEONLY` to runtime-resolved `SetDateOnlyToStringConverter()` + `FormatInvariantDate<T>` in the `DefaultMappingSchema` ctor (#6077), so the netstandard2.0 asset on modern runtimes still registers it.
+- `Source/LinqToDB/Mapping/ValueConverterAttribute.cs` (M) -- `GetObjectID()` now includes the converter instance identity (`GetConverterID`/`GetLambdaID`: type, `HandlesNulls`, to/from expressions with captured values and delegates resolved), preventing cache-identity collisions between schemas converting one member differently.
 
 </details>

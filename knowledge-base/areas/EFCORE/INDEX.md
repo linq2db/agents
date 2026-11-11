@@ -3,8 +3,8 @@ area: EFCORE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 1/2
 coverage_tier_2: 24/24
 ---
@@ -84,7 +84,9 @@ EF provider name -> linq2db `ProviderName` mapping: SqlServer, Pomelo/Devart MyS
 
 `GetAttributes(Type)`: emits `TableAttribute`, `QueryFilterAttribute` (EF `GetQueryFilter()` / `GetDeclaredQueryFilters()` for EF10+ -- each EF10 named filter's `queryFilter.Key` carried onto `QueryFilterAttribute.FilterKey`, `null` for the single un-keyed EF8/9/31 filter), `InheritanceMappingAttribute`. For EF8+, when `type` is an `EfJoinTable<,,>` marker, returns only a `TableAttribute` for the join entity's store object -- bypasses normal entity lookup. Query filter rewrite replaces `DbContext`-typed sub-expressions. Falls back to `[Table]` annotation if entity not in model. EF8+: table-name resolution goes through private `GetStoreObjectIdentifier(IEntityType)` (`EFCoreMetadataReader.cs:643`), which tries `StoreObjectType.Table` then falls back to `StoreObjectType.View` (handles view-mapped entities).
 
-`GetAttributes(Type, MemberInfo)`: emits `ColumnAttribute`, identity detection, `ValueConverterAttribute`, `AssociationAttribute` from EF navigation FKs. For EF8+, also emits `AssociationAttribute` with `QueryExpression` for many-to-many skip navigations (`GetSkipNavigations()`) via `BuildManyToManyQueryExpression`. For `EfJoinTable<,,>` marker types, delegates to `BuildJoinColumnAttribute` for `DynamicColumnInfo` members. `HasSpanTypes`/`IsSpan` guard skips `Span<T>`/`ReadOnlySpan<T>` members. `ConvertToExpressionAttribute` serializes EF `SqlExpression` trees to linq2db `{0}`/`{1}` placeholders; `UnwrapConverted` strips a top-level COALESCE null-guard wrapper before serialization. Special Npgsql `PgBinaryExpression` operator-type mapping. `Sql.FunctionAttribute` emission via `IModel.GetDbFunctions()` and `[DbFunctionAttribute]`.
+`GetAttributes(Type, MemberInfo)`: emits `ColumnAttribute`, identity detection, `ValueConverterAttribute` (to/from-provider lambdas pass through `InlineConverterCalls`, see below), `AssociationAttribute` from EF navigation FKs. For EF8+, also emits `AssociationAttribute` with `QueryExpression` for many-to-many skip navigations (`GetSkipNavigations()`) via `BuildManyToManyQueryExpression`. For `EfJoinTable<,,>` marker types, delegates to `BuildJoinColumnAttribute` for `DynamicColumnInfo` members. `HasSpanTypes`/`IsSpan` guard skips `Span<T>`/`ReadOnlySpan<T>` members. `ConvertToExpressionAttribute` serializes EF `SqlExpression` trees to linq2db `{0}`/`{1}` placeholders; `UnwrapConverted` strips a top-level COALESCE null-guard wrapper before serialization. Special Npgsql `PgBinaryExpression` operator-type mapping. `Sql.FunctionAttribute` emission via `IModel.GetDbFunctions()` and `[DbFunctionAttribute]`.
+
+Converter-call inlining (`InlineConverterCalls`, `DelegatesCompileTheirExpressions` in `EFCoreMetadataReader.cs`): a `T?` EF converter is often written by delegating to the `T` converter's compiled delegate (`v => v != null ? (T?)plain.ConvertToProvider(v.Value) : null`). The delegate is opaque to linq2db, so two columns carrying the same conversion could not be recognised as stored alike and were refused in SQL. The helper rewrites `(X)converterField.ConvertToProvider/ConvertFromProvider((object)arg)` into the target converter's own `ConvertToProviderExpression`/`ConvertFromProviderExpression` body, recursively, when all of these hold: the argument is a boxed non-nullable value type, the converter instance is read from the closure via `ExpressionEvaluator.TryEvaluateCapturedValue` (nothing is executed), the target's delegates are compiled from its expressions (`DelegatesCompileTheirExpressions` -- a subclass overriding any of `ConvertToProvider`/`ConvertFromProvider`/`...Typed`/`...Expression` outside EF's `ValueConverter` and `ValueConverter<,>` blocks it), parameter and return types line up, no cycle (`HashSet<EfValueConverter>`), and argument evaluation order is preserved (argument is duplicable -- parameter, constant, `.Value` of a nullable, plain convert -- or the target reads its parameter exactly once and first). Otherwise the call is left as written.
 
 `GetDynamicColumns(Type)`: for EF8+, when `type` is an `EfJoinTable<,,>` marker, returns `DynamicColumnInfo` entries for all FK properties of both sides; otherwise returns empty.
 
@@ -149,7 +151,7 @@ Cache of reflected `MethodInfo`/`ConstructorInfo` for EF and linq2db methods use
 
 1. **Initialization** -- `LinqToDBForEFTools.InitializeInternal` hooks `LinqExtensions.ProcessSourceQueryable` and sets `ExtensionsAdapter`. Once per app domain via `Lazy<bool>`.
 2. **Provider resolution** -- `GetDataProvider` -> `GetLinqToDBProviderInfo` (3-source merge) -> `CreateLinqToDBDataProvider`.
-3. **Metadata bridging** -- `EFCoreMetadataReader` translates `IModel` into `MappingAttribute[]`. View-mapped entities via `GetStoreObjectIdentifier` (EF8+); span members skipped; COALESCE wrappers stripped by `UnwrapConverted`. Query filters carry a `FilterKey` (EF10 named filters, `queryFilter.Key`; `null` pre-EF10). Many-to-many skip navigations emit `AssociationAttribute` with `QueryExpression` via `BuildManyToManyQueryExpression`; join-table markers (`EfJoinTable<,,>`) are materialized as dynamic-column tables.
+3. **Metadata bridging** -- `EFCoreMetadataReader` translates `IModel` into `MappingAttribute[]`. EF value-converter delegate calls are inlined into converter expressions (`InlineConverterCalls`) so equal conversions compare equal. View-mapped entities via `GetStoreObjectIdentifier` (EF8+); span members skipped; COALESCE wrappers stripped by `UnwrapConverted`. Query filters carry a `FilterKey` (EF10 named filters, `queryFilter.Key`; `null` pre-EF10). Many-to-many skip navigations emit `AssociationAttribute` with `QueryExpression` via `BuildManyToManyQueryExpression`; join-table markers (`EfJoinTable<,,>`) are materialized as dynamic-column tables.
 4. **Expression transformation** -- `TransformExpressionVisitor` rewrites EF nodes to linq2db equivalents, including EF10's keyed `IgnoreQueryFilters(IReadOnlyCollection<string>)` -> `IgnoreFiltersByKey`.
 5. **Change tracking** -- `LinqToDBForEFToolsDataConnection` attaches loaded entities to EF's `IStateManager`.
 6. **Options DI** -- `LinqToDBOptionsExtension` + `LinqToDBContextOptionsBuilder` store `DataOptions` in EF's `DbContextOptions` chain.
@@ -207,6 +209,7 @@ Cache of reflected `MethodInfo`/`ConstructorInfo` for EF and linq2db methods use
 
 - Many-to-many association query expression entry: `EFCoreMetadataReader.ManyToMany.cs` -> `BuildManyToManyQueryExpression` -> emitted as `AssociationAttribute.QueryExpression` on skip navigation members.
 - Mapping-schema sharing across DbContexts: `LinqToDBForEFTools.GetMappingSchema(IModel, IInfrastructure<IServiceProvider>?, DataOptions?)` -> `_mappingSchemas` / `GetServiceKey` / `BuildMappingSchema`.
+- Converter delegate inlining: `EFCoreMetadataReader.GetAttributes(Type, MemberInfo)` -> `ValueConverterAttribute` -> `InlineConverterCalls` / `DelegatesCompileTheirExpressions`.
 - Join-table marker type: `Internal/EfJoinTable.cs` -- `EfJoinTable<TThis, TOther, TJoin>` -- `[DynamicColumnsStore]` on `Values`.
 - EF10 named/keyed query filters: `EFCoreMetadataReader.GetAttributes(Type)` (`FilterKey` on `QueryFilterAttribute`) <-> `TransformExpressionVisitor.VisitMethodCall`'s `IgnoreQueryFiltersByKeyMethodInfo` branch -> `Methods.LinqToDB.IgnoreFiltersByKey`.
 
@@ -249,4 +252,8 @@ Read (this run -- delta, 2026-10-09):
   - `LinqToDB.EntityFrameworkCore.props` -- `PrivateAssets="contentfiles;build"` on the LinqToDB project reference.
   - `PublicAPI/net10.0/PublicAPI.Shipped.txt` -- adds `ReflectionMethods.IgnoreQueryFiltersByKeyMethodInfo` entry.
   - `README.md` -- documentation changes only (not analysed in depth).
+
+Read (this run -- delta, 2026-11-11):
+  - `EFCoreMetadataReader.cs` -- new `EfValueConverter` alias for EF `ValueConverter`. `ValueConverterAttribute` now wraps `ConvertToProviderExpression`/`ConvertFromProviderExpression` in `InlineConverterCalls`, which replaces converter-delegate invocations with the target converter's expression (guards: boxed non-nullable value-type argument, captured converter instance, `DelegatesCompileTheirExpressions`, type match, cycle guard, evaluation order via `IsDuplicable`/`ReadCount`/`IsReadFirst`). Reflection lookups of the `SqlTransparentExpression` ctor and `Expression.Constant` (EF9+/EF10) switched to `GetConstructorEx`/`GetMethodEx`.
+  - `README.md` -- documentation site links lowercased (cte.html, merge-api-description.html, window-functions-(analytic-functions).html, bulk-copy.html) after the docs moved into the repo. No code impact.
 </details>

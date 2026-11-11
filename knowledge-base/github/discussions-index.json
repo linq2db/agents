@@ -3872,10 +3872,9 @@
     "area": "GLOBAL",
     "labels": [],
     "user": "JaBistDuNarrisch",
-    "created_at": "2026-09-02T06:57:36Z",
-    "updated_at": "2026-09-08T16:22:28Z",
+    "updated_at": "2026-11-10T14:59:09Z",
     "url": "https://github.com/linq2db/linq2db/discussions/5849",
-    "summary": "[General] Asks about the security patch policy and whether SCA-flagged versions would be patched, given EU Cyber Resilience Act obligations.",
+    "summary": "[General] Could you please write some words about the policy of Linq2db regarding security patches.",
     "body_excerpt": "Could you please write some words about the policy of Linq2db regarding security patches.\nSince all software companies in the EU will be affected by the Cyber Resiliance Act many developers might be interested.\nIf in the future a version of Linq2db (including the dependencies) were flagged as insecure by an SCA tool, would a patch be prioritized? We're thinking about this right now because we would no longer be allowed to ship our software with a version of Linq2db marked as insecure as one of o..."
   }
 ]

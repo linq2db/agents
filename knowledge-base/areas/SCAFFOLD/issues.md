@@ -3,8 +3,8 @@ area: SCAFFOLD
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: medium
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 ---
 
 # SCAFFOLD -- GitHub themes
@@ -13,7 +13,7 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 
 - **Naming and identifier control** -- Requests to shape generated names: aliased table and class names (#3739), dropping the leading `t` prefix from table classes (#3786), and removing the schema segment from generated names (#4211). Closed precedents: #3578 and #3583 (drop database name from schema by default), #3673 (DefaultSchema option).
 - **Member and type shape customization** -- Requests to override generated member shapes: declarative column type overrides (#3603), generic return types for functions (#4282), `required` modifier on generated properties (#4901), and inheritance-friendly output (#4583). All sit in the code-generator epic cluster.
-- **Generated-file output and T4 parity** -- Custom code generation hooks (#3682), file header comments (#4096), and features missing versus the T4 BaseDataContextClass template (#4713). A related defect, CodeAttribute ambiguous reference (#4384), is tagged needs-tests and area: types. CLI handling of T4 template compile errors (crash instead of a diagnostic) is fixed in draft PR #6036 (CLI-tagged in the index).
+- **Generated-file output and T4 parity** -- Custom code generation hooks (#3682), file header comments (#4096), and features missing versus the T4 BaseDataContextClass template (#4713). A related defect, CodeAttribute ambiguous reference (#4384), is tagged needs-tests and area: types. CLI handling of T4 template compile errors (crash instead of a diagnostic) is fixed in open PR #6036 (SCAFFOLD-tagged in the index).
 - **Database object coverage at scale** -- Sequence configuration (#3749) and model combination for databases with many tables, functions and procedures (#5620). ClickHouse scaffold support is requested in open discussion #5089.
 - **F# code generation** -- Long-standing request for F# output from the scaffolder: #1553 (opened 2019, labels area: T4, area: fsharp, area: scaffold) asks whether F# records can be generated. Draft PR #5707 adds F# data-model generation to the CLI scaffolder (`--target-language f#`, AST and code-generation path only; the T4 template mode stays C#-only) and uses head branch feature/1553-fsharp-codegen.
 - **Generated-code test coverage** -- Generated code is checked only against committed golden baselines that CI does not regenerate (#6021, labels area: tests, area: scaffold). Draft PR #6037 (fixes #6021) adds a harness that feeds a predefined schema through the generator, compiles the generated C# and F# and executes it, for SQLite, SQL Server and PostgreSQL profiles. Its base branch is the #1553 F# branch, so it depends on PR #5707.
@@ -34,15 +34,16 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 
 ## Stats
 
-- Open issues: about 13 (approximate: the index state field is missing on some SCAFFOLD entries)
-- Closed issues: about 78 (approximate, same caveat)
-- Open PRs: 1 (#6037; draft PRs #5707 and #6036 are tagged to FSHARP and CLI in the index)
+- Open issues: 14 (exact, from the index state field: #3603, #3682, #3739, #3749, #3786, #4096, #4211, #4282, #4384, #4583, #4713, #4901, #5620, #6021)
+- Closed issues: 77
+- Open PRs: 1 (#6036, SCAFFOLD-tagged); #5707 and #6037 are open but tagged FSHARP
 - Total PRs: 53
 - Discussions: 14 (4 open)
-- Last fetched: 2026-10-21
+- Last fetched: 2026-11-11
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 158 (91 issues + 53 PRs + 14 discussions, all tagged SCAFFOLD) plus 3 cross-tagged items cited (#1553 T4-TEMPLATES, #5707 FSHARP, #6036 CLI)
+- Index entries scanned: 158 (91 issues + 53 PRs + 14 discussions, all tagged SCAFFOLD) plus cross-tagged items cited (#1553 T4-TEMPLATES, #4718 PROV-FIREBIRD, #5707 and #6037 FSHARP)
 - Themes extracted: 10 (6 open + 4 resolved)
+- Window 2026-10-21 to 2026-11-11: no new SCAFFOLD-tagged issue; the only SCAFFOLD-tagged PR updated in the window (#6036) was already cited
 </details>

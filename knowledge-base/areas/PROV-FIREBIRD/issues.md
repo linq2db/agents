@@ -3,15 +3,15 @@ area: PROV-FIREBIRD
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 ---
 
 # PROV-FIREBIRD -- GitHub themes
 
 ## Open themes
 
-- **Type mapping edge cases** -- Firebird's type system diverges from standard SQL in subtle ways: UInt32 constants incorrectly cast to BigInt unsupported in SQL Dialect 1 (#1318); CHAR(x) CHARACTER SET OCTETS not recognized for binary data (#755); numeric constants vs variables producing different SQL and result types (#4469); a DateTimeOffset value round-trips to a different instant or throws in the client (#5915, opened 2026-09-12, area types).
+- **Type mapping edge cases** -- Firebird's type system diverges from standard SQL in subtle ways: UInt32 constants incorrectly cast to BigInt unsupported in SQL Dialect 1 (#1318); CHAR(x) CHARACTER SET OCTETS not recognized for binary data (#755); numeric constants vs variables producing different SQL and result types (#4469); a DateTimeOffset value round-trips to a different instant or throws in the client (#5915, opened 2026-09-12, area types). Newer cases: a `ulong.MaxValue` literal fails on Firebird among other providers (#5973, cross-provider, area MAPPING); sub-day date functions fail on date-only or low-precision operands on Firebird among other providers (#5965, cross-provider, area SQL-AST); `Math.Round` over a double rounds values just below a midpoint up, because the native ROUND it translates to does (#6273, opened 2026-11-08).
 
 - **Stored procedure scaffolding coverage** -- CLI scaffold skips stored procedures with output parameters (#4447) and generates incorrect signatures with redundant output parameters in the method signature (#4718). Related closed history: procedure without parameters (#4065), QueryProc with optional input parameters (#1812), stored procedure follow-up (#1043).
 
@@ -21,7 +21,7 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 
 ## Resolved themes
 
-- **Firebird provider foundation** -- 45 closed issues covering the full history of Firebird provider support. Sample: #92, #682, #806, #868, #966, #967, #1043, #1035.
+- **Firebird provider foundation** -- 46 closed issues covering the full history of Firebird provider support. Sample: #92, #682, #806, #868, #966, #967, #1043, #1035.
 
 - **Boolean mapping** -- Boolean support added via PR #1646. Later pattern: Firebird 2.5 emitting an unnecessary '1' constant column (#4559), string "1" conversion error on boolean insert (#4619), and a Firebird 6 RC3 boolean comparison failure (#5214, closed as resolution external).
 
@@ -35,6 +35,10 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 
 - **Connection pool handling** -- Connection pool error on connection lost (#1035) closed in 2018; scoped `FirebirdTools.ClearPool(connection)` added via PR #5689 (closed 2026-07-09).
 
+- **Char literal quoting** -- A char apostrophe was emitted as `'''` (unterminated) by `FirebirdMappingSchema.ConvertCharToSql`. Fixed by PR #6113 (merged 2026-11-05), which closes #6101.
+
+- **Date shift translation** -- PR #5987 (merged 2026-10-09, tagged PROV-ORACLE) fixed the 6.5.0 date-difference regression and translated date shifts for SQLite, Firebird, Oracle and YDB.
+
 
 ## Active discussions
 
@@ -45,18 +49,20 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 
 ## Stats
 
-- Open issues: 8
-- Closed issues: 45
+- Open issues: 9
+- Closed issues: 46
 - Open PRs: 2
-- Total PRs: 25
+- Total PRs: 26
 - Discussions: 4
-- Last fetched: 2026-10-21
+- Last fetched: 2026-11-11
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 82 (53 issues + 25 PRs + 4 discussions)
-- Themes extracted: 11 (4 open, 7 resolved)
+- Index entries scanned: 85 (55 issues + 26 PRs + 4 discussions)
+- Themes extracted: 13 (4 open, 9 resolved)
 - Note: open PR #5542 (AsQueryable UseTempTable threshold) is index-tagged PROV-FIREBIRD but is not Firebird-specific; counted in Open PRs, not cited as a theme.
 - Note: merged PR #6013 is a test-only workaround for open issue #6012; cited under the open theme, not as a resolution.
 - Note: all four discussions are marked closed in discussions-index.json; retained under Active discussions as in the previous revision.
+- Note: open PR #5772 (identifier length limits, area GLOBAL) and remote-client issue #6167 (WASM, area REMOTE-CLIENT) mention Firebird only in body text; not cited.
+- Note: #6101 (closed) and PR #6113 (merged) are new this refresh; the open issue count includes new #6273.
 </details>

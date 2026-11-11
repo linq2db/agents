@@ -3,10 +3,10 @@ area: PROV-MYSQL
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 11/11
-coverage_tier_2: 21/21
+coverage_tier_2: 22/22
 ---
 
 # PROV-MYSQL
@@ -46,6 +46,8 @@ Capability flags on the base class that differ between clients:
 - IsDateOnlySupported -- true for MySqlConnector >= 2.0.
 - GetDateTimeOffsetMethodName -- non-null only for MySqlConnector.
 
+(delta f90c5bcfb: reader-method probes for GetSByte/GetUInt16/GetUInt32/GetUInt64 (MySql.Data) and additionally GetTimeSpan/GetTimeOnly/GetDateOnly (MySqlConnector) now use the extension GetPublicInstanceMethodEx(name, _ordinalParameters) instead of Type.GetMethod, with a new using LinqToDB.Internal.Extensions. No capability-flag change.)
+
 (delta 05150894e: the only change in MySqlProviderAdapter.cs is syntactic -- the empty wrapper class MySqlTransaction became a body-less `internal sealed class MySqlTransaction;`. No behavior change.)
 
 ### Product/version matrix
@@ -76,6 +78,8 @@ SqlProviderFlags per version (MySqlDataProvider.cs:36--72):
 
 Optimizer selection (delta 05150894e, MySqlDataProvider.cs:74--76): the constructor now assigns `_sqlOptimizer` as MariaDBSqlOptimizer when version == MySqlVersion.MariaDB10, otherwise MySqlSqlOptimizer (previously always MySqlSqlOptimizer). See SQL optimizer subsystem.
 
+Multi-statement flags (delta f90c5bcfb, MySqlDataProvider.cs:68--71): IsMultiStatementBatchSupported = true, IsMultipleResultSetsSupported = true, MaxCombinedCommandLength = 1_000_000. CreateDmlService returns MySqlDmlService (see DML service subsystem).
+
 CreateSqlBuilder dispatches on Version:
 ```
 MySql57 -> MySql57SqlBuilder
@@ -94,6 +98,15 @@ _         -> MySqlMemberTranslator
 Each version now has its own translator subclass rather than sharing one across two versions (version-aware-translators-derive-a-subclass pattern). MariaDBMemberTranslator extends MySql80MemberTranslator, so it still inherits the REGEXP_REPLACE-based TrimStart/TrimEnd (ICU regex in MySQL 8+, PCRE in MariaDB 10+) that the two dialects share, while layering MariaDB-only window-function and UUID_v7() behavior on top (see Member translator subsystem below). MySql57MemberTranslator extends the MySqlMemberTranslator base directly and disables window functions at the translator level.
 
 GetMappingSchema dispatches on (provider, version) producing one of six MySqlMappingSchema subclasses.
+
+### DML service (delta f90c5bcfb)
+
+MySqlDmlService (Source/LinqToDB/Internal/DataProvider/MySql/MySqlDmlService.cs:14, new file) is a public sealed class extending DmlServiceBase. MySqlDataProvider.CreateDmlService (MySqlDataProvider.cs:134) returns a new instance. It replaces the SQL-builder CommandCount/BuildCommand identity mechanism:
+- BuildCommandScenario(statement, flags, factory): when statement.NeedsIdentity, returns IdentitySelectScenario(statement, factory.Function(long, "LAST_INSERT_ID")) -- the insert as a non-query plus a scalar SELECT LAST_INSERT_ID(). Otherwise defers to the base (legacy command-splitting path).
+- IsTableNotFoundExceptionCore => false (no MySQL-specific table-not-found detection).
+- No truncate or upsert override exists in this class: upsert (ON DUPLICATE KEY UPDATE / INSERT IGNORE) still lives in MySqlSqlBuilder.BuildInsertOrUpdateQuery. Identity is the only DML logic moved for MySQL.
+
+Multi-statement flags set in the MySqlDataProvider constructor (MySqlDataProvider.cs:68--71): IsMultiStatementBatchSupported = true, IsMultipleResultSetsSupported = true, MaxCombinedCommandLength = 1_000_000 (conservative against max_allowed_packet). Eager loading can combine the main query and child collections into one multi-result-set round trip. MySqlConnector can run a combined group as DbBatch (UseDbBatch default on). MySql.Data always sends concatenated text, so a MySql.Data connection string with AllowBatch=false rejects a combined command and needs UseCombinedCommands off.
 
 ### SQL builder hierarchy
 
@@ -135,7 +148,7 @@ All three share MySqlSqlBuilder (Source/LinqToDB/Internal/DataProvider/MySql/MyS
 
 **UPDATE quirk**: BuildUpdateClause emits the FROM clause as the UPDATE clause (MySQL multi-table UPDATE syntax uses UPDATE t1, t2 rather than UPDATE t1 FROM t2).
 
-**Identity**: CommandCount returns 2 when NeedsIdentity; second command is SELECT LAST_INSERT_ID() (MySqlSqlBuilder.cs:50).
+**Identity** (delta f90c5bcfb): the builder no longer owns identity retrieval -- the former CommandCount (2 when NeedsIdentity) and BuildCommand (SELECT LAST_INSERT_ID()) overrides were removed from MySqlSqlBuilder. Identity is now handled by MySqlDmlService (see DML service subsystem above). BuildOffsetLimit no longer calls SqlOptimizer.ConvertSkipTake -- it reads selectQuery.Select.TakeValue / SkipValue, resolved earlier during render-prep (SqlExpressionConvertVisitor.ResolveSkipTakeValues). BuildInsertOrUpdateQuery no longer calls ConvertElement on update-item expressions (uses expr.Expression directly).
 
 **Per-subclass overrides**:
 - MySql57SqlBuilder: adds FROM DUAL when WHERE is present but no FROM clause (MySQL 5.7 requires FROM in WHERE queries). Overrides FLOAT/DOUBLE casts to use DECIMAL (FLOAT/DOUBLE in CAST added only in MySQL 8.0.17).
@@ -287,6 +300,7 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 | Type | File | Role |
 |---|---|---|
 | MySqlDataProvider | Internal/DataProvider/MySql/MySqlDataProvider.cs | Abstract base provider; 6 sealed subclasses; picks MariaDBSqlOptimizer for MariaDB10 (delta) |
+| MySqlDmlService | Internal/DataProvider/MySql/MySqlDmlService.cs | DML mechanics: identity insert = insert + SELECT LAST_INSERT_ID() scenario (delta f90c5bcfb, new file) |
 | MySqlSqlBuilder | Internal/DataProvider/MySql/MySqlSqlBuilder.cs | Abstract SQL emitter; all shared MySQL SQL |
 | MySql57SqlBuilder | Internal/DataProvider/MySql/MySql57SqlBuilder.cs | MySQL 5.7 overrides |
 | MySql80SqlBuilder | Internal/DataProvider/MySql/MySql80SqlBuilder.cs | MySQL 8.0 overrides (LATERAL, VECTOR) |
@@ -329,13 +343,14 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 | Internal/DataProvider/MySql/MySqlMappingSchema.cs | Type mapping (9 subclasses) |
 | Internal/DataProvider/MySql/MySqlBulkCopy.cs | Bulk copy strategy |
 
-### Tier 2 (21 files, all visited)
+### Tier 2 (22 files, all visited)
 
 | File | Purpose |
 |---|---|
 | Internal/DataProvider/MySql/MySql57SqlBuilder.cs | MySQL 5.7 builder (FROM DUAL, FLOAT cast) |
 | Internal/DataProvider/MySql/MySql80SqlBuilder.cs | MySQL 8.0 builder (LATERAL, VECTOR) |
 | Internal/DataProvider/MySql/MariaDBSqlBuilder.cs | MariaDB builder (VECTOR) |
+| Internal/DataProvider/MySql/MySqlDmlService.cs | Identity scenario via LAST_INSERT_ID (new file, delta f90c5bcfb) |
 | Internal/DataProvider/MySql/MariaDBSqlOptimizer.cs | MariaDB optimizer subclass (new file, delta) |
 | Internal/DataProvider/MySql/MariaDBSqlExpressionConvertVisitor.cs | MariaDB window ORDER BY requirement (new file, delta) |
 | Internal/DataProvider/MySql/MySqlSchemaProvider.cs | Schema discovery via INFORMATION_SCHEMA |
@@ -405,7 +420,7 @@ SetParameterType (MySqlDataProvider.cs:194--227):
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 11 / 11
-- Tier 2 (visited / total): 21 / 21 (100%)
+- Tier 2 (visited / total): 22 / 22 (100%)
 - Tier 3 (skipped, logged): 0
 
 Delta run 2026-05-11 (SHA 4a478ff1): re-read MySqlDataProvider.cs, MySqlMappingSchema.cs, MySqlMemberTranslator.cs. No structural changes in MySqlDataProvider.cs or MySqlMappingSchema.cs relative to prior coverage. MySqlMemberTranslator.cs: added TranslateDateTimeTruncationToDate (Date() function, PR #5517), TranslateServerNow (CURRENT_TIMESTAMP raw expression), TranslateNow (returns null), TranslateUtcNow (UTC_TIMESTAMP()), TranslateZonedUtcNow (UTC_TIMESTAMP() with caller dbDataType) -- all in DateFunctionsTranslator.
@@ -438,5 +453,13 @@ Delta run 2026-10-21 (SHA 89b5ce162): one modified file. MySqlSqlExpressionConve
 
 Read (this run -- delta):
 - Internal/DataProvider/MySql/MySqlSqlExpressionConvertVisitor.cs (M): added ConvertDefaultValue override -- DateTimeOffset default value becomes a DateTime-typed SqlValue (offset dropped, .DateTime used) so MySQL 8 does not interpret an offset-bearing literal in the session time zone. All other overrides unchanged.
+
+Delta run 2026-11-11 (SHA f90c5bcfb): one new Tier-2 file (MySqlDmlService.cs, Tier-2 21/21 -> 22/22) and three modified files. Identity retrieval moved from MySqlSqlBuilder (CommandCount/BuildCommand) to MySqlDmlService. Diff taken against prior last_verified_sha (89b5ce162).
+
+Read (this run -- delta):
+- Internal/DataProvider/MySql/MySqlDmlService.cs (A, new file): sealed DmlServiceBase subclass. BuildCommandScenario returns IdentitySelectScenario with LAST_INSERT_ID() when NeedsIdentity, else base. IsTableNotFoundExceptionCore => false. No truncate/upsert logic.
+- Internal/DataProvider/MySql/MySqlDataProvider.cs (M): added IsMultiStatementBatchSupported/IsMultipleResultSetsSupported = true and MaxCombinedCommandLength = 1_000_000. Added CreateDmlService override returning MySqlDmlService.
+- Internal/DataProvider/MySql/MySqlProviderAdapter.cs (M): reader-method probes switched from GetMethod to GetPublicInstanceMethodEx. No flag change.
+- Internal/DataProvider/MySql/MySqlSqlBuilder.cs (M): removed CommandCount and BuildCommand (identity now in MySqlDmlService). BuildOffsetLimit reads Select.TakeValue/SkipValue instead of SqlOptimizer.ConvertSkipTake. BuildInsertOrUpdateQuery drops ConvertElement on update expressions. Upsert emission itself remains in the builder.
 
 </details>

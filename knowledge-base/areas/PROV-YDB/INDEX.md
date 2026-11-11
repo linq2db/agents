@@ -3,8 +3,8 @@ area: PROV-YDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 15/15
 coverage_tier_2: 8/8
 ---
@@ -25,6 +25,7 @@ YDB is a distributed NewSQL database by Yandex, queried via YQL (a SQL dialect).
 All calls into these assemblies are bridged via `TypeMapper` wrappers. There is no provider-selection enum (single driver family, unlike PROV-SQLSERVER or PROV-MYSQL), and there is no `YdbProviderDetector`; provider detection is performed in `YdbTools.ProviderDetector` (`DataProvider/Ydb/YdbTools.cs:26`) by checking whether `ProviderName` or `ConfigurationString` contains `"Ydb"`.
 
 For schema introspection, `YdbProviderAdapter` also wraps `Ydb.Sdk.Ado.Session.ISession`, `Ydb.Sdk.IDriver`, `Ydb.Sdk.Ado.YdbSchema` (internal-static `DescribeTable`, resolved via `[WrappedBindingFlags]`), `Ydb.Sdk.Ado.Schema.YdbTableDescription`, and `Ydb.Sdk.Ado.Schema.DescribeTableSettings`. `YdbProviderAdapter.GetPrimaryKeys(DbConnection, IEnumerable<string>)` (`YdbProviderAdapter.cs:225`) resolves the driver once per batch and reads each table's ordered PK columns via the gRPC describe call -- the only source for PK metadata, since neither SQL introspection nor `GetSchema("Columns")` expose it.
+A table dropped between the directory listing and the describe call (`SchemeError`, detected by `IsSchemeError` through `YdbTransientExceptionDetector`) is omitted from the result rather than failing the batch.
 
 ### Data provider
 
@@ -91,12 +92,15 @@ Identity field DDL uses PostgreSQL-style serials: `SMALLSERIAL`, `SERIAL`, `BIGS
 `CanSkipRootAliases` returns `false` -- duplicate aliases in the final SELECT are not supported by YDB (`YdbSqlBuilder.cs:100`).
 
 `BuildInListPredicate` materialises parameters from list-typed `SqlParameter` values and re-emits them as individual `$Ids{bucket}_{n}` named parameters to work around YDB's lack of array-typed IN parameters. It also strips NULL items from the materialized list and re-adds their semantics explicitly: under `CompareNulls.LikeClr` a NULL in the list becomes an `OR ... IS NULL`; under `LikeSql` a NULL anywhere in a `NOT IN` list collapses the whole predicate to `false` (three-valued logic), and an all-NULL `IN` list also collapses to `false` -- YQL forbids a NULL literal directly inside an `IN` list (`YdbSqlBuilder.cs:460-492`).
+Each materialised `$Ids{bucket}_{n}` parameter now takes its `DbDataType` from `GetInListValueType(predicate.Expr1, dbDataType, item)` rather than one shared type (`YdbSqlBuilder.cs:507`).
 
 **String concatenation via `ConcatStyle` (PR #5504):** `YdbSqlBuilder` overrides `ConcatStyle` to return `ConcatBuildStyle.Pipes` (`YdbSqlBuilder.cs:36`). This instructs `BasicSqlBuilder` to emit `||` when building `SqlConcatExpression` nodes introduced by PR #5504. This is the builder-level concat path; the visitor-level binary `+` rewrite in `YdbSqlExpressionConvertVisitor` now covers only `Binary`/`VarBinary`/`Blob` byte concatenation (the string-type `+` arm was removed -- see Expression conversion visitor section).
 
 **VALUES-table typing and from-less/empty sources:** `IsSqlValuesTableValueTypeRequired` forces `CAST(value AS <type>)` on a VALUES cell when the first row holds a bare numeric literal (YDB may infer a narrower type than the column) or when every cell in a column is untyped NULL -- mirrors the PostgreSQL builder (`YdbSqlBuilder.cs:40-47`). `SupportsColumnAliasesInScalarSource => false` -- a derived column list is legal only on `VALUES`, not a scalar/raw-SQL subquery source. `BuildSelectClause`/`BuildEmptyValuesFrom` supply a one-row dummy source `FROM (SELECT 1) AS dual` for a from-less filtered constant query or an empty VALUES projection -- YQL rejects `WHERE` without `FROM` and has no `DUAL` (mirrors `MySql57SqlBuilder`) (`YdbSqlBuilder.cs:312-329`).
 
 `BuildSql` pre-registers every CTE name with the parameter normalizer before the statement body is built, so a parameter name generated during the build can't collide with a `$name` CTE variable -- resolves the conflict noted in `BasicSqlOptimizer.FinalizeCte` (`YdbSqlBuilder.cs:333-354`). `BuildFromClause` is skipped entirely for UPDATE statements (`YdbSqlBuilder.cs:377-381`).
+
+Render-context API: `BuildSql` and `BuildInListPredicate` now take `ISqlBuilderRenderContext` (`renderContext.NormalizeParameterName`, `RenderContext.EvaluationContext`) instead of `OptimizationContext`/`commandNumber`, so the CTE-name pre-registration runs for every statement carrying a WITH clause.
 
 `BuildDataTypeFromDataType` renders DDL/CAST target type names (`Bool`, `Int8`/`Uint8`/`Int16`/`Uint16`/`Int32`/`Uint32`/`Int64`/`Uint64`, `Float`, `Double`, `DyNumber`, `Bytes`, `Text`, `Json`, `JsonDocument`, `Yson`, `Uuid`, `Date`/`Date32`/`Datetime`/`Datetime64`/`Timestamp`/`Timestamp64`, `Interval`/`Interval64`, `Tz*` variants, `Decimal(p,s)`), wrapping the result in `List<...>` when `DataType.Array` is set.
 
@@ -120,13 +124,13 @@ The rewrite itself now lives in a dedicated visitor, `YdbScalarSubQueryToCteVisi
 
 - Byte concatenation (`+` on `Binary`/`VarBinary`/`Blob`) is rewritten to `||`. **Note (PR #5504):** the previous string-type concatenation arm (`+` on `NVarChar`/`Char`/`VarChar` -> `||`) has been removed; string concat is now handled by `ConcatStyle.Pipes` in `YdbSqlBuilder` via the `SqlConcatExpression` AST node.
 - Bitwise operations (`&`, `|`, `^`) require unsigned operands; operands are cast to unsigned via `SqlCastExpression` when needed. `ConvertSqlUnaryExpression` applies the same treatment to bitwise negation (`~`), casting a signed operand to unsigned when needed (`YdbSqlExpressionConvertVisitor.cs:75-88`).
-- `AlignFloatingDecimal` (called from `ConvertSqlBinaryExpression` for `+ - * / %`) casts a `Decimal` operand to `Double` when the other operand is floating-point -- YQL arithmetic rejects mixing a floating-point operand with a Decimal operand (`YdbSqlExpressionConvertVisitor.cs:131-150`).
+- `AlignFloatingDecimal` (called from `ConvertSqlBinaryExpression` for `+ - * / %`) classifies operands by storage (`YdbMappingSchema.IsDecimalStorage`, not CLR type). It casts a Decimal-stored operand to `Double` when the other operand is floating-point, and casts both operands to `Double` when two Decimal-stored operands feed a `double`/`float`-typed result -- YQL arithmetic rejects mixing floating-point with Decimal, and Decimal arithmetic refuses differing Decimal types (`YdbSqlExpressionConvertVisitor.cs:231-259`). Decimal/Decimal pairs with a decimal result and floating/floating pairs are untouched.
 - `ConvertSqlFunction` routes `Math::Floor`/`Math::Ceil`/`Math::Trunc` through `Double` for a `Decimal` argument (those UDFs are Double-only), casting the result back to the original Decimal type.
 - `ConvertConversion` overrides several CAST rewrites that work around gaps in YQL's `CAST`:
   - string -> `Datetime`/`Timestamp`: rewrites the conventional `'yyyy-MM-dd HH:mm:ss'` text to ISO-8601 (`Unicode::ReplaceAll` space->`'T'`, append `'Z'`) and parses via `DateTime::ParseIso8601` + `DateTime::MakeDatetime`/`MakeTimestamp` -- a bare `CAST` only accepts ISO input and would return an empty Optional (`Unwrap` then throws "Failed to unwrap empty optional").
   - string -> `Interval`/`Time`: splits on `:` (`Unicode::SplitToList`/`ListHead`/`ListSkip`) and sums the parts as seconds via `DateTime::IntervalFromSeconds`, since `CAST(string AS Interval)` only parses ISO-8601 durations and silently zeroes a conventional `'H:MM:SS'` string.
-  - floating -> `Decimal`: routed through a string cast (`CAST(CAST(x AS Text) AS Decimal(p,s))`) -- YQL has no direct float->Decimal cast.
-  - `Decimal` -> integer: routed through `Double` -- YQL's `CAST(Decimal AS int)` rounds, but C# `(int)decimal` truncates toward zero; `Double`'s truncating cast matches C# semantics.
+  - floating -> `Decimal`: routed through a string cast (`CAST(CAST(x AS Text) AS Decimal(p,s))`) -- YQL has no direct float->Decimal cast (skipped for a Decimal-stored source).
+  - `Decimal` -> integer: truncated in Decimal first (`TruncateDecimal`, `YdbSqlExpressionConvertVisitor.cs:424`) -- YQL `CAST(Decimal AS int)` rounds half-to-even but C# `(int)decimal` truncates toward zero, and Double holds every integer only up to 2^53. The value passes through `Decimal(35,1)` then `Decimal(35,0)` (mandatory casts) and the result is stepped back by one when the rounding moved it away from zero. Scale 0 returns the base conversion unchanged. Scale equal to precision (no integer digits) or `UseParametrizedDecimal = false` keep the earlier route through `Double`.
 - `VisitInSubQueryPredicate` folds a row-valued (`SqlRowExpression`) `IN`-subquery projecting more than one column into a single tuple column (`(a, b) IN (SELECT (c1, c2) ...)`) -- YQL's `IN` requires a single-column source and rejects the row-valued N-column form; the correlated-EXISTS rewrite the base class would otherwise use is unavailable since YDB doesn't support correlated subqueries.
 - `TO_LOWER`/`TO_UPPER`/`REPLACE` pseudo-functions map to `Unicode::ToLower`, `Unicode::ToUpper`, `Unicode::ReplaceAll`.
 - LIKE uses `%` and `_` as escape characters. Case-insensitive search emits `ILIKE`.
@@ -156,7 +160,7 @@ Quarter date-add uses `DateTime::ShiftMonths` with `increment * 3` (`YdbMemberTr
 
 All four overrides resolve to `CurrentUtcTimestamp()` or unsupported; there is no fallback to `CURRENT_TIMESTAMP`.
 
-`DateTime::TimeOfDay` is used for `TranslateDateTimeTruncationToTime` (returns `Interval`-typed result). `TranslateMakeDateTime` builds a YQL timestamp/date from constructor parts by assembling the conventional `'yyyy-MM-dd HH:mm:ss[.fff]'` text (zero-padding each component via `Unicode::Substring(CAST(100/1000 + x AS String), ...)`, which also keeps the expression out of client-side constant folding) and `CAST`ing it -- the string->Datetime/Timestamp rewrite in `YdbSqlExpressionConvertVisitor.ConvertConversion` owns the actual ISO parsing, so the format lives in one place. `TranslateDateTimeTruncationToDate` truncates via `DateTime::Split` -> `DateTime::StartOfDay` -> `DateTime::MakeTimestamp` rather than a `CAST(Timestamp AS Date AS Timestamp)` round-trip, because `SqlCastExpression.IsMandatory` doesn't survive the remote LinqService serialization boundary and the round-trip would collapse (silently skipping truncation) only on the remote side.
+`DateTime::TimeOfDay` is used for `TranslateDateTimeTruncationToTime` (returns `Interval`-typed result). `TranslateMakeDateTime` builds a YQL timestamp/date from constructor parts by assembling the conventional `'yyyy-MM-dd HH:mm:ss[.fff]'` text (zero-padding each component via `Unicode::Substring(CAST(100/1000 + x AS String), ...)`, which also keeps the expression out of client-side constant folding) and `CAST`ing it -- the string->Datetime/Timestamp rewrite in `YdbSqlExpressionConvertVisitor.ConvertConversion` owns the actual ISO parsing, so the format lives in one place. `TranslateDateTimeTruncationToDate` truncates via `DateTime::Split` -> `DateTime::StartOfDay` -> `DateTime::MakeTimestamp` rather than a `CAST(Timestamp AS Date AS Timestamp)` round-trip, because that round-trip truncates only if the optimizer counts Timestamp -> Date as a narrowing cast pair.
 
 String functions: `PadLeft` -- `String::LeftPad`; `Replace` -- `Unicode::ReplaceAll`; `String.Join` emits `AGGREGATE_LIST` + `Unicode::JoinFromList` with complex ORDER BY simulation via `ListSort`+key-lambda+`ListMap`. `ListConcat`+`AsList`+`ListNotNull` handle `CONCAT_WS`.
 
@@ -167,6 +171,8 @@ String functions: `PadLeft` -- `String::LeftPad`; `Replace` -- `Unicode::Replace
 **`String.Join` without separator (PR #5504):** `TranslateStringJoin` now accepts `withoutSeparator` bool. When true, the aggregate builder uses `HasSequenceIndex(0)` (no separator argument consumed from the call) and `separator` is set to `factory.Value(valueType, string.Empty)`. `ConfigureConcatWs` receives `withoutSeparator:` forwarded, enabling `string.Concat`-style aggregation over sequences without an explicit separator.
 
 Math: `Max`/`Min` -- `MAX_OF`/`MIN_OF`; `Pow` -- `Math::Pow` (operands are cast to `double` when not already `float`/`double`; result is cast back to the original type if different); `RoundToEven` -- `Math::NearbyInt` with `Math::RoundToNearest()`.
+
+`Math.Round` family (`TranslateRoundToEven`/`TranslateRoundAwayFromZero` via `RoundScaled`, `YdbMemberTranslator.cs:739`): YQL has no top-level ROUND, so the value is scaled by 10^p, rounded to an integer and unscaled. Double: `Math::NearbyInt(s, Math::RoundToNearest())` for to-even, magnitude rounding with the sign reapplied for away-from-zero. Decimal: never rounded through Double. The value is widened (`ScaledDecimalType` / `InferredScaledDecimalType`, clamped to 35 digits) because YQL `DecimalMul` demands identical Decimal types, then rounded by a mandatory `CAST` to `Decimal(P,0)` and back (`RoundDecimal`, half-to-even), with a tie correction for away-from-zero, and narrowed to the original type. A constant precision at or above the scale is a no-op, one below `-IntegerDigits` returns zero (`RoundedToZero`), a runtime precision gets a per-sign type with `Ensure` guards. A decimal literal's own scale is preserved via `UncutDecimalLiteral`, the result recast to the column's type. A double stored as Decimal rounds in Double.
 
 Guid-to-string -- `CAST AS Utf8`. `Guid.NewGuid()` is commented out (would generate the same UUID for all invocations in a single query).
 
@@ -193,7 +199,7 @@ Default parameters mirror the YDB SDK defaults: 10 attempts; fast backoff base 5
 `GetNextDelay` overrides base-class logic: for YDB-typed exceptions it dispatches on the status code name (string comparison, no hard SDK dependency):
 - `BadSession`/`SessionBusy`/`SessionExpired` -- 0 ms.
 - `Aborted`/`Undetermined` -- Full Jitter (fast parameters).
-- `Unavailable`/`ClientTransportUnknown`/`ClientTransportUnavailable` -- Equal Jitter (fast).
+- `Unavailable`/`ClientTransportUnknown`/`ClientTransportUnavailable`/`ClientTransportCancelled` -- Equal Jitter (fast).
 - `Overloaded`/`ClientTransportResourceExhausted` -- Equal Jitter (slow).
 - Non-YDB exceptions -- base exponential retry.
 
@@ -206,6 +212,8 @@ Default parameters mirror the YDB SDK defaults: 10 attempts; fast backoff base 5
 Key constants: `DEFAULT_DECIMAL_PRECISION = 22`, `DEFAULT_DECIMAL_SCALE = 9`, `DEFAULT_TIMEZONE = "GMT"`, `MAX_DECIMAL_PRECISION = 35` -- YQL rejects `Decimal` with precision above 35 (`Decimal(36,*)` -> type-annotation error).
 
 `GetCommonDecimalType(x, y)` (`YdbMappingSchema.cs:31`) widens two Decimal `DbDataType`s to a common precision/scale (max integer digits, max scale, capped at 35, preserving the integer part in full) so YQL constructs requiring identical Decimal types on both sides -- e.g. `MIN_OF`/`MAX_OF` in `YdbMemberTranslator.TranslateMinMax` -- can align mismatched operands without overflow.
+
+`IsDecimalStorage(DbDataType)` (`YdbMappingSchema.cs:47`) answers whether YQL holds a value as Decimal (`DataType.Decimal`/`Money`/`SmallMoney`). The convert visitor and member translator use it instead of the CLR type, because a `decimal` mapped to Double or DyNumber has none of Decimal's casts.
 
 Type literal formats:
 - Integers: suffix-typed (`0ut` = UInt8, `0t` = Int8, `0s` = Int16, `0us` = UInt16, bare = Int32, `0u` = UInt32, `0l` = Int64, `0ul` = UInt64).
@@ -313,6 +321,7 @@ Float/Double infinity literals (BuildFloatLiteral/BuildDoubleLiteral) now test v
 - **`modulo` operator commented out.** The `%` rewrite for decimal types in `YdbSqlExpressionConvertVisitor` is commented out; the comment suggests correctness concerns remain.
 - **`TrimStart`/`TrimEnd` with non-constant `trimChars` falls back to client-side eval.** `TranslateRegexTrim` returns `null` when `trimChars` is not a compile-time-constant `SqlValue<string>` -- the RE2 pattern must be a static literal for the YDB query planner.
 - **Window-frame support restricted to ROWS.** `YdbWindowFunctionsMemberTranslator` rejects RANGE/GROUPS frames and frame EXCLUDE, and `PERCENTILE_CONT`/`PERCENTILE_DISC`; `LEAD`/`LAG` has no default-value argument and there is no `NTH_VALUE ... FROM LAST`.
+- **ROUND on Decimal has failure-by-design edges.** `YdbMemberTranslator` emits `Ensure(...)` guards (`ROUND precision is out of range`, `ROUND result is out of range`, `ROUND value is out of range`) rather than silently mis-rounding when a runtime precision or a `Decimal(P,P)` value cannot be represented; YDB answers an out-of-range Decimal with an empty optional, which `Unwrap` would turn into a query-terminating error.
 
 ## Inbound / outbound dependencies
 
@@ -408,4 +417,13 @@ Float/Double infinity literals (BuildFloatLiteral/BuildDoubleLiteral) now test v
 **Read (this run -- delta sha 89b5ce162):**
 - `Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs` -- added `ConvertDefaultValue` override (narrow default-date lowering from 1970-01-01 except Date32 / wide DateTime64+Timestamp64 for DateTime/DateTimeOffset values, DateTz DateTimeOffset constants re-typed to DateTime).
 - `Internal/DataProvider/Ydb/YdbMappingSchema.cs` -- float/double infinity literal checks switched to `FloatingPointHelper.IsPositiveInfinity`/`IsNegativeInfinity` (no behavioural change).
+
+**Read (this run -- delta sha f90c5bcfb):**
+- `Internal/DataProvider/Ydb/Translation/YdbMemberTranslator.cs` -- ROUND rewrite (`RoundScaled` -> `RoundScaledValue` -> `RoundScaledAs` -> `RoundDecimal`, plus `RoundedToZero`, `ScaledDecimalType`, `InferredScaledDecimalType`, `IntegerDigits`): Decimal values are no longer rounded through Double, they are widened, rounded by a mandatory scale-dropping CAST and narrowed back, with `Ensure(...)` guards for out-of-range precision. `UncutDecimalLiteral` is applied to `TranslateMinMax` operands and `RoundScaled` input. Comments about the remote-LinqService `IsMandatory` loss were rewritten (truncation/Date comments only, no behaviour change there).
+- `Internal/DataProvider/Ydb/YdbSqlExpressionConvertVisitor.cs` -- `AlignFloatingDecimal` now classifies by storage (`YdbMappingSchema.IsDecimalStorage`) and casts both operands to Double for a double-typed result over two Decimal-stored operands. `ConvertConversion`: float->Decimal route skips Decimal-stored sources, Decimal->integer now truncates in Decimal via new `TruncateDecimal` (base conversion for scale 0, Double route kept for no integer digits / non-parametrized Decimal).
+- `Internal/DataProvider/Ydb/YdbMappingSchema.cs` -- new `IsDecimalStorage(DbDataType)` helper (Decimal/Money/SmallMoney storage).
+- `Internal/DataProvider/Ydb/YdbSqlBuilder.cs` -- `BuildSql` and `BuildInListPredicate` moved from `OptimizationContext` to `ISqlBuilderRenderContext` (`RenderContext`), the `commandNumber == 0` guard dropped. `$IdsN_M` in-list parameters take their type from `GetInListValueType`. `BuildOrderByClause` no longer calls `ConvertElement` on the ORDER BY clause.
+- `Internal/DataProvider/Ydb/YdbProviderAdapter.cs` -- `GetPrimaryKeys` skips a table dropped between listing and describe (`SchemeError` via `IsSchemeError`).
+- `Internal/DataProvider/Ydb/YdbRetryPolicy.cs` -- `ClientTransportCancelled` added to the Equal Jitter (fast) bucket.
+- `Internal/DataProvider/Ydb/YdbTransientExceptionDetector.cs` -- `ClientTransportCancelled` added to the idempotent-retry code list.
 </details>

@@ -3,8 +3,8 @@ area: ANALYZERS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 7/7
 coverage_tier_2: 11/11
 ---
@@ -17,10 +17,11 @@ Shipped in the `linq2db.Analyzers` NuGet package (analyzer + code-fix assemblies
 
 ### Packaging and build layout
 - Two projects, split because of RS1038: `Source/LinqToDB.Analyzers/LinqToDB.Analyzers.csproj` (analyzers, no Workspaces reference, `IsPackable=false`, pins `Microsoft.CodeAnalysis.CSharp` 4.8.0 via `VersionOverride`) and `Source/LinqToDB.Analyzers.CodeFixes/LinqToDB.Analyzers.CodeFixes.csproj` (references `Microsoft.CodeAnalysis.CSharp.Workspaces`, project-references the analyzer project with `PrivateAssets=all`, is the packable `linq2db.Analyzers`).
-- Shared settings in `Source/Analyzers.Common.props`: `netstandard2.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, polyfills `HashCode` and `IsExternalInit`, `Microsoft.CodeAnalysis.Analyzers` private.
+- Shared settings in `Source/Analyzers.Common.props`: `netstandard2.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, polyfills `HashCode` and `IsExternalInit`, `Microsoft.CodeAnalysis.Analyzers` private. It also sets `ArtifactsPivots` to `$(Configuration)` (`Source/Analyzers.Common.props:15`) so a globally passed `TargetFramework` (the docs build, `docs/source/docfx.json`) does not move the output path that the root props pivots on `$(TargetFramework)`.
+- Both csproj roots carry `TreatAsLocalProperty="TargetFramework"` (line 2 of each), so the docs build's global `TargetFramework` cannot override the local `netstandard2.0`. Part of the move of the documentation site into the repo ([#6265](https://github.com/linq2db/linq2db/pull/6265)).
 - Both DLLs are packed under `analyzers/dotnet/roslyn4.8/cs`, so hosts older than Roslyn 4.8 silently skip them instead of hitting CS9057. Package carries no linq2db dependency (`SuppressDependenciesWhenPacking`, `DevelopmentDependency`), so every rule resolves linq2db types with `GetTypeByMetadataName` and stays silent when absent.
 - Opt-out: `Source/LinqToDB.Analyzers.CodeFixes/build/linq2db.Analyzers.targets` (packed to `build` and `buildTransitive`) defines target `LinqToDBRemoveAnalyzers`, which runs after `ResolveLockFileAnalyzers` when `EnableLinqToDBAnalyzers=false` and removes `Analyzer` items whose `NuGetPackageId` is `linq2db.Analyzers`. `ExcludeAssets=analyzers` on the consumer reference does not work (the SDK hands analyzers to csc anyway).
-- Release tracking: `AnalyzerReleases.Shipped.md` -- 6.4.0 added L2DB1001, 6.5.0 added L2DB1002..1004. All Info severity, category `LinqToDB`, help link `https://github.com/linq2db/linq2db/wiki/<id>`.
+- Release tracking: `AnalyzerReleases.Shipped.md` -- 6.4.0 added L2DB1001, 6.5.0 added L2DB1002..1004. All Info severity, category `LinqToDB`, help link `https://github.com/linq2db/linq2db/wiki/<id>`. The analyzer csproj no longer lists `AnalyzerReleases.Shipped.md` / `AnalyzerReleases.Unshipped.md` as `AdditionalFiles` (removed in [#6264](https://github.com/linq2db/linq2db/pull/6264), a docs-build warning fix), so the release-tracking analyzer does not see them in this build.
 
 ### L2DB1001 -- legacy window-function API
 `WindowFunctionApiAnalyzer` (`Source/LinqToDB.Analyzers/WindowFunctionApiAnalyzer.cs:17`). Registers on `OperationKind.Invocation` after resolving `LinqToDB.AnalyticFunctions`. Gate: method named `ToValue` whose containing type is nested in `AnalyticFunctions`, then `GetRootFunction` walks the fluent receiver chain (invocations and property references) back to the `Sql.Ext.<Fn>` root and reports only if the chain contained `.Over()` (a plain aggregate such as `Sum(x).ToValue()` is not a window function). Message names the root function. See [wiki](../../github/wiki/L2DB1001.md).
@@ -73,10 +74,10 @@ DB-free Roslyn testing-SDK fixtures against `ReferenceAssemblies.Net.Net80` plus
 ## Files (Tier 1 / Tier 2)
 Tier 1 (7, all read in full): `LinqToDB.Analyzers.csproj`, `AnalyzerReleases.Shipped.md`, `ServerSideOnlyContractAnalyzer.cs`, `WindowFunctionApiAnalyzer.cs`, `DurationComparisonAnalyzer.cs`, `LinqToDB.Analyzers.CodeFixes.csproj`, `build/linq2db.Analyzers.targets`.
 
-Tier 2 (11 `*.cs`, 11 read): `ServerSideOnlyContract.cs`, `WindowFunctionApiCodeFixProvider.cs`, `LegacyWindowChainRewriter.cs`, `ServerSideOnlyContractCodeFixProvider.cs`, `AnalyzerVerifier.cs`, `CodeFixVerifier.cs` read in the build run. The five fixture files in `Tests/Tests.Analyzers` (`WindowFunctionApiAnalyzerTests.cs`, `WindowFunctionApiCodeFixTests.cs`, `DurationComparisonAnalyzerTests.cs`, `ServerSideOnlyContractAnalyzerTests.cs`, `ServerSideOnlyContractCodeFixTests.cs`) read in the coverage-fill run. `Source/Analyzers.Common.props` also read (not a `.cs`).
+Tier 2 (11 `*.cs`, 11 read): `ServerSideOnlyContract.cs`, `WindowFunctionApiCodeFixProvider.cs`, `LegacyWindowChainRewriter.cs`, `ServerSideOnlyContractCodeFixProvider.cs`, `AnalyzerVerifier.cs`, `CodeFixVerifier.cs` read in the build run. The five fixture files in `Tests/Tests.Analyzers` (`WindowFunctionApiAnalyzerTests.cs`, `WindowFunctionApiCodeFixTests.cs`, `DurationComparisonAnalyzerTests.cs`, `ServerSideOnlyContractAnalyzerTests.cs`, `ServerSideOnlyContractCodeFixTests.cs`) read in the coverage-fill run. `Source/Analyzers.Common.props` also read (not a `.cs`), re-read in the 2026-11-11 delta run.
 
 ## Inbound / outbound dependencies
-- Inbound: `Source/LinqToDB/LinqToDB.csproj` references the package (rules ship with linq2db). `Source/CodeGenerators` links `ServerSideOnlyContract.cs`.
+- Inbound: `Source/LinqToDB/LinqToDB.csproj` references the package (rules ship with linq2db). `Source/CodeGenerators` links `ServerSideOnlyContract.cs`. The docs build (`docs/source/docfx.json`) passes a global `TargetFramework` into both analyzer projects, neutralised by `TreatAsLocalProperty` and `ArtifactsPivots`.
 - Outbound: Roslyn 4.8 (`Microsoft.CodeAnalysis.CSharp`, `.Workspaces` for fixes). Name-only coupling to linq2db types: `LinqToDB.AnalyticFunctions`, `LinqToDB.WindowFunctionBuilder`, `LinqToDB.Mapping.DurationAttribute/DurationUnit`, `LinqToDB.ServerSideOnlyException`, `LinqToDB.Mapping.ServerSideOnlyAttribute`, `Sql+ExpressionAttribute/ExtensionAttribute/TableFunctionAttribute`, `LinqToDB.ExpressionMethodAttribute`. The duration unit table mirrors `SqlIntervalUnits.TryGetTicksRatio`.
 
 ## Known issues / debt
@@ -85,6 +86,7 @@ Tier 2 (11 `*.cs`, 11 read): `ServerSideOnlyContract.cs`, `WindowFunctionApiCode
 - The L2DB1001 fix declines many shapes (Filter, ListAgg, bare `Ext` root), leaving the diagnostic without a fix.
 - The detection core is pinned to Roslyn 4.8 because of the CODEGEN link (CodeGenerators uses 5.6.0).
 - Tier-2 coverage is now complete: the five fixture files were read in the coverage-fill run, replacing the earlier inference from names and counts.
+- The analyzer csproj no longer feeds `AnalyzerReleases.*.md` as `AdditionalFiles`, so release-tracking diagnostics (RS2000-series) are not enforced for the analyzer project in this layout.
 
 ## See also
 [CODEGEN](../CODEGEN/INDEX.md), [architecture overview](../../architecture/overview.md), wiki pages above.
@@ -105,4 +107,9 @@ Read (this run):
 - Tests/Tests.Analyzers/ServerSideOnlyContractCodeFixTests.cs
 
 Net effect: Tier 2 is 11/11 after this run (the "Skipped (budget, queued)" bullet above is the prior-run state and is now cleared).
+
+Read (this run -- delta):
+- Source/Analyzers.Common.props -- added `ArtifactsPivots` = `$(Configuration)` so a global TargetFramework (docs build) does not move output.
+- Source/LinqToDB.Analyzers/LinqToDB.Analyzers.csproj -- `TreatAsLocalProperty="TargetFramework"` on the Project root, and the `AdditionalFiles` item group for `AnalyzerReleases.*.md` removed.
+- Source/LinqToDB.Analyzers.CodeFixes/LinqToDB.Analyzers.CodeFixes.csproj -- `TreatAsLocalProperty="TargetFramework"` on the Project root, otherwise unchanged (pack layout under `analyzers/dotnet/roslyn4.8/cs`, `build`/`buildTransitive` targets).
 </details>
