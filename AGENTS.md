@@ -113,7 +113,7 @@ Before calling a change done — and before proposing to commit/push — walk [.
 
 - **Never edit content authored by other users** (issue/PR bodies, comments, commit messages). Reply / new-comment only; appending to someone else's body is still editing it. Metadata (labels, milestones, assignees, close/reopen) is exempt.
 - **Never delete a user-owned artifact** (release draft, branch you didn't push, others' PRs/issues, wiki pages) on the assumption it's redundant. When in doubt, ask.
-- **Never overwrite your own submitted reviews/comments** — retract via reply with a `Retraction:` / `Correction:` prefix. (Mechanical checkbox/status edits excepted — [github-authoring.md](.claude/docs/github-authoring.md).)
+- **Never overwrite your own submitted reviews/comments** — retract via reply with a `Retraction:` / `Correction:` prefix. (Excepted: mechanical checkbox/status edits, and your own comment under ~2 hours old that nobody has answered since, which is corrected in place — [github-authoring.md](.claude/docs/github-authoring.md).)
 - After any manual `gh api` PATCH/PUT, re-fetch and verify the stored body matches intent.
 - **Wording style:** terse, fact-dense, lead with what changed + why. No apologies, no diff-restating prose, no puffed adjectives. Endpoint/encoding traps: [.claude/docs/github-authoring.md](.claude/docs/github-authoring.md).
 
