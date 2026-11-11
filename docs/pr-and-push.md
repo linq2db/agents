@@ -129,7 +129,7 @@ git -C ../linq2db.baselines diff --name-status -M origin/pr/<old> origin/pr/<new
 
 `-M` is what makes it readable: a test rename shows as `R100` (byte-identical content) rather than as a delete plus an add, so "only the renames moved" is one glance instead of a file-by-file compare. Deletions in that diff are usually a **failed leg** whose *Commit test baselines* step was skipped, not a real removal — check the leg before reading them as loss. (#5708: 65 modified, 61 `R100`, 39 deleted, and the 39 were exactly the three ClickHouse providers from the one red leg.)
 
-**A baselines PR that went `CONFLICTING` because *other* source PRs landed on master first: rebase it, master winning, then regenerate over it.** The baselines PR is keyed against a specific source-PR commit, so once master moves its diff often stops applying even though the source PR's tests didn't change. While the source PR is open, run `pwsh -NoProfile -File .claude/scripts/rebase-baselines-branch.ps1 -Pr <n>` (`-DryRun` first). It replays the branch onto baselines master without a checkout, with master's side winning every conflict, and force-pushes with a lease on the old head. Then sync the source PR with `origin/master` and run `/azp run test-all` on it: the regenerated legs overwrite whatever the conflict resolution kept. Never hand-resolve a baselines conflict file by file, and never check out `linq2db.baselines` to rebase it ([`dead-ends.md`](dead-ends.md) → *BUILD: checking out `linq2db.baselines`*). Close+delete (`close-stale-baselines.ps1`) stays the remedy for renamed or deleted tests above, and for a source PR that is already merged or abandoned. (#6198 → baselines #2240.)
+**A baselines PR that went `CONFLICTING` because *other* source PRs landed on master first: rebase it, master winning, then regenerate over it.** The baselines PR is keyed against a specific source-PR commit, so once master moves its diff often stops applying even though the source PR's tests didn't change. While the source PR is open, sync it with `origin/master` and run `/azp run test-all`: since #6291 the run's *Create Test Baselines Branch* step (`ensure-baselines-branch.ps1` → `Invoke-BaselinesRebase`) rebases the branch onto its base with the base's side winning every conflict, modify/delete included, and the legs regenerate on top. To clear the conflict without a run, `pwsh -NoProfile -File .claude/scripts/rebase-baselines-branch.ps1 -Pr <n>` (`-DryRun` first) does the same replay without a checkout and force-pushes with a lease. Never hand-resolve a baselines conflict file by file, and never check out `linq2db.baselines` to rebase it ([`dead-ends.md`](dead-ends.md) → *BUILD: checking out `linq2db.baselines`*). Close+delete (`close-stale-baselines.ps1`) stays the remedy for renamed or deleted tests above, and for a source PR that is already merged or abandoned. (#6198 → baselines #2240.)
 
 **A branch cut from *another open branch* goes `CONFLICTING` the moment that parent squash-merges — rebase it, don't merge-resolve.** Squashing rewrites the parent's commits into one new commit, so your branch still carries the originals and git sees two unrelated commits touching the same files. The conflict is therefore in content **neither side meaningfully changed**, which is the tell: a hand-resolution is all risk and no information. Diagnose by comparing trees rather than diffs —
 
@@ -260,6 +260,13 @@ compares the *pushed* head, so a branch merged with master locally but not yet p
 `git fetch origin master`, then `git merge-base --is-ancestor FETCH_HEAD HEAD` (exit 0 = already contained):
 pushing is then the whole fix. (#5707: the PR showed conflicts while the local branch was 158 commits ahead of
 the pushed one and 0 behind master.)
+
+**After merging master into a branch that adds a provider to an existing group, run the tests the merge brought in on
+the new provider before pushing.** Master's new tests were written against the group's old members; on this branch an
+`IncludeDataSources(AllAccess)` test also runs on `Access.LibRed.*`, which nobody on master could run. List the merge's
+new methods (`git diff HEAD^1 HEAD -U0 --output=<file> -- Tests/`, then `Grep` `^\+\s+public (async Task|void) \w+\(`)
+and run them on the new configs. (#5956, 2026-11-10: 2 of #6203's 261 cases failed on LibRed — a bool parameter stored
+as -1, a DISTINCT sort-key flip.)
 
 When syncing `origin/master` into a long-lived feature PR — or when merging a batch of sibling PRs one
 after another so each inherits the previous ones — these collisions recur:
