@@ -3183,3 +3183,13 @@ Cross-source: no code pattern fired, so no cross entries were possible (the issu
 - themes regenerated: EXPR-TRANS, PROV-POSTGRES, LINQ, DOCS, IDENTITY, EFCORE, GLOBAL, PROV-SAPHANA, PROV-ACCESS (0 refs dropped)
 - audit: skipped (partial run)
 
+## 2026-11-11T21:27:43Z — confidence demotion
+- areas/SQL-AST/tech-debt.md: medium -> low
+- miss: Source/LinqToDB/SqlQuery/SqlExtendedFunction.cs:12 (cited file missing)
+- miss: Source/LinqToDB/SqlQuery/SqlFrameClause.cs:9 (cited file missing)
+
+## 2026-11-11T21:27:44Z — kb-refresh
+- completes the partial run above: code 1 file re-scanned (TESTS-LINQ, #6296), commits 1 new
+- cursors code/commits -> 1732302e2
+- audit: 5 sampled, 1 demoted (SQL-AST/tech-debt.md)
+
