@@ -3,9 +3,9 @@ area: PROV-SQLITE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
-coverage_tier_1: 10/10
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+coverage_tier_1: 11/11
 coverage_tier_2: 10/10
 ---
 
@@ -33,7 +33,7 @@ Two assembly + namespace pairs are loaded dynamically via `SQLiteProviderAdapter
 | System.Data.SQLite | `System.Data.SQLite` | `System.Data.SQLite` | `SQLite` |
 | Microsoft.Data.Sqlite | `Microsoft.Data.Sqlite` | `Microsoft.Data.Sqlite` | `Sqlite` |
 
-`SQLiteProviderAdapter.cs:18-22` defines the assembly and namespace constants. `ClearAllPools` is only wired when the loaded assembly version is >= 1.0.55 for System.Data.SQLite or >= 6.0.0 for Microsoft.Data.Sqlite (`SQLiteProviderAdapter.cs:127-129`). `SupportsDateOnly` is `true` only for Microsoft.Data.Sqlite >= 6.0.0 (`SQLiteProviderAdapter.cs:104`); the classic driver stores dates incorrectly and that flag is explicitly false for it.
+`SQLiteProviderAdapter.cs:18-22` defines the assembly and namespace constants. Delta f90c5bcfb: for Microsoft.Data.Sqlite only, the adapter also wraps `SqliteParameter` and the `SqliteType` enum (`Integer=1`, `Real=2`, `Text=3`, `Blob=4`) and builds an `internal Func<DbParameter, SqliteType>? GetSqliteType` getter (null for System.Data.SQLite) consumed by `SQLiteSqlBuilder.GetProviderTypeName`. `ClearAllPools` is only wired when the loaded assembly version is >= 1.0.55 for System.Data.SQLite or >= 6.0.0 for Microsoft.Data.Sqlite (`SQLiteProviderAdapter.cs:127-129`). `SupportsDateOnly` is `true` only for Microsoft.Data.Sqlite >= 6.0.0 (`SQLiteProviderAdapter.cs:104`); the classic driver stores dates incorrectly and that flag is explicitly false for it.
 
 ### Provider detection
 
@@ -48,10 +48,12 @@ Key overrides:
 - **Identifier quoting**: `[name]` brackets for fields, aliases, tables, CTEs (`SQLiteSqlBuilder.cs:79-104`). Schema-qualified names split on `.` and re-join with `].[`.
 - **Namespace / schema emitted**: the `BuildObjectName` override maps `IsTemporaryOptionSet()` to the `temp.` prefix, and `Database` to an attached-DB name -- SQLite has no server-level schemas (`SQLiteSqlBuilder.cs:148-158`).
 - **LIMIT/OFFSET**: `LIMIT {0}` / `OFFSET {0}`. `IsSkipSupported = false`, `IsSkipSupportedIfTake = true` (`SQLiteDataProvider.cs:42-43`).
-- **Identity**: `PRIMARY KEY AUTOINCREMENT` attribute; truncate-with-identity-reset sends `UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME=<table>` as command 2 (`SQLiteSqlBuilder.cs:47-53`).
+- **Identity**: `PRIMARY KEY AUTOINCREMENT` attribute. The builder no longer overrides `CommandCount` / `BuildCommand` (delta f90c5bcfb): the identity `SELECT last_insert_rowid()` command and the truncate-with-identity-reset `UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME=<table>` command are now produced by `SQLiteDmlService` (see "DML service" below).
+- **Concat precedence** (delta f90c5bcfb): a `GetPrecedence` override ranks `SqlConcatExpression` at `Precedence.Multiplicative + 1`, because SQLite binds `||` tighter than `* / %` and looser than unary operators (`SQLiteSqlBuilder.cs:38-40`).
+- **Parameter provider type name** (delta f90c5bcfb): `GetProviderTypeName(IDataContext, DbParameter)` (`SQLiteSqlBuilder.cs:93-123`) reports the storage class (`Integer` / `Real` / `Text` / `Blob`) the driver binds a parameter with. Microsoft.Data.Sqlite reads `SqliteParameter.SqliteType` through `SQLiteProviderAdapter.GetSqliteType`, a null value maps from `DbType` instead (the driver reports `Text` for every null), and an exception yields `null`. System.Data.SQLite maps `DbType.Object` with a value by CLR type (`GetStorageClass(Type)`, mirrors `SQLiteConvert.TypeToDbType`), otherwise by `DbType` (`GetStorageClass(DbType)`, mirrors `SQLiteStatement.BindParameter` with default connection settings).
 - **PK constraint**: when an identity column exists, removes the trailing `CONSTRAINT ... PRIMARY KEY (...)` clause and relies on `PRIMARY KEY AUTOINCREMENT` alone (`SQLiteSqlBuilder.cs:122-137`).
 - **Upsert**: `BuildInsertOrUpdateQuery` delegates to `BuildInsertOrUpdateQueryAsOnConflictUpdateOrNothing` (`SQLiteSqlBuilder.cs:196-199`), emitting `INSERT OR REPLACE / INSERT OR NOTHING` via the `ON CONFLICT` variant. No `MERGE` support -- `BuildMergeStatement` throws `LinqToDBException` (`SQLiteSqlBuilder.cs:166-168`).
-- **VALUES table**: SQLite does not support `VALUES(...) AS alias(cols)` syntax; the builder emits a `SELECT ... UNION ALL SELECT ...` structure instead (`SQLiteSqlBuilder.cs:209-246`).
+- **VALUES table** (delta f90c5bcfb: `BuildSqlValuesTable` now calls `valuesTable.BuildRows(RenderContext.EvaluationContext)` and no longer runs `ConvertElement` first): SQLite does not support `VALUES(...) AS alias(cols)` syntax; the builder emits a `SELECT ... UNION ALL SELECT ...` structure instead (`SQLiteSqlBuilder.cs:209-246`).
 - **IS DISTINCT**: SQLite 3.39.0+ supports standard `DISTINCT FROM`, but the builder still uses `IS` / `IS NOT` syntax for backwards compatibility, with the polarity inverted (`SQLiteSqlBuilder.cs:201-207`).
 - **Materialized CTE hint**: `SupportsMaterializedCteHint = true` (`SQLiteSqlBuilder.cs:32`).
 - **`SupportsColumnAliasesInSource`**: `false` (`SQLiteSqlBuilder.cs:30`).
@@ -74,10 +76,21 @@ Key overrides:
 - **XOR emulation**: `^` -> `(a + b) - (a & b) * 2` (`SQLiteSqlExpressionConvertVisitor.cs:23-29`).
 - **Case-sensitive LIKE**: when `SearchString.CaseSensitive = true`, wraps the LIKE with a conjunction of `Substr`/`InStr` predicates for `StartsWith`/`EndsWith`/`Contains` (`SQLiteSqlExpressionConvertVisitor.cs:34-101`).
 - **DateTime comparisons**: wraps operands in `strftime('%Y-%m-%d %H:%M:%f', expr)` casts when either side is a date/datetime type (`SQLiteSqlExpressionConvertVisitor.cs:132-168`).
+- **Date vs timestamp comparison** (delta f90c5bcfb): in `ConvertExprExprPredicate`, when one side is a `Date`-typed expression and the other a timestamp (DateTime, not `DataType.Time`), the timestamp type now wins as `dateType` regardless of side, so the time part is not dropped. A side that is already a `Date(...)` function or cast (not re-cast by `MakeMandatoryCast`) is brought to timestamp text via the new `ToTimestamp` helper (`strftime('%Y-%m-%d %H:%M:%f', expr)`, `DoNotOptimize = true`) guarded by `IsDateComparedAsTimestamp`.
+- **IN-list date normalisation** (delta f90c5bcfb): new `VisitInListPredicate` override. When `Expr1` is a `Date`-typed computed (non-stored-column) DateTime expression, `Expr1` and every non-parameter `Date`-typed list value are wrapped with `ToTimestamp` so SQLite's text comparison lines up. Parameters and captured collections stay parameters (already bound as timestamp text).
 - **CAST of Guid**: strips the `CAST` entirely -- SQLite has no GUID affinity, so casting would infer the wrong affinity (`SQLiteSqlExpressionConvertVisitor.cs:189-192`).
 - **DateTime/DateOnly conversions**: routes through `Date(expr)` for date-only or `strftime('%Y-%m-%d %H:%M:%f', expr)` for datetime, wrapped in `DoNotOptimize = true` guards to prevent double-wrapping (`SQLiteSqlExpressionConvertVisitor.cs:173-196`).
 - **Interval lowering** (delta 05150894e): `CanLowerIntervalDifference => true`, `IntervalResolution => SqlIntervalUnit.Millisecond` (`SQLiteSqlExpressionConvertVisitor.cs:20`, `:27`). `julianday` returns a double (spacing near 47 microseconds at present-day dates), so millisecond is the finest exact quantum -- also the resolution `strftime('%f')` date arithmetic already had. `ElapsedTicks` (`:43`) emits `Cast(Round((JulianDay(End) - JulianDay(Start)) * ms_per_day) AS long) * TicksPerMillisecond`; rounded, not truncated.
 - **Interval shift lowering**: `CanLowerIntervalShift => true` (`:60`) and `LowerTemporalArithmetic` (`:77`) turn `SqlTemporalArithmeticExpression` into `Strftime('%Y-%m-%d %H:%M:%f', JulianDay(temporal) + Round(ticks / TicksPerMillisecond) / 86400000)`, negating ticks for subtract. It does not go through `FinestDateUnit`. `DateTimeOffset` operands return `null` (not lowered, refused by name) because `julianday` reads them as UTC and `strftime` writes no offset. Result is typed `DataType.DateTime` built from the CLR type (never `Date`) so later comparisons do not strip the added time of day. Helper `JulianDay` at `:100`.
+
+### DML service
+
+`SQLiteDmlService` (`Internal/DataProvider/SQLite/SQLiteDmlService.cs`, new in delta f90c5bcfb) is a sealed `DmlServiceBase` returned by `SQLiteDataProvider.CreateDmlService()`. It replaces the builder-level `CommandCount` / `BuildCommand` command splitting with `BuildCommandScenario(SqlStatement, SqlProviderFlags, ISqlExpressionFactory)`:
+
+- `SqlTruncateTableStatement { ResetIdentity: true }` on a table with identity fields -> two non-query steps: the truncate, then a raw `UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME={0}` fragment (table name as a value). `OutcomeSteps = [0]`, so the truncate result is the reported outcome.
+- `statement.NeedsIdentity` -> `IdentitySelectScenario(statement, last_insert_rowid())`: the insert as non-query plus a scalar `SELECT last_insert_rowid()` typed `long`.
+- Anything else falls back to `base.BuildCommandScenario` (legacy command-splitting path).
+- `IsTableNotFoundExceptionCore` returns `false`: `DROP TABLE IF EXISTS` handles absence in SQL, no exception-based detection.
 
 ### Type mapping and dynamic typing
 
@@ -172,6 +185,7 @@ Both are applied via `ISQLiteSpecificTable<TSource>.TableHint(hint)` using `Sql.
 | `SQLiteDataProviderMS` | (same file) | Concrete: Microsoft.Data.Sqlite |
 | `SQLiteSqlBuilder` | `Internal/DataProvider/SQLite/SQLiteSqlBuilder.cs` | SQL emission; single flat class |
 | `SQLiteSqlOptimizer` | `Internal/DataProvider/SQLite/SQLiteSqlOptimizer.cs` | Statement rewrite |
+| `SQLiteDmlService` | `Internal/DataProvider/SQLite/SQLiteDmlService.cs` | `DmlServiceBase` subclass: `last_insert_rowid()` identity scenario, `SQLITE_SEQUENCE` reset |
 | `SQLiteSqlExpressionConvertVisitor` | `Internal/DataProvider/SQLite/SQLiteSqlExpressionConvertVisitor.cs` | Expression-level rewrites |
 | `SQLiteMappingSchema` | `Internal/DataProvider/SQLite/SQLiteMappingSchema.cs` | Type conversion / SQL literals |
 | `SQLiteProviderAdapter` | `Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs` | Dynamic assembly load; connection factory |
@@ -229,17 +243,21 @@ Delta 05150894e: the FTS3/FTS5 admin `*Async` methods were changed from `async T
 | `RowConstructorSupport` | Equality, Comparisons, UpdateLiteral, CompareToSelect, Between, Update | `SQLiteDataProvider.cs:74-75` |
 | `SupportedCorrelatedSubqueriesLevel` | `null` (unlimited) | `SQLiteDataProvider.cs:67` |
 | `MaxColumnCount` | `2000` | `SQLiteDataProvider.cs:55` |
-| `IsUpsertWithMergeLoweringSupported` | `false` | `SQLiteDataProvider.cs:71` |
+| `IsUpsertWithMergeLoweringSupported` | `false` | `SQLiteDataProvider.cs:75` |
+| `IsMultiStatementBatchSupported` | `true` (delta f90c5bcfb) | `SQLiteDataProvider.cs:56` |
+| `IsMultipleResultSetsSupported` | `true` (delta f90c5bcfb) | `SQLiteDataProvider.cs:57` |
+| `MaxCombinedCommandLength` | `4_000_000` (SQLITE_MAX_SQL_LENGTH defaults to 1 GB, 4 MB is a safe cap) | `SQLiteDataProvider.cs:59` |
 
 ## Files (Tier 1 / Tier 2)
 
-### Tier 1 (10 files)
+### Tier 1 (11 files)
 
 | File | Purpose |
 |---|---|
 | `Internal/DataProvider/SQLite/SQLiteDataProvider.cs` | Provider base + two concrete subtypes |
 | `Internal/DataProvider/SQLite/SQLiteSqlBuilder.cs` | SQL emission |
 | `Internal/DataProvider/SQLite/SQLiteSqlOptimizer.cs` | Statement rewrite |
+| `Internal/DataProvider/SQLite/SQLiteDmlService.cs` | Command scenarios: identity select, truncate identity reset |
 | `Internal/DataProvider/SQLite/SQLiteProviderAdapter.cs` | Dynamic ADO.NET load |
 | `Internal/DataProvider/SQLite/SQLiteProviderDetector.cs` | Auto-detect + singletons |
 | `Internal/DataProvider/SQLite/SQLiteMappingSchema.cs` | SQL literals + type converters |
@@ -290,7 +308,7 @@ Delta 05150894e: the FTS3/FTS5 admin `*Async` methods were changed from `async T
 
 <details><summary>Coverage</summary>
 
-- Tier 1 (visited / total): 10 / 10
+- Tier 1 (visited / total): 11 / 11
 - Tier 2 (visited / total): 10 / 10 (100%)
 - Tier 3 (skipped, logged): 0
 
@@ -321,5 +339,12 @@ Read (this run -- delta sha 05150894e):
 - `SQLiteExtensions.cs` -- FTS3/FTS5 admin `*Async` methods now return the `ExecuteAsync` task directly instead of `async`/`await` (no behaviour change).
 - `SQLiteSchemaProvider.cs` -- BOM removal only, no behavioural change.
 - `SQLiteMemberTranslator.cs` -- Nested `SqlTypesTranslation` declaration changed to semicolon-bodied class syntax, no behavioural change.
+
+Read (this run -- delta sha f90c5bcfb):
+- `SQLiteDmlService.cs` -- New. `DmlServiceBase` subclass: truncate-with-identity-reset and identity-insert command scenarios (`last_insert_rowid()`), `IsTableNotFoundExceptionCore` false.
+- `SQLiteDataProvider.cs` -- Added `IsMultiStatementBatchSupported`, `IsMultipleResultSetsSupported` = true, `MaxCombinedCommandLength = 4_000_000` (lines 56-59), and `CreateDmlService()` override returning `SQLiteDmlService`. `IsUpsertWithMergeLoweringSupported` now at line 75.
+- `SQLiteProviderAdapter.cs` -- Wrapped `SqliteParameter` / `SqliteType` for Microsoft.Data.Sqlite, new internal `GetSqliteType` getter.
+- `SQLiteSqlBuilder.cs` -- Removed `CommandCount` / `BuildCommand` (moved to DML service), added `GetPrecedence` for `SqlConcatExpression`, added `GetProviderTypeName` with storage-class helpers, `BuildSqlValuesTable` uses `RenderContext.EvaluationContext`.
+- `SQLiteSqlExpressionConvertVisitor.cs` -- Date-vs-timestamp comparison keeps the timestamp type and time part, new `ToTimestamp` helper, new `VisitInListPredicate` override normalising Date values to timestamp text.
 
 </details>

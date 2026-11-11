@@ -32,8 +32,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:31"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0003",
@@ -50,8 +50,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:45"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0004",
@@ -68,8 +68,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:141"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0005",
@@ -86,8 +86,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:177"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0006",
@@ -104,8 +104,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:272"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0007",
@@ -122,8 +122,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:350"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0008",
@@ -140,8 +140,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:420"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0009",
@@ -158,8 +158,8 @@
     "files": [
       "Source/LinqToDB/Common/Configuration.cs:430"
     ],
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0010",
@@ -168,16 +168,16 @@
     "source": "code",
     "area": "CORE",
     "title": "Empty or no-op catch block",
-    "files": [
-      "Source/LinqToDB/Common/Converter.cs:279"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "files": [
+      "Source/LinqToDB/Common/Converter.cs:297"
+    ],
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0011",
@@ -227,8 +227,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Data/DataConnection.Async.cs:21"
     ]
@@ -245,8 +245,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Data/DataConnection.Async.cs:147"
     ]
@@ -263,10 +263,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:46"
+      "Source/LinqToDB/Data/DataConnection.cs:48"
     ]
   },
   {
@@ -281,10 +281,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:74"
+      "Source/LinqToDB/Data/DataConnection.cs:76"
     ]
   },
   {
@@ -299,10 +299,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:92"
+      "Source/LinqToDB/Data/DataConnection.cs:94"
     ]
   },
   {
@@ -317,10 +317,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:102"
+      "Source/LinqToDB/Data/DataConnection.cs:104"
     ]
   },
   {
@@ -335,10 +335,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:115"
+      "Source/LinqToDB/Data/DataConnection.cs:117"
     ]
   },
   {
@@ -353,10 +353,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:128"
+      "Source/LinqToDB/Data/DataConnection.cs:130"
     ]
   },
   {
@@ -371,10 +371,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:141"
+      "Source/LinqToDB/Data/DataConnection.cs:143"
     ]
   },
   {
@@ -389,10 +389,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:157"
+      "Source/LinqToDB/Data/DataConnection.cs:159"
     ]
   },
   {
@@ -407,10 +407,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:173"
+      "Source/LinqToDB/Data/DataConnection.cs:175"
     ]
   },
   {
@@ -425,10 +425,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:187"
+      "Source/LinqToDB/Data/DataConnection.cs:189"
     ]
   },
   {
@@ -443,10 +443,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:203"
+      "Source/LinqToDB/Data/DataConnection.cs:205"
     ]
   },
   {
@@ -461,10 +461,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:219"
+      "Source/LinqToDB/Data/DataConnection.cs:221"
     ]
   },
   {
@@ -479,10 +479,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:235"
+      "Source/LinqToDB/Data/DataConnection.cs:237"
     ]
   },
   {
@@ -497,10 +497,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:249"
+      "Source/LinqToDB/Data/DataConnection.cs:251"
     ]
   },
   {
@@ -515,10 +515,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:265"
+      "Source/LinqToDB/Data/DataConnection.cs:267"
     ]
   },
   {
@@ -533,10 +533,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:281"
+      "Source/LinqToDB/Data/DataConnection.cs:283"
     ]
   },
   {
@@ -551,10 +551,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:297"
+      "Source/LinqToDB/Data/DataConnection.cs:299"
     ]
   },
   {
@@ -569,10 +569,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:311"
+      "Source/LinqToDB/Data/DataConnection.cs:313"
     ]
   },
   {
@@ -587,10 +587,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:327"
+      "Source/LinqToDB/Data/DataConnection.cs:329"
     ]
   },
   {
@@ -605,10 +605,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:343"
+      "Source/LinqToDB/Data/DataConnection.cs:345"
     ]
   },
   {
@@ -623,10 +623,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:362"
+      "Source/LinqToDB/Data/DataConnection.cs:364"
     ]
   },
   {
@@ -641,10 +641,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:379"
+      "Source/LinqToDB/Data/DataConnection.cs:381"
     ]
   },
   {
@@ -659,10 +659,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:395"
+      "Source/LinqToDB/Data/DataConnection.cs:397"
     ]
   },
   {
@@ -677,10 +677,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:411"
+      "Source/LinqToDB/Data/DataConnection.cs:413"
     ]
   },
   {
@@ -695,10 +695,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:428"
+      "Source/LinqToDB/Data/DataConnection.cs:430"
     ]
   },
   {
@@ -713,10 +713,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:444"
+      "Source/LinqToDB/Data/DataConnection.cs:446"
     ]
   },
   {
@@ -731,10 +731,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:460"
+      "Source/LinqToDB/Data/DataConnection.cs:462"
     ]
   },
   {
@@ -749,10 +749,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:474"
+      "Source/LinqToDB/Data/DataConnection.cs:476"
     ]
   },
   {
@@ -767,10 +767,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:540"
+      "Source/LinqToDB/Data/DataConnection.cs:542"
     ]
   },
   {
@@ -785,10 +785,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:550"
+      "Source/LinqToDB/Data/DataConnection.cs:552"
     ]
   },
   {
@@ -803,10 +803,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:557"
+      "Source/LinqToDB/Data/DataConnection.cs:559"
     ]
   },
   {
@@ -821,10 +821,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:585"
+      "Source/LinqToDB/Data/DataConnection.cs:587"
     ]
   },
   {
@@ -839,10 +839,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:740"
+      "Source/LinqToDB/Data/DataConnection.cs:742"
     ]
   },
   {
@@ -857,10 +857,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:764"
+      "Source/LinqToDB/Data/DataConnection.cs:766"
     ]
   },
   {
@@ -875,10 +875,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:782"
+      "Source/LinqToDB/Data/DataConnection.cs:784"
     ]
   },
   {
@@ -893,10 +893,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:1043"
+      "Source/LinqToDB/Data/DataConnection.cs:1045"
     ]
   },
   {
@@ -911,10 +911,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:1063"
+      "Source/LinqToDB/Data/DataConnection.cs:1173"
     ]
   },
   {
@@ -929,10 +929,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:1461"
+      "Source/LinqToDB/Data/DataConnection.cs:1607"
     ]
   },
   {
@@ -947,10 +947,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Data/DataConnection.cs:1785"
+      "Source/LinqToDB/Data/DataConnection.cs:1931"
     ]
   },
   {
@@ -1068,16 +1068,16 @@
     "source": "code",
     "area": "PROV-SQLSERVER",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataProvider/SqlServer/SystemDataSqlServerAttributeReader.cs:111"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataProvider/SqlServer/SystemDataSqlServerAttributeReader.cs:111"
+    ]
   },
   {
     "id": "DI-0061",
@@ -1397,8 +1397,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs:337"
     ]
@@ -1414,12 +1414,12 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "status": "open",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs:546"
-    ],
-    "status": "fixed",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs:549"
+    ]
   },
   {
     "id": "DI-0080",
@@ -1469,10 +1469,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:187"
+      "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:222"
     ]
   },
   {
@@ -1487,10 +1487,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:205"
+      "Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs:240"
     ]
   },
   {
@@ -1631,10 +1631,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs:131"
+      "Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs:133"
     ]
   },
   {
@@ -1649,10 +1649,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs:169"
+      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs:146"
     ]
   },
   {
@@ -1667,10 +1667,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs:170"
+      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs:147"
     ]
   },
   {
@@ -1702,12 +1702,12 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "status": "open",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs:78"
-    ],
-    "status": "fixed",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs:81"
+    ]
   },
   {
     "id": "DI-0096",
@@ -1757,10 +1757,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:55"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:54"
     ]
   },
   {
@@ -1775,10 +1775,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:200"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:201"
     ]
   },
   {
@@ -1793,10 +1793,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:244"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs:245"
     ]
   },
   {
@@ -1847,10 +1847,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:170"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:172"
     ]
   },
   {
@@ -1865,10 +1865,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:187"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:189"
     ]
   },
   {
@@ -1883,10 +1883,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:334"
+      "Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs:317"
     ]
   },
   {
@@ -1919,8 +1919,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlBuilder.cs:165"
     ]
@@ -1937,8 +1937,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlExpressionConvertVisitor.cs:318"
     ]
@@ -1950,16 +1950,16 @@
     "source": "code",
     "area": "PROV-SAPHANA",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs:21"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs:21"
+    ]
   },
   {
     "id": "DI-0110",
@@ -1968,16 +1968,16 @@
     "source": "code",
     "area": "PROV-SAPHANA",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs:22"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/DataProvider/SapHana/SapHanaProviderAdapter.cs:22"
+    ]
   },
   {
     "id": "DI-0111",
@@ -2045,10 +2045,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:163"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:172"
     ]
   },
   {
@@ -2063,10 +2063,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:314"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerDataProvider.cs:323"
     ]
   },
   {
@@ -2099,10 +2099,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:188"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:189"
     ]
   },
   {
@@ -2117,10 +2117,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:192"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:193"
     ]
   },
   {
@@ -2135,10 +2135,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:195"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:196"
     ]
   },
   {
@@ -2153,10 +2153,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_at": "2026-06-01",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:749"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderAdapter.cs:750"
     ]
   },
   {
@@ -2171,10 +2171,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
-    "last_seen_at": "2026-06-15",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderDetector.cs:109"
+      "Source/LinqToDB/Internal/DataProvider/SqlServer/SqlServerProviderDetector.cs:108"
     ]
   },
   {
@@ -2297,8 +2297,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs:45"
     ]
@@ -2423,10 +2423,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/Ydb/YdbMappingSchema.cs:145"
+      "Source/LinqToDB/Internal/DataProvider/Ydb/YdbMappingSchema.cs:149"
     ]
   },
   {
@@ -2441,8 +2441,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/Ydb/YdbProviderAdapter.cs:66"
     ]
@@ -2495,10 +2495,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/DataProviderBase.cs:159"
+      "Source/LinqToDB/Internal/DataProvider/DataProviderBase.cs:162"
     ]
   },
   {
@@ -2567,8 +2567,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:249"
     ]
@@ -2585,8 +2585,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:280"
     ]
@@ -2603,10 +2603,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1234"
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1230"
     ]
   },
   {
@@ -2621,10 +2621,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1246"
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1242"
     ]
   },
   {
@@ -2657,8 +2657,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/Linq/Builder/ContainsBuilder.cs:174"
     ]
@@ -2670,16 +2670,16 @@
     "source": "code",
     "area": "EXPR-TRANS",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/DefaultIfEmptyBuilder.cs:95"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/Linq/Builder/DefaultIfEmptyBuilder.cs:96"
+    ]
   },
   {
     "id": "DI-0150",
@@ -2693,10 +2693,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/EntityConstructorBase.cs:620"
+      "Source/LinqToDB/Internal/Linq/Builder/EntityConstructorBase.cs:635"
     ]
   },
   {
@@ -2711,8 +2711,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.Associations.cs:21"
     ]
@@ -2747,10 +2747,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.SqlBuilder.cs:834"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.SqlBuilder.cs:839"
     ]
   },
   {
@@ -2765,10 +2765,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.SqlBuilder.cs:1897"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuilder.SqlBuilder.cs:1902"
     ]
   },
   {
@@ -2783,10 +2783,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:1139"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:1160"
     ]
   },
   {
@@ -2801,10 +2801,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:4781"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:4847"
     ]
   },
   {
@@ -2819,10 +2819,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:4790"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:4856"
     ]
   },
   {
@@ -2837,10 +2837,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:5283"
+      "Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs:5349"
     ]
   },
   {
@@ -2909,10 +2909,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Builder/SequenceHelper.cs:713"
+      "Source/LinqToDB/Internal/Linq/Builder/SequenceHelper.cs:839"
     ]
   },
   {
@@ -2981,10 +2981,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/ExpressionCacheManager.cs:105"
+      "Source/LinqToDB/Internal/Linq/ExpressionCacheManager.cs:106"
     ]
   },
   {
@@ -3053,10 +3053,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:100"
+      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:101"
     ]
   },
   {
@@ -3071,10 +3071,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:535"
+      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:537"
     ]
   },
   {
@@ -3089,10 +3089,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:601"
+      "Source/LinqToDB/Internal/Linq/QueryRunner.cs:603"
     ]
   },
   {
@@ -3161,8 +3161,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/Remote/LinqServiceSerializer.cs:624"
     ]
@@ -3233,8 +3233,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/SqlProvider/BasicSqlOptimizer.cs:751"
     ]
@@ -3250,12 +3250,12 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "status": "open",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/SqlProvider/BasicSqlOptimizer.cs:836"
-    ],
-    "status": "fixed",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0182",
@@ -3269,8 +3269,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/SqlProvider/BasicSqlOptimizer.cs:1168"
     ]
@@ -3359,10 +3359,10 @@
     "first_detected_at": "2026-05-08",
     "confidence": "high",
     "status": "open",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:622"
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:966"
     ]
   },
   {
@@ -3377,10 +3377,10 @@
     "first_detected_at": "2026-05-08",
     "confidence": "high",
     "status": "open",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:2714"
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:3127"
     ]
   },
   {
@@ -3395,10 +3395,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:570"
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:752"
     ]
   },
   {
@@ -3413,10 +3413,10 @@
     "first_detected_at": "2026-05-08",
     "confidence": "high",
     "status": "open",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:1533"
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:1867"
     ]
   },
   {
@@ -3431,8 +3431,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:13"
     ]
@@ -3449,10 +3449,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:176"
+      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:185"
     ]
   },
   {
@@ -3467,10 +3467,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:3124"
+      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:3184"
     ]
   },
   {
@@ -3521,10 +3521,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs:1087"
+      "Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs:1329"
     ]
   },
   {
@@ -3539,10 +3539,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs:2302"
+      "Source/LinqToDB/Internal/SqlQuery/QueryHelper.cs:2544"
     ]
   },
   {
@@ -4259,10 +4259,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Mapping/MappingSchema.cs:1767"
+      "Source/LinqToDB/Mapping/MappingSchema.cs:1793"
     ]
   },
   {
@@ -4331,8 +4331,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Remote/RemoteDataContextBase.cs:50"
     ]
@@ -4349,10 +4349,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:348"
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:354"
     ]
   },
   {
@@ -4776,16 +4776,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:66"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:66"
+    ]
   },
   {
     "id": "DI-0267",
@@ -4794,16 +4794,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:81"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:81"
+    ]
   },
   {
     "id": "DI-0268",
@@ -4812,16 +4812,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:181"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:181"
+    ]
   },
   {
     "id": "DI-0269",
@@ -4830,16 +4830,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:192"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:192"
+    ]
   },
   {
     "id": "DI-0270",
@@ -4848,16 +4848,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:205"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:205"
+    ]
   },
   {
     "id": "DI-0271",
@@ -4871,8 +4871,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataContext.cs:238"
     ]
@@ -4884,16 +4884,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/DataContext.cs:245"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/DataContext.cs:245"
+    ]
   },
   {
     "id": "DI-0273",
@@ -4925,11 +4925,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataOptionsExtensions.cs:38"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0275",
@@ -4943,11 +4943,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataOptionsExtensions.cs:123"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0276",
@@ -4961,11 +4961,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataOptionsExtensions.cs:189"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0277",
@@ -4979,11 +4979,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataOptionsExtensions.cs:271"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0278",
@@ -4997,11 +4997,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/DataOptionsExtensions.cs:285"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+    ]
   },
   {
     "id": "DI-0279",
@@ -5015,11 +5015,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:363"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:395"
+    ]
   },
   {
     "id": "DI-0280",
@@ -5033,11 +5033,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:448"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:480"
+    ]
   },
   {
     "id": "DI-0281",
@@ -5051,11 +5051,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:514"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:546"
+    ]
   },
   {
     "id": "DI-0282",
@@ -5069,11 +5069,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:596"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:628"
+    ]
   },
   {
     "id": "DI-0283",
@@ -5087,11 +5087,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:610"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:642"
+    ]
   },
   {
     "id": "DI-0284",
@@ -5105,11 +5105,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:859"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:923"
+    ]
   },
   {
     "id": "DI-0285",
@@ -5123,11 +5123,11 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/DataOptionsExtensions.cs:870"
-    ],
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09"
+      "Source/LinqToDB/DataOptionsExtensions.cs:934"
+    ]
   },
   {
     "id": "DI-0286",
@@ -5159,10 +5159,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/LinqOptions.cs:199"
+      "Source/LinqToDB/LinqOptions.cs:238"
     ]
   },
   {
@@ -5177,10 +5177,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/LinqOptions.cs:211"
+      "Source/LinqToDB/LinqOptions.cs:250"
     ]
   },
   {
@@ -5195,10 +5195,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/LinqOptions.cs:214"
+      "Source/LinqToDB/LinqOptions.cs:253"
     ]
   },
   {
@@ -5375,8 +5375,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Execute.cs:154"
     ]
@@ -5393,10 +5393,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:57"
+      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:58"
     ]
   },
   {
@@ -5411,10 +5411,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:140"
+      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:141"
     ]
   },
   {
@@ -5429,10 +5429,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:330"
+      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:331"
     ]
   },
   {
@@ -5447,10 +5447,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:442"
+      "Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Interceptors.cs:443"
     ]
   },
   {
@@ -6577,16 +6577,16 @@
     "source": "code",
     "area": "GLOBAL",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Tests/Base/TestBase.Asserts.cs:247"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
-    "last_seen_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
-    "last_seen_at": "2026-05-08",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Base/TestBase.Asserts.cs:235"
+    ]
   },
   {
     "id": "DI-0367",
@@ -6654,10 +6654,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/DataConnectionTests.cs:704"
+      "Tests/Linq/Data/DataConnectionTests.cs:702"
     ]
   },
   {
@@ -6672,10 +6672,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/DataConnectionTests.cs:718"
+      "Tests/Linq/Data/DataConnectionTests.cs:716"
     ]
   },
   {
@@ -6690,10 +6690,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/DataConnectionTests.cs:693"
+      "Tests/Linq/Data/DataConnectionTests.cs:691"
     ]
   },
   {
@@ -6708,10 +6708,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/InterceptorsTests.cs:818"
+      "Tests/Linq/Data/InterceptorsTests.cs:840"
     ]
   },
   {
@@ -6726,10 +6726,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/InterceptorsTests.cs:874"
+      "Tests/Linq/Data/InterceptorsTests.cs:896"
     ]
   },
   {
@@ -6744,8 +6744,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Data/MiniProfilerTests.cs:161"
     ]
@@ -6762,8 +6762,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Data/MiniProfilerTests.cs:405"
     ]
@@ -6780,8 +6780,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Data/MiniProfilerTests.cs:423"
     ]
@@ -6798,10 +6798,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/MiniProfilerTests.cs:1255"
+      "Tests/Linq/Data/MiniProfilerTests.cs:1253"
     ]
   },
   {
@@ -6816,10 +6816,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Data/MiniProfilerTests.cs:1346"
+      "Tests/Linq/Data/MiniProfilerTests.cs:1344"
     ]
   },
   {
@@ -7014,8 +7014,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:12"
     ]
@@ -7032,8 +7032,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs:97"
     ]
@@ -7050,8 +7050,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:15"
     ]
@@ -7068,8 +7068,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs:23"
     ]
@@ -7176,10 +7176,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/AccessTests.cs:166"
+      "Tests/Linq/DataProvider/AccessTests.cs:168"
     ]
   },
   {
@@ -7194,10 +7194,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/AccessTests.cs:503"
+      "Tests/Linq/DataProvider/AccessTests.cs:505"
     ]
   },
   {
@@ -7212,8 +7212,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/FirebirdTests.cs:644"
     ]
@@ -7230,8 +7230,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/InformixTests.cs:504"
     ]
@@ -7338,8 +7338,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/OracleTests.cs:169"
     ]
@@ -7356,10 +7356,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:2996"
+      "Tests/Linq/DataProvider/OracleTests.cs:3004"
     ]
   },
   {
@@ -7374,10 +7374,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:3127"
+      "Tests/Linq/DataProvider/OracleTests.cs:3135"
     ]
   },
   {
@@ -7392,10 +7392,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:3604"
+      "Tests/Linq/DataProvider/OracleTests.cs:3612"
     ]
   },
   {
@@ -7410,10 +7410,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:4046"
+      "Tests/Linq/DataProvider/OracleTests.cs:4054"
     ]
   },
   {
@@ -7428,10 +7428,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:1825"
+      "Tests/Linq/DataProvider/OracleTests.cs:1833"
     ]
   },
   {
@@ -7446,10 +7446,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:2615"
+      "Tests/Linq/DataProvider/OracleTests.cs:2623"
     ]
   },
   {
@@ -7464,10 +7464,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:3882"
+      "Tests/Linq/DataProvider/OracleTests.cs:3890"
     ]
   },
   {
@@ -7482,10 +7482,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/OracleTests.cs:3884"
+      "Tests/Linq/DataProvider/OracleTests.cs:3892"
     ]
   },
   {
@@ -7518,10 +7518,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2602"
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2650"
     ]
   },
   {
@@ -7536,10 +7536,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:3378"
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:3426"
     ]
   },
   {
@@ -7554,8 +7554,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SQLiteTests.cs:659"
     ]
@@ -7572,8 +7572,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SQLiteTests.cs:1213"
     ]
@@ -7590,8 +7590,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SQLiteTests.cs:505"
     ]
@@ -7608,8 +7608,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SQLiteTests.cs:781"
     ]
@@ -7626,8 +7626,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SQLiteTests.cs:805"
     ]
@@ -7644,10 +7644,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/SqlServerTests.cs:1329"
+      "Tests/Linq/DataProvider/SqlServerTests.cs:1327"
     ]
   },
   {
@@ -7662,8 +7662,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/DataProvider/SqlServerTypesTests.TVP.cs:62"
     ]
@@ -7770,10 +7770,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/DataProvider/SybaseTests.cs:1091"
+      "Tests/Linq/DataProvider/SybaseTests.cs:1093"
     ]
   },
   {
@@ -7824,10 +7824,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/BooleanTests.cs:420"
+      "Tests/Linq/Linq/BooleanTests.cs:419"
     ]
   },
   {
@@ -7842,10 +7842,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/BooleanTests.cs:697"
+      "Tests/Linq/Linq/BooleanTests.cs:696"
     ]
   },
   {
@@ -7896,10 +7896,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/EagerLoadingTests.cs:3647"
+      "Tests/Linq/Linq/EagerLoadingTests.cs:3681"
     ]
   },
   {
@@ -8544,8 +8544,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Linq/InheritanceTests.cs:1208"
     ]
@@ -8562,10 +8562,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/JoinTests.cs:3117"
+      "Tests/Linq/Linq/JoinTests.cs:3118"
     ]
   },
   {
@@ -8580,10 +8580,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/MathFunctionTests.cs:337"
+      "Tests/Linq/Linq/MathFunctionTests.cs:377"
     ]
   },
   {
@@ -8724,8 +8724,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Linq/SetTests.cs:77"
     ]
@@ -8760,8 +8760,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Linq/WhereTests.cs:1892"
     ]
@@ -8904,8 +8904,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/SchemaProvider/SchemaProviderTests.cs:35"
     ]
@@ -8922,10 +8922,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/SchemaProvider/SchemaProviderTests.cs:324"
+      "Tests/Linq/SchemaProvider/SchemaProviderTests.cs:321"
     ]
   },
   {
@@ -8958,8 +8958,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/BulkCopyTests.cs:26"
     ]
@@ -8976,8 +8976,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/BulkCopyTests.cs:642"
     ]
@@ -8994,8 +8994,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/BulkCopyTests.cs:682"
     ]
@@ -9012,8 +9012,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/BulkCopyTests.cs:723"
     ]
@@ -9174,8 +9174,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/CreateTempTableTests.cs:250"
     ]
@@ -9192,8 +9192,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Update/CreateTempTableTests.cs:309"
     ]
@@ -9228,10 +9228,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/UserTests/Issue1398Tests.cs:58"
+      "Tests/Linq/UserTests/Issue1398Tests.cs:60"
     ]
   },
   {
@@ -9300,8 +9300,8 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/UserTests/Issue445Tests.cs:124"
     ]
@@ -9372,10 +9372,10 @@
     "first_detected_sha": "d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415",
     "first_detected_at": "2026-05-08",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/TestsInitialization.cs:269"
+      "Tests/Linq/TestsInitialization.cs:275"
     ]
   },
   {
@@ -9427,12 +9427,12 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
     "files": [
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:116",
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:120"
-    ]
+    ],
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-0693",
@@ -9626,15 +9626,15 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Remote/RemoteDataContextBase.cs:55",
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:553",
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:562",
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:564",
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:643",
-      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:650"
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:559",
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:568",
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:570",
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:649",
+      "Source/LinqToDB/Remote/RemoteDataContextBase.cs:656"
     ]
   },
   {
@@ -9684,13 +9684,13 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-02",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:103",
-      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:360",
-      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:872",
-      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:884"
+      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:104",
+      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:361",
+      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:884",
+      "Source/LinqToDB.EntityFrameworkCore/EFCoreMetadataReader.cs:1030"
     ]
   },
   {
@@ -9790,16 +9790,16 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Oracle Devart MiniProfiler wrapper (MiniProfilerTests)",
-    "files": [
-      "Tests/Linq/Data/MiniProfilerTests.cs:1613"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
-    "last_seen_at": "2026-06-01",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Data/MiniProfilerTests.cs:1618"
+    ]
   },
   {
     "id": "DI-0806",
@@ -9808,16 +9808,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue449 SQL Server table function / UDF schema (SqlServerTests)",
-    "files": [
-      "Tests/Linq/DataProvider/SqlServerTests.cs:1739"
-    ],
     "status": "triaged",
     "gh_issue": 449,
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
-    "last_seen_at": "2026-06-01",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/SqlServerTests.cs:1782"
+    ]
   },
   {
     "id": "DI-0807",
@@ -9826,16 +9826,16 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue1468 SQL Server temp tables in procedures (SqlServerTests)",
-    "files": [
-      "Tests/Linq/DataProvider/SqlServerTests.cs:1953"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
-    "last_seen_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
-    "last_seen_at": "2026-06-01",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/SqlServerTests.cs:1997"
+    ]
   },
   {
     "id": "DI-0808",
@@ -9849,10 +9849,10 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/JoinTests.cs:1077"
+      "Tests/Linq/Linq/JoinTests.cs:1130"
     ]
   },
   {
@@ -9867,10 +9867,10 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/JoinTests.cs:1407"
+      "Tests/Linq/Linq/JoinTests.cs:1462"
     ]
   },
   {
@@ -9885,10 +9885,10 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/JoinTests.cs:2988"
+      "Tests/Linq/Linq/JoinTests.cs:3043"
     ]
   },
   {
@@ -9903,10 +9903,10 @@
     "first_detected_sha": "2e67bafc9bfc8ae8ba573b93bde8671d9920c95d",
     "first_detected_at": "2026-06-01",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/JoinTests.cs:3286"
+      "Tests/Linq/Linq/JoinTests.cs:3351"
     ]
   },
   {
@@ -10070,10 +10070,10 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:567-568"
+      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:576-577"
     ]
   },
   {
@@ -10101,16 +10101,16 @@
     "source": "code",
     "area": "PROV-SQLCE",
     "title": "Misaligned indentation in GuidMemberTranslator.TranslateGuildToString",
-    "files": [
-      "Source/LinqToDB/Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs:352"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06"
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/DataProvider/SqlCe/Translation/SqlCeMemberTranslator.cs:352"
+    ]
   },
   {
     "id": "DI-0980",
@@ -10219,10 +10219,10 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:1441"
+      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:1450"
     ]
   },
   {
@@ -10237,10 +10237,10 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlProviderFlags.cs:495"
+      "Source/LinqToDB/Internal/SqlProvider/SqlProviderFlags.cs:489"
     ]
   },
   {
@@ -10255,11 +10255,11 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Base/TestProgressReporter.cs:241",
-      "Tests/Base/TestProgressReporter.cs:321"
+      "Tests/Base/TestProgressReporter.cs:187",
+      "Tests/Base/TestProgressReporter.cs:311"
     ]
   },
   {
@@ -10325,16 +10325,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue4620 union of multiple interface-implementing classes (ConcatUnionTests)",
-    "files": [
-      "Tests/Linq/Linq/ConcatUnionTests.cs:2477"
-    ],
     "status": "triaged",
     "gh_issue": 4620,
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
-    "last_seen_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
-    "last_seen_at": "2026-06-15",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/ConcatUnionTests.cs:2509"
+    ]
   },
   {
     "id": "DI-1224",
@@ -10348,11 +10348,10 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:1830",
-      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:1961"
+      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:2926"
     ]
   },
   {
@@ -10362,17 +10361,17 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated tests: Issue4199 interface cast in projection fails (SelectTests)",
-    "status": "triaged",
     "gh_issue": 4199,
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "high",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
     "files": [
       "Tests/Linq/Linq/SelectTests.cs:2008",
       "Tests/Linq/Linq/SelectTests.cs:2022"
-    ]
+    ],
+    "status": "fixed",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-1226",
@@ -10386,10 +10385,10 @@
     "first_detected_sha": "b3340aa9ded15ffc626983fd202e6399daa081ca",
     "first_detected_at": "2026-06-15",
     "confidence": "medium",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_at": "2026-07-06",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/ParameterTests.cs:1860"
+      "Tests/Linq/Linq/ParameterTests.cs:2105"
     ]
   },
   {
@@ -10459,10 +10458,10 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:609-618"
+      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:618-628"
     ]
   },
   {
@@ -10477,10 +10476,10 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "medium",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:267-272",
+      "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:276-281",
       "Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSql15Builder.cs:8"
     ]
   },
@@ -10496,8 +10495,8 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "medium",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Internal/DataProvider/Ydb/YdbProviderAdapter.cs:145"
     ]
@@ -10509,16 +10508,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/LinqOptions.cs:264"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/LinqOptions.cs:265"
+    ]
   },
   {
     "id": "DI-1281",
@@ -10527,16 +10526,16 @@
     "source": "code",
     "area": "CORE",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Source/LinqToDB/LinqOptions.cs:295"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/LinqOptions.cs:309"
+    ]
   },
   {
     "id": "DI-1300",
@@ -10550,8 +10549,8 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Source/LinqToDB/Mapping/EntityDescriptor.cs:47",
       "Source/LinqToDB/Mapping/EntityDescriptor.cs:53",
@@ -10647,53 +10646,52 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:969",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:977",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:985",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:993",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1006",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1019",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1032",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1042",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1167",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1177",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1251",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1254",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1257",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1260",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1370",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1377",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1384",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1391",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1410",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1424",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1445",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1448",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1451",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1454",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1457",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1460",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1481",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1484",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1487",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1490",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1493",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1496",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1499",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1502",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1505",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1508",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1511",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1514",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1533",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1559",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1586",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1610",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1624",
-      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1638"
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:974",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:982",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:990",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:998",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1011",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1024",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1037",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1047",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1172",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1182",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1256",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1259",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1262",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1265",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1375",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1382",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1389",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1396",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1415",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1429",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1450",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1453",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1456",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1459",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1462",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1486",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1489",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1492",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1495",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1498",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1501",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1504",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1507",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1510",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1513",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1516",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1519",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1538",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1564",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1591",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1615",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1629",
+      "Source/LinqToDB/Linq/Translation/WindowFunctionsMemberTranslator.cs:1643"
     ]
   },
   {
@@ -10721,21 +10719,21 @@
     "source": "code",
     "area": "INTERNAL-API",
     "title": "TypeMapper's public API surface lacks XML doc summaries",
-    "files": [
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:47",
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:200",
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:927",
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1043",
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1122",
-      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1327"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:47",
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:200",
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:923",
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1039",
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1118",
+      "Source/LinqToDB/Internal/Expressions/Types/TypeMapper.cs:1323"
+    ]
   },
   {
     "id": "DI-1320",
@@ -10749,10 +10747,10 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/Linq/Query{T}.cs:20"
+      "Source/LinqToDB/Internal/Linq/Query{T}.cs:24"
     ]
   },
   {
@@ -10805,10 +10803,10 @@
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "medium"
+    "confidence": "medium",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-1362",
@@ -10872,16 +10870,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue4811 CompiledQuery + IEntityServiceInterceptor.EntityCreated (DataConnectionTests)",
-    "files": [
-      "Tests/Linq/Data/DataConnectionTests.cs:506"
-    ],
     "status": "triaged",
     "gh_issue": 4811,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Data/DataConnectionTests.cs:525"
+    ]
   },
   {
     "id": "DI-1441",
@@ -10890,16 +10888,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue3352 PostgreSQL function-parameter typing (PostgreSQLTests)",
-    "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2221"
-    ],
     "status": "triaged",
     "gh_issue": 3352,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2328"
+    ]
   },
   {
     "id": "DI-1442",
@@ -10908,16 +10906,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue4250 Sql.Expression parameter-name formatting (PostgreSQLTests, Issue4250Test)",
-    "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2787"
-    ],
     "status": "triaged",
     "gh_issue": 4250,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2895"
+    ]
   },
   {
     "id": "DI-1443",
@@ -10926,17 +10924,17 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated tests: external npgsql#4780 schema-naming-convention round-trip (PostgreSQLTests, Issue4780Test1/2)",
-    "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2844",
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2884"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2953",
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2994"
+    ]
   },
   {
     "id": "DI-1444",
@@ -10945,16 +10943,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue2796 PostgreSQL tstzrange to NpgsqlRange mapping (PostgreSQLTests, Issue2796Test2)",
-    "files": [
-      "Tests/Linq/DataProvider/PostgreSQLTests.cs:2964"
-    ],
     "status": "triaged",
     "gh_issue": 2796,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/DataProvider/PostgreSQLTests.cs:3076"
+    ]
   },
   {
     "id": "DI-1445",
@@ -11022,13 +11020,13 @@
       "Tests/Linq/Linq/CompileTests.cs:593",
       "Tests/Linq/Linq/CompileTests.cs:622"
     ],
-    "status": "triaged",
     "gh_issue": 4365,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "status": "fixed",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-1449",
@@ -11037,16 +11035,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue3806 association generates two queries (EagerLoadingTests, Issue3806Test)",
-    "files": [
-      "Tests/Linq/Linq/EagerLoadingTests.cs:1735"
-    ],
     "status": "triaged",
     "gh_issue": 3806,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "medium"
+    "confidence": "medium",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/EagerLoadingTests.cs:1813"
+    ]
   },
   {
     "id": "DI-1450",
@@ -11055,16 +11053,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue4585 exception on loading child-type association (EagerLoadingTests, Issue4585Test)",
-    "files": [
-      "Tests/Linq/Linq/EagerLoadingTests.cs:3128"
-    ],
     "status": "triaged",
     "gh_issue": 4585,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/EagerLoadingTests.cs:3213"
+    ]
   },
   {
     "id": "DI-1451",
@@ -11080,13 +11078,13 @@
       "Tests/Linq/Linq/FSharpTests.cs:404",
       "Tests/Linq/Linq/FSharpTests.cs:412"
     ],
-    "status": "triaged",
     "gh_issue": 1813,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "status": "fixed",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-1452",
@@ -11095,16 +11093,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue4666 Merge into TPH table with EF entities (InheritanceTests, Issue4666Test)",
-    "files": [
-      "Tests/Linq/Linq/InheritanceTests.cs:1069"
-    ],
     "status": "triaged",
     "gh_issue": 4666,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/InheritanceTests.cs:1162"
+    ]
   },
   {
     "id": "DI-1453",
@@ -11113,17 +11111,17 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated tests without issue reference: TestInsertIssue1/2 (InheritanceTests)",
-    "files": [
-      "Tests/Linq/Linq/InheritanceTests.cs:1298",
-      "Tests/Linq/Linq/InheritanceTests.cs:1320"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "medium"
+    "confidence": "medium",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/InheritanceTests.cs:1398",
+      "Tests/Linq/Linq/InheritanceTests.cs:1426"
+    ]
   },
   {
     "id": "DI-1454",
@@ -11132,16 +11130,16 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: closed-issue reference #279 StorageFieldTest (MappingTests)",
-    "files": [
-      "Tests/Linq/Linq/MappingTests.cs:767"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/MappingTests.cs:767"
+    ]
   },
   {
     "id": "DI-1455",
@@ -11150,16 +11148,16 @@
     "source": "cross",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: Issue2362 query skips rows with empty string (MappingTests, Issue2362Test)",
-    "files": [
-      "Tests/Linq/Linq/MappingTests.cs:1391"
-    ],
     "status": "triaged",
     "gh_issue": 2362,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/MappingTests.cs:1435"
+    ]
   },
   {
     "id": "DI-1456",
@@ -11204,16 +11202,16 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "ActiveIssue-gated test: closed-issue reference #4799 String_PadRight_Translation (StringFunctionTests)",
-    "files": [
-      "Tests/Linq/Linq/StringFunctionTests.cs:1176"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
-    "last_seen_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
-    "last_seen_at": "2026-07-06",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/StringFunctionTests.cs:1808"
+    ]
   },
   {
     "id": "DI-1459",
@@ -11246,8 +11244,8 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "high",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Linq/EagerLoadingStrategyUnionTests.cs:1129",
       "Tests/Linq/Linq/EagerLoadingStrategyUnionTests.cs:1172",
@@ -11266,8 +11264,8 @@
     "first_detected_sha": "36ee4f82f06eaf242b052ade8c87121d251a6165",
     "first_detected_at": "2026-07-06",
     "confidence": "medium",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_at": "2026-10-09",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
       "Tests/Linq/Linq/EagerLoadingStrategyUnionTests.cs:1875"
     ]
@@ -11317,16 +11315,16 @@
     "source": "code",
     "area": "FSHARP",
     "title": "TODO: IsScalarSingleCaseUnion uses MappingSchema.Default (#5675)",
-    "files": [
-      "Source/LinqToDB.FSharp/FSharpSingleCaseUnionSupport.fs:50"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB.FSharp/FSharpSingleCaseUnionSupport.fs:57"
+    ]
   },
   {
     "id": "DI-2051",
@@ -11335,16 +11333,16 @@
     "source": "code",
     "area": "FSHARP",
     "title": "TODO: IsScalarOption uses MappingSchema.Default (#5675)",
-    "files": [
-      "Source/LinqToDB.FSharp/FSharpOptionSupport.fs:97"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB.FSharp/FSharpOptionSupport.fs:97"
+    ]
   },
   {
     "id": "DI-2250",
@@ -11372,16 +11370,16 @@
     "source": "code",
     "area": "LINQPAD",
     "title": "HACK comment: SQLiteProvider reflection reset of SqliteFactory.Instance",
-    "files": [
-      "Source/LinqToDB.LINQPad/DatabaseProviders/SQLiteProvider.cs:32"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB.LINQPad/DatabaseProviders/SQLiteProvider.cs:27"
+    ]
   },
   {
     "id": "DI-2252",
@@ -11467,8 +11465,6 @@
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
     "files": [
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:116",
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:120",
@@ -11476,7 +11472,9 @@
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:129",
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:133",
       "Source/LinqToDB/Internal/SqlQuery/QueryElementType.cs:140"
-    ]
+    ],
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-3301",
@@ -11490,10 +11488,10 @@
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:1441"
+      "Source/LinqToDB/Internal/SqlQuery/Visitors/QueryElementVisitor.cs:1450"
     ]
   },
   {
@@ -11526,10 +11524,10 @@
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.cs:3730"
+      "Source/LinqToDB/Internal/SqlProvider/BasicSqlBuilder.cs:3710"
     ]
   },
   {
@@ -11539,16 +11537,16 @@
     "source": "code",
     "area": "TESTS-INFRA",
     "title": "TODO: AllTypes not covered by test-database state check",
-    "files": [
-      "Tests/Base/TestBase.Asserts.cs:250"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Base/TestBase.Asserts.cs:235"
+    ]
   },
   {
     "id": "DI-3650",
@@ -11561,13 +11559,13 @@
       "Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs:77",
       "Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs:103"
     ],
-    "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "status": "fixed",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-3651",
@@ -11576,17 +11574,17 @@
     "source": "code",
     "area": "TESTS-LINQ",
     "title": "TODO/FIXME/HACK/XXX comment",
-    "files": [
-      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:1934",
-      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:1965"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
-    "last_seen_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
-    "last_seen_at": "2026-10-09",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:2762",
+      "Tests/Linq/Linq/DateTimeFunctionsTests.cs:2793"
+    ]
   },
   {
     "id": "DI-3652",
@@ -11600,11 +11598,11 @@
     "first_detected_sha": "05150894edc2511f0dd0bc7829b2a309cec36ec9",
     "first_detected_at": "2026-10-09",
     "confidence": "high",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_at": "2026-10-21",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
     "files": [
-      "Tests/Linq/Linq/RemoteContextTests.cs:255",
-      "Tests/Linq/Linq/RemoteContextTests.cs:302"
+      "Tests/Linq/Linq/RemoteContextTests.cs:258",
+      "Tests/Linq/Linq/RemoteContextTests.cs:303"
     ]
   },
   {
@@ -11672,13 +11670,13 @@
     "files": [
       "Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdMappingSchema.cs:192"
     ],
-    "status": "open",
     "gh_issue": null,
     "first_detected_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
     "first_detected_at": "2026-10-21",
-    "last_seen_at": "2026-10-21",
-    "confidence": "high"
+    "confidence": "high",
+    "status": "fixed",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11"
   },
   {
     "id": "DI-4601",
@@ -11705,16 +11703,16 @@
     "source": "cross",
     "area": "SQL-PROVIDER",
     "title": "TODO: default value per database type (#5999)",
-    "files": [
-      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:2064"
-    ],
     "status": "triaged",
     "gh_issue": 5999,
     "first_detected_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
     "first_detected_at": "2026-10-21",
-    "last_seen_at": "2026-10-21",
-    "confidence": "high"
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionConvertVisitor.cs:2432"
+    ]
   },
   {
     "id": "DI-5301",
@@ -11723,15 +11721,256 @@
     "source": "code",
     "area": "TESTS-INFRA",
     "title": "Empty catch of TypeInitializationException in FpuJit RunTypeInitializers",
-    "files": [
-      "Tests/Tests.FpuJit/Program.cs:730"
-    ],
     "status": "open",
     "gh_issue": null,
     "first_detected_sha": "89b5ce16278728b9936ba374827fea002c76e962",
-    "last_seen_sha": "89b5ce16278728b9936ba374827fea002c76e962",
     "first_detected_at": "2026-10-21",
-    "last_seen_at": "2026-10-21",
+    "confidence": "high",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_at": "2026-11-11",
+    "files": [
+      "Tests/Tests.FpuJit/Program.cs:731"
+    ]
+  },
+  {
+    "id": "DI-5440",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "SQL-AST",
+    "title": "Commented-out ExprExpr Reduce call with TODO placeholder in QueryHelper.Evaluate",
+    "files": [
+      "Source/LinqToDB/Internal/SqlQuery/QueryHelper.Evaluate.cs:156"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "medium"
+  },
+  {
+    "id": "DI-5460",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "SQL-PROVIDER",
+    "title": "TODO: block comment 'it is buggy' in SqlExpressionOptimizerVisitor",
+    "files": [
+      "Source/LinqToDB/Internal/SqlProvider/SqlExpressionOptimizerVisitor.cs:873"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
     "confidence": "high"
+  },
+  {
+    "id": "DI-5500",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "DATA",
+    "title": "TODO/FIXME/HACK/XXX comment",
+    "files": [
+      "Source/LinqToDB/Data/DataConnection.cs:1193"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-5520",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "CORE",
+    "title": "TODO/FIXME/HACK/XXX comment",
+    "files": [
+      "Source/LinqToDB/LinqOptions.cs:340"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-5521",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "CORE",
+    "title": "TODO/FIXME/HACK/XXX comment",
+    "files": [
+      "Source/LinqToDB/LinqOptions.cs:372"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-5522",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "CORE",
+    "title": "TODO/FIXME/HACK/XXX comment",
+    "files": [
+      "Source/LinqToDB/LinqOptions.cs:409"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-5920",
+    "severity": "low",
+    "category": "todo-fixme",
+    "source": "code",
+    "area": "BUILD",
+    "title": ".editorconfig disables analyzers behind unresolved TODO comments",
+    "files": [
+      ".editorconfig:521",
+      ".editorconfig:524",
+      ".editorconfig:813"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-6160",
+    "severity": "med",
+    "category": "code-smell",
+    "source": "code",
+    "area": "TESTS-INFRA",
+    "title": "Empty catch around SqlServerTypes native assembly loading in TestBase",
+    "files": [
+      "Tests/Base/TestBase.cs:124"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-6180",
+    "severity": "med",
+    "category": "code-smell",
+    "source": "code",
+    "area": "TESTS-LINQ",
+    "title": "Comment-only catch blocks in test-assembly cleanup",
+    "files": [
+      "Tests/Linq/TestsInitialization.cs:494",
+      "Tests/Linq/TestsInitialization.cs:496"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-6260",
+    "severity": "low",
+    "category": "tech-debt",
+    "source": "code",
+    "area": "DOCS",
+    "title": "metrics.md links to an example on a non-existent metrics branch",
+    "files": [
+      "docs/source/articles/general/metrics.md:196"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "high"
+  },
+  {
+    "id": "DI-6261",
+    "severity": "med",
+    "category": "tech-debt",
+    "source": "code",
+    "area": "DOCS",
+    "title": "Docs build depends on a personal docfx fork release",
+    "files": [
+      "docs/docfx-version.json:3",
+      "docs/build.ps1:39",
+      "docs/source/docfx.json:2"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "medium"
+  },
+  {
+    "id": "DI-6262",
+    "severity": "low",
+    "category": "tech-debt",
+    "source": "code",
+    "area": "DOCS",
+    "title": "build.ps1 carries docfx/analyzer workarounds and a full F# pre-build",
+    "files": [
+      "docs/build.ps1:64",
+      "docs/source/docfx.json:101"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "medium"
+  },
+  {
+    "id": "DI-6263",
+    "severity": "low",
+    "category": "tech-debt",
+    "source": "code",
+    "area": "DOCS",
+    "title": "Docs link to the GitHub wiki for release notes and migration guidance",
+    "files": [
+      "docs/source/articles/toc.yml:2",
+      "docs/source/articles/general/interceptors.md:332"
+    ],
+    "status": "open",
+    "gh_issue": null,
+    "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
+    "first_detected_at": "2026-11-11",
+    "last_seen_at": "2026-11-11",
+    "confidence": "low"
   }
 ]

@@ -1,3 +1,4 @@
+- [Release 6.5.1](#release-651)
 - [Release 6.5.0](#release-650)
 - [Release 6.4.0](#release-640)
 - [Release 6.3.0](#release-630)
@@ -37,6 +38,329 @@
 - [Older Versions](https://github.com/linq2db/linq2db/wiki/Archived-Release-Notes)
 
 ***
+
+### Release 6.5.1
+
+#### LinqToDB
+
+##### ⚠ Breaking changes
+
+- An arithmetic, bitwise, `??` or comparison operator between two columns whose values are stored differently — different value converters, or a converted column against an unconverted one — is now refused instead of answering wrong. Previously the stored values were combined as-is: two `TimeSpan` columns, one stored as ticks and one as seconds, added up to `01:30:00.0005400` instead of `03:00:00` and compared unequal while holding the same duration. Where the expression has to run in SQL (`Where`, `Sql.AsSql`, …) it now throws `LinqToDBException` ("…their value converters do not agree…"); in a plain projection it is computed on the client and returns the correct value. If the error hits columns that do store values the same way:
+  - **Delegate converters.** A converter built from delegates (`HasConversionFunc`) cannot be compared, so it is always treated as different. Declare it with expressions instead (`HasConversion`); two columns with the same expression converter are recognised as stored the same way.
+  - **Converters that leave the stored value unchanged.** If a converter only wraps the value or changes how a missing value is represented, implement the marker interface `LinqToDB.Internal.Mapping.IStorageTransparentConverter` on it. Such a column can then be combined with an unconverted one. F# `option` / `voption` and single-case-union columns already work this way ([#6107](https://github.com/linq2db/linq2db/pull/6107)). ([#5902](https://github.com/linq2db/linq2db/pull/5902))
+- Calculations on a column from the missing side of a `LEFT JOIN` now see the .NET default of the column's type (`0`, `false`, `default(T)`), as reading the column itself already did. A non-nullable value-type column that is `NULL` only because the outer join found no row was read back as that .NET default, but a calculation on it ran in SQL over `NULL` and disagreed: `j.Value1 + 1` returned `0` instead of `1`, `j.Value1 < 5 ? "a" : "b"` returned `"b"`, and `$"[{j.Value1}]"` returned `"[]"`. In a projection, arithmetic, comparisons, conditionals, `IN`, string formatting and function arguments now use it. Filters, joins, ordering, grouping, set operations, update setters and aggregates still see `NULL`. A cast to a nullable type (`(long?)j.Value1`) now returns `null` rather than `0`. Enum, value-converted, duration and `char` columns are unchanged. ([#5983](https://github.com/linq2db/linq2db/pull/5983))
+- The arguments of a `FormattableString` held in a variable and used inside a query are now sent as SQL parameters instead of being inlined as literals. The same applies to the arguments of EF Core's `FromSqlRaw` / `FromSqlInterpolated` translated by LinqToDB. Where the database accepts only a literal at that position, pass the SQL as a `RawSqlString` instead. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+- `string.Format` with an alignment item is no longer translated to SQL:
+
+  ```csharp
+  db.Person.Select(p => string.Format("{0,5}", p.ID))
+  // 6.5.0 sent the literal text "{0,5}" to the database; now it is evaluated on the client
+  ```
+
+  In a filter it now throws `LinqToDBException`. A malformed format string is no longer translated either: a projection now throws `FormatException` and a filter throws `LinqToDBException`. Previously the format was sent as a constant and its arguments were dropped. ([#6008](https://github.com/linq2db/linq2db/pull/6008))
+
+##### Added
+
+- A date difference read through `Nullable<TimeSpan>.Value` — e.g. `(x.End - x.Start).Value.TotalHours` over nullable dates — now translates to SQL. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+
+##### Improved
+
+- `Sql.Expr<T>($"{value}")` no longer rebuilds its query on every execution. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+
+##### Fixed
+
+- A `Concat` / `UnionAll` whose branches project an anonymous object cast to `object` silently dropped members computed on the client. This had been broken since 6.4.0:
+
+  ```csharp
+  db.Person.Select(p => (object)new { id = "p_" + p.ID.ToString(), name = p.Name })
+      .Concat(db.Doctor.Select(d => (object)new { id = "d_" + d.PersonID.ToString(), name = d.Taxonomy }))
+  // 6.5.0: each row came back as a bare string (the name); 6.4.0 threw "could not be converted to SQL"
+  ```
+
+  ([#5919](https://github.com/linq2db/linq2db/pull/5919))
+- Eager loading a sorted child collection failed when the sort key was not part of the selected columns. This had been broken since 6.4.0:
+
+  ```csharp
+  db.Item.Select(i => new
+  {
+      i.Id,
+      Logs = i.Logs.OrderBy(l => l.Id).Select(l => new { l.Text }).ToList()
+  })   // threw "No generic method 'OrderBy' on type 'System.Linq.Enumerable' is compatible…"
+  ```
+
+  `OrderByDescending`, `ThenBy` and `ThenByDescending` failed the same way, as did `OrderBy` followed by `SelectMany` or `Cast`. One behaviour change: when the child projection rebuilds the same entity type and changes the sort key, the rows now come back in the database's order rather than being re-sorted by the changed value. ([#5938](https://github.com/linq2db/linq2db/pull/5938))
+- With the opt-in `EagerLoadingStrategy.KeyedQuery`, a `Take` / `Skip` on an eager-loaded child collection limited the whole batch instead of each parent. The first parents took all the rows and the rest came back empty:
+
+  ```csharp
+  db.Parent.Select(p => new
+  {
+      p.ParentID,
+      Children = p.Children.OrderBy(c => c.ChildID).Take(2).ToArray()
+  })   // child counts came back as [2, 0, 0, …] instead of [2, 2, 2, …]
+  ```
+
+  The child query is now limited per parent. ([#5939](https://github.com/linq2db/linq2db/pull/5939))
+- A cast to `double` through an integer lost the integer truncation:
+
+  ```csharp
+  db.Types.Select(t => (double)(int)t.DoubleValue)   // returned 1.25 instead of 1
+  ```
+
+  Functions over such a cast, e.g. `Sql.Degrees((int)x)`, now keep the truncation too. ([#5943](https://github.com/linq2db/linq2db/pull/5943))
+- A date/time or decimal literal or parameter compared with a computed value, or listed in `IN` beside one, was cut to the computed value's precision. For example, the sub-second part of a `DateTime` was dropped, so the query could match the wrong rows. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- A null check over the missing side of a `LEFT JOIN` to a subquery could be dropped from the SQL, so rows came back `NULL` instead of the fallback value:
+
+  ```csharp
+  from p in db.Parent
+  join m in db.Child.Where(c => c.ChildID > 10) on p.ParentID equals m.ParentID into lj
+  from m in lj.DefaultIfEmpty()
+  where ids.Contains(p.ParentID)
+  select m.Name == null ? "none" : m.Name   // returned NULL instead of "none"
+  ```
+
+  The first run of a query was correct; later runs of a query with parameter-dependent parts (such as `ids.Contains(...)`) and every query through a remote context (`LinqService`) were wrong. `??` failed the same way. On Access even a plain `??` was affected. ([#5971](https://github.com/linq2db/linq2db/pull/5971))
+- `Concat` / `Union` over columns with a `DateTime?` value converter, such as one defined in EF Core, failed since 6.5.0:
+
+  ```csharp
+  ctx.Orders.Select(o => o.ShippedAt).Concat(ctx.Returns.Select(r => r.ReceivedAt)).ToLinqToDB().ToList()
+  // threw "The operands for operator 'NotEqual' do not match the parameters of method 'op_Inequality'"
+  ```
+
+  ([#5978](https://github.com/linq2db/linq2db/pull/5978))
+- An `Insert` / `Update` setting a converted column to a server-side value failed since 6.2.0:
+
+  ```csharp
+  db.Orders.Where(o => o.Id == id).Set(o => o.UpdatedAt, () => DateTime.UtcNow).Update()
+  // with a value converter on UpdatedAt: threw "could not be converted to SQL"
+  ```
+
+  When the conversion cannot be expressed in SQL, the server-side value is now stored unconverted, as in 5.x. ([#5978](https://github.com/linq2db/linq2db/pull/5978))
+- With `LinqOptions.PreferClientCalculation` enabled, a function wrapped around a calculation on a column from the missing side of a `LEFT JOIN` — e.g. `Sql.ToNullable(j.Value1 + 1)` — returned `1` instead of `null` for a missed row. The option now also computes string interpolation on the client. ([#5983](https://github.com/linq2db/linq2db/pull/5983))
+- A date difference with a local variable or method argument as an operand — `(asOf - x.Date).TotalDays` — threw "could not be converted to SQL" in `Where` / `OrderBy` since 6.5.0, and fell back to .NET in a projection. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+- `FromSql`, `FromSqlScalar` and `Sql.Expr` nested inside a query — e.g. `Id.In(db.FromSqlScalar<int>(sql))` run in a loop with a different SQL each time — kept executing the SQL from the first run. A change in the number or type of arguments could also throw `InvalidCastException` or `IndexOutOfRangeException`. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+- A compiled query using `FromSql(RawSqlString, …)` threw "variable 'ps' … is not defined" when the SQL or the argument array was a parameter of the compiled query. Passing a `FormattableString` as a compiled-query parameter threw as well. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+- In raw SQL, escaped braces right next to an argument (`{{{0}}}`) lost a brace. ([#6008](https://github.com/linq2db/linq2db/pull/6008))
+- On .NET Framework x86, in a process whose native host unmasks floating-point exceptions (as Delphi and C++Builder applications do), the JIT compiler crashed while compiling LinqToDB code that uses certain floating-point constants. On .NET Framework 4.8 the crash surfaced as `SEHException` (`STATUS_FLOAT_MULTIPLE_TRAPS`, 0xC00002B5); on 4.8.1 it was a stack overflow inside the JIT. Older code with this problem was specific to a provider and to special values (NaN, infinity) on Oracle, Firebird, DB2, ClickHouse, YDB and DuckDB. Since 6.4.0 the query cache contained such code as well, so every application in such a host crashed on its first query. All of these places now avoid those constants ([#6058](https://github.com/linq2db/linq2db/pull/6058)). ([#6053](https://github.com/linq2db/linq2db/pull/6053))
+- A struct built in one `Select` and used more than once in a later step made the query fail to build:
+
+  ```csharp
+  db.Parent
+      .Select(p => new { Info = new ParentInfo(p.ParentID, p.Value1) })
+      .Select(x => new { First = x.Info, Second = x.Info })   // threw "Coalesce used with type that cannot be null"
+  ```
+
+  It failed the same way after `Concat` / `Union`, and when the struct was used in both branches of a conditional. ([#6069](https://github.com/linq2db/linq2db/pull/6069))
+- A query that builds a value in one `Select` and reads its members in a later step failed when the value was converted to a wider type. Examples are converting a struct to its nullable form, or an object to an interface or base class:
+
+  ```csharp
+  db.Parent
+      .Select(p => new { Info = (ParentInfo?)new ParentInfo { Id = p.ParentID } })
+      .Select(x => x.Info!.Value.Id)   // threw "Property 'Int32 Id' is not defined for type 'System.Nullable`1[ParentInfo]'"
+  ```
+
+  It failed the same way after `Concat` / `Union`, `Distinct`, `GroupBy`, `OrderBy().Take()`, in a subquery and in a CTE. ([#6091](https://github.com/linq2db/linq2db/pull/6091))
+- `HasValue` on a nullable struct read from a `LEFT JOIN` gave the wrong answer: `true` when no row was joined, and `false` for a value supplied as the default in `DefaultIfEmpty(...)`. ([#6091](https://github.com/linq2db/linq2db/pull/6091))
+- The `Length` of a local array could not be used where the query needs it in SQL:
+
+  ```csharp
+  var ids = new[] { 1, 2, 3 };
+  db.Person.Where(p => p.ID == ids.Length)   // threw "could not be converted to SQL"
+  ```
+
+  It is now sent as a parameter. The same failure affected `Insert` setters, compiled-query `int[]` arguments and `Concat` projections. ([#6103](https://github.com/linq2db/linq2db/pull/6103))
+- An association declared on a base class was not found when the entity was queried through an interface that the entity implements but the base class doesn't:
+
+  ```csharp
+  class ClientBase           { [Association(...)] public Contract Contract { get; set; } }
+  class Client : ClientBase, IClient { }
+
+  ((IQueryable<IClient>)db.GetTable<Client>()).Where(e => e.Contract.Id == 5)
+  // threw "could not be converted to SQL"
+  ```
+
+  The same happened through a generic `where T : IClient`. `LoadWith(e => e.Contract, q => q.Where(…))` through the interface silently ignored the filter and loaded the association unfiltered. ([#6109](https://github.com/linq2db/linq2db/pull/6109))
+
+#### LinqToDB F# Support
+
+##### Fixed
+
+- An F# record that declares a `static let` binding (allowed since F# 8) was read wrong:
+
+  ```fsharp
+  type Person =
+      { ID: int; FirstName: string; LastName: string }
+      static let separator = ", "
+
+  db.GetTable<Person>() |> Seq.toList
+  // threw "Expression of type 'System.Int32' cannot be used for constructor parameter of type 'System.String'"
+  ```
+
+  When the field types happened to match, values landed in the wrong fields instead. A record-copy update (`{ row with … }`) threw or set the wrong column. Filtering a projection into such a record failed with "could not be converted to SQL". ([#6025](https://github.com/linq2db/linq2db/pull/6025))
+
+#### LinqToDB LINQPad Driver
+
+##### Added
+
+- A new Scaffold setting, "[SQL Server] Expose procedure return value", adds the procedure's return code as a trailing `out` parameter to stored-procedure methods. It is on for new connections and off for existing ones, so existing queries keep their procedure signatures. Dragging a procedure with an output parameter into a query now writes `out var <name>`. ([#6026](https://github.com/linq2db/linq2db/pull/6026))
+
+#### LinqToDB Remote Context
+
+##### Fixed
+
+- A remote context (`LinqService`) server ignored column attributes scoped to a configuration and applied the unscoped attribute instead:
+
+  ```csharp
+  [Column(DataType = DataType.DateTime2, Precision = 3)]
+  [Column(Configuration = ProviderName.ClickHouse, DataType = DataType.DateTime64, Precision = 7)]
+  public DateTime Stamp { get; set; }
+  // a remote insert stored 10:11:12.1230000 where a direct insert kept 10:11:12.1234567
+  ```
+
+  The server now reads the mapping from the data context it creates for the request. A service that overrides `CreateDataContext` gets that context's mapping schema. ([#5967](https://github.com/linq2db/linq2db/pull/5967))
+
+#### LinqToDB CLI
+
+##### ⚠ Breaking changes
+
+- With `--mssql-enable-return-value-parameter`, every generated SQL Server stored-procedure wrapper failed at runtime with "Procedure or function … has too many arguments specified", because `@return` was scaffolded as an output parameter. It is now scaffolded as the procedure's return value. Regenerated async wrappers no longer take an `int @return` argument, so callers that passed one need updating. ([#6026](https://github.com/linq2db/linq2db/pull/6026))
+
+#### Access
+
+##### Fixed
+
+- Raw SQL that references its arguments out of order or more than once — `{1} - {0}`, a repeated `{0}` — bound the wrong values. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+
+#### ClickHouse
+
+##### Fixed
+
+- `Sql.Power(x.D, 0.00005m) + x.D` returned `17` instead of `17.0001`. Rounding, and decimal literals next to `Decimal32` / `Decimal64` columns, failed with Code 69 "Decimal value is too big" or Code 407 "Decimal math overflow". ([#5943](https://github.com/linq2db/linq2db/pull/5943))
+- A date difference over a `DateTime` column — `(Max(x.Dt) - Min(x.Dt)).TotalDays` with `[Column(DataType = DataType.DateTime)]` — failed since 6.5.0 with "Expected: DateTime64, got: DateTime". This is fixed, and so is the same error when the operand is the current time, a date built from parts, a `.Date` truncation, `MIN` / `MAX`, `COALESCE` or a window function. Millisecond `DateAdd` / `DatePart` failed the same way and are fixed too. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- The millisecond part of a date before 1970 came back with the wrong sign (`-500` instead of `500`). ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- An `IN` list mixing a `DateTime` column with `DateTime64` values failed with Code 53. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- A column whose mapping declares no type, over a server column that is a plain `DateTime` (e.g. a table created outside LinqToDB), failed in date differences and millisecond `DateAdd` / `DatePart` with "Expected: DateTime64, got: DateTime":
+
+  ```csharp
+  // CREATE TABLE Events (Id Int32, At DateTime) ENGINE = MergeTree ORDER BY Id
+  [Column] public DateTime At { get; set; }   // no DataType declared
+
+  db.GetTable<Event>().Select(e => (e.At - e.At.Date).TotalMilliseconds)   // threw "Expected: DateTime64, got: DateTime"
+  ```
+
+  The same failure hit a date function built with `Sql.Extension`, `[Sql.Expression]` or `[Sql.Function]` over such a column. Both now work. ([#6116](https://github.com/linq2db/linq2db/pull/6116))
+
+#### DuckDB
+
+##### Fixed
+
+- A date difference with a parameter operand failed with "Conversion Error: invalid timestamp field format". ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+
+#### Firebird
+
+##### Fixed
+
+- `date + (end - start)` in a projection was refused since 6.5.0, where 6.4.0 computed it in .NET. It now translates to SQL, also in `Where`, `OrderBy` and `Update.Set`. `ElapsedTicks` of a difference longer than about 2,900 years no longer overflows. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+
+#### Informix
+
+##### Fixed
+
+- A cast to a date failed with an "ambiguous" error and now works. A cast to a date now truncates the time. `DateTime2` columns are created as `DATETIME YEAR TO FRACTION(5)` instead of `FRACTION(3)`. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- A `DateTime`, `DateTimeOffset` or `DateOnly` parameter in a `CASE` or conditional branch next to a non-parameter branch was rejected by the server. It is now sent inline as a literal. ([#5978](https://github.com/linq2db/linq2db/pull/5978))
+- Raw SQL that references its arguments out of order or more than once — `{1} - {0}`, a repeated `{0}` — bound the wrong values. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+
+#### Oracle
+
+##### Fixed
+
+- `date + (end - start)` in a projection was refused since 6.5.0, where 6.4.0 computed it in .NET. It now translates to SQL, also in `Where`, `OrderBy` and `Update.Set`. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+- On Oracle 11, a query with a `!= null` filter inside a correlated subquery was refused before reaching the server. This had been broken since 6.3.0:
+
+  ```csharp
+  db.Child.Where(c => c.ParentID != null).Any(c => c.ChildID > 15)
+  // threw "Column expression should not contain parent's IS NOT NULL condition."
+  ```
+
+  The same error hit a correlated `Any` in a projection, a correlated `Count` with a `!= null` condition, and `!= null` inside a `Max` selector or a nested `Exists`. A correlation inside a derived table nested in an aggregate subquery, which Oracle 11 cannot run, is now refused with a clear translation error instead of failing on the server with `ORA-00904`. ([#6027](https://github.com/linq2db/linq2db/pull/6027))
+
+#### PostgreSQL
+
+##### Fixed
+
+- The most negative `long` value failed as a typed literal, because the minus sign was applied after the cast:
+
+  ```csharp
+  db.Select(() => Sql.AsSql(long.MinValue))
+  // sent -9223372036854775808::BigInt and failed with "22003: bigint out of range"
+  ```
+
+  Negative integer literals are now written as `(-n)::Type`. Other negative values return the same results as before; only their SQL text changes. ([#5974](https://github.com/linq2db/linq2db/pull/5974))
+- `BulkCopyTimeout` applied only to the first batch of a provider-specific bulk copy. Later batches ran under the connection's command timeout:
+
+  ```csharp
+  db.BulkCopy(new BulkCopyOptions { BulkCopyType = BulkCopyType.ProviderSpecific, BulkCopyTimeout = 0 }, rows);
+  // past the first batch (MaxBatchSize, 10,000 rows by default) failed with "Timeout during reading attempt"
+  ```
+
+  The timeout now applies to every batch, in the sync, async and `IAsyncEnumerable` overloads. ([#5980](https://github.com/linq2db/linq2db/pull/5980))
+
+#### SAP HANA
+
+##### Fixed
+
+- Raw SQL that references its arguments out of order or more than once — `{1} - {0}`, a repeated `{0}` — bound the wrong values. ([#6003](https://github.com/linq2db/linq2db/pull/6003))
+
+##### Known limitations
+
+- A `KeyedQuery` eager load with `Take` / `Skip` on the child collection now fails with "non-field expression with LATERAL" instead of silently returning wrong rows ([#5940](https://github.com/linq2db/linq2db/issues/5940)). ([#5939](https://github.com/linq2db/linq2db/pull/5939))
+
+#### SQL CE
+
+##### Fixed
+
+- `Sql.Convert(Sql.Types.Date, x)` now drops the time part. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+
+#### SQL Server
+
+##### Fixed
+
+- On SQL Server 2005, `Sql.Convert(Sql.Types.Date, x)` now drops the time part. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- On SQL Server 2005–2014, and on newer servers with a database at compatibility level 120 or lower, every member of a date difference was refused since 6.5.0, even in a plain projection. These members now translate to SQL. Shifting a `datetime`, `smalldatetime` or `date` value by a difference (`date + (end - start)`) now works on all versions. On SQL Server 2005 a difference with a component below one millisecond is still refused. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+
+#### SQLite
+
+##### Fixed
+
+- Comparing a date with a timestamp, including in `IN` lists, kept only the date part; the time part is now kept. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- `date + (end - start)` in a projection was refused since 6.5.0, where 6.4.0 computed it in .NET. It now translates to SQL, also in `Where`, `OrderBy` and `Update.Set`, at millisecond precision. Shifting a `DateTimeOffset` this way still fails. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
+
+#### Sybase ASE
+
+##### Fixed
+
+- A `DATE` column compared with a datetime value is now compared as datetime, including in `IN` lists. An index on the `DATE` column is no longer used for that comparison. ([#5959](https://github.com/linq2db/linq2db/pull/5959))
+- Raw SQL with an argument the format never references was rejected by the server, because the unused argument was still sent as a command parameter:
+
+  ```csharp
+  db.FromSql<int>("SELECT {0}", a, extra)   // Sybase ASE refused the unused parameter
+  ```
+
+  This also applies to `FromSqlScalar`, `Sql.Expr` and compiled queries. ([#6008](https://github.com/linq2db/linq2db/pull/6008))
+
+#### YDB
+
+##### Fixed
+
+- `Math.Round` / `Sql.Round` on a `decimal` no longer goes through `double`:
+
+  ```csharp
+  db.Types.Select(t => Math.Round(t.MoneyValue, 5))   // Decimal(6,2) column: failed with "Failed to unwrap empty optional"
+  ```
+
+  Values beyond 15–17 significant digits were rounded wrong, and rounding a decimal stored as `Double` threw `InsufficientExecutionStackException`. Now, a precision or result outside the server's range fails with "ROUND precision/value/result is out of range" instead of returning a wrong value. ([#5943](https://github.com/linq2db/linq2db/pull/5943))
+- With `UseParametrizedDecimal` enabled, casting a `decimal` to `long` / `int` now truncates exactly beyond 2^53. ([#5943](https://github.com/linq2db/linq2db/pull/5943))
+- `Sql.Power(x.D, 0.00005m) + x.D` lost the small addend and returned `17.0000` instead of `17.0001`. ([#5943](https://github.com/linq2db/linq2db/pull/5943))
+- `date + (end - start)` in a projection was refused since 6.5.0, where 6.4.0 computed it in .NET. It now translates to SQL, also in `Where`, `OrderBy` and `Update.Set`. ([#5987](https://github.com/linq2db/linq2db/pull/5987))
 
 ### Release 6.5.0
 

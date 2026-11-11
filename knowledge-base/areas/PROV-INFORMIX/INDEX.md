@@ -3,9 +3,9 @@ area: PROV-INFORMIX
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
-coverage_tier_1: 10/10
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+coverage_tier_1: 11/11
 coverage_tier_2: 5/5
 ---
 
@@ -93,8 +93,8 @@ Key overrides:
 - **No `FROM` dual needed for constant SELECT**: instead uses `table(set{1})` as `FakeTable` (`InformixSqlBuilder.Merge.cs:14`) -- a set-literal table constructor available since IDS 9.x, with a comment noting `sysmaster:sysdual` exists from 11.70.
 - **`VALUES(...)` not supported** in `InformixSqlBuilder.Merge.cs:10`, `IsValuesSyntaxSupported = false`.
 - **Row expressions**: `BuildSqlRow` emits `ROW(a, b)` syntax (`InformixSqlBuilder.cs:352`), not the bare `(a, b)` default.
-- **Identity columns**: `BuildCreateTableFieldType` maps `DataType.Int32` identity -- `SERIAL`, `DataType.Int64` identity -- `SERIAL8` (`InformixSqlBuilder.cs:222-232`). After `TRUNCATE TABLE ... RESET IDENTITY`, a second command of `ALTER TABLE ... MODIFY col SERIAL(1)` is issued (line 48-52). The inserted-row identity is retrieved with `SELECT DBINFO(sqlca.sqlerrd1) FROM systables where tabid = 1` (line 56).
-- **Type mappings** (`BuildDataTypeFromDataType`, lines 127-158): `VarBinary` -- `BYTE`, `DateTime` -- `datetime year to second`, `DateTime2` -- `datetime year to fraction`, `Time` -- `INTERVAL HOUR TO FRACTION(N)`, `Date` -- `DATETIME YEAR TO DAY`, `Boolean` -- `BOOLEAN`, `NVarChar` capped at 255 characters.
+- **Identity columns**: `BuildCreateTableFieldType` maps `DataType.Int32` identity -- `SERIAL`, `DataType.Int64` identity -- `SERIAL8` (`InformixSqlBuilder.cs:203,209`). The builder no longer owns identity retrieval or the post-truncate identity reset: the former `CommandCount` / `BuildCommand` overrides were removed and that logic now lives in `InformixDmlService` (see "DML service" below). The builder keeps only `BuildTruncateTable` (`TRUNCATE TABLE `, line 35) and `BuildSelectClause`, which for a from-less select appends `FakeTable` (`table(set{1})`, line 62) -- the hook the DML service identity select relies on.
+- **Type mappings** (`BuildDataTypeFromDataType`, lines 127-158): `VarBinary` -- `BYTE`, `DateTime` -- `datetime year to second`, `DateTime2` -- `datetime year to second` when `Precision == 0`, otherwise `datetime year to fraction(N)` with N clamped to 1..5 (default 5), `Time` -- `INTERVAL HOUR TO FRACTION(N)`, `Date` -- `DATETIME YEAR TO DAY`, `Boolean` -- `BOOLEAN`, `NVarChar` capped at 255 characters.
 - **Object names** (`BuildObjectName`, line 247): `database@server:schema.table` syntax, schema without server requires database, no schema separator otherwise. Reference: IBM docs SSGU8G_12.1.0 ids_sqs_1652.
 - **Parameters**: SQLI client uses positional `?`, IDS/DB2 uses `@name` (line 200-203). Stored procedure parameters use `:name` prefix (line 206-208).
 - **Parameter cast hooks**: the former `BuildParameter` override (which hand-built a typed expression using `BuildStep = Step.TypedExpression`, taking length from `byte[]`/`string` values and decimal facets via `CorrectDecimalFacets(..., updateNullsOnly: true)`) was removed in favour of two `BasicSqlBuilder` hooks: `ParameterCastDecimalNullsOnly => true` (Informix only fills decimal facets the parameter type leaves unset) and `GetParameterCastType(SqlParameter)` returning `GetValueBasedParameterCastType(parameter)` (`InformixSqlBuilder.cs:~365-373`). Known Informix parameter-typing problem case: CTE query column. `BuildTypedExpression` no longer saves/sets `BuildStep` (`InformixSqlBuilder.cs:305-312`).
@@ -103,6 +103,15 @@ Key overrides:
 - **Typed cast syntax**: `BuildTypedExpression` uses `expr::type` (double-colon cast, line 311).
 - **`LIKE` predicate**: not rewritten to `MATCHES`, uses standard SQL `LIKE` with optional `ESCAPE`.
 - **No `MERGE` `VALUES` syntax**: `IsValuesSyntaxSupported = false`, `MERGE INTO` is emitted but with a hint slot (`BuildMergeInto`, `InformixSqlBuilder.Merge.cs:20-35`).
+
+### DML service -- InformixDmlService
+
+`InformixDmlService` (`Source/LinqToDB/Internal/DataProvider/Informix/InformixDmlService.cs`, new) is a `sealed` `DmlServiceBase` returned from `InformixDataProvider.CreateDmlService()` (`InformixDataProvider.cs:110`). It replaces the builder old `CommandCount` / `BuildCommand` multi-command mechanism with `BuildCommandScenario(SqlStatement, SqlProviderFlags, ISqlExpressionFactory)`:
+
+- **Truncate with identity reset** (`SqlTruncateTableStatement { ResetIdentity: true }` with `Table.IdentityFields.Count > 0`): `PerFieldResetScenario` yields the truncate plus one `SqlRawStatement` per identity field, `ALTER TABLE {table} MODIFY {field} SERIAL(1)`, names rendered through `SqlObjectNameExpression` (`ConvertType.NameToQueryTable` / `NameToQueryField`).
+- **Insert with identity** (`SqlInsertStatement { Insert.WithIdentity: true }`): `IdentitySelectScenario` with a second scalar statement `DBINFO('sqlca.sqlerrd1')` typed `long`. It is a real from-less select, so the builder appends `FakeTable` (`table(set{1})`). The previous raw text `SELECT DBINFO('sqlca.sqlerrd1') FROM systables where tabid = 1` is gone.
+- Everything else falls to `base.BuildCommandScenario`.
+- `IsTableNotFoundExceptionCore` returns `false` (no Informix-specific table-not-found detection).
 
 ### SQL optimizer -- InformixSqlOptimizer
 
@@ -129,11 +138,14 @@ Key behaviors:
 - **`%`** (modulo) -- `Mod(a, b)` (line 51).
 - **String concat**: `ConcatRequiresExplicitStringCast = false` (line 20). The `||` binary-expression rewrite has been removed (PR #5504), `||` emission is handled by `InformixSqlBuilder.ConcatStyle = ConcatBuildStyle.Pipes`.
 - **Length**: `PseudoFunctions.LENGTH` -- `CHAR_LENGTH(value + ".") - 1` (lines 295-308) -- a workaround for Informix not returning correct CHAR_LENGTH for trailing-space-trimmed strings.
-- **Date/time conversions**: `DateTime` to string -- `To_Char(dt, "%Y-%m-%d %H:%M:%S.%F")`, number to string -- `To_Char(n)`, string to `Date` -- `Date(To_Date(s, "%Y-%m-%d"))`, string to datetime -- `To_Date(s, "%Y-%m-%d %H:%M:%S")` (lines 84-163).
+- **Date/time conversions**: `DateTime` to string -- `To_Char(dt, "%Y-%m-%d %H:%M:%S.%F")`, number to string -- `To_Char(n)`, string to `Date` -- `Extend(To_Date(s, "%Y-%m-%d"), Year to Day)` (was `Date(To_Date(...))`), string to datetime -- `To_Date(s, "%Y-%m-%d %H:%M:%S")` (lines 84-163).
 - **Temporal parameters in CASE / conditional results**: Informix rejects a temporal (`DateTime`/`DateTimeOffset`/`DateOnly`) query parameter -- cast or not -- next to a non-parameter value among CASE results. The static `IsTemporalParameter(result, out isOtherValue)` (`InformixSqlExpressionConvertVisitor.cs:~165-200`) unwraps nullability and recognises `SqlParameter`, `SqlParameterCastExpression` and `SqlCastExpression` over a `SqlParameter`, a bare `NULL` value counts as neither. `ConvertSqlCaseExpression` (line ~210) rebuilds the `SqlCaseExpression` with `InlineTemporalParameter` (`QueryHelper.MarkAsNonQueryParameters`) applied to every result when at least one temporal parameter and at least one other value are present. `ConvertSqlCondition` (line ~262) does the same for the true/false branches, then applies the forced boolean wrapping. Inlining is done on a copy for this position only because the parameter is shared by every usage.
-- **Boolean column wrapping**: bare non-boolean column expressions of type `bool` are wrapped in `CAST(... AS BOOLEAN)` (`WrapColumnExpression`, line 245). CASE result expressions and CASE items also force-wrap boolean expressions (`ConvertSqlCaseExpression` line 165, `ConvertCaseItem` line 180). Condition expressions (`ConvertSqlCondition`) wrap true/false branches (line 192). SET clause expressions (`VisitSqlSetExpression`) wrap boolean values (line 262). Boolean query parameters in `Expr` predicates (`VisitExprPredicate`) are now replaced by a new `SqlPredicate.Expr` built from `QueryHelper.EnsureParameterCast(p)` instead of mutating `p.NeedsCast = true` -- the cast marks this usage only, because the parameter instance is shared and on a Transform pass belongs to the cached statement.
+- **Boolean column wrapping**: bare non-boolean column expressions of type `bool` are wrapped in `CAST(... AS BOOLEAN)` (`WrapColumnExpression`, line 245). CASE result expressions and CASE items also force-wrap boolean expressions (`ConvertSqlCaseExpression` line 165, `ConvertCaseItem` line 180). Condition expressions (`ConvertSqlCondition`) wrap true/false branches (line 192). SET clause boolean values are now handled by `ForceConvertSetValue => true` (the `VisitSqlSetExpression` override was removed). Boolean query parameters in `Expr` predicates (`VisitExprPredicate`) are now replaced by a new `SqlPredicate.Expr` built from `QueryHelper.EnsureParameterCast(p)` instead of mutating `p.NeedsCast = true` -- the cast marks this usage only, because the parameter instance is shared and on a Transform pass belongs to the cached statement.
 - **IS DISTINCT handling**: `ConvertIsDistinctPredicateAsIntersect` calls `InformixSqlOptimizer.WrapParameters` on the base result, passing the traversal's own `VisitMode` (previously the `Modify` default) so a cast copy is rebuilt into a new parent instead of written into a shared one (`InformixSqlExpressionConvertVisitor.cs:~333-341`).
 - **Window order requirement**: the `IsWindowOrderByRequired(SqlExtendedFunction)` override returns true when the function has a `FrameClause`, is an order-dependent window function (`IsOrderDependentWindowFunction`) or is `NTILE`. Server messages: ntile/lead/lag/ranking functions require window order, and a window frame extent specification requires an ORDER BY clause. `ROW_NUMBER` and the `*_VALUE` pair are not counted as ranking functions, an unframed aggregate does not need ORDER BY (`InformixSqlExpressionConvertVisitor.cs:~408-416`).
+- **Value-position predicates folded**: new `ForceConvertSetValue => true` (comment "IFX expression cannot be predicate") replaces the removed `VisitSqlSetExpression` override, which wrapped SET values itself. `ConvertSqlCaseExpression`, `ConvertCaseItem` and `ConvertSqlCondition` now call the base `FoldValuePredicate(..., forceConvert: true)` instead of `WrapBooleanExpression`.
+- **LIKE with parameter pattern**: `ConvertLikePredicate` (SQLI client cannot bind a parameter in a LIKE template) now substitutes a literal only when `Expr2` is not already a `SqlValue` and `TryEvaluateExpressionForServer` succeeds, so the literal carries the value after the column value converter, not the client value (`SqlValue` typed via `QueryHelper.GetDbDataType`).
+- **Date cast**: casting to `DataType.Date` now emits `Extend(x, Year to Day)` (a string source first goes through `To_Date(s, "%Y-%m-%d")`) rather than `Date(...)`, so the result is `DATETIME YEAR TO DAY` as in DDL, because a `DATE` value cannot be combined with it in UNION/CASE. A cast whose argument is already `DateTime`/`DateTimeOffset` no longer falls into the bare `To_Date(x)` fallback (it breaks out, since `To_Date` cannot pick an overload).
 - **`NULL IN`** at visitor level: same `SqlCastExpression` wrapping as in `SqlBuilder`, applied to `SqlValue { Value: null }` at optimization phase (lines 205-237).
 
 ### Mapping schema -- InformixMappingSchema
@@ -238,6 +250,7 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 |---|---|---|
 | `InformixDataProvider` | `Internal/DataProvider/Informix/InformixDataProvider.cs` | Abstract provider base, concrete subclasses `InformixDataProviderInformix` / `InformixDataProviderDB2` |
 | `InformixSqlBuilder` | `Internal/DataProvider/Informix/InformixSqlBuilder.cs` (+`.Merge.cs`) | SQL generation for Informix dialect |
+| `InformixDmlService` | `Internal/DataProvider/Informix/InformixDmlService.cs` | Identity-select and truncate-identity-reset command scenarios (replaces builder `CommandCount`/`BuildCommand`) |
 | `InformixSqlOptimizer` | `Internal/DataProvider/Informix/InformixSqlOptimizer.cs` | Statement rewrites, NVL workaround, multi-table correction, parameter finalization |
 | `InformixSqlExpressionConvertVisitor` | `Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` | Expression-level rewrites (COALESCE, bitwise, boolean wrapping, temporal-parameter inlining in CASE, conversions) |
 | `InformixProviderAdapter` | `Internal/DataProvider/Informix/InformixProviderAdapter.cs` | Reflection-based ADO.NET bridge for both client families |
@@ -253,10 +266,11 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 
 ## Files (Tier 1 / Tier 2)
 
-### Tier 1 (10 files -- all read in full)
+### Tier 1 (11 files -- all read in full)
 
 | File | Purpose |
 |---|---|
+| `Internal/DataProvider/Informix/InformixDmlService.cs` | DML command scenarios: identity select, truncate identity reset |
 | `Internal/DataProvider/Informix/InformixDataProvider.cs` | Provider core, flags, parameter binding |
 | `Internal/DataProvider/Informix/InformixSqlBuilder.cs` | SQL generation (main partial) |
 | `Internal/DataProvider/Informix/InformixSqlOptimizer.cs` | Statement transformation |
@@ -294,6 +308,7 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 - `ProviderMemberTranslatorDefault`, `DateFunctionsTranslatorBase`, `StringMemberTranslatorBase`, `WindowFunctionsMemberTranslator`, `SqlTypesTranslationDefault` -- from the translation subsystem (see [INTERNAL-API](../INTERNAL-API/INDEX.md)).
 - `SqlProviderFlags.IsUpsertMergeWithPredicateSupported` and `UpsertBuilder` -- from the core LINQ builder (`Internal/Linq/Builder/UpsertBuilder.cs`), the Informix `false` setting routes conditional-`.When` Upsert configurations to `ErrorHelper.Error_Upsert_MergeWithPredicate_NotSupported` instead of invalid SQL.
 - `SqlProviderFlags.SupportsPredicateInFunctionValuePosition` -- cross-cutting flag set to `false` by this provider.
+- `DmlServiceBase`, `IDmlService`, `SqlCommandScenario`, `ISqlExpressionFactory`, `SqlRawStatement` -- DML-scenario infrastructure consumed by `InformixDmlService` (`PerFieldResetScenario`, `IdentitySelectScenario`). `BasicSqlBuilder.FakeTable` is consumed by the identity select. See [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md).
 - `InvariantCultureRegion` -- applied in `ExecuteScope`, `GetFloat/Double/Decimal`, and all `MultipleRowsCopy*` paths to guard against locale-sensitive decimal parsing.
 
 ## Known issues / debt
@@ -319,8 +334,9 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 
 <details><summary>Coverage</summary>
 
-**Tier 1 -- 10/10 files read in full:**
+**Tier 1 -- 11/11 files read in full:**
 
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixDmlService.cs`
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs`
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs`
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs`
@@ -369,5 +385,11 @@ Window function translation (`InformixWindowFunctionsMemberTranslator` extends `
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlOptimizer.cs` -- `WrapParameters` gained an optional `VisitMode` parameter (default `Modify`) so Transform-mode callers do not write casts into the cached statement.
 - `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` -- temporal-parameter inlining in CASE/conditional results (`IsTemporalParameter`, `InlineTemporalParameter`); `VisitExprPredicate` now builds a new `SqlPredicate.Expr` with `QueryHelper.EnsureParameterCast` instead of mutating `NeedsCast`; `ConvertIsDistinctPredicateAsIntersect` passes `VisitMode` to `WrapParameters`; new `IsWindowOrderByRequired` override (frame clause, order-dependent window functions, `NTILE`).
 - `Source/LinqToDB/Internal/DataProvider/Informix/Translation/InformixMemberTranslator.cs` -- window translator sets `IsFirstLastValueBooleanSupported = false` (server cannot resolve `lessthanorequal` for BOOLEAN).
+
+**Read (this run -- delta):** (2026-11-11, sha f90c5bcfb)
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixDmlService.cs` -- new: `DmlServiceBase` subclass with `BuildCommandScenario` for identity-reset truncate (`ALTER TABLE ... MODIFY ... SERIAL(1)` per identity field) and identity insert (`DBINFO('sqlca.sqlerrd1')` scalar select over `FakeTable`).
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixDataProvider.cs` -- added `CreateDmlService()` returning `InformixDmlService` (line 110). No flag changes.
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlBuilder.cs` -- removed `CommandCount` / `BuildCommand` overrides. `BuildSql` now takes `ISqlBuilderRenderContext renderContext` (no `commandNumber` / `OptimizationContext`), IN-predicate null fixes read `RenderContext.EvaluationContext`. `DateTime2` DDL type now honours precision (`year to second` at 0, else `fraction(1..5)`).
+- `Source/LinqToDB/Internal/DataProvider/Informix/InformixSqlExpressionConvertVisitor.cs` -- `ForceConvertSetValue => true` replaces the `VisitSqlSetExpression` override, CASE/condition use `FoldValuePredicate`, LIKE-pattern literal uses the server-evaluated (converted) value, Date cast emits `Extend(x, Year to Day)`, no bare `To_Date` over DateTime/DateTimeOffset.
 
 </details>

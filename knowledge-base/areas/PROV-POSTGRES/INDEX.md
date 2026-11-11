@@ -3,8 +3,8 @@ area: PROV-POSTGRES
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 11/11
 coverage_tier_2: 21/21
 ---
@@ -33,6 +33,8 @@ Nine concrete sealed subclasses of `PostgreSQLDataProvider` are defined in `Post
 
 `PostgreSQLDataProvider` constructor sets `SqlProviderFlags` version-conditionally: `IsApplyJoinSupported` is false only for v92; `IsInsertOrUpdateSupported` is false for v92 and v93; `OutputDeleteUseSpecialTable` and siblings require v18+; `IsUpsertWithMergeLoweringSupported` requires v15+ (below v15, Upsert configurations that need MERGE lowering fail with `Error_Upsert_MergeLowering_NotSupported`). `Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs:47--70`. `PostgreSQLVersion` gained `v11` and `v12` entries (`PostgreSQLVersion.cs:24--31`), so the enum is now AutoDetect, v92, v93, v95, v11, v12, v13, v15, v18, v19.
 
+All versions also set `SqlProviderFlags.IsMultiStatementBatchSupported = true` and `IsMultipleResultSetsSupported = true` (`PostgreSQLDataProvider.cs:64--65`): Npgsql runs a `;`-separated multi-statement command and returns each result set in order, so the combined multi-result-set engine can run eager loads (and other combinable groups) in one round-trip.
+
 ### SQL builder hierarchy
 
 Three classes:
@@ -45,7 +47,7 @@ Three classes:
 
 The `PostgreSQLSqlBuilder.Merge.cs` partial also defines `IsSqlValuesTableValueTypeRequired`, which forces explicit type annotation on the first row of a `VALUES` table for `long`, `float`, `double`, `decimal`, `NULL`-only columns, and JSON/JSONB columns (`PostgreSQLSqlBuilder.Merge.cs:16--37`).
 
-`PostgreSQLSqlBuilder.BuildTypedExpression` (`PostgreSQLSqlBuilder.cs:458--477`, PR #5974) wraps a negative integer literal (`sbyte`/`short`/`int`/`long`, from `SqlValue` or a non-query `SqlParameter`) in parentheses before the `::type` suffix, via the new private `IsNegativeLiteral`. Reason: `::` binds tighter than unary minus, so `-9223372036854775808::bigint` parses as `-(9223372036854775808::bigint)` and overflows. The method also no longer saves/restores `BuildStep = Step.TypedExpression`.
+`PostgreSQLSqlBuilder.BuildTypedExpression` (`PostgreSQLSqlBuilder.cs:458--477`, PR #5974) wraps a negative integer literal (`sbyte`/`short`/`int`/`long`, from `SqlValue` or a non-query `SqlParameter`) in parentheses before the `::type` suffix, via the new private `IsNegativeLiteral`. Reason: `::` binds tighter than unary minus, so `-9223372036854775808::bigint` parses as `-(9223372036854775808::bigint)` and overflows. The method also no longer saves/restores `BuildStep = Step.TypedExpression`. The non-query parameter value is now read via `RenderContext.EvaluationContext.ParameterValues` (was `OptimizationContext.EvaluationContext`, `PostgreSQLSqlBuilder.cs:477`).
 
 ### Identifier quoting
 
@@ -66,6 +68,7 @@ Singleton (`NpgsqlProviderAdapter.GetInstance()`, locked double-check, `NpgsqlPr
 - `NpgsqlDbType` enum -- mirrored as an internal `[Wrapper]` enum because Npgsql changes numeric field values between major versions; `ApplyDbTypeFlags` (`NpgsqlProviderAdapter.cs:172--187`) reconstructs flag composites (Array | Range | Multirange) against the runtime numeric values.
 - Provider-specific geometric and temporal CLR types: `NpgsqlPoint`, `NpgsqlBox`, `NpgsqlCircle`, `NpgsqlLSeg`, `NpgsqlPath`, `NpgsqlPolygon`, `NpgsqlLine`, `NpgsqlInet`, `NpgsqlRange<T>`, and conditionally `NpgsqlDate`, `NpgsqlDateTime`, `NpgsqlTimeSpan`, `NpgsqlInterval`, `NpgsqlCidr`, `NpgsqlCube`.
 - `BigInteger` support conditional on Npgsql >= 6.0 (`NpgsqlProviderAdapter.cs:196`).
+- `NpgsqlInet` / `NpgsqlCidr` constructors are located with `GetConstructorEx` (`NpgsqlProviderAdapter.cs:334`, `:338`, `:368`) instead of `Type.GetConstructor`. The `byte` netmask (Npgsql 8+) is tried first, with an `int` fallback for older versions.
 - `BeginBinaryImport` / `BeginBinaryImportAsync` delegates for bulk copy.
 
 ### Provider detection
@@ -89,6 +92,8 @@ Singleton (`NpgsqlProviderAdapter.GetInstance()`, locked double-check, `NpgsqlPr
 - Seven per-version sealed subclasses (`PostgreSQL92MappingSchema` ... `PostgreSQL19MappingSchema`) extend from `NpgsqlProviderAdapter.GetInstance().MappingSchema` and the base `PostgreSQLMappingSchema.Instance` (`PostgreSQLMappingSchema.cs:202--214`; `PostgreSQL19MappingSchema` added this delta).
 
 **Note:** `PostgreSQLDataProvider.GetMappingSchema` (`PostgreSQLDataProvider.cs:613--618`) has arms only for v19, v18, v15, v92 and v93 -- v11, v12 and v13 providers fall through to `_` and receive `PostgreSQL95MappingSchema`, not the dedicated `PostgreSQL13MappingSchema` class (no `PostgreSQL11MappingSchema` / `PostgreSQL12MappingSchema` exist). See Known issues.
+
+**TimeOnly / DateOnly resolved at runtime (#6077).** Npgsql 10 returns `TimeOnly` / `DateOnly` for `time` / `date`, but modern runtimes also load the `netstandard2.0` build, which cannot name those types, so the `#if SUPPORTS_DATEONLY` registrations were replaced by `Type.GetType("System.TimeOnly")` / `Type.GetType("System.DateOnly")` probes. In `PostgreSQLMappingSchema.cs:73--82` the backward-compat `TimeOnly` -> `DateTime` `FromDatabase` convert expression is built by hand from `TimeOnly.Ticks` and `new DateTime(long)` (the `DateTime(DateOnly, TimeOnly)` ctor is .NET 8+ only). The `DateOnly` value-to-SQL converter and `IPNetwork` scalar types stay under `#if SUPPORTS_DATEONLY`. The same probes in `PostgreSQLDataProvider.cs:95--105` register `SetProviderField<DbDataReader, TimeSpan>(timeOnly, ...)` and the `NpgsqlRange<DateTime>` -> `NpgsqlRange<DateOnly>` `SetGetFieldValueReader`.
 
 The `TIMESTAMPTZ_FORMAT` constant (`'...'::timestamptz`, `PostgreSQLMappingSchema.cs:26/31`) formats `DateTimeOffset` values with microsecond precision and timezone offset. `BuildDateTimeOffset` (`PostgreSQLMappingSchema.cs:163--166`) applies it via `AppendFormat`. This was absent before PR #5467 -- `DateTimeOffset` had no registered converter and fell through to a default path.
 
@@ -139,14 +144,14 @@ The per-batch writer recycle in provider-specific COPY now goes through `BeginWr
 - `ConvertConversion`: `bool` targets use `ConvertBooleanToCase` unless already boolean expression; applies `FloorBeforeConvert` for numeric narrowing.
 - `WrapColumnExpression`: `uint`/`long`/`ulong`/`float`/`double`/`decimal` literal values and non-query parameters get mandatory cast to prevent Npgsql type inference failures.
 - Interval lowering (PR #5987, date differences and shifts; `PostgreSQLSqlExpressionConvertVisitor.cs:20--235`): `CanLowerIntervalDifference` and `CanLowerIntervalShift` are `true`. `LowerIntervalDifference` returns the native `interval` `end - start` (`Elapsed`, built with `Precedence.Unknown` so the builder always parenthesises it; `date` operands are widened to `timestamp` by `AsTimestamp` because `date - date` yields an integer). `LowerTemporalArithmetic` adds/subtracts an interval directly, converting non-difference tick counts via `IntervalFromTicks` (`ticks / 10 * Interval '1 microsecond'`). `LowerIntervalPart` reads `day`/`hour`/`minute`/`second` straight from the interval with `Extract(part From interval)` plus `Trunc`, and totals via `EXTRACT(EPOCH ...)` scaled by whole-number factors; `Tick` totals and sub-second units are delegated to the base implementation through `ElapsedTicks` (sum of `day`/`hour`/`minute` whole fields plus rounded `second` ticks), because dividing by a tick-sized double literal is inexact beyond about 63 years.
-- `ConvertSqlBinaryExpression` `%` case now passes `element.Precedence` into the rebuilt `SqlBinaryExpression` (before it defaulted to `Unknown`, so `a % b + c` could lose the original brackets).
+- `ConvertSqlBinaryExpression` `%` case now passes `element.Precedence` into the rebuilt `SqlBinaryExpression` (before it defaulted to `Unknown`, so `a % b + c` could lose the original brackets). The mandatory cast wrapping the rebuilt remainder now targets `QueryHelper.GetDbDataType(element, MappingSchema)` -- the original expression's own db type -- instead of the `toType` local (`PostgreSQLSqlExpressionConvertVisitor.cs:271`).
 
 ### Member translators
 
 Six classes in `Translation/`, forming a linear inheritance chain `PostgreSQLMemberTranslator` -> `PostgreSQL95MemberTranslator` -> `PostgreSQL11MemberTranslator` -> `PostgreSQL13MemberTranslator` -> `PostgreSQL18MemberTranslator` -> `PostgreSQL19MemberTranslator` (the 95 and 11 tiers are new this delta, replacing the old `13 -> base` link):
 
-- `PostgreSQLMemberTranslator` -- baseline (v92/v93). Inner classes: `DateFunctionsTranslator` (`EXTRACT`-based date parts, `date_trunc`, interval arithmetic), `MathMemberTranslator` (custom `RoundAwayFromZero` without `ROUND` for non-bankers rounding), `StringMemberTranslator` (`STRING_AGG` for `string.Join`, supports `DISTINCT`, `ORDER BY`, `FILTER`), `GuidMemberTranslator` (cast to `VarChar(36)`), `PostgreSQLAggregateFunctionsMemberTranslator` (marks `IsFilterSupported = true`), `SqlTypesTranslation`, and a three-tier window-function capability ladder (`PostgreSQLMemberTranslator.cs:451--490`): `PostgreSQLWindowFunctionsMemberTranslator` (baseline) sets `IsVarianceSupported`, `IsVarianceBareSupported`, `IsCorrelationSupported`, `IsLinearRegressionSupported` to `true` and `IsPercentileContSupported`, `IsPercentileDiscSupported`, `IsFrameGroupsSupported`, `IsFrameExclusionSupported` to `false`; nested `PostgreSQL95WindowFunctionsMemberTranslator` adds `IsWindowFilterSupported`, `IsOrderedSetFilterSupported`, percentile cont/disc and `IsHypotheticalSetSupported`; nested `PostgreSQL11WindowFunctionsMemberTranslator` adds `IsFrameGroupsSupported` and `IsFrameExclusionSupported`. The base class's `CreateWindowFunctionsMemberTranslator` override (`:488`) selects the baseline tier. (Before this delta the single window translator enabled filter/ordered-set/hypothetical-set unconditionally, which was wrong for 9.2/9.3.)
-- `PostgreSQL95MemberTranslator` (`PostgreSQL95MemberTranslator.cs:7--13`) -- extends base; overrides `CreateWindowFunctionsMemberTranslator` to return `PostgreSQL95WindowFunctionsMemberTranslator` (FILTER, `WITHIN GROUP`, hypothetical-set aggregates, 9.4+; v95 is the lowest dialect `>= 9.4`).
+- `PostgreSQLMemberTranslator` -- baseline (v92/v93). Inner classes: `DateFunctionsTranslator` (`EXTRACT`-based date parts, `date_trunc`, interval arithmetic), `MathMemberTranslator` (custom `RoundAwayFromZero` without `ROUND` for non-bankers rounding), `StringMemberTranslator` (`STRING_AGG` for `string.Join`, supports `DISTINCT`, `ORDER BY`, `FILTER`), `GuidMemberTranslator` (cast to `VarChar(36)`), `PostgreSQLAggregateFunctionsMemberTranslator` (**corrected this delta:** now `IsFilterSupported => false`, `PostgreSQLMemberTranslator.cs:370`. The `true` setting moved to the nested `PostgreSQL95AggregateFunctionsMemberTranslator`, `:375--377`, because the detector maps a 9.4 server to v93, so v95 is the lowest tier guaranteeing aggregate `FILTER`), `SqlTypesTranslation`, and a three-tier window-function capability ladder (`PostgreSQLMemberTranslator.cs:451--490`): `PostgreSQLWindowFunctionsMemberTranslator` (baseline) sets `IsVarianceSupported`, `IsVarianceBareSupported`, `IsCorrelationSupported`, `IsLinearRegressionSupported` to `true` and `IsPercentileContSupported`, `IsPercentileDiscSupported`, `IsFrameGroupsSupported`, `IsFrameExclusionSupported` to `false`; nested `PostgreSQL95WindowFunctionsMemberTranslator` adds `IsWindowFilterSupported`, `IsOrderedSetFilterSupported`, percentile cont/disc and `IsHypotheticalSetSupported`; nested `PostgreSQL11WindowFunctionsMemberTranslator` adds `IsFrameGroupsSupported` and `IsFrameExclusionSupported`. The base class's `CreateWindowFunctionsMemberTranslator` override (`:488`) selects the baseline tier. (Before this delta the single window translator enabled filter/ordered-set/hypothetical-set unconditionally, which was wrong for 9.2/9.3.)
+- `PostgreSQL95MemberTranslator` (`PostgreSQL95MemberTranslator.cs:7--18`) -- extends base; overrides `CreateWindowFunctionsMemberTranslator` to return `PostgreSQL95WindowFunctionsMemberTranslator` (FILTER, `WITHIN GROUP`, hypothetical-set aggregates, 9.4+. v95 is the lowest dialect `>= 9.4`) and, new this delta, `CreateAggregateFunctionsMemberTranslator` returning `PostgreSQL95AggregateFunctionsMemberTranslator` (aggregate `FILTER (WHERE ...)` enabled). v92/v93 therefore no longer claim aggregate FILTER support.
 - `PostgreSQL11MemberTranslator` (`PostgreSQL11MemberTranslator.cs:6--12`) -- extends the 95 tier; returns `PostgreSQL11WindowFunctionsMemberTranslator` (frame `GROUPS` mode and `EXCLUDE` clause, PostgreSQL 11+). Used for v11 and v12.
 - `PostgreSQL13MemberTranslator` -- now extends `PostgreSQL11MemberTranslator`; overrides `TranslateNewGuidMethod` to use `gen_random_uuid()` (available v13+) instead of falling back to UUID v4 via extension (`PostgreSQL13MemberTranslator.cs:9--16`).
 - `PostgreSQL18MemberTranslator` -- extends `PostgreSQL13MemberTranslator`; overrides `TranslateNewGuid7Method` to emit the built-in `uuidv7()` server function (available since PostgreSQL 18), backing `Guid` v7 generation (`PostgreSQL18MemberTranslator.cs:12--16`).
@@ -323,6 +328,20 @@ Selected via `CreateMemberTranslator` in `PostgreSQLDataProvider` (`PostgreSQLDa
 - Tier 1 (11/11 read this run)
 - Tier 2 (19/19 read this run)
 - Tier 3 (1 file -- counted, not read)
+
+### Read (this run -- delta): multi-result-set flags, runtime TimeOnly/DateOnly, aggregate FILTER tiering
+
+Changed files verified against current SHA `f90c5bcfb86d88db436a6494f0640c4c43dd691f` (read via diff against `05150894edc2511f0dd0bc7829b2a309cec36ec9` plus targeted greps for line numbers):
+
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/NpgsqlProviderAdapter.cs` -- `NpgsqlInet` / `NpgsqlCidr` ctor lookups switched to `GetConstructorEx`.
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLDataProvider.cs` -- `IsMultiStatementBatchSupported` / `IsMultipleResultSetsSupported` set true. `TimeOnly` / `DateOnly` reader registrations moved from `#if SUPPORTS_DATEONLY` to runtime `Type.GetType` probes (#6077).
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLMappingSchema.cs` -- `TimeOnly` -> `DateTime` convert expression built via expression tree from `Ticks` at runtime.
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlBuilder.cs` -- `BuildTypedExpression` negative-literal check reads `RenderContext.EvaluationContext` instead of `OptimizationContext`.
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/PostgreSQLSqlExpressionConvertVisitor.cs` -- `%` rewrite casts to `QueryHelper.GetDbDataType(element, MappingSchema)`.
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQL95MemberTranslator.cs` -- new `CreateAggregateFunctionsMemberTranslator` override.
+- `Source/LinqToDB/Internal/DataProvider/PostgreSQL/Translation/PostgreSQLMemberTranslator.cs` -- baseline aggregate translator `IsFilterSupported => false`, new `PostgreSQL95AggregateFunctionsMemberTranslator` with `true` (contradicted prior claim updated in place).
+
+Tier counts unchanged: Tier 1 11/11, Tier 2 21/21 (no files added or removed).
 
 ### Delta reads (this run -- PostgreSQL 11/12 dialects, interval lowering, COPY timeout)
 

@@ -3,15 +3,15 @@ area: INTERCEPTORS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-05-03
-last_verified_sha: d8650bb481e953a6c8a2238016bbc1994f3e0d9e
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 12/12
 coverage_tier_2: 15/15
 ---
 
 # INTERCEPTORS
 
-Pipeline interception hooks and metrics activity tracing. Public contracts live in `Source/LinqToDB/Interceptors/` and `Source/LinqToDB/Metrics/`; dispatch machinery lives in `Source/LinqToDB/Internal/Interceptors/` (owned by [INTERNAL-API](../INTERNAL-API/INDEX.md) by path, but architecturally part of this area).
+Pipeline interception hooks and metrics activity tracing. Public contracts live in `Source/LinqToDB/Interceptors/` and `Source/LinqToDB/Metrics/`. Dispatch machinery lives in `Source/LinqToDB/Internal/Interceptors/` (owned by [INTERNAL-API](../INTERNAL-API/INDEX.md) by path, but architecturally part of this area).
 
 ## Subsystems
 
@@ -32,11 +32,13 @@ All derive from `IInterceptor` (`Source/LinqToDB/Interceptors/IInterceptor.cs:3`
 
 `IEntityBindingInterceptor` (`Source/LinqToDB/Internal/Interceptors/IEntityBindingInterceptor.cs:5`) is not in the public `Interceptors/` namespace — it is internal, registered via the same `AddInterceptorImpl` dispatch, but not meant for end-users.
 
+`ICommandInterceptor` and its base `CommandInterceptor` both carry a `<remarks>` contract (`Source/LinqToDB/Interceptors/ICommandInterceptor.cs:14`, `Source/LinqToDB/Interceptors/CommandInterceptor.cs:13`, added with #5673): registering any command interceptor disables DbBatch-based command batching. Combined multi-statement execution (e.g. eager loading as one round-trip) then falls back to a single semicolon-concatenated command so the interceptor still observes execution. Governed by `LinqOptions.UseDbBatch`. Method surface is unchanged: `CommandInitialized`, `ExecuteScalar`/`Async`, `ExecuteNonQuery`/`Async`, `ExecuteReader`/`Async`, `AfterExecuteReader` (no async variant), `BeforeReaderDispose`/`Async`.
+
 ### 2 — Abstract base classes (convenience)
 
 Each public interceptor interface has a paired abstract class with no-op virtual implementations:
 
-- `CommandInterceptor` (`Source/LinqToDB/Interceptors/CommandInterceptor.cs`) — all methods delegate or return `result` / `Task.CompletedTask`.
+- `CommandInterceptor` (`Source/LinqToDB/Interceptors/CommandInterceptor.cs`) — all methods delegate or return `result` / `Task.CompletedTask`. Class-level XML doc now describes it as the no-op base and notes the DbBatch-disabling side effect.
 - `ConnectionInterceptor`, `DataContextInterceptor`, `EntityServiceInterceptor`, `ExceptionInterceptor`, `UnwrapDataObjectInterceptor` — follow the same pattern.
 - `ConnectionOptionsConnectionInterceptor` (`Source/LinqToDB/Interceptors/ConnectionOptionsConnectionInterceptor.cs`) — sealed concrete subclass of `ConnectionInterceptor`; bridges `DataOptions.ConnectionOpening`/`ConnectionOpened` callback delegates into the interceptor interface. Used internally when options carry connection callbacks.
 
@@ -100,7 +102,7 @@ Concrete sealed subclasses: `AggregatedCommandInterceptor`, `AggregatedConnectio
 | Type | File | Role |
 |---|---|---|
 | `IInterceptor` | `Source/LinqToDB/Interceptors/IInterceptor.cs` | Marker base for all interceptors |
-| `ICommandInterceptor` | `Source/LinqToDB/Interceptors/ICommandInterceptor.cs` | Command lifecycle hooks |
+| `ICommandInterceptor` | `Source/LinqToDB/Interceptors/ICommandInterceptor.cs` | Command lifecycle hooks; registering one disables DbBatch batching |
 | `IConnectionInterceptor` | `Source/LinqToDB/Interceptors/IConnectionInterceptor.cs` | Connection-open hooks |
 | `IDataContextInterceptor` | `Source/LinqToDB/Interceptors/IDataContextInterceptor.cs` | Context-close hooks |
 | `IEntityServiceInterceptor` | `Source/LinqToDB/Interceptors/IEntityServiceInterceptor.cs` | Materialization hook |
@@ -156,9 +158,11 @@ Concrete sealed subclasses: `AggregatedCommandInterceptor`, `AggregatedConnectio
 - [DATA](../DATA/INDEX.md) — `DataConnection` implements all 8 `IInterceptable<T>` slots; calls interceptors at command execution, connection open, context close, exception catch sites (`Source/LinqToDB/Data/DataConnection.cs`).
 - [CORE](../CORE/INDEX.md) — `DataContext` implements all 8 `IInterceptable<T>` slots; additionally syncs interceptors with `DataOptions` for persistence across reconnects (`Source/LinqToDB/DataContext.Interceptors.cs`).
 - [EXPR-TRANS](../EXPR-TRANS/INDEX.md) — calls `IQueryExpressionInterceptor.ProcessExpression` before LINQ→SQL translation and `IEntityBindingInterceptor.ConvertConstructorExpression` during entity binding.
+- Query execution (combined-command / eager-load path, #5673) — consults whether a command interceptor is registered and, if so, bypasses DbBatch (`LinqOptions.UseDbBatch`) in favour of one semicolon-concatenated command. Consumer code was not re-read this run.
 
 **Outbound** (what this area uses):
 - `LinqToDB.Common.Option<T>` ([INFRA](../INFRA/INDEX.md)) — return type for command interceptors allowing short-circuiting.
+- `LinqToDB.LinqOptions.UseDbBatch` — referenced from the `ICommandInterceptor` / `CommandInterceptor` XML docs.
 - `SqlGenericConstructorExpression` ([EXPR-TRANS](../EXPR-TRANS/INDEX.md)) — parameter and return type of `IEntityBindingInterceptor`.
 - `DataConnection`, `IDataContext` ([CORE](../CORE/INDEX.md)/[DATA](../DATA/INDEX.md)) — carried in event-data structs.
 
@@ -205,4 +209,7 @@ Concrete sealed subclasses: `AggregatedCommandInterceptor`, `AggregatedConnectio
   - Source/LinqToDB/Internal/Interceptors/ (14 files — INTERNAL-API area, read for dispatch narrative)
   - Source/LinqToDB/Data/DataConnection.Interceptors.cs (DATA area)
   - Source/LinqToDB/DataContext.Interceptors.cs (CORE area)
+- Read (this run -- delta):
+  - Source/LinqToDB/Interceptors/ICommandInterceptor.cs — added interface-level `<remarks>`: registering a command interceptor disables DbBatch batching (falls back to semicolon-concatenated command), see `LinqOptions.UseDbBatch` (#5673). Members unchanged.
+  - Source/LinqToDB/Interceptors/CommandInterceptor.cs — class summary reworded as no-op base plus same DbBatch `<remarks>`. Virtual members unchanged.
 </details>

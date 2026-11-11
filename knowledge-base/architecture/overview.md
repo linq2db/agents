@@ -2,7 +2,7 @@
 area: GLOBAL
 kind: architecture
 sources: [code]
-confidence: medium
+confidence: low
 last_verified: 2026-04-26
 last_verified_sha: 3727a580c828e4f983da2de934d4cfc12d0cb255
 coverage_tier_1: 11/12

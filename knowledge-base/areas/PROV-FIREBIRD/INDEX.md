@@ -2,11 +2,11 @@
 area: PROV-FIREBIRD
 kind: area-index
 sources: [code]
-confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+confidence: medium
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 11/11
-coverage_tier_2: 13/13
+coverage_tier_2: 14/14
 ---
 
 # PROV-FIREBIRD
@@ -86,7 +86,9 @@ All extend `FirebirdDataProvider : DynamicDataProviderBase<FirebirdProviderAdapt
 
 `FirebirdDataProvider.CreateMemberTranslator` (`FirebirdDataProvider.cs:103-112`): four-way dispatch -- `v25` -> `Firebird25MemberTranslator` (new); `>= v5` -> `Firebird5MemberTranslator`; `>= v4` -> `Firebird4MemberTranslator`; `_` (now v3 only) -> `FirebirdMemberTranslator`. (Historical: through PR #5467, v4 shared `FirebirdMemberTranslator` with v25/v3; `Firebird4MemberTranslator` split off in #5467. `Firebird25MemberTranslator` split off in this delta, giving v25 its own window-function-suppressing translator -- see `### Window function member-translator hierarchy` below.)
 
-`CreateIdentifierService` (`FirebirdDataProvider.cs:114-117`): max identifier length = 31 chars for `v3` and below; 63 chars for `v4+`.
+`CreateIdentifierService` (`FirebirdDataProvider.cs:116-119`): max identifier length = 31 chars for `v3` and below, 63 chars for `v4+`.
+
+`CreateDmlService` (`FirebirdDataProvider.cs:121`) [NEW]: returns `new FirebirdDmlService()` -- see `### FirebirdDmlService` below.
 
 ### SqlProviderFlags distinctions
 
@@ -118,8 +120,11 @@ v5 uses `Firebird4SqlBuilder` (no dedicated subclass); v5 differences are in the
 
 - `CteFirst = false` -- CTEs come after the SELECT clause, not before (`Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.cs:24`).
 - `ConcatStyle => ConcatBuildStyle.Pipes` (`FirebirdSqlBuilder.cs:26`) -- instructs `BasicSqlBuilder` to emit `SqlConcatExpression` nodes as `expr1 || expr2` rather than using a `CONCAT()` function call. Added in PR #5504 alongside the `SqlConcatExpression` AST node.
+- `GetPrecedence` [NEW] (`FirebirdSqlBuilder.cs:28-30`): `SqlConcatExpression` gets `Precedence.Unary + 1` -- Firebird binds `||` tighter than every arithmetic operator, unary minus included, so the operands of an enclosing arithmetic expression are parenthesized accordingly.
 - `BuildSelectClause` (`FirebirdSqlBuilder.cs:40-61`): empty FROM -> `FROM rdb$database` (Firebird requires a FROM clause; `rdb$database` is the canonical single-row dummy table).
-- Pagination (`FirebirdSqlBuilder.cs:63-97`): `FIRST {n}` / `SKIP {n}` syntax for SELECT; UPDATE/DELETE use `ROWS n + 1 TO n + take` syntax.
+- Pagination (`FirebirdSqlBuilder.cs:63-97`): `FIRST {n}` / `SKIP {n}` syntax for SELECT; UPDATE/DELETE use `ROWS n + 1 TO n + take` syntax. For UPDATE/DELETE, `BuildOffsetLimit` now reads `selectQuery.Select.TakeValue` / `SkipValue` (resolved during render-prep by `SqlExpressionConvertVisitor.ResolveSkipTakeValues`) instead of calling `SqlOptimizer.ConvertSkipTake` [NEW].
+- Truncate-with-identity-reset [CHANGED]: the `CommandCount` and `BuildCommand` overrides (second command `SET GENERATOR GIDENTITY_<table> TO 0`) were removed from the builder. The two-step sequence is now produced by `FirebirdDmlService.BuildCommandScenario` (see below).
+- `BuildTypedExpression` [CHANGED]: parameter values are read via `RenderContext.EvaluationContext.ParameterValues` (was `OptimizationContext`). When no CAST is emitted the bare operand is built with `Precedence.Primary` (the dropped CAST was a primary expression), otherwise with default precedence.
 - `IsRecursiveCteKeywordRequired = true` -- emits `WITH RECURSIVE` keyword.
 - `GetIdentityExpression` (`FirebirdSqlBuilder.cs:120-124`): uses `GEN_ID(generatorName, 1)` when `SequenceAttributes` present.
 - `BuildGetIdentity` (`FirebirdSqlBuilder.cs:108-118`): emits `RETURNING <field>` after INSERT.
@@ -148,9 +153,19 @@ v5 uses `Firebird4SqlBuilder` (no dedicated subclass); v5 differences are in the
 
 `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.Merge.cs`:
 - `IsValuesSyntaxSupported = false` -- MERGE source must use SELECT, not VALUES (Firebird limitation: parameters in MERGE source VALUES cause "Data type unknown").
+- `IsSqlValuesTableValueTypeRequired` [CHANGED]: row elements are inspected directly (`rows[row][column] is SqlParameter` / `SqlValue`) -- the former `ConvertElement(...)` wrapping was dropped, logic otherwise unchanged.
 - `FakeTable = "rdb$database"` -- used as MERGE source dummy table.
 - `IsSqlValuesTableValueTypeRequired`: type inference for MERGE source columns -- strings need type hints to avoid CHAR padding; numeric types (uint, long, ulong, float, double, decimal) need type casting in row 0.
 - `BuildMergeOperationDeleteBySource` / `BuildMergeOperationUpdateBySource` -- emits `WHEN NOT MATCHED BY SOURCE ... THEN DELETE/UPDATE` (FB5+).
+
+### FirebirdDmlService [NEW]
+
+`Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdDmlService.cs` -- `public sealed class FirebirdDmlService : DmlServiceBase`, created by `FirebirdDataProvider.CreateDmlService`.
+- `IsTableNotFoundExceptionCore` => `false` (no Firebird-specific table-not-found detection).
+- `BuildCommandScenario(SqlStatement, SqlProviderFlags, ISqlExpressionFactory)`:
+  - `SqlTruncateTableStatement { ResetIdentity: true }` with identity fields -> two `SqlCommandStep`s, both `SqlStepKind.NonQuery`: the truncate, then a `SqlRawStatement` `SET GENERATOR {0} TO 0` over `GIDENTITY_<table>` (`ConvertType.NameToQueryTable`), with `OutcomeSteps = [0]`. Replaces the old builder-side `CommandCount` / `BuildCommand` pair.
+  - `SqlInsertStatement { Insert.WithIdentity: true }` -> one NonQuery step with `OutParameterName = "IDENTITY_PARAMETER"`: the insert renders a trailing `RETURNING <id>` and the interpreter reads the OUT parameter after `ExecuteNonQuery` (the Firebird client cannot return values through a reader).
+  - Anything else -> `base.BuildCommandScenario`.
 
 ## SqlOptimizer hierarchy
 
@@ -286,6 +301,7 @@ LockedMappingSchema("Firebird") -- FirebirdMappingSchema (base, shared)
 - `decimal` -> `Decimal(18, 10)`.
 - `ulong` -> `Decimal(20, 0)`.
 - Non-ASCII / special-char strings encoded as `_utf8 x'...'` hex literals when `IsLiteralEncodingSupported = true` (`FirebirdMappingSchema.cs:156-166`).
+- Char literal escaping [FIXED, #6113]: `ConvertCharToSql` emits a single-quote char as `''` (previously it appended a lone `'`, an invalid literal) on the non-encoded path.
 - Floating-point special values (NaN, +/-Infinity): encoded as `LOG(...)` expressions (Firebird lacks literal infinity support; `FirebirdMappingSchema.cs:56-79`). Infinity checks go through `FloatingPointHelper.IsNegativeInfinity` / `IsPositiveInfinity` instead of `float`/`double` static members (no change in emitted SQL).
 - Guid stored as `CHAR(16) CHARACTER SET OCTETS` (binary); byte-order reversal applied on little-endian platforms (`FirebirdMappingSchema.cs:108-119`).
 - `BigInteger` -> `INT128`.
@@ -381,7 +397,7 @@ LockedMappingSchema("Firebird") -- FirebirdMappingSchema (base, shared)
 | `Internal/DataProvider/Firebird/FirebirdMappingSchema.cs` | Per-version mapping schemas; literal encoding; float special values; Guid binary format |
 | `Internal/DataProvider/Firebird/FirebirdBulkCopy.cs` | Multi-row INSERT bulk copy; v25/v3+ size limits |
 
-### Tier 2 (13 files, all visited; 1 new file added in an earlier run)
+### Tier 2 (14 files, all visited; 2 new files added across earlier runs and this one)
 
 | File | Role |
 |---|---|
@@ -389,6 +405,7 @@ LockedMappingSchema("Firebird") -- FirebirdMappingSchema (base, shared)
 | `Internal/DataProvider/Firebird/Firebird4SqlBuilder.cs` | LATERAL/APPLY joins; BINARY/VARBINARY/GUID type overrides |
 | `Internal/DataProvider/Firebird/Firebird3SqlOptimizer.cs` | Delegates to `Firebird3SqlExpressionConvertVisitor` |
 | `Internal/DataProvider/Firebird/FirebirdSqlBuilder.Merge.cs` | MERGE source type inference; VALUES not supported; FB5 `NOT MATCHED BY SOURCE` ops |
+| `Internal/DataProvider/Firebird/FirebirdDmlService.cs` | [NEW] `DmlServiceBase` subclass: truncate + `SET GENERATOR` two-step scenario, identity insert via OUT parameter `IDENTITY_PARAMETER` |
 | `Internal/DataProvider/Firebird/FirebirdSqlExpressionConvertVisitor.cs` | Bitwise ops, string ops, CONTAINING/STARTING WITH, Guid conversions delegated to `FirebirdMemberTranslator.TranslateGuidToString`, CAST normalization; `ConcatRequiresExplicitStringCast=false` (PR #5504); interval difference/shift lowering via `DateDiff`/`DateAdd` (`ElapsedTicks`, `LowerTemporalArithmetic`, `IntervalResolution=Millisecond`) |
 | `Internal/DataProvider/Firebird/Firebird3SqlExpressionConvertVisitor.cs` | v3 BOOLEAN-aware bool predicate handling; `IntervalResolution=Tick` |
 | `Internal/DataProvider/Firebird/Translation/FirebirdMemberTranslator.cs` | Date/string/Guid member translations; `LIST` aggregate; `Gen_Uuid`; `DateAdd` non-parameter constraint; `TranslateNow` returns null; `TrimStart`/`TrimEnd` (PR #5515); `TranslateStringJoin` withoutSeparator (PR #5504); `TranslateGuidToString` public static (Guid->string deduplication); nested `FirebirdWindowFunctionsMemberTranslator` / `Firebird25WindowFunctionsMemberTranslator` window-capability classes |
@@ -423,7 +440,7 @@ LockedMappingSchema("Firebird") -- FirebirdMappingSchema (base, shared)
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 11 / 11
-- Tier 2 (visited / total): 13 / 13 (100%)
+- Tier 2 (visited / total): 14 / 14 (100%)
 - Tier 3 (skipped, logged): 0
 
 Read (prior run -- build):
@@ -461,5 +478,12 @@ Read (this run -- delta, 05150894e):
 
 Read (this run -- delta, 89b5ce162):
 - `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdMappingSchema.cs` -- float/double infinity detection switched from `float.IsNegativeInfinity`/`IsPositiveInfinity` (and `double` equivalents) to `FloatingPointHelper.IsNegativeInfinity`/`IsPositiveInfinity`, NaN path and emitted `LOG(...)` SQL unchanged
+
+Read (this run -- delta, f90c5bcfb):
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdDataProvider.cs` -- `CreateDmlService` override returning `FirebirdDmlService`, flags and dispatch otherwise unchanged
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdDmlService.cs` (NEW) -- truncate + identity-reset two-step scenario (`SET GENERATOR GIDENTITY_<table> TO 0`), identity insert through the `IDENTITY_PARAMETER` OUT parameter
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdMappingSchema.cs` -- `ConvertCharToSql` now doubles a `'` char literal (`''`)
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.Merge.cs` -- `ConvertElement(...)` wrapper dropped in `IsSqlValuesTableValueTypeRequired`
+- `Source/LinqToDB/Internal/DataProvider/Firebird/FirebirdSqlBuilder.cs` -- `GetPrecedence` override (concat binds tighter than unary minus), UPDATE/DELETE skip/take from `Select.TakeValue`/`SkipValue`, `CommandCount`/`BuildCommand` removed (moved to DML service), `RenderContext` instead of `OptimizationContext`, `Precedence.Primary` for the uncast operand in `BuildTypedExpression`
 
 </details>

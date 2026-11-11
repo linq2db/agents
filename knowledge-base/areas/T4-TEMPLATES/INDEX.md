@@ -3,8 +3,8 @@ area: T4-TEMPLATES
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 4/4
 coverage_tier_2: 11/11
 ---
@@ -109,7 +109,7 @@ The `T4Model.ttinclude`'s concrete partial classes (`Table`, `Column`, `ForeignK
 | `Source/LinqToDB.Templates/MultipleFiles.ttinclude` | Yes | VS EnvDTE multi-file split |
 | `Source/LinqToDB.Templates/Humanizer.ttinclude` | Yes | Humanizer pluralization delegate swap |
 | `Source/LinqToDB.Templates/PluralizationService.ttinclude` | Yes | EF5-era pluralization alternative |
-| `Source/LinqToDB.Templates/README.md` | Yes | Consumer-facing usage doc |
+| `Source/LinqToDB.Templates/README.md` | Yes | Consumer-facing usage doc; docs link now `articles/t4.html` |
 | `Source/LinqToDB.Templates/EditableObject.ttinclude` | Yes | IEditableObject via `EditableObjectImplementation`; `EditableProperty` subclass; `SetPropertyValueAction` wiring |
 | `Source/LinqToDB.Templates/Equatable.ttinclude` | Yes | IEquatable<T> via `ComparerBuilder`; default filter: PK columns; configurable via `EqualityPropertiesFilter` |
 | `Source/LinqToDB.Templates/NotifyDataErrorInfo.ttinclude` | Yes | Thin shim over `NotifyDataErrorInfoImplementation`; depends on `Validation.ttinclude` |
@@ -131,7 +131,11 @@ The `T4Model.ttinclude`'s concrete partial classes (`Table`, `Column`, `ForeignK
 
 `NuGet/t4models/linq2db.t4models.csproj` packs this folder's `.ttinclude` files as NuGet content (`contentFiles\any\any\LinqToDB.Templates\` and `content\LinqToDB.Templates\`). The `tools\` folder in the NuGet package carries pre-built provider DLLs (`linq2db.dll`, `linq2db.Scaffold.dll`, all provider clients) so the T4 host can resolve them without a full project build. The `$(LinqToDBT4SharedTools)` MSBuild property in the `<#@ assembly #>` directives resolves to this `tools\` path at template-expansion time.
 
-`NuGet/NuGet.csproj` is the build-support project that resolves and stages all provider client DLLs into `$(TargetDir)` so they can be bundled into the `tools\` folder. It targets `net462` / `x64` and references: `MySqlConnector`, `ClickHouse.Driver`, `AdoNetCore.AseClient`, `Humanizer.Core`, `FirebirdSql.Data.FirebirdClient`, `Oracle.ManagedDataAccess`, `Npgsql`, `System.Data.SQLite`, `Microsoft.Data.SqlClient`, `IBM.Data.DB.Provider`, plus Redist-sourced `System.Data.SqlServerCe` and `Sap.Data.Hana.v4.5`. Redist HintPaths use `$(MSBuildThisFileDirectory)..` (not `$(SolutionDir)`) so the project resolves correctly in single-project packs as well as full-solution builds (PR #5565). `NuGet/Directory.Build.props` sets `ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None` to suppress MSB3270 (x64 NuGet.dll referenced by AnyCPU projects) (PR #5580). The SQLite native library is now sourced from `SQLitePCLRaw.lib.e_sqlite3` (previously `SourceGear.sqlite3`): `NuGet/NuGet.csproj` references it with `GeneratePathProperty`, and `NuGet/t4models/linq2db.t4models.csproj` and `NuGet/SQLite/linq2db.SQLite.csproj` pack `e_sqlite3.dll` from `$(ToolsPath)/runtimes/win-{x64,x86,arm64}/native/` (previously `$(ToolsPath)/sds/runtimes/...`) into `tools\runtimes\<rid>\native`, plus a co-located x64 copy under `tools\` for the T4 host. Licensing: `NuGet/Directory.Build.props` also adds, for every project except `NuGet` (keyed on `$(MSBuildProjectName)`), two `None` pack items for `Build/licenses/generated/THIRD-PARTY-NOTICES.$(MSBuildProjectName).txt` at package root and `tools\THIRD-PARTY-NOTICES.txt`, because each T4 package redistributes third-party provider binaries not covered by its MIT expression. `NuGet/README.T4.md` and `NuGet/readme.T4.txt` gained a licensing notice pointing at that file.
+`NuGet/NuGet.csproj` is the build-support project that resolves and stages all provider client DLLs into `$(TargetDir)` so they can be bundled into the `tools\` folder. It targets `net462` / `x64` and references: `MySqlConnector`, `ClickHouse.Driver`, `AdoNetCore.AseClient`, `Humanizer.Core`, `FirebirdSql.Data.FirebirdClient`, `Oracle.ManagedDataAccess`, `Npgsql`, `System.Data.SQLite`, `Microsoft.Data.SqlClient`, `IBM.Data.DB.Provider`, and `Microsoft.SqlServer.Compact` (SQL CE, now a `PackageReference` with `GeneratePathProperty`; the amd64/x86 native globs come from `$(PkgMicrosoft_SqlServer_Compact)\NativeBinaries` under `amd64` / `x86`, replacing the former `Redist\SqlCe` HintPath and native folders). A `CheckSqlCeNatives` target (`BeforeTargets="CopyFilesToOutputDirectory"`) raises an error when the matching native glob is empty, because an unrestored `$(PkgMicrosoft_SqlServer_Compact)` otherwise empties the globs silently.
+`Sap.Data.Hana.v4.5` is no longer referenced or bundled: `NuGet/NuGet.csproj`, `NuGet/t4models/linq2db.t4models.csproj` and `NuGet/SapHana/linq2db.SapHana.csproj` dropped it, so the SapHana package ships only `System.Data.Odbc.dll`; the native HANA ADO.NET client must be installed by the consumer (it registers for .NET Framework) -- see `NuGet/README.md` (`LinqToDBT4SapHanaClientPath`) and `NuGet/SapHana/CopyMe.SapHana.tt.txt`. Earlier Redist HintPaths used `$(MSBuildThisFileDirectory)..` (not `$(SolutionDir)`) so the project resolves in single-project packs as well as full-solution builds (PR #5565). `NuGet/Directory.Build.props` sets `ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch=None` to suppress MSB3270 (x64 NuGet.dll referenced by AnyCPU projects) (PR #5580).
+The SQLite native library is now sourced from `SQLitePCLRaw.lib.e_sqlite3` (previously `SourceGear.sqlite3`): `NuGet/NuGet.csproj` references it with `GeneratePathProperty`, and `NuGet/t4models/linq2db.t4models.csproj` and `NuGet/SQLite/linq2db.SQLite.csproj` pack `e_sqlite3.dll` from `$(ToolsPath)/runtimes/win-x64`, `win-x86` and `win-arm64` under `native/` (previously `$(ToolsPath)/sds/runtimes/...`) into `tools\runtimes\<rid>\native`, plus a co-located x64 copy under `tools\` for the T4 host. Licensing: `NuGet/Directory.Build.props` also adds, for every project except `NuGet` (keyed on `$(MSBuildProjectName)`), two `None` pack items for `Build/licenses/generated/THIRD-PARTY-NOTICES.$(MSBuildProjectName).txt` at package root and `tools\THIRD-PARTY-NOTICES.txt`, because each T4 package redistributes third-party provider binaries not covered by its MIT expression. `NuGet/README.T4.md` and `NuGet/readme.T4.txt` gained a licensing notice pointing at that file.
+
+Folders populated only while `NuGet/NuGet.csproj` builds (after a packaging project's static item globs are evaluated) are packed through a pack-time target ordered `BeforeTargets="_GetPackageFiles"`: `IncludeToolsFoldersInPack` in `NuGet/t4models/linq2db.t4models.csproj` (`clidriver/`, `amd64/`, `x64/`), `IncludeClidriverInPack` in `NuGet/DB2/linq2db.DB2.csproj` and `NuGet/Informix/linq2db.Informix.csproj`, and `IncludeNativesInPack` in `NuGet/SqlCe/linq2db.SqlCe.csproj` (`amd64/`). These targets now add ordinary `None` items with `Pack="true"` and a `PackagePath` (the DB2/t4models targets previously injected `_PackageFiles` items with a `%(RecursiveDir)` `PackagePath`) and each has an `Error` guard on a sentinel file (`clidriver/bin/db2cli.dll`, `amd64/sqlceme40.dll`, `x64/SqlServerSpatial170.dll`) that fails the pack with "build NuGet/NuGet.csproj first" instead of producing a package with a silently empty folder.
 
 ## Known issues / debt
 
@@ -140,6 +144,7 @@ The `T4Model.ttinclude`'s concrete partial classes (`Table`, `Column`, `ForeignK
 - `Validation.ttinclude` has a hard dependency on `NotifyPropertyChanged.ttinclude`. Consumers wanting only validation without INotifyPropertyChanged cannot include `Validation.ttinclude` in isolation — they get the full notify-property-changed machinery as a side effect.
 - The legacy ModelGeneration layer (`linq2db.Scaffold.dll`) is retained solely for T4 back-compat. The modern CLI scaffold path (`dotnet linq2db scaffold`) uses a separate code model. Any new capability added to the CLI scaffold is not automatically surfaced in T4 templates.
 - Assembly resolution uses `AppDomain` APIs (`AssemblyResolve`, `Assembly.LoadFrom`), which are not supported in .NET single-file deployments or AOT contexts — this is by design since T4 templates run at design time, but limits future hosting options.
+- The SapHana T4 package no longer bundles the native `Sap.Data.Hana.v4.5` client, so a template using the native ADO.NET provider requires a locally installed SAP HANA client (Windows-only); only the ODBC route is self-contained.
 
 ## See also
 
@@ -148,7 +153,7 @@ The `T4Model.ttinclude`'s concrete partial classes (`Table`, `Column`, `ForeignK
 - `NuGet/t4models/linq2db.t4models.csproj` — packaging definition.
 - `NuGet/NuGet.csproj` -- build-support project that stages provider DLLs for the T4 tools folder.
 - `Tests/Tests.T4.Nugets/` — integration tests for the NuGet content layout.
-- [linq2db T4 Models docs](https://linq2db.github.io/articles/T4.htm) — external consumer reference (mirrored in `README.md`).
+- [linq2db T4 Models docs](https://linq2db.github.io/articles/t4.html) — external consumer reference (mirrored in `README.md`).
 
 <details><summary>Coverage</summary>
 
@@ -168,4 +173,15 @@ Read (this run -- delta):
 - `NuGet/t4models/linq2db.t4models.csproj`, `NuGet/SQLite/linq2db.SQLite.csproj`: `e_sqlite3.dll` pack sources moved from `$(ToolsPath)/sds/runtimes/...` to `$(ToolsPath)/runtimes/...`.
 - `NuGet/README.T4.md`, `NuGet/readme.T4.txt`: licensing notice added (third-party client assemblies in `tools`, see `THIRD-PARTY-NOTICES.txt`).
 - `Source/LinqToDB.Templates/LinqToDB.ttinclude`: new `GenerateSqlServerDecimalOverflowProtection` flag forwarding to `ModelGenerator.GenerateSqlServerDecimalOverflowProtection`.
+
+Read (this run -- delta, 2026-11-11, f90c5bcfb):
+- `NuGet/NuGet.csproj`: SQL CE moved from Redist HintPath to `Microsoft.SqlServer.Compact` PackageReference (`GeneratePathProperty`); added `CheckSqlCeNatives` error target; removed the `Sap.Data.Hana.v4.5` Redist reference.
+- `NuGet/t4models/linq2db.t4models.csproj`: `IncludeClidriverInPack` replaced by `IncludeToolsFoldersInPack` (clidriver, amd64, x64 via `None Include` with sentinel `Error` guards); static `amd64/**`, `x64/**` and `Sap.Data.Hana.v4.5.dll` items removed.
+- `NuGet/DB2/linq2db.DB2.csproj`: `IncludeClidriverInPack` switched from `_PackageFiles` injection to `None Include` with sentinel `Error` guard.
+- `NuGet/Informix/linq2db.Informix.csproj`: static clidriver glob replaced by a new `IncludeClidriverInPack` target (same pattern as DB2).
+- `NuGet/SqlCe/linq2db.SqlCe.csproj`: static `amd64/**` glob replaced by new `IncludeNativesInPack` target with `sqlceme40.dll` guard.
+- `NuGet/SapHana/linq2db.SapHana.csproj`: `Sap.Data.Hana.v4.5.dll` no longer packed (ODBC only).
+- `NuGet/SapHana/CopyMe.SapHana.tt.txt`: comment notes the native ADO.NET provider needs the SAP HANA client installed.
+- `NuGet/README.md`: `LinqToDBT4SapHanaClientPath` now documented as the `System.Data.Odbc` client folder, native HANA client not bundled.
+- `NuGet/README.T4.md`, `NuGet/README.T4.model.md`, `NuGet/readme.T4.txt`, `Source/LinqToDB.Templates/README.md`: docs links lowercased to `articles/t4.html` and `articles/general/video.html` (and `T4.htm` fixed to `t4.html`).
 </details>
