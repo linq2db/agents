@@ -56725,26 +56725,6 @@
     "body_excerpt": "### Summary\n\nThe SQL Server Compact binaries redistributed by `linq2db.SqlCe` and `linq2db.t4models` are hand-copied into `Redist/SqlCe` rather than restored from a package. They are byte-identical to the contents of the `Microsoft.SqlServer.Compact` NuGet package, which also carries the licence terms the hand-copy left behind. Referencing the package instead removes the checked-in binaries and lets the licence and version travel with them.\n\n### Background\n\nVerified while inventorying redistribu"
   },
   {
-    "id": 5862,
-    "title": "Source the SAP HANA provider from SAP's NuGet packages and shrink Redist/SapHana",
-    "state": "closed",
-    "area": "PROV-SAPHANA",
-    "labels": [
-      "provider: sap-hana",
-      "area: infrastructure",
-      "area: nuget"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-09-03T13:22:31Z",
-    "updated_at": "2026-10-28T01:06:33Z",
-    "closed_at": "2026-10-28T01:06:33Z",
-    "url": "https://github.com/linq2db/linq2db/issues/5862",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "SAP now publishes the HANA .NET provider on nuget.org as Sap.Data.Hana.Net.v6.0, Sap.Data.Hana.Net.v8.0 and Sap.Data.Hana.Net.v10.0, including the native libadonetHDB libraries for Windows, Linux and macOS. The .NET-side binaries currently checked into Redist/SapHana can be...",
-    "body_excerpt": "### Summary\n\nSAP now publishes the HANA .NET provider on nuget.org as `Sap.Data.Hana.Net.v6.0`, `Sap.Data.Hana.Net.v8.0` and `Sap.Data.Hana.Net.v10.0`, including the native `libadonetHDB` libraries for Windows, Linux and macOS. The .NET-side binaries currently checked into `Redist/SapHana` can be restored from those packages instead. The .NET Framework `Sap.Data.Hana.v4.5.dll` has no package equivalent and is tracked separately.\n\n### Background\n\n`Sap.Data.Hana.Net.v8.0` 2.29.27 (author `SAP`) co"
-  },
-  {
     "id": 5906,
     "title": "Investigate removing the explicit PreLoadSQLite_BaseDirectory configuration",
     "state": "closed",
@@ -56837,25 +56817,6 @@
     "linked_files": null,
     "summary": "SQLiteTools.CreateDataConnection(DbConnection) and SQLiteTools.GetDataProvider(connection: ...) with SQLiteProvider.AutoDetect choose the provider without looking at the connection's type. When System.Data.SQLite is loaded, a Microsoft.Data.Sqlite.SqliteConnection is paired...",
     "body_excerpt": "### Summary\n\n`SQLiteTools.CreateDataConnection(DbConnection)` and `SQLiteTools.GetDataProvider(connection: ...)` with `SQLiteProvider.AutoDetect` choose the provider without looking at the connection's type. When System.Data.SQLite is loaded, a `Microsoft.Data.Sqlite.SqliteConnection` is paired with the SQLite.Classic provider.\n\n### Current behavior\n\n- `Source/LinqToDB/DataProvider/SQLite/SQLiteTools.cs:45-49` -- `CreateDataConnection(DbConnection, AutoDetect)` passes only `ConnectionOptions(DbC"
-  },
-  {
-    "id": 6182,
-    "title": "Regression: \"Window functions cannot be used in search condition.\" error when using window function and left join",
-    "state": "closed",
-    "area": "EFCORE",
-    "labels": [
-      "status: needs-tests",
-      "area: efcore"
-    ],
-    "user": "plukawski",
-    "created_at": "2026-10-27T11:18:19Z",
-    "updated_at": "2026-10-30T00:52:01Z",
-    "closed_at": "2026-10-30T00:52:01Z",
-    "url": "https://github.com/linq2db/linq2db/issues/6182",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "Look at the following code:",
-    "body_excerpt": "### Description\n\nLook at the following code:\n```\nstring nullStringValue = \"12345\";\nconst int rankValue = 1000;\nusing var context = container.GetService<SampleDataContext>();\nvar query = from t2 in context.TableTwo\n            join t1 in context.TableOne on t2.TableOneId equals t1.Id into t1j\n            from t1 in t1j.DefaultIfEmpty()\n            where t2.NullableStringColumn == nullStringValue\n            select new\n            {\n                t2.TableOneId,\n                t2.Code,\n         "
   },
   {
     "id": 6205,
@@ -58059,22 +58020,6 @@
     "body_excerpt": "### Summary\n\nWith an ordered CTE as the outer sequence, a correlated `SelectMany` collection that filters and then orders makes `DistinctBy` rank by the collection's ordering alone, silently keeping the wrong row per key.\n\n### Current behavior\n\n```csharp\nvar cte = db.Parent.OrderByDescending(p => p.ParentID).Take(1000).AsCte();\n\nvar query =\n    from p in cte\n    from c in db.Child.Where(c => c.ParentID == p.ParentID).OrderBy(c => c.ChildID)\n    select new { p.ParentID, p.Value1, c.ChildID };\n\nqu"
   },
   {
-    "id": 6280,
-    "title": "Please enable private vulnerability reporting",
-    "state": "closed",
-    "area": "GLOBAL",
-    "labels": [],
-    "user": "andrejskvorc",
-    "created_at": "2026-11-09T09:56:33Z",
-    "updated_at": "2026-11-09T16:59:02Z",
-    "closed_at": "2026-11-09T16:59:02Z",
-    "url": "https://github.com/linq2db/linq2db/issues/6280",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "Hi, I'd like to report a security issue in linq2db privately. The repository has no SECURITY.md, and GitHub private vulnerability reporting is turned off. Could you turn it on (Settings -> Code security -> Private vulnerability reporting), or tell me where to send the report?...",
-    "body_excerpt": "Hi, I'd like to report a security issue in linq2db privately. The repository has no SECURITY.md, and GitHub private vulnerability reporting is turned off. Could you turn it on (Settings -> Code security -> Private vulnerability reporting), or tell me where to send the report? I won't post any details here.\n\nAdding a short SECURITY.md that names the channel would help future reporters too."
-  },
-  {
     "id": 5483,
     "title": "Firebird 6: use native `DROP TABLE IF EXISTS` / `CREATE TABLE IF NOT EXISTS` instead of `EXECUTE BLOCK` workaround",
     "state": "open",
@@ -59082,41 +59027,6 @@
     "body_excerpt": "### Summary\n\nA `bool` member built from a nullable comparison in one projection and negated in a later filter loses the rows where the compared value is NULL. LINQ to Objects keeps them.\n\n### Current behavior\n\nWith the test model's `Parent` (Parents 2 and 4 have a NULL `Value1`):\n\n```cs\nfrom x in db.Parent.Select(p => new { IsOne = p.Value1 == 1, p.ParentID })\nwhere x.IsOne == false        // also: x.IsOne != true\nselect x.ParentID\n```\n\ngenerates, on every provider including SQLite:\n\n```sql\nSELE"
   },
   {
-    "id": 6156,
-    "title": "Union and Intersect of an optional object against a `(T?)null` branch throw \"Could not decide which construction type to use\"",
-    "state": "closed",
-    "area": "EXPR-TRANS",
-    "labels": [],
-    "user": "Demivan",
-    "created_at": "2026-10-26T12:08:49Z",
-    "updated_at": "2026-11-10T15:26:58Z",
-    "closed_at": "2026-11-10T15:26:58Z",
-    "url": "https://github.com/linq2db/linq2db/issues/6156",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "A set operation throws when one branch projects an object that may be missing, and the other branch projects (T?)null in the same place. The object comes from the builder itself, which decides whether it is there by testing one of its columns for NULL:",
-    "body_excerpt": "### Description\n\nA set operation throws when one branch projects an object that may be missing, and the other branch projects `(T?)null` in the same place. The object comes from the builder itself, which decides whether it is there by testing one of its columns for NULL:\n\n- an entity from a `DefaultIfEmpty()` join,\n- a nullable association,\n- a `FirstOrDefault()` subquery.\n\n`Union` and `Intersect` throw for every one of these, with either branch first. `Concat` works in both orders, and so does "
-  },
-  {
-    "id": 6077,
-    "title": "PostgreSQL: netstandard2.0 build can't read Npgsql 10 date/time/daterange into DateTime/TimeSpan/NpgsqlRange<DateTime>",
-    "state": "closed",
-    "area": "PROV-POSTGRES",
-    "labels": [
-      "provider: postgresql",
-      "area: compatibility"
-    ],
-    "user": "MaceWindu",
-    "created_at": "2026-10-19T22:20:15Z",
-    "updated_at": "2026-11-10T16:15:25Z",
-    "closed_at": "2026-11-10T16:15:25Z",
-    "url": "https://github.com/linq2db/linq2db/issues/6077",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "Npgsql 10 returns DateOnly for date, TimeOnly for time and NpgsqlRange<DateOnly> for daterange. The net8+ build of linq2db converts those to the classic DateTime / TimeSpan / NpgsqlRange<DateTime> property types. That conversion lives under SUPPORTS_DATEONLY...",
-    "body_excerpt": "### Description\n\nNpgsql 10 returns `DateOnly` for `date`, `TimeOnly` for `time` and `NpgsqlRange<DateOnly>` for `daterange`. The net8+ build of linq2db converts those to the classic `DateTime` / `TimeSpan` / `NpgsqlRange<DateTime>` property types. That conversion lives under `SUPPORTS_DATEONLY` (`PostgreSQLDataProvider.cs:88-93`, `PostgreSQLMappingSchema.cs:75-82`), so the **netstandard2.0** build has none of it. An app on a modern runtime that loads the ns2.0 asset fails on a plain `DateTime` p"
-  },
-  {
     "id": 6210,
     "title": "Fix Select(Math.Max(...)).Sum() translation regression in correlated subqueries",
     "state": "closed",
@@ -59226,25 +59136,6 @@
     "body_excerpt": "### Summary\n\nWith `EagerLoadingStrategy.CteUnion`, a nested `db.Select(() => ...)` in a projection that also eager-loads a collection fails at query-build time, beside the collection and inside it. The same value written as a plain subquery works.\n\n### Current behavior\n\nReproduced on master `fdc08bfe6a` against `SQLite.MS`, and identically on the head of #6111, which does not touch the files below:\n\n```csharp\nusing var db = GetDataContext(context, o => o.UseDefaultEagerLoadingStrategy(EagerLoadi"
   },
   {
-    "id": 6297,
-    "title": "Query cache: root db.Select queries of one result type share one 16-entry bucket",
-    "state": "open",
-    "area": "LINQ",
-    "labels": [
-      "area: linq",
-      "area: performance"
-    ],
-    "user": "sdanyliv",
-    "created_at": "2026-11-11T13:43:21Z",
-    "updated_at": "2026-11-11T13:43:22Z",
-    "closed_at": null,
-    "url": "https://github.com/linq2db/linq2db/issues/6297",
-    "is_pr": false,
-    "linked_files": null,
-    "summary": "The query-cache bucket key does not look inside the selector of a root db.Select(() => ...). Every such query of one result type, on one context type and configuration, therefore lands in the same bucket, which holds at most 16 entries: a 17th distinct selector evicts another...",
-    "body_excerpt": "### Summary\n\nThe query-cache bucket key does not look inside the selector of a root `db.Select(() => ...)`. Every such query of one result type, on one context type and configuration, therefore lands in the same bucket, which holds at most 16 entries: a 17th distinct selector evicts another one, and every lookup compares the query against up to 16 cached trees.\n\n### Background\n\nThe bucketed cache was introduced in #5501. Its bucket key is meant to spread queries by their LINQ method chain, so th"
-  },
-  {
     "id": 6298,
     "title": "Comparisons over a cast to an unregistered enum return wrong rows",
     "state": "open",
@@ -59259,8 +59150,151 @@
     "closed_at": null,
     "url": "https://github.com/linq2db/linq2db/issues/6298",
     "is_pr": false,
-    "linked_files": null,
-    "summary": "A comparison over a cast of an enum column to a different enum returns wrong rows when the target enum has no SetDefaultFromEnumType registration onto the column's enum. The compared value is written in the target enum's own terms (its MapValue, its name or its ordinal)...",
-    "body_excerpt": "### Summary\n\nA comparison over a cast of an enum column to a different enum returns wrong rows when the target enum has no `SetDefaultFromEnumType` registration onto the column's enum. The compared value is written in the target enum's own terms (its `MapValue`, its name or its ordinal), while the column stores the source enum's mapped values.\n\n### Background\n\nA C# enum-to-enum cast is numeric: `(TargetEnum)Gender.Female == TargetEnum.Female` holds when both members have the same underlying valu"
+    "linked_files": [],
+    "summary": "A comparison over a cast of an enum column to a different enum returns wrong rows when the target enum has no SetDefaultFromEnumType registration onto the column's enum. The compared value is written in the target enum's own terms (its MapValue, its name or its ordinal), while...",
+    "body_excerpt": "### Summary\n\nA comparison over a cast of an enum column to a different enum returns wrong rows when the target enum has no `SetDefaultFromEnumType` registration onto the column's enum. The compared value is written in the target enum's own terms (its `MapValue`, its name or its ordinal), while the column stores the source enum's mapped values.\n\n### Background\n\nA C# enum-to-enum cast is numeric: `(TargetEnum)Gender.Female == TargetEnum.Female` holds when both members have the same underlying valu..."
+  },
+  {
+    "id": 6077,
+    "title": "PostgreSQL: netstandard2.0 build can't read Npgsql 10 date/time/daterange into DateTime/TimeSpan/NpgsqlRange<DateTime>",
+    "state": "closed",
+    "area": "PROV-POSTGRES",
+    "labels": [
+      "provider: postgresql",
+      "area: compatibility"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-10-19T22:20:15Z",
+    "updated_at": "2026-11-11T15:35:09Z",
+    "closed_at": "2026-11-10T16:15:25Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6077",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "Npgsql 10 returns DateOnly for date, TimeOnly for time and NpgsqlRange<DateOnly> for daterange. The net8+ build of linq2db converts those to the classic DateTime / TimeSpan / NpgsqlRange<DateTime> property types. That conversion lives under SUPPORTS_DATEONLY (PostgreSQLDataPro...",
+    "body_excerpt": "### Description\n\nNpgsql 10 returns `DateOnly` for `date`, `TimeOnly` for `time` and `NpgsqlRange<DateOnly>` for `daterange`. The net8+ build of linq2db converts those to the classic `DateTime` / `TimeSpan` / `NpgsqlRange<DateTime>` property types. That conversion lives under `SUPPORTS_DATEONLY` (`PostgreSQLDataProvider.cs:88-93`, `PostgreSQLMappingSchema.cs:75-82`), so the **netstandard2.0** build has none of it. An app on a modern runtime that loads the ns2.0 asset fails on a plain `DateTime` p..."
+  },
+  {
+    "id": 6297,
+    "title": "Query cache: root db.Select queries of one result type share one 16-entry bucket",
+    "state": "open",
+    "area": "LINQ",
+    "labels": [
+      "area: linq",
+      "area: performance"
+    ],
+    "user": "sdanyliv",
+    "created_at": "2026-11-11T13:43:21Z",
+    "updated_at": "2026-11-11T15:49:25Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6297",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "The query-cache bucket key does not look inside the selector of a root db.Select(() => ...). Every such query of one result type, on one context type and configuration, therefore lands in the same bucket, which holds at most 16 entries: a 17th distinct selector evicts another ...",
+    "body_excerpt": "### Summary\n\nThe query-cache bucket key does not look inside the selector of a root `db.Select(() => ...)`. Every such query of one result type, on one context type and configuration, therefore lands in the same bucket, which holds at most 16 entries: a 17th distinct selector evicts another one, and every lookup compares the query against up to 16 cached trees.\n\n### Background\n\nThe bucketed cache was introduced in #5501. Its bucket key is meant to spread queries by their LINQ method chain, so that..."
+  },
+  {
+    "id": 6300,
+    "title": "Docs: fix broken links, a garbled paragraph and a wrong API call in the merge, CLI and metrics articles",
+    "state": "open",
+    "area": "DOCS",
+    "labels": [
+      "area: documentation"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-11-11T16:19:02Z",
+    "updated_at": "2026-11-11T16:19:17Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6300",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "Several articles in the in-repo docs site (docs/source, moved in by #6265) contain broken links, a garbled paragraph and a code sample that calls a non-existent API.",
+    "body_excerpt": "### Summary\n\nSeveral articles in the in-repo docs site (`docs/source`, moved in by #6265) contain broken links, a garbled paragraph and a code sample that calls a non-existent API.\n\n### Current behavior\n\n- `docs/source/articles/sql/merge/merge-api.md:27` and `docs/source/articles/sql/merge/merge-api-description.md:41` link to the provider-support page with GitHub-wiki syntax (`[[support table|Merge-API-:-Background-Information-and-Providers-Support]]`). docfx does not render wiki links, so the t..."
+  },
+  {
+    "id": 6301,
+    "title": "Identity: match external logins by ordinal LoginProvider/ProviderKey, not DB collation",
+    "state": "open",
+    "area": "IDENTITY",
+    "labels": [],
+    "user": "MaceWindu",
+    "created_at": "2026-11-11T16:19:18Z",
+    "updated_at": "2026-11-11T16:19:35Z",
+    "closed_at": null,
+    "url": "https://github.com/linq2db/linq2db/issues/6301",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "linq2db.Identity resolves and removes external logins by comparing LoginProvider and ProviderKey in SQL only, so the database collation decides what matches. Under a case-insensitive (or trailing-space-insensitive) collation, a login whose provider key differs only by case or ...",
+    "body_excerpt": "### Summary\n\n`linq2db.Identity` resolves and removes external logins by comparing `LoginProvider` and `ProviderKey` in SQL only, so the database collation decides what matches. Under a case-insensitive (or trailing-space-insensitive) collation, a login whose provider key differs only by case or padding is found by `FindByLoginAsync` and deleted by `RemoveLoginAsync`.\n\n### Background\n\nASP.NET Core is changing its EF Core Identity stores to require an exact ordinal match on both fields after the i..."
+  },
+  {
+    "id": 6156,
+    "title": "Union and Intersect of an optional object against a `(T?)null` branch throw \"Could not decide which construction type to use\"",
+    "state": "closed",
+    "area": "EXPR-TRANS",
+    "labels": [],
+    "user": "Demivan",
+    "created_at": "2026-10-26T12:08:49Z",
+    "updated_at": "2026-11-11T18:39:01Z",
+    "closed_at": "2026-11-10T15:26:58Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6156",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "Union and Intersect throw for every one of these, with either branch first. Concat works in both orders, and so does ...",
+    "body_excerpt": "### Description\n\nA set operation throws when one branch projects an object that may be missing, and the other branch projects `(T?)null` in the same place. The object comes from the builder itself, which decides whether it is there by testing one of its columns for NULL:\n\n- an entity from a `DefaultIfEmpty()` join,\n- a nullable association,\n- a `FirstOrDefault()` subquery.\n\n`Union` and `Intersect` throw for every one of these, with either branch first. `Concat` works in both orders, and so does ..."
+  },
+  {
+    "id": 6182,
+    "title": "Regression: \"Window functions cannot be used in search condition.\" error when using window function and left join",
+    "state": "closed",
+    "area": "EFCORE",
+    "labels": [
+      "status: needs-tests",
+      "area: efcore"
+    ],
+    "user": "plukawski",
+    "created_at": "2026-10-27T11:18:19Z",
+    "updated_at": "2026-11-11T18:39:08Z",
+    "closed_at": "2026-10-30T00:52:01Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6182",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "string nullStringValue = \"12345\";",
+    "body_excerpt": "### Description\n\nLook at the following code:\n```\nstring nullStringValue = \"12345\";\nconst int rankValue = 1000;\nusing var context = container.GetService<SampleDataContext>();\nvar query = from t2 in context.TableTwo\n            join t1 in context.TableOne on t2.TableOneId equals t1.Id into t1j\n            from t1 in t1j.DefaultIfEmpty()\n            where t2.NullableStringColumn == nullStringValue\n            select new\n            {\n                t2.TableOneId,\n                t2.Code,\n         ..."
+  },
+  {
+    "id": 6280,
+    "title": "Please enable private vulnerability reporting",
+    "state": "closed",
+    "area": "GLOBAL",
+    "labels": [],
+    "user": "andrejskvorc",
+    "created_at": "2026-11-09T09:56:33Z",
+    "updated_at": "2026-11-11T18:39:16Z",
+    "closed_at": "2026-11-09T16:59:02Z",
+    "url": "https://github.com/linq2db/linq2db/issues/6280",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "Hi, I'd like to report a security issue in linq2db privately. The repository has no SECURITY.md, and GitHub private vulnerability reporting is turned off. Could you turn it on (Settings -> Code security -> Private vulnerability reporting), or tell me where to send the report? ...",
+    "body_excerpt": "Hi, I'd like to report a security issue in linq2db privately. The repository has no SECURITY.md, and GitHub private vulnerability reporting is turned off. Could you turn it on (Settings -> Code security -> Private vulnerability reporting), or tell me where to send the report? I won't post any details here.\n\nAdding a short SECURITY.md that names the channel would help future reporters too."
+  },
+  {
+    "id": 5862,
+    "title": "Source the SAP HANA provider from SAP's NuGet packages and shrink Redist/SapHana",
+    "state": "closed",
+    "area": "PROV-SAPHANA",
+    "labels": [
+      "provider: sap-hana",
+      "area: infrastructure",
+      "area: nuget"
+    ],
+    "user": "MaceWindu",
+    "created_at": "2026-09-03T13:22:31Z",
+    "updated_at": "2026-11-11T18:39:25Z",
+    "closed_at": "2026-10-28T01:06:33Z",
+    "url": "https://github.com/linq2db/linq2db/issues/5862",
+    "is_pr": false,
+    "linked_files": [],
+    "summary": "SAP now publishes the HANA .NET provider on nuget.org as Sap.Data.Hana.Net.v6.0, Sap.Data.Hana.Net.v8.0 and Sap.Data.Hana.Net.v10.0, including the native libadonetHDB libraries for Windows, Linux and macOS. The .NET-side binaries currently checked into Redist/SapHana can be re...",
+    "body_excerpt": "### Summary\n\nSAP now publishes the HANA .NET provider on nuget.org as `Sap.Data.Hana.Net.v6.0`, `Sap.Data.Hana.Net.v8.0` and `Sap.Data.Hana.Net.v10.0`, including the native `libadonetHDB` libraries for Windows, Linux and macOS. The .NET-side binaries currently checked into `Redist/SapHana` can be restored from those packages instead. The .NET Framework `Sap.Data.Hana.v4.5.dll` has no package equivalent and is tracked separately.\n\n### Background\n\n`Sap.Data.Hana.Net.v8.0` 2.29.27 (author `SAP`) co..."
   }
 ]

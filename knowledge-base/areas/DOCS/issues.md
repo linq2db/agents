@@ -4,16 +4,17 @@ kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: medium
 last_verified: 2026-11-11
-last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+last_verified_sha: 1732302e2365c87b9465ab754b768a149308a537
 ---
 
 # DOCS -- GitHub themes
 
 ## Open themes
 
-- **Site publishing mechanism (track)** -- the docfx site moved into the repository by #6265 (follow-up #6264), but publishing still pushes the built output to linq2db/linq2db.github.io with an SSH deploy key. #6267 (open) evaluates GitHub Pages' Actions publishing as the replacement. One open item, so this is a track rather than a cluster. Sample: #6265, #6267.
+- **Site publishing mechanism (track)** -- the docfx site now lives in the repository (merged 2026-11-10, moved out of linq2db/docs). Publishing still pushes the built output to linq2db/linq2db.github.io with an SSH deploy key. #6267 (open) evaluates GitHub Pages' Actions publishing as the replacement. One open item, so this is a track rather than a cluster. Sample: #6267.
 - **Readers cannot find the answer in the docs** -- six open requests ask for a topic the published articles or README do not make findable: query logging setup (#4645), a comparison with Entity Framework (#4288, discussion), guidance for writing a new data provider (#4555, discussion), disabling back references in JSON scaffolding (#4432, discussion), a separate folder for the generated context (#5374, discussion) and the README change-tracking reference (#5722, discussion). Sample: #4645, #4555, #5722.
 - **XML doc text that disagrees with runtime behaviour** -- the BulkCopy timeout XML doc promises an infinite timeout, but with default settings the driver default applies (#6001, open, tagged area: bulk-copy). The API reference is generated from these comments, so the wrong promise reaches the site. Sample: #6001.
+- **In-repo articles carry broken links and a wrong code sample** -- #6300 (open, opened 2026-11-11) reports broken links, a garbled paragraph and a code sample that calls a non-existent API in the merge, CLI and metrics articles of the in-repo docs site. One open item, so this is a track. Sample: #6300.
 
 ## Resolved themes
 
@@ -36,17 +37,18 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 ## Stats
 
-- Open issues: 3 (#4645, #6001, #6267; #6001 carries the bulk-copy label and is counted by content)
-- Closed issues: 13 cited above; 59 closed issues carry the area: documentation label index-wide
-- Open PRs: 0
+- Open issues: 4 (#4645, #6001, #6267, #6300 -- #6001 carries the bulk-copy label and is counted by content)
+- Closed issues: 13 cited above; 62 index entries carry the area: documentation label, open and closed, index-wide
+- Open PRs: 0 (no open PR carries the DOCS tag; #5376 is excluded, see coverage)
 - Total PRs: 14 cited (docs content, merged or closed)
 - Discussions: 5 open (#4288, #4432, #4555, #5374, #5722)
 - Last fetched: 2026-11-11
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 6240 (3245 issues + 2699 PRs + 296 discussions). 194 matched the content keywords (docs, docfx, documentation, article, readme, contributing, xref, linq2db.github.io, the documentation label, docs/ paths).
-- Themes extracted: 3 open, 8 resolved.
-- Items classified by content, not by the area tag: DOCS-tagged #5494, #6264, #6265, #6267 and #6274, plus GLOBAL-, EFCORE- and DATA-tagged documentation items.
+- Index entries scanned: 6247 (3247 issues + 2700 PRs + 293 discussions). Prior run: 6240 (3245 + 2699 + 296); the discussion count is now taken from the category field, so it differs from the earlier total.
+- Content keyword matches: 194 in the prior full scan, plus #6300 in this delta (195). No full keyword re-scan was run this time.
+- Themes extracted: 4 open, 8 resolved.
+- Items classified by content, not by the area tag: DOCS-tagged #5494, #6264, #6265, #6267, #6274 and #6300, plus GLOBAL-, EFCORE- and DATA-tagged documentation items.
 - Not themed: #5376 (open PR with the documentation label, AGENTS-INFRA, ships an agent skill in the NuGet package); #5736 and #5693 (agent-corpus docs, not site content); #5786 (LINQPad driver docs); #4707 and #4703 (PostgreSQL ltree mapping, not docs); #4491 and #4774 (closed discussions that cite the docs only as context); #5516 (BUILD gating PR).
 </details>

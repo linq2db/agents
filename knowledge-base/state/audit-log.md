@@ -3170,3 +3170,16 @@ Cross-source: no code pattern fired, so no cross entries were possible (the issu
 ## 2026-11-11T16:03:18Z — agent audit notes
 - Index had no DmlService entries, so no dedup, update or fixed patches. The coverage block above is wrapped as an artifact so the envelope stays well-formed. issues-index.json has no mention of DmlService, so gh_issue is null on all entries.
 
+## 2026-11-11T20:37:29Z — agent audit notes
+- github-indexes issues: #6280 (Please enable private vulnerability reporting) has no labels and no area keyword match, so it is classified GLOBAL by the default rule. Reclassify by label if wanted.
+
+## 2026-11-11T20:37:41Z — agent audit notes
+- prs-index delta (6 items): GLOBAL fallback, no label, no linked file and no title keyword match. #6277 body cites ExpressionBuildVisitor (EXPR-TRANS candidate). #6111 and #6299 add QueryBatch, which has no kb-areas.md row (CORE or EXPR-TRANS candidates). Reclassify by label if wanted.
+
+## 2026-11-11T20:56:23Z — kb-refresh
+- partial run (github sources only): code/commits deferred, primary clone dirty and 1 commit behind origin/master (#6296)
+- issues: 9 updated, prs: 6, discussions: 0
+- wiki: 0/0/0
+- themes regenerated: EXPR-TRANS, PROV-POSTGRES, LINQ, DOCS, IDENTITY, EFCORE, GLOBAL, PROV-SAPHANA, PROV-ACCESS (0 refs dropped)
+- audit: skipped (partial run)
+
