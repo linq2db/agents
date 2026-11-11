@@ -3193,3 +3193,9 @@ Cross-source: no code pattern fired, so no cross entries were possible (the issu
 - cursors code/commits -> 1732302e2
 - audit: 5 sampled, 1 demoted (SQL-AST/tech-debt.md)
 
+## 2026-11-11T21:29:41Z — kb-issues triage
+- DI-6462 -> accepted (#6302)
+
+## 2026-11-11T21:31:25Z — kb-build area re-index
+- AGENTS-INFRA INDEX.md delta re-index: removed deleted docs/review-bot-claim-audit.md rows (inlined into review-pr step 2b, corpus a190215); Tier 2 82/82
+

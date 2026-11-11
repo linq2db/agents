@@ -12174,13 +12174,13 @@
       "Source/LinqToDB/Internal/DataProvider/SqlCe/SqlCeDmlService.cs:31",
       "Source/LinqToDB/Internal/DataProvider/Informix/InformixDmlService.cs:33"
     ],
-    "status": "open",
-    "gh_issue": null,
     "first_detected_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
     "last_seen_sha": "f90c5bcfb86d88db436a6494f0640c4c43dd691f",
     "first_detected_at": "2026-11-11",
     "last_seen_at": "2026-11-11",
-    "confidence": "medium"
+    "confidence": "medium",
+    "status": "accepted",
+    "gh_issue": 6302
   },
   {
     "id": "DI-6463",
