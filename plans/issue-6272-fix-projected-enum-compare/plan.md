@@ -135,6 +135,7 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - TO-32 `DirectEnumCastOverConstantConditionalUsesEnumConverter`: a swapped `SetConverter<ApiGender, DataParameter>` must win over the registered enum's mapping — providers: `[DataSources]`, measured the same four — proof: red→green
 - TO-33 `DirectEnumCastOverConstantConditionalContains`: list parameter through the no-column branch — providers: `[DataSources]`, measured SQLite.MS, ClickHouse.* — proof: characterization
 - TO-34 `DirectCastToEnumWithOtherMapValuesEqualParameter`: unregistered enum whose MapValues differ from the column enum's, against a non-nullable parameter; discriminating input is `'Female'` vs the stored `'F'` — providers: `[DataSources]`, measured SQLite.MS — proof: red→green
+- TO-35 `DirectCastToEnumWithOtherMapValuesEqualConstant`, TO-36 `DirectCastToEnumWithOtherMapValuesContains`, TO-37 `DirectCastToEnumWithoutMapValuesEqualParameter`, TO-38 `DirectCastToEnumWithoutMapValuesEqualConstant`: unregistered-enum shapes wrong on master and head, pinned `[ActiveIssue(6298, ErrorMessage = "Expected and result lists are different")]` — providers: `[DataSources]`, measured SQLite.MS — proof: characterization (known issue)
 
 ## P9 Verification gates
 
@@ -176,6 +177,7 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
   - TO-33 `DirectEnumCastOverConstantConditionalContains` — green with E-8; not measured without it
   - After A-2: net10.0 Debug, direct and remote, 264 of 264 on 3 ClickHouse configs and SQLite.MS for `DirectEnumCast*` + `ProjectedEnumCast*`; SQLite.MS over the suites above 560 passed, 11 skipped, 0 failed, before E-8 was narrowed. Other providers and net462: `test-all` on the A-2 push.
   - TO-34 `DirectCastToEnumWithOtherMapValuesEqualParameter` — red on master (0 rows instead of 1, `CAST([p].[Gender] AS NVarChar(255)) = @gender` with `'Female'`), green with fix, SQLite.MS direct and remote
+  - TO-35..TO-38 — 0 rows instead of 1 on master and head, SQLite.MS direct and remote: `[Gender] = 'Female'` (TO-35, TO-38), `CAST([Gender] AS NVarChar(255)) IN ('Female', 'Other')` (TO-36), `CAST([Gender] AS INTEGER) = @gender` with `1` on master and `'F'` on head (TO-37); under the gate 8 of 8 report known issue
   - After A-3, on the branch merged with origin/master `fdc08bfe6`: `EnumMappingTests` on SQLite.MS, direct and remote, net10.0 Testing, all green (the remote TO-34 case needed a rerun after two transport errors under load).
 - G-02: pass for the A-2 head except SqlServer.2005 — CI baselines `baselines/pr_6277` on the A-2 head: 2250 added, 0 modified, 0 deleted; 33 files per provider (32 where the `DistinctBy` gate applies). SqlServer.2005 was not observed: its leg died at baselines checkout and its 24 files predate E-7..E-9. TO-34 and the merge of `fdc08bfe6` are pending `test-all` build 25517 on the A-3 head. No existing SQL moved on any observed provider; per-family reads of the new tests show bare column compares with the parameter as `'F'` in the column's db type.
 - G-05: pass — `dotnet build` Release of `Source/LinqToDB` for net10.0, netstandard2.0, net462 exit 0; `Tests/Linq` Release net10.0 exit 0 and net462 built by the run above. After A-1: `Source/LinqToDB` and `Tests/Linq` Release net10.0 exit 0. After A-2: `Source/LinqToDB` Release net10.0, netstandard2.0, net462 and `Tests/Linq` Release net10.0, 0 warnings, 0 errors.
@@ -194,6 +196,7 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - A parameter in the ELSE of a multi-branch CASE is evaluated with its client value, so an enum there loses the fold. A missed optimisation only.
 - `IsDistinctPredicate` evaluation compares client values with no enum guard, reachable through `Sql.IsDistinctFrom` with an inlined enum parameter. Same class as A-2, unchanged from master, not measured.
 - A user `ApiGender → Gender` converter is not consulted by E-8, as it is not by D-2's arm (`GenerateSafeConvert`).
+- A cast to an enum with no `SetDefaultFromEnumType` registration onto the column's enum compares in the target enum's terms: its constant, `Contains` and plain-enum parameter forms return wrong rows on master and head (TO-35..TO-38). Reason: pre-existing, needs the general enum-to-enum pass-through D-1 rejected; tracked as [#6298](https://github.com/linq2db/linq2db/issues/6298) (Backlog), user decision after the critic round 4 probes.
 
 ## P11 Amendments
 
@@ -208,8 +211,12 @@ Regression source: #5258 added a fallback reusing the column when the cast targe
 - A-3 (2026-11-11, review round 2) — D-2's failure mode had no discriminating test: TO-24's `DtoGender` shares `Gender`'s MapValues and covers a constant only. TO-34 uses an unregistered enum with different MapValues against a non-nullable parameter; master returns wrong rows, so E-2 also fixes the unregistered case. Code unchanged. Branch merged with origin/master `fdc08bfe6`.
   re-derives: P8 (TO-34), P9 (G-01 TO-34 row; G-02 restated for the A-2 head)
   class: a decision's failure mode recorded in prose with no test whose fixture separates it from the intended case.
-  The attribution of TO-34's red to E-2's widened arm is reasoned (critic round 4 traced it); no revert-`:290` mutation was run.
   conventions: testing.md Test layout; swept with test-diff-sweep.ps1 -IncludeWorkingTree, no hits.
+  The attribution of TO-34's red to E-2's widened arm is reasoned (critic round 4 traced it); no revert-`:290` mutation was run.
+- A-4 (2026-11-11, critic round 4 probes) — The constant twin, the `Contains` list and the plain-enum parameter and constant forms of a cast to an unregistered enum were probed on master `fdc08bfe6` and the A-3 head: all wrong on both, so none is a regression; the head changes only TO-37's wrong value (`1` → `'F'`). Filed as #6298 and pinned as TO-35..TO-38 under `[ActiveIssue(6298)]`. Code unchanged.
+  re-derives: P8 (TO-35..TO-38), P9 (G-01 rows), P10 (#6298 line)
+  class: a decision's failure mode recorded in prose with no test whose fixture separates it from the intended case.
+  conventions: testing.md Test layout and `[ActiveIssue]` declares its message (AssertQuery: `ErrorMessage`, no type); swept with test-diff-sweep.ps1 -IncludeWorkingTree, no hits.
 
 ## P12 Critic verdict
 
@@ -242,7 +249,7 @@ Open from the critic: `Enum.ToObject` on a boxed enum on net462 / netstandard2.0
 
 - No revert-`:290` mutation was run, so the attribution is reasoned. Outcome: recorded in A-3.
 - TO-34 is measured on SQLite.MS only; strict providers are pending `test-all` 25517.
-- The constant twin `(SpelledOutGender)p.Gender == SpelledOutGender.Female` is predicted to send `'Female'` and return 0 rows on master and head, so the constant and parameter forms now disagree. Unprobed.
-- An unregistered `SpelledOutGender[]` `Contains` reaches E-2's arm through the list path; unmeasured.
-- A plain enum with no `MapValue`s: the column side is `CAST(Gender AS Int)`, and E-2 moves the parameter from the ordinal to `'F'`; predicted wrong on master and head, but differently. Unprobed.
+- The constant twin `(SpelledOutGender)p.Gender == SpelledOutGender.Female` is predicted to send `'Female'` and return 0 rows on master and head, so the constant and parameter forms now disagree. Outcome: measured as predicted (A-4), filed as #6298, TO-35.
+- An unregistered `SpelledOutGender[]` `Contains` reaches E-2's arm through the list path; unmeasured. Outcome: wrong on master and head, unchanged by E-2 (`IN ('Female', 'Other')`), TO-36 under #6298.
+- A plain enum with no `MapValue`s: the column side is `CAST(Gender AS Int)`, and E-2 moves the parameter from the ordinal to `'F'`; predicted wrong on master and head, but differently. Outcome: measured as predicted, TO-37/TO-38 under #6298.
 - G-02 read SqlServer.2005 from an absence. Outcome: G-02 reworded to exclude it.
