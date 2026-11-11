@@ -33,6 +33,8 @@ The user invokes `/fix-issue <issue-ref>` where `<issue-ref>` is one of:
 
 Only invoke this skill for `linq2db/linq2db` issues. For issues in other repos, say so and stop.
 
+**Docs-only issues** (every change under `docs/`) have nothing to reproduce: run steps 1–3, verify each claim against the artifact it names, make the edits, and skip 3b–6. The verification is `./docs/build.ps1 -WarningsAsErrors` (what CI runs) plus a `Grep` of the generated HTML under `.build/docs/_site/` for each fixed link target — docfx renders a GitHub-wiki `[[…]]` link as plain text, so a clean build alone does not prove a link resolves. (#6300)
+
 ## Steps
 
 ### 1. Load the issue

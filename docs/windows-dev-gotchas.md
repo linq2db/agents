@@ -396,6 +396,12 @@ cmd.exe expands `%USERPROFILE%` to the actual profile path; PowerShell does NOT 
 
 Quote any path that may contain spaces. Bit PR #5539 rounds 2 + 4 (Copilot caught it twice — the side-by-side `--tool-path` install recipe initially used `%USERPROFILE%` without naming the shell).
 
+### Capturing a script's log: `*>` into a directory that exists, never `| Select-Object -Last N`
+
+- **`./script.ps1 | Select-Object -Last N` loses everything when the script throws.** `-Last` buffers until the pipeline ends, and a terminating error discards the buffer, so a failure comes back with no reason (`docs/build.ps1` printed only `DocFx build failed`).
+- **A redirect into a missing directory fails before the script runs** — `Out-File: Could not find a part of the path`. In a fresh worktree `.build\` does not exist yet, and the tool still reports exit 0.
+- **Do:** `& ./script.ps1 *> <existing-dir>\<name>.log`, then `Grep` the log; create the directory first if the tree is fresh. (#6300)
+
 ## NTFS is case-insensitive — a path "created" in the wrong case is the original
 
 Writing `docs/Foo.md` when `docs/foo.md` exists does not create a second file: NTFS opens the existing one, so the write lands in the original and git may then report a case-only rename. The dangerous follow-up is cleanup — an agent that believes it created a stray duplicate and deletes it deletes the original. Before deleting a path you think you just created, check `git ls-files -- <dir>` (or `Glob`) for a case variant, and take paths from `git ls-files` rather than retyping them. (Reported in an external write-up on running Claude Code natively on Windows, 2026; not yet hit in this repo.)
