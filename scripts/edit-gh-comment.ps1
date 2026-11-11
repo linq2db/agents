@@ -66,7 +66,7 @@ $m = Read-ManifestFromFileOrStdin -ManifestFile $ManifestFile
 if (-not (Test-IsInteger $m.commentId) -or [long]$m.commentId -le 0) {
     Exit-WithError 'commentId (positive integer) required'
 }
-$commentId = [int]$m.commentId
+$commentId = [long]$m.commentId
 $owner     = if ($m.owner) { [string]$m.owner } else { 'linq2db' }
 $repo      = if ($m.repo)  { [string]$m.repo }  else { 'linq2db' }
 $kind      = if ($m.kind)  { [string]$m.kind }  else { 'issue' }
