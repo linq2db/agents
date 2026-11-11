@@ -3,10 +3,10 @@ area: INTERNAL-API
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 23/23
-coverage_tier_2: 365/365
+coverage_tier_2: 367/367
 ---
 
 # INTERNAL-API
@@ -139,9 +139,9 @@ Consumers: every `PROV-*` area's data provider and SQL builder, plus [EXPR-TRANS
 
 Custom `Expression` subclasses used inside the LINQ->SQL translation pipeline, plus high-performance visitor infrastructure. Companions to the public `Expressions/` surface (owned by [EXPR](../EXPR/INDEX.md)).
 
-Key types: `SqlPlaceholderExpression`, `SqlGenericConstructorExpression`, `ContextRefExpression`, `ConvertFromDataReaderExpression`, `MarkerExpression`, `TagExpression`, `SqlQueryRootExpression`, `ExpressionVisitorBase`.
+Key types: `SqlPlaceholderExpression`, `SqlGenericConstructorExpression`, `ContextRefExpression`, `ConvertFromDataReaderExpression`, `MarkerExpression`, `SqlQueryRootExpression`, `ExpressionVisitorBase`.
 
-Node families: type-coercion (`ChangeTypeExpression`, `SqlAdjustTypeExpression`, `ConvertFromDataReaderExpression`, `DefaultValueExpression`); query-structure (`SqlQueryRootExpression`, `ContextRefExpression`, `SqlEagerLoadExpression`, `SqlDefaultIfEmptyExpression`, `SqlPathExpression`); access and aggregate-lift (`SqlGenericParamAccessExpression`, `SqlReaderIsNullExpression`, `SqlAggregateLifterExpression`, `SqlErrorExpression`); placeholder and marker (`ConstantPlaceholderExpression`, `MarkerExpression`, `TagExpression`).
+Node families: type-coercion (`ChangeTypeExpression`, `SqlAdjustTypeExpression`, `ConvertFromDataReaderExpression`, `DefaultValueExpression`); query-structure (`SqlQueryRootExpression`, `ContextRefExpression`, `SqlEagerLoadExpression`, `SqlDefaultIfEmptyExpression`, `SqlPathExpression`); access and aggregate-lift (`SqlGenericParamAccessExpression`, `SqlReaderIsNullExpression`, `SqlAggregateLifterExpression`, `SqlErrorExpression`); placeholder and marker (`ConstantPlaceholderExpression`, `MarkerExpression`).
 
 **`ConvertFromDataReaderExpression.Reduce(IDataContext?, bool)` (delta @ sha `36ee4f82`):** the sequential-access fast path now reads `dataContext.Options.LinqOptions.OptimizeForSequentialAccess` (per-`DataContext` option) instead of the removed global static `LinqToDB.Common.Configuration.OptimizeForSequentialAccess` -- the flag is now settable per data context rather than process-wide (`Source/LinqToDB/Internal/Expressions/ConvertFromDataReaderExpression.cs:65`).
 
@@ -354,6 +354,52 @@ Supporting pieces: `UsingOutsideProjectionValue()` scopes (exposed on `Expressio
 
 ---
 
+### Delta @ sha `f90c5bcfb` (from `89b5ce16`) -- DML command scenarios, combined commands, coercing reflection lookups, TagExpression removal
+
+**`IDmlService` is now mandatory and drives command scenarios.** `DataProviderBase.CreateDmlService()` changed from `IDmlService?` (default `null`, service registered only when non-null) to `IDmlService` defaulting to `new BasicDmlService()`, and `InitServiceProvider` always registers it (`Source/LinqToDB/Internal/DataProvider/DataProviderBase.cs`). This supersedes the "only providers whose DROP TABLE cannot express IF EXISTS register one" description in the Coverage-fill narration above. `IDmlService` gained two members (`Source/LinqToDB/Internal/DataProvider/IDmlService.cs`):
+- `BuildCommandScenario(SqlStatement, SqlProviderFlags, ISqlExpressionFactory)` returns a `SqlCommandScenario?` (the runner treats `null` as a contract error).
+- `PlanScenario(SqlCommandScenario, SqlProviderFlags)` returns a `SqlCommandGroupPlan` (physical round-trip grouping).
+
+`BasicDmlService` (NEW, `Source/LinqToDB/Internal/DataProvider/BasicDmlService.cs`) is a `public sealed` `DmlServiceBase` with `IsTableNotFoundExceptionCore => false`.
+
+**`DmlServiceBase` grew from a table-not-found helper to the scenario factory** (+333 lines, `Source/LinqToDB/Internal/DataProvider/DmlServiceBase.cs`):
+- `BuildCommandScenario` (virtual): `SqlInsertOrUpdateStatement` goes through `BuildInsertOrUpdateScenario`, anything else gets `DefaultScenario(statement)` (one `NonQuery` step, `OutcomeSteps = [0]`).
+- Protected static scenario helpers for providers: `DefaultScenario`, `IdentitySelectScenario(insert, identityExpr)` (INSERT `NonQuery` then `Scalar` SELECT of the key, outcome = step 1), `PerFieldResetScenario(truncate, reset)` (TRUNCATE plus one reset statement per identity field, outcome = step 0).
+- `BuildInsertOrUpdateScenario` moves the InsertOrReplace/Upsert emulation from query-build time to execution time. It returns `null` when `UpsertBuilder.WillEmulateInsertOrUpdate` says the native form works, otherwise reshapes a `Clone()` (never the cached or serialized input) into one of three gated shapes: UPDATE then INSERT on `NoRowsAffected`, existence-SELECT then INSERT on `ResultIsNull`, or existence-SELECT then UPDATE on `ResultIsNotNull` plus INSERT on `ResultIsNull` for `Upsert.Update.When` predicates. Running at execution time lets remote contexts rebuild the same scenario server-side.
+- `PlanScenario` (virtual): without `SqlProviderFlags.IsMultiStatementBatchSupported`, or around any `RunIf`-gated step, every step is its own group (`SqlCommandGroupPlan.Sequential`). Otherwise contiguous non-gated runs merge into one combined command. Without `IsMultipleResultSetsSupported` a combined group holds at most one result-producing step. With it, runs are split at `Math.Max(1, flags.MaxStatementsPerCombinedGroup)` statements.
+- `IsTableNotFoundException` AggregateException handling now returns after recursing into flattened inners instead of falling through (the fall-through re-walked `InnerException` chains once per nesting level, exponentially).
+
+**Scenario model** (NEW types in `Internal/SqlProvider/SqlCommandScenario.cs`, owned by [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md), summarised here because `IDmlService` exposes them): `SqlStepKind` (`NonQuery`/`Scalar`/`Reader`/`SelfExecuting`), `SqlStepConditionKind` + `SqlStepCondition` (gate on an earlier step's result), `SqlCommandStep` (statement, kind, `RunIf`, `OutParameterName`/`OutParameterDbType` for Oracle/Firebird identity), `SqlCommandScenario` (ordered steps + `OutcomeSteps`), `SqlCommandGroup`/`SqlCommandGroupPlan`, and `SqlCommandExecutionContext` (per-step result/rows-affected carrier that also holds the compiled-query `Parameters`, replacing `IQueryRunner.Parameters`). Companion new files: `ScenarioCommandRenderer`, `CombinedReaderBatch`, `ISqlBuilderRenderContext` (SQL-PROVIDER), `SqlRawStatement` and `SqlObjectNameExpression` (SQL-AST, new `QueryElementType` members).
+
+**Per-provider `*DmlService` family (cross-cutting pattern, owned by the PROV-* areas).** New `public sealed` subclasses of `DmlServiceBase` under `Internal/DataProvider/<Provider>/`: `DB2DmlService`, `FirebirdDmlService`, `InformixDmlService`, `MySqlDmlService`, `OracleDmlService`, `SQLiteDmlService`, `SapHanaDmlService`, `SybaseDmlService` (all new), with `AccessDmlService` and `SqlCeDmlService` extended. Pattern: override `BuildCommandScenario` to split identity inserts via `IdentitySelectScenario` (e.g. SQLite `last_insert_rowid()`) or truncate-reset via `PerFieldResetScenario` or ad hoc steps using `SqlRawStatement(factory.Fragment(...))` (SQLite `UPDATE SQLITE_SEQUENCE ...`), delegate the default case to `base`, and override `IsTableNotFoundExceptionCore` only when DROP TABLE cannot say IF EXISTS in SQL (`Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteDmlService.cs`). Provider SQL builders and convert visitors changed in step.
+
+**Provider flag defaults.** `DataProviderBase` default `SqlProviderFlags` gained `MaxCombinedCommandLength = 60_000`, `MaxStatementsPerCombinedGroup = 32`, `MaxCombinedCommandParameters = int.MaxValue`. `SqlProviderFlags.IsIdentityParameterRequired` was removed (CP0002 suppression).
+
+**Options and remote.** `LinqOptions.UseCombinedCommands` and `LinqOptions.UseDbBatch` are new (PublicAPI.Unshipped). `LinqServiceSerializer` (`Source/LinqToDB/Internal/Remote/LinqServiceSerializer.cs`) serializes both after `GenerateFinalAliases` and restores them through `WithCombinedCommands` / `WithDbBatch` (writer and reader order is part of the wire contract). It explicitly throws `InvalidOperationException` for `QueryElementType.SqlObjectNameExpression` and `SqlRawStatement` in both the visitor and the parser, because those are produced server-side during scenario render and are never client-serialized.
+
+**Eager-load read-consistency buffers** (owned by [LINQ](../LINQ/INDEX.md), listed for the Async tie-in). `AsyncEnumeratorAsyncWrapper<T>` lost its `Tuple<IAsyncEnumerator<T>, IAsyncDisposable?>` init shape and its secondary disposable: the init delegate is now `Func<Task<IAsyncEnumerator<T>>>` and the enumerator is created with `??=` (`Source/LinqToDB/Internal/Async/AsyncEnumeratorAsyncWrapper.cs`). New `BufferedAsyncEnumerable<T>` (`Source/LinqToDB/Internal/Async/BufferedAsyncEnumerable.cs`) wraps a source that was read to the end before the read-consistency transaction committed: the first `GetAsyncEnumerator` call replays buffered rows (`Interlocked.Exchange` of the buffer), later calls re-run the source. Its buffer is `BufferedRows<T>` (NEW, `Source/LinqToDB/Internal/Linq/BufferedRows.cs`), an `IEnumerator<T>`/`IAsyncEnumerator<T>` over an `ArrayPool<T>`-rented array (plain array on non-`SUPPORTS_SPAN` TFMs) that returns the array once on first dispose and clears reference slots first. `Internal/Linq/Preamble.cs` was deleted and `Harvester.cs` (abstract `Harvester`, `IStepMaterializer`) added, as part of the scenario/harvester rework.
+
+**Coercing vs strict reflection lookups** (`Source/LinqToDB/Internal/Extensions/ReflectionExtensions.cs`, +241 lines). New `GetMethodEx(type, name, BindingFlags, params Type[])`, `GetMethodEx(type, name, int genericParametersCount, BindingFlags, params Type[])` and `GetConstructorEx(...)` (two overloads) only return a member that `Expression.Call`/`Expression.New` can invoke without a conversion: identical parameter type, or both reference types with an assignable parameter (boxing, numeric widening and `Nullable<T>` wrapping are rejected by `IsExpressionCompatible`). The generic-arity overload prefers identical over compatible matches, drops candidates dominated by a more specific one on the same or a more derived type, and throws `AmbiguousMatchException` on a remaining tie. The old `DefaultBinder` behaviour is kept under the explicit names `GetMethodCoercing` / `GetConstructorCoercing`, whose callers must convert arguments themselves. The strict forms call the banned `Type.GetMethod`/`GetConstructor` under `#pragma warning disable RS0030`. Callers switched in this delta: `ConvertBuilder` (`GetConstructorCoercing`, `GetMethodCoercing("op_Implicit"/"op_Explicit")`, `GetMethodEx("GetValueOrDefault")`), `AsyncFactory` (`ValueTask` constructors), `TypeMapper` (enum-dictionary constructors, wrapper constructor and method resolution, replacing the `#if NET8_0_OR_GREATER` `GetMethod(name, argCount, ...)` split with one `GetMethodEx(name, attr.ArgCount, flags, types)` call), and `ReflectionExtensions.GetMemberEx` (method members use `GetMethodCoercing`, so a base or interface overload that the arguments convert to is still found for mapping attributes).
+
+**Expressions.**
+- `TagExpression` is deleted together with `ExpressionVisitorBase.VisitTagExpression` and the `TransformVisitorsBase` override (CP0001/CP0002 suppressions in all five TFM buckets). Treat any cross-area reference to `TagExpression` as stale.
+- `EqualsToVisitor` and `PathVisitor` handle `ExpressionType.Index` (`IndexExpression`: indexer, object, arguments compared/walked via `ReflectionHelper.IndexExpr`). `EqualsToVisitor.DefaultCompareArguments` dropped its special case that compared `Sql.IQueryableContainer` constants by their query expression.
+- `ExpressionEvaluator.TryEvaluateCapturedValue(this Expression, out object?)` (NEW public) reads a captured variable (chain of field reads over a constant, or a static field) without running getters or methods, returning `false` for anything else or a null link. Reading a static field can run its type's static constructor.
+
+**Mapping / conversion.** `IStorageTransparentConverter` (NEW marker, `Source/LinqToDB/Internal/Mapping/IStorageTransparentConverter.cs`): an `IValueConverter` that stores the model value unchanged and only re-wraps it (F# `option`, single-case union over a scalar), so the query builder treats such a column as commensurable with an unconverted one. Pairs with `ErrorHelper.Error_ValueConverter_DivergentOperands` for converters that disagree.
+
+**`ErrorHelper`.** New `Error_DynamicColumns_NoSetter` (`{0}` entity type name, `{1}` dynamic column names): raised when a type is materialized with dynamic columns but has no `DynamicColumnsStoreAttribute` member, `DynamicColumnAccessorAttribute` or `DynamicPropertyAccessors` setter (`Source/LinqToDB/Internal/Common/ErrorHelper.cs:88`).
+
+**Translation helpers** (`Internal/DataProvider/Translation/**`).
+- `StringMemberTranslatorBase` replaced `UsingTypeFromExpression` with a private `UsingUnicodeTypeFromOperand`: a column's type is lent to the value built beside it only when the column type is Unicode and the column has no `ValueConverter` and no `DurationUnit`, so a non-Unicode column no longer truncates a Unicode parameter or literal to its code page. Padding-char translation uses `SqlExpressionFactoryExtensions.AsNonUnicodeAsciiLiteral` instead of borrowing the field's type.
+- `SqlExpressionFactoryExtensions.Replace` routes the search and replacement arguments through `EnsureReplaceArgumentType`: cast to the value's type only when it loses no characters (Unicode into non-Unicode), no tail (argument longer or of unknown length) and adds no padding (fixed-length `Char`/`NChar`). ASCII-only literals stay `VarChar` beside a non-Unicode value (`AsNonUnicodeAsciiLiteral`, internal) so SQL Server does not switch the result to Unicode and its 4000-character cut.
+- `MathMemberTranslatorBase` wraps the rounding/truncation/two-argument translators in `UsingColumnDescriptor(null)` and adds `UncutDecimalLiteral(factory, value)` (internal static): a decimal literal that would take a column's lower scale (ClickHouse, YDB render the scale) keeps its own scale, widening ClickHouse `Decimal32/64` literals to `Decimal128` when digits exceed 9/18.
+- `TranslationContextExtensions` now calls `QueryHelper.GetColumnDescriptorForComparedValue` (SQL-AST) when borrowing a type for a comparison.
+
+**PublicAPI / compatibility baselines.** `PublicAPI.Shipped.txt` (root) absorbed the previous cycle's unshipped surface: `FormattableStringHelper` (+`FormatItem`), `IStorageTransparentConverter`, `SqlDefaultValueExpression` (`QueryElementType` = 89, `ConvertDefaultValue` overrides on the Access/ClickHouse/MySql/Oracle/SqlCe/SqlServer/Sybase/Ydb convert visitors), interval-lowering overrides, `ErrorHelper.Error_ValueConverter_DivergentOperands`, and a `*REMOVED*` for `OptimizationContext.TransformationInfo.get`. The earlier statement that root `Unshipped.txt` is "back to 14 lines" no longer holds: it grew by about 300 lines and now carries `*REMOVED*` entries for `IQueryRunner.Parameters.get`, `BasicSqlBuilder.BuildSql(int commandNumber, ...)` / `ConvertElement<T>` / `OptimizationContext` / `Optimize` / `PrepareSearchCondition` and `TagExpression`, plus additions for `BasicDmlService`, `IDmlService.BuildCommandScenario` / `PlanScenario`, `IQueryRunner.ExecutionContext`, `LinqOptions.UseCombinedCommands` / `UseDbBatch`, `ErrorHelper.Error_DynamicColumns_NoSetter`, `ExpressionEvaluator.TryEvaluateCapturedValue`, the `ReflectionExtensions` `GetMethodEx` / `GetConstructorEx` / `*Coercing` family and the scenario model types. `Source/LinqToDB/CompatibilitySuppressions.xml` (newly assigned to this area, +1103 lines) gained baseline suppressions for the same breaks: CP0001 for `TagExpression` in each of the net462 / netstandard2.0 / net8.0 / net9.0 / net10.0 buckets, and CP0002 for `ExpressionVisitorBase.VisitTagExpression`, `IQueryRunner.get_Parameters`, `QueryInfo.Aliases`, `BasicSqlBuilder` / `ISqlBuilder` `BuildCommand` / `BuildSql` / `CommandCount` / `ConvertElement` / `OptimizationContext` / `Optimize` / `PrepareSearchCondition`, `BasicSqlOptimizer` / `ISqlOptimizer.ConvertSkipTake`, the `OptimizationContext` constructor / `Optimize` / `OptimizeAndConvert` / `IsAlreadyOptimizedAndConverted`, `SqlExpressionConvertVisitor.Convert` / `NullabilityContext` / `VisitQueries`, `SqlExpressionOptimizerVisitor.Optimize` and `SqlProviderFlags.IsIdentityParameterRequired`. These files are generated output: refresh via `/api-baselines`, never hand-edit.
+
+**Summary-level only (owned elsewhere, not re-read in depth).** [LINQ](../LINQ/INDEX.md) / [EXPR-TRANS](../EXPR-TRANS/INDEX.md): `QueryRunner*`, `IQueryRunner`, `Query` / `Query{T}`, `ExpressionQuery`, the `ExpressionBuilder.*` EagerLoad family, `ParametersContext` and `ParameterAccessor` were reworked around `SqlCommandExecutionContext` and the harvester/scenario pipeline. [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md): `BasicSqlBuilder` / `ISqlBuilder` / `ISqlOptimizer` / `OptimizationContext` lost the build-time optimize/convert members listed above and gained the render-context interface plus `ScenarioCommandRenderer`. [SQL-AST](../SQL-AST/INDEX.md): `SqlRawStatement`, `SqlObjectNameExpression`, `QueryElementType` / `QueryType` additions, `SqlArgumentDomain(s)` and `QueryHelper` updates. PROV-* provider adapters, builders and member translators received routine per-provider changes alongside the `*DmlService` family.
+
 ## Key types
 
 | Type | File | Purpose |
@@ -368,7 +414,7 @@ Supporting pieces: `UsingOutsideProjectionValue()` scopes (exposed on `Expressio
 | `AliasesHelper` | `Internal/DataProvider/AliasesHelper.cs` | Pooled SQL alias assignment and deduplication visitor; CTE aliasing now targets `SqlCteField.Name` |
 | `MultipleRowsHelper` | `Internal/DataProvider/MultipleRowsHelper.cs` | Multi-row INSERT batch builder; `ExecuteCustom` hook (PR #5467) |
 | `DataTools` | `Internal/DataProvider/DataTools.cs` | SQL literal construction utilities |
-| `DmlServiceBase` / `IDmlService` | `Internal/DataProvider/DmlServiceBase.cs` / `IDmlService.cs` | DROP TABLE "not-found" exception detection |
+| `DmlServiceBase` / `IDmlService` / `BasicDmlService` | `Internal/DataProvider/DmlServiceBase.cs` / `IDmlService.cs` / `BasicDmlService.cs` | Command-scenario construction (`BuildCommandScenario`), physical grouping (`PlanScenario`), DROP TABLE "not-found" exception detection. Registered for every provider (default `BasicDmlService`) |
 | `InvariantCultureRegion` | `Internal/DataProvider/InvariantCultureRegion.cs` | Thread-culture RAII scope for SQL formatting |
 | `WrapParametersVisitor` | `Internal/DataProvider/WrapParametersVisitor.cs` | Parameter CAST-wrapping SQL visitor; `VisitSqlConcatExpression` added (PR #5504) |
 | `OdbcProviderAdapter` / `OleDbProviderAdapter` | `Internal/DataProvider/OdbcProviderAdapter.cs` / `OleDbProviderAdapter.cs` | TypeMapper-based adapters for ODBC / OLE DB |
@@ -408,7 +454,7 @@ Supporting pieces: `UsingOutsideProjectionValue()` scopes (exposed on `Expressio
 | `SqlErrorExpression` | `Internal/Expressions/SqlErrorExpression.cs` | Translation-failure payload node |
 | `ChangeTypeExpression` | `Internal/Expressions/ChangeTypeExpression.cs` | Type reinterpretation (custom NodeType 1000) |
 | `SqlAdjustTypeExpression` | `Internal/Expressions/SqlAdjustTypeExpression.cs` | Schema-aware type coercion node |
-| `MarkerExpression` / `TagExpression` | `Internal/Expressions/MarkerExpression.cs` / `TagExpression.cs` | Pipeline annotation bookmarks |
+| `MarkerExpression` | `Internal/Expressions/MarkerExpression.cs` | Pipeline annotation bookmark (`TagExpression` was deleted after sha `89b5ce16`) |
 | `MarkerType` | `Internal/Expressions/MarkerType.cs` | Marker-expression discriminant enum; `ExplicitEagerLoad` added (ADDED) |
 | `SqlEagerLoadExpression` | `Internal/Expressions/SqlEagerLoadExpression.cs` | Eager-load sequence marker |
 | `SqlDefaultIfEmptyExpression` | `Internal/Expressions/SqlDefaultIfEmptyExpression.cs` | Default-if-empty null-check wrapper |
@@ -493,7 +539,7 @@ Supporting pieces: `UsingOutsideProjectionValue()` scopes (exposed on `Expressio
 
 **Tier-2 (244 / 244 visited):** in-scope `*.cs` files: Async + Cache + Common + Conversion + DataProvider root + DataProvider/Translation (now incl. `AggregateFunctionsMemberTranslatorBase.cs`) + Expressions (net: `SqlAggregateLifterExpression.cs` added, `SqlValidateExpression.cs` deleted) + Extensions + Infrastructure + Interceptors (cross-listed) + Logging + Mapping + Options + Reflection + Remote + SchemaProvider + Internal root. Net file-count change vs prior run: +3 (delta @ sha `36ee4f82` adds `Internal/Common/PassThroughOrderedCollection.cs`, `Internal/DataProvider/Translation/IConvertContext.cs`, `Internal/DataProvider/Translation/ConvertContext.cs` -- all new files, none of which are Tier-1 anchors). Prior 201/201 + 3 new = 204/204. Coverage-fill at sha `05150894` adds 40 provider-internal and shared-utility files (listed in the Coverage block, narrated under "Coverage-fill" in Subsystems) that had been deferred as owned by PROV-* areas or not yet read, so numerator and denominator both rise by 40: 244/244. Delta at sha `89b5ce16` adds four new in-scope files (`Internal/Common/FloatingPointHelper.cs`, `Internal/Common/FormattableStringHelper.cs`, `Internal/Expressions/SqlQueryDependentFormatAttribute.cs`, `Internal/SqlQuery/SqlDefaultValueExpression.cs`), so the overall Tier-2 total is 365/365.
 
-`CompatibilitySuppressions.xml` (`Source/LinqToDB/CompatibilitySuppressions.xml`) is managed by the `/api-baselines` skill and is NOT read or modified by this indexer.
+`Source/LinqToDB/CompatibilitySuppressions.xml` is assigned to this area (delta @ sha `f90c5bcfb`). It is generated by the `/api-baselines` skill and is characterised here, never hand-edited. See the delta subsection below.
 
 ---
 
@@ -790,5 +836,26 @@ Read (this run -- coverage-fill batch 4, sha 05150894, 37 deferred Tier-2 files,
 - `Source/LinqToDB/Internal/SqlQuery/Visitors/SelectQueryOptimizerVisitor.cs` -- sub-query/join/set-operation optimization loop.
 - `Source/LinqToDB/Internal/SqlQuery/Visitors/SqlQueryColumnNestingCorrector.cs` -- column nesting correction with mixed visit modes.
 - `Source/LinqToDB/Internal/SqlQuery/Visitors/SqlQueryParentFirstVisitor{TContext}.cs` -- parent-first read-only walker.
+
+
+Read (this run -- delta), sha `f90c5bcfb`, 173 changed files, Tier-2 367/367 (+3 new in-scope files `Internal/Async/BufferedAsyncEnumerable.cs`, `Internal/DataProvider/BasicDmlService.cs`, `Internal/Mapping/IStorageTransparentConverter.cs`, -1 deleted `Internal/Expressions/TagExpression.cs`). In-depth reads (diff vs `89b5ce16` plus current source where noted):
+- `Source/LinqToDB/Internal/Async/AsyncEnumeratorAsyncWrapper.cs` -- init delegate simplified to `Func<Task<IAsyncEnumerator<T>>>`, secondary disposable removed.
+- `Source/LinqToDB/Internal/Async/AsyncFactory.cs` -- `ValueTask` constructors via `GetConstructorEx`.
+- `Source/LinqToDB/Internal/Async/BufferedAsyncEnumerable.cs` -- NEW, replay-once buffer over `BufferedRows<T>`.
+- `Source/LinqToDB/Internal/Common/ErrorHelper.cs` -- new `Error_DynamicColumns_NoSetter`.
+- `Source/LinqToDB/Internal/Conversion/ConvertBuilder.cs` -- switched to `*Coercing` / `GetMethodEx` lookups.
+- `Source/LinqToDB/Internal/DataProvider/BasicDmlService.cs` -- NEW default `IDmlService`.
+- `Source/LinqToDB/Internal/DataProvider/DmlServiceBase.cs` -- scenario factory, upsert emulation, `PlanScenario`, AggregateException fix.
+- `Source/LinqToDB/Internal/DataProvider/IDmlService.cs` -- `BuildCommandScenario`, `PlanScenario`.
+- `Source/LinqToDB/Internal/DataProvider/DataProviderBase.cs` -- non-null `CreateDmlService`, combined-command flag defaults.
+- `Source/LinqToDB/Internal/DataProvider/Translation/MathMemberTranslatorBase.cs`, `SqlExpressionFactoryExtensions.cs`, `StringMemberTranslatorBase.cs`, `TranslationContextExtensions.cs` -- Unicode/decimal-literal typing rules.
+- `Source/LinqToDB/Internal/Expressions/ExpressionEvaluator.cs`, `ExpressionVisitorBase.cs`, `ExpressionVisitors/EqualsToVisitor.cs`, `ExpressionVisitors/PathVisitor.cs`, `ExpressionVisitors/TransformVisitorsBase.cs`, `Types/TypeMapper.cs` -- captured-value evaluation, `IndexExpression`, `TagExpression` removal, strict reflection lookups.
+- `Source/LinqToDB/Internal/Expressions/TagExpression.cs` -- DELETED.
+- `Source/LinqToDB/Internal/Extensions/ReflectionExtensions.cs` -- strict `*Ex` vs `*Coercing` lookup family.
+- `Source/LinqToDB/Internal/Mapping/IStorageTransparentConverter.cs` -- NEW marker interface.
+- `Source/LinqToDB/Internal/Remote/LinqServiceSerializer.cs` -- `UseCombinedCommands` / `UseDbBatch` wire fields, non-serializable scenario nodes.
+- `Source/LinqToDB/PublicAPI/PublicAPI.Shipped.txt`, `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt`, `Source/LinqToDB/CompatibilitySuppressions.xml` -- baseline diffs characterised (generated output).
+- `Source/LinqToDB/Internal/SqlProvider/SqlCommandScenario.cs`, `Source/LinqToDB/Internal/DataProvider/SQLite/SQLiteDmlService.cs`, `Source/LinqToDB/Internal/Linq/BufferedRows.cs` -- read in full as representative of the scenario model, the per-provider pattern and the buffer type.
+Summary-level only (changed, characterised from diff stat / declarations, not re-read in depth, owned by other areas): all other `Internal/Linq/**`, `Internal/SqlQuery/**`, `Internal/SqlProvider/**` and `Internal/DataProvider/<Provider>/**` entries of the changed-file list, including the new `*DmlService.cs` files (DB2, Firebird, Informix, MySql, Oracle, SQLite, SapHana, Sybase), `Linq/Harvester.cs`, `SqlProvider/ScenarioCommandRenderer.cs`, `SqlProvider/CombinedReaderBatch.cs`, `SqlProvider/ISqlBuilderRenderContext.cs`, `SqlQuery/SqlRawStatement.cs`, `SqlQuery/SqlObjectNameExpression.cs`, `ClickHouse/ClickHouseExpressionExtensions.cs`.
 
 </details>

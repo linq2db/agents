@@ -3,8 +3,8 @@ area: LINQPAD
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 15/15
 coverage_tier_2: 50/51
 ---
@@ -32,7 +32,7 @@ LINQPad downloads NuGet packages per connection via `DataContextDriver.OverrideD
 - static context with `StaticContextOptions.Database` set: `DatabaseProviders.GetNuGetPackages(provider)` (all providers of that database);
 - otherwise (new connection, static context without a database): `DatabaseProviders.GetAllNuGetPackages()`, skipping providers where `IsPlatformSupported` is false.
 
-`IDatabaseProvider.GetNuGetPackages` is `#if !NETFRAMEWORK`; `DatabaseProviderBase` defaults to empty. Versions come from the generated `NuGetPackageVersions` class (see Build / Packaging). Notable per-provider sets: Access (`System.Data.Odbc` for ODBC, else `System.Data.OleDb`), ClickHouse (`MySqlConnector` / `Octonica.ClickHouseClient` / `ClickHouse.Driver`), DB2 and Informix (`DB2Provider.ClientPackage`: `Net.IBM.Data.Db2` on Windows, `-osx` on macOS, `-lnx` otherwise), SQLite (`System.Data.SQLite` or `Microsoft.Data.Sqlite`, plus `SQLitePCLRaw.lib.e_sqlite3`), SQL Server (`Microsoft.Data.SqlClient` plus `Microsoft.SqlServer.Types` on Windows or `dotMorten.Microsoft.SqlServer.Types` elsewhere), SAP HANA (`System.Data.Odbc` only for ODBC; native assembly is user-supplied), plus single-package DuckDB / Firebird / MySql / Oracle / PostgreSQL (`Npgsql`) / Sybase ASE / YDB (`Ydb.Sdk`).
+`IDatabaseProvider.GetNuGetPackages` is `#if !NETFRAMEWORK`; `DatabaseProviderBase` defaults to empty. Versions come from the generated `NuGetPackageVersions` class (see Build / Packaging). Notable per-provider sets: Access (`System.Data.Odbc` for ODBC, else `System.Data.OleDb`), ClickHouse (`MySqlConnector` / `Octonica.ClickHouseClient` / `ClickHouse.Driver`), DB2 and Informix (`DB2Provider.ClientPackage`: `Net.IBM.Data.Db2` on Windows, `-osx` on macOS, `-lnx` otherwise), SQLite (`System.Data.SQLite` or `Microsoft.Data.Sqlite`, plus `SQLitePCLRaw.lib.e_sqlite3`), SQL Server (`Microsoft.Data.SqlClient` plus `Microsoft.SqlServer.Types` on Windows or `dotMorten.Microsoft.SqlServer.Types` elsewhere), SAP HANA (`System.Data.Odbc` for ODBC, `Sap.Data.Hana.Net.v8.0` for native -- no longer user-supplied on net8.0-windows), plus single-package DuckDB / Firebird / MySql / Oracle / PostgreSQL (`Npgsql`) / Sybase ASE / YDB (`Ydb.Sdk`).
 
 Because a client assembly loads when a method referencing its types is JIT-compiled, providers with several clients (Access, ClickHouse, SQLite, SapHanaProvider ODBC) touch each client from its own `[MethodImpl(NoInlining)]` method (`GetOdbcFactory`, `ReleaseOleDbPool`, `ClearMySqlPools`, ...).
 
@@ -62,7 +62,8 @@ Because a client assembly loads when a method referencing its types is JIT-compi
 - **`DuckDBProvider`**: net8.0-windows only (`#if !NETFRAMEWORK`). Single `ProviderInfo` entry (`ProviderName.DuckDB`, display name `"DuckDB"`, `IsDefault = true`). Overrides `GetProviderFactory` to return `DuckDBClientFactory.Instance`; `GetLastSchemaUpdate` returns `null`; `ClearAllPools` is a no-op.
 - **`YdbProvider`** (`DatabaseProviders/YdbProvider.cs`): net8.0-windows only (`#if !NETFRAMEWORK`), same exemption from the 64-bit guard as `DuckDBProvider`. Single `ProviderInfo` entry (`ProviderName.Ydb`, display name `"YDB"`, `IsDefault = true`). `GetProviderFactory` returns `YdbProviderFactory.Instance`; `ClearAllPools` calls `YdbConnection.ClearAllPools().GetAwaiter().GetResult()` (async API bridged synchronously); `GetLastSchemaUpdate` returns `null` (unimplemented, same as DuckDB).
 - **`PostgreSQLProvider`** (`DatabaseProviders/PostgreSQLProvider.cs`): exposes eight dialect-detection `ProviderInfo` entries -- `ProviderName.PostgreSQL` (auto-detect, default), `PostgreSQL92/93/95/13/15/18/19` (`PostgreSQL19` added in an earlier delta, `"PostgreSQL 19 Dialect"`, `PostgreSQLProvider.cs:20`). `GetProviderFactory` returns `NpgsqlFactory.Instance`; `ClearAllPools` calls `NpgsqlConnection.ClearAllPools()`; `GetLastSchemaUpdate` returns `null`.
-- `SQLiteProvider`: static ctor now sets `PreLoadSQLite_BaseDirectory` to `AppDomain.CurrentDomain.BaseDirectory` (previously the `sds` subfolder of it); both clients are SQLitePCLRaw-based and share the `runtimes/` `e_sqlite3` native.
+- `SQLiteProvider`: the NETFRAMEWORK static ctor no longer sets the `PreLoadSQLite_BaseDirectory` environment variable (removed in the latest delta, only the MS-provider data-adapter workaround remains). Both clients are SQLitePCLRaw-based and share the `runtimes/` `e_sqlite3` native (the `.lpx` copies it for win-x86/win-x64).
+- **`SapHanaProvider`** (reworked in the latest delta): `IsPlatformSupported => !(Platform.IsWindows && ProcessArchitecture == Arm64)` (SAP ships no Windows ARM64 client, an x64 LINQPad under emulation keeps it). On non-NETFRAMEWORK `GetNuGetPackages` returns `System.Data.Odbc` for `SapHanaOdbc` and `Sap.Data.Hana.Net.v8.0` (`NuGetPackageVersions.Sap_Data_Hana_Net_v8_0`, new generated const) for `SapHanaNative`. The user-supplied-assembly machinery (`IsProviderPathSupported`, `GetProviderAssemblyNames`, `TryGetDefaultPath`, `RegisterProviderFactory` with `Assembly.LoadFrom` + `DbProviderFactories.RegisterFactory`) was deleted. The constructor subscribes to `AppDomain.AssemblyLoad` (and scans already-loaded assemblies) via `PointToPackageNatives`: once the provisioned `Sap.Data.Hana.Net.v8.0` assembly loads, process env var `HDBDOTNETCORE` is set to its `runtimes/<RID>/native` folder (two levels up from the assembly), so SAP's client does not pick up a machine-wide installed native rejected by its exact version check. A copy without package natives does not end the subscription. The `.lpx` (LINQPad 5) native provider still needs an installed SAP HANA client.
 
 `ProviderInfo` record: `Name`, `DisplayName`, `IsDefault`, `IsHidden`, `Troubleshoot`.
 
@@ -226,6 +227,13 @@ Two project files govern the area:
 - `README.md` -- LINQPad 8+/macOS, database client download, licensing, troubleshooting sections.
 - `LinqToDBLinqPadException.cs` -- class body simplified to primary-constructor-only form.
 - `UI/Model/DynamicConnectionModel.cs`, `UI/Model/StaticConnectionModel.cs`, `UI/Notification.cs`, `UI/Settings/SettingsDialog.xaml.cs`, `UI/Settings/StaticConnectionTab.xaml`, `UI/Settings/StaticConnectionTab.xaml.cs` -- platform-filtered database list, static Database combo, logging-aware Notification, tolerant context type loading.
+
+**Read (this run -- delta, sha f90c5bcfb):**
+- `Source/LinqToDB.LINQPad/DatabaseProviders/SapHanaProvider.cs` -- native provider now provisioned as the `Sap.Data.Hana.Net.v8.0` package, user-path methods removed, `IsPlatformSupported` excludes Windows ARM64, `HDBDOTNETCORE` redirect on assembly load.
+- `Source/LinqToDB.LINQPad/DatabaseProviders/SQLiteProvider.cs` -- NETFRAMEWORK static ctor no longer sets `PreLoadSQLite_BaseDirectory`.
+- `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj` -- `Sap_Data_Hana_Net_v8_0` const added to generated `NuGetPackageVersions`, `PostBuild2` comment reworded (SQLite natives), no behavior change.
+- `Source/LinqToDB.LINQPad/README.md` -- SAP HANA line (ODBC driver needed, `.lpx` native needs the client, no Windows ARM64) and macOS note (HANA native untested).
+- `Source/LinqToDB.LINQPad/UI/Settings/LinqToDBTab.xaml` -- OptimizeJoins "details" link retargeted to the new docs-site URL.
 
 **Read (this run -- delta, sha 89b5ce16):**
 - `Source/LinqToDB.LINQPad/Configuration/ConnectionSettings.cs` -- new `ScaffoldOptions.SqlServerReturnValue` property; legacy-settings migration sets it to `isNew` (new connections only, to not break existing queries).

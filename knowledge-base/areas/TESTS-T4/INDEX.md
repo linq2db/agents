@@ -3,10 +3,10 @@ area: TESTS-T4
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 0/0
-coverage_tier_2: 71/2375
+coverage_tier_2: 72/2375
 ---
 
 # TESTS-T4
@@ -31,7 +31,7 @@ Key top-level T4 driver files (`Tests/Tests.T4/Cli/`):
 
 `Tests/Tests.T4/Default/` holds per-provider `.tt`/`.generated.cs` pairs using the legacy T4-template code path. `Tests/Tests.T4/Databases/` holds per-provider T4 templates with specific non-default options. `Tests/Tests.T4/Models/` has hand-coded partial classes plus `.tt` files that test `T4Model.ttinclude` features.
 
-`Tests/Tests.T4/Shared.ttinclude` (shared T4 prelude: `EnableNullableReferenceTypes = true`, `GenerateDatabaseInfo = false`) sets `PreLoadSQLite_BaseDirectory` for the SQLite native loader. **Delta (SHA 05150894e):** it now points at the resolved `$(LinqToDBT4SharedTools)` directory itself instead of its `sds` subfolder, because both SQLite clients share one native package and resolve `e_sqlite3` under `runtimes/`. The old "temporary, see SQLite.Runtime.props notes" comment was replaced accordingly.
+`Tests/Tests.T4/Shared.ttinclude` (shared T4 prelude: `EnableNullableReferenceTypes = true`, `GenerateDatabaseInfo = false`) sets `PreLoadSQLite_BaseDirectory` for the SQLite native loader. **Delta (SHA 05150894e):** it now points at the resolved `$(LinqToDBT4SharedTools)` directory itself instead of its `sds` subfolder, because both SQLite clients share one native package and resolve `e_sqlite3` under `runtimes/`. **Delta (SHA f90c5bcfb):** the value is unchanged (`Host.ResolveAssemblyReference("$(LinqToDBT4SharedTools)")`, `Shared.ttinclude:12`) but the explanatory comment was rewritten: the T4 host shadow-copies `System.Data.SQLite.dll`, and its native pre-loader (which reads this variable) trusts the original folder only if it has an arch-marker subfolder -- previously a side effect of other providers' natives -- so the tools folder is now named explicitly. Comment-only change.
 
 `Tests/Tests.T4/Databases/Model.cs` (hand-written partial for the `ModelDataContext` namespace) now declares the empty partial as `public partial class TestDataDB;` (C# 12+ semicolon body) instead of an empty `{ }` body -- no behavioural change. The same file still declares `ITestDataDB : IDataContext`.
 
@@ -47,6 +47,8 @@ Standalone solution under `Tests/Tests.T4.Nugets/`. Targets `net10.0` only. Uses
 - `Templates/<Provider>.generated.cs` -- 16 committed output baselines.
 - `Projects/<Provider>.csproj` -- 16 single-template projects.
 - `Projects/t4models.csproj` -- aggregate project referencing all 16 outputs.
+
+**Delta (SHA f90c5bcfb):** `Templates/Hana.ODBC.tt` now calls `LoadSapHanaMetadata(GetConnectionString("SapHana.Odbc"), LinqToDB.DataProvider.SapHana.SapHanaProvider.ODBC)` (`Hana.ODBC.tt:11`) -- the SAP HANA provider flavour is passed explicitly instead of relying on the single-argument default. The template still sets `NamespaceName = "SapHana.ODBC"` and `GenerateSchemaAsType = true`. The committed `Hana.ODBC.generated.cs` baseline is not in the delta range.
 
 **`Templates/Informix.tt` now sets `GenerateSchemaAsType = true`** in addition to `LoadInformixMetadata(...)` and `GenerateModel()`. The analogous `Default/Informix.tt` and `Databases/Informix.tt` inside `Tests.T4/` do not set this flag, so the Nugets-project baseline includes schema-typed output the main T4 project's Informix baselines do not.
 
@@ -82,7 +84,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from the YDB
 ## Inbound / outbound dependencies
 
 **Outbound:**
-- `Source/LinqToDB.Templates/` (T4-TEMPLATES) -- `Default/`, `Databases/`, `Models/`, `WPF/`, `Tests.T4.Nugets/Templates/` all include from `$(LinqToDBT4TemplatesPath)`.
+- `Source/LinqToDB.Templates/` (T4-TEMPLATES) -- `Default/`, `Databases/`, `Models/`, `WPF/`, `Tests.T4.Nugets/Templates/` all include from `$(LinqToDBT4TemplatesPath)`. `Tests.T4.Nugets/Templates/Hana.ODBC.tt` includes `LinqToDB.SapHana.ttinclude` via `$(LinqToDBT4SapHanaTemplatesPath)` and (delta f90c5bcfb) passes `SapHanaProvider.ODBC` to `LoadSapHanaMetadata`.
 - `Source/LinqToDB.CLI/` (CLI) -- `Cli/<mode>/<provider>/` baselines are the expected output of `dotnet linq2db scaffold`.
 - `Source/LinqToDB.Scaffold/Scaffold/` (SCAFFOLD) -- `ScaffoldInterceptors`, `ScaffoldOptions`, `Scaffolder`.
 - Every PROV-* indirectly. **DuckDB provider addition (PR #5451) triggered all five CLI-mode baseline sets; the YDB provider addition triggered the same five (`All/`, `Default/`, `Fluent/`, `NoMetadata/`, `T4/`).** The SQL Server `ReturnValue` regeneration (SHA 89b5ce162) depends on the SQL Server schema provider / procedure scaffolding path.
@@ -100,6 +102,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from the YDB
 - **Open question:** `PROV-YDB`'s `INDEX.md` records `YdbDataProvider.GetSchemaProvider()` as not implemented, yet the `Cli/*/Ydb/` baselines imply `dotnet linq2db scaffold --provider Ydb` successfully retrieved live schema across all 5 CLI modes. Not resolved here -- would need a `PROV-YDB` source read, out of this area's scope. See companion `AUDIT-NOTE`.
 - `Tests.T4.Nugets/Templates/Informix.tt` sets `GenerateSchemaAsType = true`; the main `Tests.T4/Default/Informix.tt` and `Databases/Informix.tt` do not -- an intentional divergence or an oversight.
 - Only the `All/` SQL Server baselines were regenerated for the `ReturnValue` change in the delta range (the diff range touches no `Default/`, `Fluent/`, `NoMetadata/` SQL Server files); if those modes also emit procedures, they may be stale or simply lack the `@return` parameter -- not verified.
+- The `Shared.ttinclude` SQLite pre-loader workaround (explicit `$(LinqToDBT4SharedTools)` folder) documents a fragility: the pre-loader only trusts a folder with an arch-marker subfolder, which used to appear only as a side effect of other providers' natives.
 
 ## See also
 
@@ -112,7 +115,7 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from the YDB
 <details><summary>Coverage</summary>
 
 - Tier 1: 0/0 (no Tier-1 files designated)
-- Tier 2: 71/2375 (3.0%) -- ~2304 deferred files are near-identical generated baselines
+- Tier 2: 72/2375 (3.0%) -- ~2303 deferred files are near-identical generated baselines
 
 **Read (prior run -- SHA 4a478ff14):**
 - `Tests/Tests.T4/Cli/CLI.ttinclude` -- `duckdbCN` addition
@@ -148,11 +151,15 @@ No Tier-1 files designated. The ~2375 total files (was ~2318; **+57 from the YDB
 - `Tests/Tests.T4/Databases/Model.cs` -- empty `TestDataDB` partial converted to `public partial class TestDataDB;`
 - `Tests/Tests.T4/Shared.ttinclude` -- `PreLoadSQLite_BaseDirectory` now the `$(LinqToDBT4SharedTools)` path itself (no `sds` subfolder), comment updated
 
-**Read (this run -- delta, SHA 89b5ce162):**
+**Read (prior run -- delta, SHA 89b5ce162):**
 - `Tests/Tests.T4/Cli/All/SqlServer/TestDataDB.cs` -- diff read in full: every procedure `@return` param `Direction` Output -> ReturnValue; `...Async` overloads drop the `int @return` argument
 - `Tests/Tests.T4/Cli/All/SqlServer/TestSchemaSchema.cs` -- same change (`TestProcedure` / `TestProcedureAsync`)
 - `Tests/Tests.T4/Cli/All/SqlServer2025/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (diffstat identical to SqlServer: 144 / 6 lines)
 - `Tests/Tests.T4/Cli/All/Azure/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (144 / 6 lines)
 - `Tests/Tests.T4/Cli/All/AzureMI/TestDataDB.cs`, `TestSchemaSchema.cs` -- same change (144 / 6 lines)
 - `Tests/Tests.T4/Cli/All/SqlServerNorthwind/TestDataDB.cs` -- same regeneration, 42 changed lines (diffstat only, not read line by line)
+
+**Read (this run -- delta, SHA f90c5bcfb):**
+- `Tests/Tests.T4.Nugets/Templates/Hana.ODBC.tt` -- `LoadSapHanaMetadata` now receives `SapHanaProvider.ODBC` as second argument (was connection string only)
+- `Tests/Tests.T4/Shared.ttinclude` -- comment-only change: rewritten rationale for the explicit `$(LinqToDBT4SharedTools)` SQLite pre-load directory (T4 host shadow-copies `System.Data.SQLite.dll`; pre-loader needs an arch-marker subfolder); code unchanged
 </details>

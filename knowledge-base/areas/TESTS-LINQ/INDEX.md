@@ -3,10 +3,10 @@ area: TESTS-LINQ
 kind: area-index
 sources: [code]
 confidence: medium
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 4/4
-coverage_tier_2: 703/703
+coverage_tier_2: 720/720
 ---
 
 # TESTS-LINQ
@@ -20,7 +20,7 @@ All test classes extend TestBase (from Tests.Tools). Provider selection uses [In
 Tests/Linq/TestsInitialization.cs -- NUnit [SetUpFixture], no namespace (intentional). [OneTimeSetUp] runs once per assembly:
 
 - Pre-loads the SQLite native runtime (e_sqlite3) via NativeLibrary.SetDllImportResolver on .NET 8+, or forces a SQLiteConnection construction on .NET Framework to ensure SDS loads before other providers.
-- **(updated, issue #5538)** On Linux (.NET 8+), registers a second SetDllImportResolver on IBM.Data.Db2.DB2Connection.Assembly that resolves libdb2.so from <baseDir>/clidriver/lib/libdb2.so -- fixing intermittent CI failures where LD_LIBRARY_PATH does not propagate reliably to the testhost subprocess on CI.
+- **(updated, issue #5538)** On Linux (.NET 8+), registers a second SetDllImportResolver on IBM.Data.Db2.DB2Connection.Assembly that resolves libdb2.so from <baseDir>/clidriver/lib/libdb2.so (**updated, delta 2026-11-11**: the resolver is now attached to the assembly found via DB2ProviderAdapter.AssemblyName with an AssemblyNameOld fallback, not to the typeof(DB2Connection) assembly) -- fixing intermittent CI failures where LD_LIBRARY_PATH does not propagate reliably to the testhost subprocess on CI.
 - Registers ActivityHierarchyFactory (debug) or ActivityStatistics.Factory (metrics) via ActivityService.
 - Forces ClickHouseOptions.Default with UseStandardCompatibleAggregates = true -- required for test expectations.
 - Registers SqlCE provider factory from a hardcoded path on non-NETFX.
@@ -37,9 +37,11 @@ Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgres
 - Process-wide query cache is capped (`QueryCache.Default.MaxEntriesOverride`, 100 entries) on x86 and on NETFRAMEWORK legs, overridable via `TestEnvironment.QueryCacheMax` (env L2DB_TEST_QUERYCACHE). 64-bit non-netfx legs keep the default because a small cap breaks exact-miss-count cache tests.
 - `SetupInMemoryDatabases()` keeps one shared-cache in-memory connection open per SQLite config (SQLite.Classic, .MPU, .MPM, SQLite.MS, Northwind.SQLite, Northwind.SQLite.MS) and for DuckDB (non-NETFX), preloading from the committed on-disk file (SQLite online backup, DuckDB EXPORT/IMPORT DATABASE via Parquet). Only activates when the connection string is in-memory (CI).
 - `SetupAccessKeepAlive()` holds one Access connection open per transport (ODBC, OLE DB) for the whole run, registered in the same keep-alive list. Rationale is measured and documented inline (ACE driver has no pooling, leaks handles on every connect). It is explicitly not a crash guard for dotnet/runtime#46187.
-- SQLite native resolution now also sets the `PreLoadSQLite_BaseDirectory` environment variable (see SQLite.Runtime.props for the netfx deployment gap).
+- SQLite native resolution now also sets the `PreLoadSQLite_BaseDirectory` environment variable (see SQLite.Runtime.props for the netfx deployment gap). **(superseded, delta 2026-11-11)** the assignment was removed from TestsInitialization.cs (PR #6160, redundant assignments).
 
 **(updated, delta 2026-10-09)** Tests.csproj: ClickHouseTests.tt/.generated.cs T4 pair registered next to the MySql/Oracle/PostgreSQL/SqlCe/SqlServer pairs, and `Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/QueryValueFormatter.cs` is compiled into the test assembly as `DataProvider/QueryValueFormatter.cs` (all TFMs except net462) so that DataProvider/ProviderSpecificReaderValueTests.cs exercises the exact formatter source the CLI uses.
+
+**(updated, delta 2026-11-11)** Tests.csproj also gained a ProjectReference to Source/LinqToDB.Identity (new Identity/ fixture family), and SAP HANA moved from Redist HintPath references to the Sap.Data.Hana.Net.v8.0 / v10.0 PackageReferences (net462 keeps Redist natives). See the 2026-11-11 delta section.
 
 ## Subsystems (subdirectory taxonomy)
 
@@ -47,6 +49,7 @@ Tests/Linq/AssemblyInfo.TestProgress.cs -- assembly-level [assembly: TestProgres
 |---|---|---|---|---|
 | Linq/ | ~189 | Per-LINQ-operator/feature fixtures. Core of the suite. **(grew this delta)** new EagerLoadingStrategy*/EagerLoadingWideKey, ImplicitCollectionLoading, PreferClientCalculation, QueryCacheEviction, TphInheritance fixtures; WindowFunctionsTests family grew 13 -> 46 files and is now compiled (see Delta section). | JoinTests.cs, GroupByTests.cs, CteTests.cs, EagerLoadingTests.cs, WindowFunctionsTests.cs | EXPR-TRANS, SQL-PROVIDER, SQL-AST |
 | UserTests/ | ~267 | Issue-numbered regression repros (Issue<N>Tests.cs). **(grew this delta)** Issue5347/5575/5616/5625/5666Tests.cs added. | Issue2296Tests.cs, Issue5302Tests.cs, Issue3586Tests.cs | All areas (cross-cutting) |
+| Identity/ | 5 | **(new, delta 2026-11-11)** LinqToDB.Identity store tests migrated into the monorepo: IdentityStoreTests, IdentityStoreVariantTests, IdentityStoreNegativeTests, IdentityCustomizationTests, abstract IdentityTestData : TestBase. Indexed in depth by [IDENTITY](../IDENTITY/INDEX.md). | IdentityStoreTests.cs, IdentityCustomizationTests.cs | IDENTITY |
 | Update/ | ~53 | DML operations: Insert, Update, Delete, Merge, BulkCopy, CreateTable, TempTable, TruncateTable, MultiInsert, OutputWithRows. **(grew this delta)** new entity-builder DML (EntityInsertTests.cs, EntityUpdateTests.cs, EntityDmlApiParametersValidationTests.cs) and the Upsert<T> API family (UpsertTests.Single/Enumerable/Queryable/ApiParametersValidation.cs). Merge family has 19 partial files. InsertWithOutput/DeleteWithOutput/UpdateWithOutput cover SQL Server, Firebird, PostgreSQL, SQLite, Ydb output-clause support. | MergeTests.cs (+18 partials), EntityInsertTests.cs, UpsertTests.Single.cs, BulkCopyTests.cs | EXPR-TRANS, SQL-PROVIDER, PROV-* |
 | DataProvider/ | ~35 | Provider-specific type-mapping and vendor feature tests. Root files cover Access, DB2, Informix, SqlCe, SqlServer, PostgreSQL (array + extensions), SQLite, Ydb. **(new this delta)** YdbRetryPolicyTests.cs, YdbTransientExceptionDetectorTests.cs. Types/ subfolder has 8 per-vendor type-framework files. | SqlServerTests.cs, OracleTests.cs, PostgreSQLTests.cs, YdbRetryPolicyTests.cs | PROV-SQLSERVER, PROV-ORACLE, PROV-POSTGRES, PROV-YDB, etc. |
 | Extensions/ | ~19 | Query hints, table aliases, vendor SQL extensions (SqlServer, MySQL, Oracle, PostgreSQL, SQLite, Access, ClickHouse). **(new this delta)** Extensions/YdbTests.cs (YdbHints.Unique/Distinct, AsYdb()). .generated.cs files are T4 output (see below). | QueryHintsTests.cs, SqlServerTests.cs, YdbTests.cs, DocExampleTests.cs | SQL-PROVIDER, PROV-* |
@@ -416,6 +419,50 @@ Roughly 190 modified entries -- Linq/ (about 85, including the WindowFunctionsTe
 - `Infrastructure/TestProgressStateTests.cs`: `DoneLatchesWhenCompletedReachesTotal` renamed `DoneWaitsForTheRootSuiteWhenCompletedReachesTotal` -- reaching the total no longer finishes the run (teardowns still run) until `MarkDone()`. New `SetTotalAssignsAndCarriesUpperBound` (`SetTotal(n, isUpperBound)`, an exact count replaces an upper bound).
 - `Create/CreateData.cs`: new `EnsureMySqlDatabase(context)` runs before the MySql script (`CREATE DATABASE IF NOT EXISTS`) via raw ADO on an explicit MySql 5.7 provider (MySqlData or MySqlConnector), because MySql.sql drops the database named by its own connection and an interrupted run would otherwise fail every later open. It avoids resolving the configured provider on purpose (that would cache the MariaDB detection fallback).
 - `TestsInitialization.cs` (Tier 1, diff re-read): new `PurgeDB2ConnectionPool()` called first in `TestAssemblyTeardown()`. It reflects on `IBM.Data.Db2.DB2ConnPool.InternalOperation1` (the driver pool purge) and logs `[db2] connection pool purged`. Failure is logged, never thrown. Rationale: pooled IBM connections alive at process exit race the driver exit handler against its pool timer (SIGSEGV, exit 139) -- PR #6073.
+
+## Delta since prior run (sha 89b5ce162 -> f90c5bcfb) -- combined-command engine, Identity migration, baselines comparison, reference-data snapshot
+
+130 changed files (17 added, 113 modified, none deleted) under Tests/Linq. The 17 added files raise the Tier-2 set from 703 to 720. Added-file bodies were read (class shape, test list, key comments). Modified files were read through `git diff` against the prior sha.
+
+### New fixtures -- opt-in combined-command engine (PR #5673)
+
+`DataOptions.UseCombinedCommands(true)` merges the statements of an eager load or a multi-step DML scenario into one round-trip. The fixtures below pin it from the test side. Most of them force the option on, and count commands with a local `CommandCounter`/`SelectCounter : CommandInterceptor` (`CommandInitialized`).
+
+- `Linq/CombinedCommandsExtensibilityTests.cs` -- `CombinedCommandsExtensibilityTests : TestBase`, SQLite only (`[IncludeDataSources(false, TestProvName.AllSQLite)]`). Local `CeParent`/`CeChild` tables, `ProcessQueryCountingConnection : DataConnection` (overrides the protected virtual `ProcessQuery(SqlStatement, EvaluationContext)`) and `SelectCounter`. Tests: `CombinedEagerLoad_CollapsesToOneCommand` (anti-trivial guard: the option really yields one SELECT), `ProcessQueryOverride_SeesEveryStatement_WhenCombining` (the combined path renders from `QueryInfo.Statement` and each child's `GetCombinableStatement()`, so a subclass `ProcessQuery` must still run for the main query and every combinable child), `DataContextCombinedEagerLoad_KeepsItsConnection` (+ Async), `CombinedRenderAfterSequentialRunMatchesFreshRender`, `CombinedRenderHoldsChildMonitors`.
+- `Linq/CombinedEagerLoadTests.cs` -- `CorrelatedAndDetachedChildren_CombineIntoSingleCommand`, `CombinedEagerLoad_HonoursDbBatchBackend`, `CombinedEagerLoad_ExecutesThroughRetryPolicy` (+ Async, a local retry policy whose `Execute(Action)` wraps the operation).
+- `Linq/EagerRenderCacheTests.cs` -- whole fixture is `#if BUGCHECK` (same gating as QueryCacheEvictionTests, so it only runs on a BUGCHECK build). Reads `Query<T>.CacheMissCount` (via `GetCacheMissCount()`) and `RenderDiagnostics.BuildSqlCount`. `ParameterDependentDetailReRenders` (`[Test, QueryCacheTest]`: a `string.Contains` detail bound to a captured variable is parameter-dependent, so run 2 re-renders but never more than run 1 -- the concat cache is all-or-nothing), `StableEagerLoadFullyCached` (a stable load re-renders nothing), and under `SUPPORTS_DBBATCH` `ParameterDependentDetailReRendersAlone` (PostgreSQL / SQL Server MS, `[Values] bool useDbBatch`: a DbBatch caches each statement on its own, so only the volatile detail re-renders).
+- `Update/CombinedDmlTests.cs` (namespace `Tests.xUpdate`) -- DML half of the engine. Each test runs the OFF and ON configuration itself and compares round-trip counts through `AssertCollapsed(off, on, combining)` (`on <= off`, and exactly 1 where there was something to merge) instead of taking the switch as a parameter. The off arm calibrates whether the provider scenario from `IDmlService.BuildCommandScenario` is multi-step. Remote contexts are excluded (the counter is a client-side interceptor). Tests: `InsertWithIdentity_Combined` (`[DataSources(false, TestProvName.AllClickHouse)]`), `InsertOrReplace_Combined` (`[InsertOrUpdateDataSources(false)]`), `InsertWithIdentity_QueryHintRunsSequentially` (SQLite, MySqlConnector: a query hint forces INSERT and identity SELECT apart), `InsertWithIdentity_CombinedBackend`.
+- Existing fixtures extended for the engine: `Data/InterceptorsTests.cs` (+375): `DataConnection_ExecuteScalar`/`ExecuteScalarAsync` and the `DataContext_` variants gained `[Values] bool combinedCommands`. Combined, the INSERT and `last_insert_rowid()` go as one reader command, so the ExecuteScalar/ExecuteNonQuery interceptors never fire. The old unconditional "ExecuteNonQueryTriggered is true" assertion is replaced by a per-mode one. Also new in that file: `EagerLoadExceptionIntercepted` (+ Async), `EagerLoadOpensReadConsistencyTransaction`, `EagerLoadReusesActiveTransaction`, `EagerLoadConsumesNextQueryHints`, `EagerLoadCachedRenderBindsPerExecutionParameters`. `Data/TraceTests.cs`: `DbBatchTraceTruncatesLongParameters` (`SUPPORTS_DBBATCH`, SQL Server MS / PostgreSQL / MySqlConnector). `Linq/EagerLoadingTests.cs` (+756) and `EagerLoadingStrategyKeyedQueryTests.cs`, `Linq/CompileTests.cs` (`CompiledQueryWithEagerLoad` + Async with `[Values] bool combinedCommands`, `CompiledQuery_ForEachUntilAsync`), `Linq/LoadWithTests.cs`, `Update/InsertTests.cs`, `Update/TruncateTableTests.cs` (`SQLiteTruncateReset_RendersTableNameInline`), `Update/UpsertTests.Single.cs` (`EmulatedInsertOrReplace_UpdateGoesThroughProcessQuery`).
+- `Infrastructure/DmlScenarioRenderTests.cs` -- offline (no connection, runs on every leg). Gets the Oracle v12 managed provider, builds a `SqlTruncateTableStatement` with `ResetIdentity = true` and asks `OracleDmlService.BuildCommandScenario` for steps (step 0 TRUNCATE, step 1 PL/SQL block), then renders step 1 through the provider SQL builder. `Oracle_TruncateWithIdentityReset_EscapesApostropheInSequenceName` (a table name containing an apostrophe: the quote must be doubled inside the `EXECUTE IMMEDIATE` string literal) and the control `Oracle_TruncateWithIdentityReset_LeavesAnOrdinaryNameAlone`.
+
+### New fixtures -- test infrastructure self-tests
+
+- `Infrastructure/BaselinesTests.cs` -- `NoBaselinesAttribute` (suppressed capture, `Configuration = ProviderName.SQLiteMS` scoping, survival under a `DisableBaseline(..., disable: false)` scope incl. the remote case), the direct-vs-remote `BaselineComparer` (`Comparer_*`) and `BaselinesWriter`, and the `ActiveIssueAttribute.BaselinesMismatch` gate (PR #6061). `Infrastructure/ActiveIssueTests.cs` gained the matching `Decide_BaselinesMismatch_*` (recorded mismatch is inconclusive, recorded match is a failure, not-compared passing test left alone, message ignored) and `SelectGoverning_BaselinesMismatchBeatsBlanket`.
+- `Infrastructure/AssertQueryTests.cs` -- the default comparer that `AssertQuery`/`AreEqualWithComparer` fall back to when no comparer is passed (PR #6131). Failure is observed through NUnit `Assert.Throws<AssertionException>` (Shouldly `Should.Throw` would not isolate the recorded failure). `ScalarQuery_WrongValues_Fails` (a `ServerSideOnly` `Sql.Expression` that shifts by 1), `ScalarUnion_KeepsDistinctRows`, `Scalars_DifferentValues_Fail` (int, Guid, bool, enum), `String_SameLengthDifferentValue_Fails`.
+- `Infrastructure/ReferenceDataTests.cs` -- `SnapshotIgnoresLaterWrites` (`[Test, NonParallelizable]`): `TestBase` reference data (Parent, Person, ...) is snapshotted once per run (PR #6233). `Create/CreateData.cs` calls `CaptureReferenceData(context)` at the end of `CreateDatabase`. A nested `Probe : TestBase` reads the snapshot count before and after a write of `Parent { ParentID = 1001 }`, and the count must not move.
+
+### New fixtures -- other
+
+- `Common/ReflectionExtensionsTests.cs` -- `ReflectionExtensionsTests : TestBase` (no provider), PR #6155 (exact reflection binding). Nested `IFirst`/`ISecond`/`BaseItem`/`Item`, `Sample`, `Overloads` and `DerivedOverloads` (`new`-hidden members) exercise the Expression-compatible overload lookup: `MethodRequiringValueCoercionIsNotFound`, `ConstructorRequiringValueCoercionIsNotFound`, `MethodWithBaseTypeParameterBinds`, `ArityMethodBindsMostSpecificOverload`, ties and hidden-member cases. Target is the `LinqToDB.Internal.Extensions` reflection helpers.
+- `Mapping/DynamicColumnsWithoutStoreTests.cs` -- entity with a `Sql.Property<string>(x, "Extra")` dynamic column but no `DynamicColumnsStoreAttribute`. Referencing the column in a query is legal, materializing it must throw rather than crash or drop the value (PR #5946): `AssociationAndDynamicColumnWithoutStore`, `DynamicColumnWithoutStore`, `SetOperationWithPartialEntityWithoutStore` (SQLite).
+- `Linq/IntervalTranslationTests.ClickHouse.cs` and `.Coarse.cs` -- two new partials of `IntervalTranslationTests` (PRs #5959, #6116). ClickHouse: `TheCoercionIsEmittedWhateverTheOperandReports` pins `toUnixTimestamp64Nano(toDateTime64(r.FinishedOn, 7))` and no double coercion over a literal. Coarse: `CoarseEventRow` with `DataType.DateTime` and `Date`/`Date32` columns (whole-second timestamps and dates, the operand types ClickHouse refuses by name). `.Difference.cs` and `.Queries.cs` also changed.
+- `Identity/` (IdentityStoreTests, IdentityStoreVariantTests, IdentityStoreNegativeTests, IdentityCustomizationTests, abstract IdentityTestData : TestBase) -- new fixture family for the monorepo-migrated `LinqToDB.Identity` (PR #5640). Tests.csproj now has a ProjectReference to `Source/LinqToDB.Identity/LinqToDB.Identity.csproj`. Indexed in depth by the IDENTITY area ([IDENTITY INDEX](../IDENTITY/INDEX.md)), only the family is recorded here.
+
+### Modified fixtures, grouped by driving PR
+
+- Provider type and literal fixes: `Common/ConvertTests.cs` (`DateOnlyToDateTime`, `DateOnlyToString`, issue #6077), `DataProvider/AccessTests.cs` (`LongTextParameter`, `LongAnsiTextParameter`: memo values past 255 characters compare whole), `DataProvider/FirebirdTests.cs` (`TestQuoteInCharAndStringLiterals`, PR #6113), `DataProvider/SqlServerTests.cs` (`DateTime2KeepsFiveFractionDigits`, `DateTime2WithZeroPrecisionKeepsWholeSeconds`, `CaseSensitiveCatalogConfiguration`, `ContainedConfiguration`, PR #6161), `DataProvider/PostgreSQLTests.cs` (`ReadTimeAsTimeSpanScalar/Entity`, `ReadDateAsString`, `ReadTimeAsDateTime`: Npgsql 10 classic-type reads, PR #6092), `DataProvider/SybaseTests.cs` (`EmptyColumnNameIsQuoted`, PR #6039), `DataProvider/YdbTests.cs`, `DataProvider/SapHanaTests.cs` and `Types/SapHanaTypeTests.cs` (HANA client from NuGet, PR #6162), `DataProvider/InformixTests.cs`, `DataProvider/SqlServerTypesTests.TVP.cs`. DB2 usage in tests was refactored (PR #6249).
+- String and Unicode: `Linq/StringConcatTests.cs` (+1190), `Linq/StringFunctionTests.cs` (+639), `Linq/StringJoinTests.cs` -- Unicode arguments beside a VarChar column (PRs #6186, #6194), literals that need no folding (PR #6136).
+- Comparison and nullability: `Linq/CompareWithNullTests.cs`, `Linq/BooleanTests.cs` (PR #6121 negated nullable comparison, PR #6203 Access boolean ORDER BY), `Linq/OrderByTests.cs`, `Linq/PredicateTests.cs`, `Linq/ConditionalTests.cs`, `Update/UpdateWithOutputTests.cs` (`UpdateWithNullableComparisonInOutput`, `UpdateWithConditionalNullableComparisonInOutput`), `Linq/ValueConversionTests.cs` (+847, PR #6189 one conversion on a plain and a nullable member).
+- Projections, joins, windows and sets: `Linq/SelectTests.cs` (+557, PR #6211 aggregates after a method-call projection, PR #6091 lifted/upcast members), `Linq/JoinTests.cs`, `Linq/GroupByTests.cs`, `Linq/ConcatUnionTests.cs` (PR #6159 null set-operation branch), `Linq/DistinctTests.cs`, `Linq/AggregationTests.cs`, `Linq/ContainsTests.cs`, `Linq/InterfaceTests.cs` (association through an interface the base class does not implement, PR #6109), `Linq/WindowFunctionsTests.Combinations.cs` (PR #6190), `Linq/SelectQueryOptimizationTests.cs` (PR #6229 joins kept inside APPLY), `Update/UpdateFromTests.Row.cs` (`UpdateFromSubqueryRowCorrelatedValuesKeepsUnmatched`), `Linq/ExpressionTests.cs` (+424, PR #6105 captured `Expression<>` arguments), `Linq/ExpressionsTests.cs`.
+- Date, math and parameters: `Linq/DateTimeFunctionsTests.cs` (+1340, ClickHouse epoch operands and DateTime64), `Linq/MathFunctionTests.cs` (+1408, PR #5943 YDB ROUND), `Linq/DateOnlyFunctionTests.cs`, `Linq/ParameterTests.cs` (+605), `ParameterTests.Naming.cs`, `ParameterTests.SqlServer.cs`, `Linq/CachingTests.cs`, `Linq/TestQueryCache.cs`. `Linq/TypesTests.cs` and `Linq/FunctionTests.cs` small edits.
+- Other: `Linq/LoadWithTests.cs` (+408, filtered ThenLoad on a SelectMany/join source, PR #6220), `Linq/RemoteContextTests.cs`, `Linq/ConcurrencyRefreshTests.cs`, `Linq/ConcurrencyTests.cs`, `Linq/FSharpTests.cs` (F# option/union columns, PR #6107), `Tools/ToDiagnosticStringTests.cs` (`TestDiagnosticStringNoMembers`, `WithoutHeader`, `ScalarWithoutHeader`), `TypeMapping/MappingTests.cs`, `SchemaProvider/SchemaProviderTests.cs` (`SchemaProvider_TableDroppedConcurrently`, PR #5763, baselines excluded in PR #6259), `Extensions/QueryHintsTests.cs` (`SubQueryHintAfterGroupJoinAsSubQuery`), `Extensions/PostgreSQLTests.cs`, `Mapping/FluentMappingAliasTests.cs`, `Mapping/SetUseMappingSchemaTests.cs`, `Infrastructure/DataOptionsTests.cs`, `Infrastructure/NullabilityContextTests.cs`, and 11 `UserTests/Issue*Tests.cs` edits (Issue1046, 1398, 1564, 2161, 256, 278, 3251, 4336, 445, 513, 5683). Small edits in these were read as diffs only (PR attribution comes from commit subjects), so test-by-test claims about them stay unverified.
+
+### Infrastructure and build changes
+
+- `TestsInitialization.cs` (Tier 1, diff re-read): the `PreLoadSQLite_BaseDirectory` environment assignment was removed (PR #6160). The Linux DB2 `libdb2.so` resolver is now attached to the assembly loaded through `LinqToDB.Internal.Common.Tools.TryLoadAssembly(DB2ProviderAdapter.AssemblyName, ...)` (falling back to `AssemblyNameOld`) instead of `typeof(IBM.Data.Db2.DB2Connection).Assembly`, and is skipped when no provider assembly loads. `PurgeDB2ConnectionPool()` resolves the driver and the `DB2ConnPool` type through `DB2ProviderAdapter.ClientNamespace`/`AssemblyName`, with an `IBM.Data.DB2.Core` fallback on non-NETFRAMEWORK.
+- `Tests.csproj` (diff read): adds the `LinqToDB.Identity` ProjectReference. SAP HANA: `Sap.Data.Hana.Net.v8.0` (net8/net9) and `Sap.Data.Hana.Net.v10.0` (net10+) now come from PackageReference instead of the `Redist\SapHana\v8.0` HintPath, the `X86STUBS` condition is gone, and the `libadonetHDB.dll`/`libadonetHDB32.dll` copy moved under the net462-only ItemGroup (net462 keeps the 2.23.27 natives from Redist).
+- `Create/CreateData.cs`: `CaptureReferenceData(context)` added at the end of `CreateDatabase` (see ReferenceDataTests above).
+
 ## Naming patterns
 
 - **<Feature>Tests.cs** -- primary fixture style in Linq/, Exceptions/, Update/, Data/, Mapping/, Extensions/. One class per file; class name matches file name.
@@ -1041,7 +1088,8 @@ All files are `[TestFixture] ... : TestBase` in namespace `Tests.UserTests` unle
 | IN-TREE-TOOLS | Tools/, Scaffold/ |
 | INTERNAL-API | Common/, Infrastructure/, Reflection/, Samples/, Data/DataConnectionTests.cs |
 | REMOTE-CLIENT | Linq/RemoteContextTests.cs |
-| TESTS-INFRA (runner self-tests) | Infrastructure/ActiveIssueTests.cs, Infrastructure/BaselinesManagerTests.cs, Infrastructure/ParallelExecutionTests.cs, Infrastructure/TestProgressStateTests.cs *(all new)* |
+| IDENTITY | Identity/ (5 files, new 2026-11-11) |
+| TESTS-INFRA (runner self-tests) | Infrastructure/BaselinesTests.cs *(new 2026-11-11)*, Infrastructure/AssertQueryTests.cs *(new)*, Infrastructure/ReferenceDataTests.cs *(new)*, Infrastructure/DmlScenarioRenderTests.cs *(new, Oracle DML scenario render)*, Infrastructure/ActiveIssueTests.cs, Infrastructure/BaselinesManagerTests.cs, Infrastructure/ParallelExecutionTests.cs, Infrastructure/TestProgressStateTests.cs *(all new)* |
 ## Files (Tier 1 / Tier 2)
 
 **Tier 1: 4/4**
@@ -1056,6 +1104,8 @@ All files are `[TestFixture] ... : TestBase` in namespace `Tests.UserTests` unle
 **Tier 2: 630/692 sampled** (see DEFERRED-COVERAGE fence for the 30 new files not individually read this delta; the pre-existing deferred queue is tracked separately in state/deferred-coverage.json)
 
 Representative reads (prior run): Linq/CteTests.cs, Linq/AnalyticTests.cs, Linq/EagerLoadingTests.cs, Linq/WindowFunctionsTests.cs, Linq/SubQueryTests.cs, Linq/FullTextTests.SqlServer.cs, Linq/ParameterTests.cs, Update/MergeTests.cs, Update/BulkCopyTests.cs, Update/UpdateFromTests.cs, DataProvider/SqlServerTests.cs, DataProvider/PostgreSQLTests.cs, DataProvider/OracleTests.cs, Extensions/QueryHintsTests.cs, Extensions/SqlServerTests.cs, Data/InterceptorsTests.cs, Data/DataConnectionTests.cs, Exceptions/CommonTests.cs, Infrastructure/ActiveIssueConfigurationTests.cs, Infrastructure/AnnotatableTests.cs, Mapping/FluentMappingTests.cs, Microsoft/MicrosoftODataTests.cs, OrmBattle/OrmBattleTests.cs, ThirdParty/LinqKitTests.cs, UserTests/Issue2296Tests.cs, Linq/JoinTests.cs, Linq/GroupByTests.cs, Linq/AssociationTests.cs, Linq/InheritanceTests.cs, DataProvider/MySqlTests.cs, DataProvider/SQLiteTests.cs, DataProvider/FirebirdTests.cs, DataProvider/SapHanaTests.cs, DataProvider/SybaseTests.cs, Update/InsertTests.cs, Update/DeleteTests.cs, Scaffold/NameGenerationTests.cs, TypeMapping/OracleWrappingTests.cs, Infrastructure/DataOptionsTests.cs.
+
+Delta reads (this run, 2026-11-11): see Coverage block below.
 
 Delta reads (this run, 2026-10-09): see Coverage block below.
 
@@ -1098,6 +1148,8 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - LinqToDB.Linq.Translation.ITranslationContext / MemberTranslatorBase custom-translator extension points -- cross-referenced by UserTests/Issue5347Tests.cs (custom string.Contains override for jsonb).
 - NUnit.ParallelByResource (ResourceLaneDispatcher, DatabaseLaneStrategy) -- **(new, delta 2026-10-09)** third-party runner extension wired in TestsInitialization.cs and probed by Infrastructure/ParallelExecutionTests.cs.
 - LinqToDB.CLI QueryValueFormatter -- **(new, delta 2026-10-09)** source-linked into Tests.csproj (non-net462) and exercised by DataProvider/ProviderSpecificReaderValueTests.cs.
+- LinqToDB.Identity (Source/LinqToDB.Identity project) -- **(new, delta 2026-11-11)** referenced by Tests.csproj and exercised by Identity/.
+- Combined-command engine (DataOptions.UseCombinedCommands, IDmlService.BuildCommandScenario, DataConnection.ProcessQuery, RenderDiagnostics) -- **(new, delta 2026-11-11)** cross-referenced by Linq/CombinedCommandsExtensibilityTests.cs, Linq/CombinedEagerLoadTests.cs, Linq/EagerRenderCacheTests.cs, Update/CombinedDmlTests.cs, Infrastructure/DmlScenarioRenderTests.cs.
 - LinqToDB.Concurrency (optimistic-lock refresh) -- cross-referenced by Linq/ConcurrencyRefreshTests.cs. LinqToDB.Scaffold ScaffoldOptions -- cross-referenced by Scaffold/SqlServerDecimalOverflowProtectionTests.cs.
 ## Known issues / debt
 
@@ -1123,8 +1175,12 @@ Batch 8 reads (2026-05-07): see Coverage block below.
 - **(coverage-fill 2026-10-10)** Extensions/ClickHouseTests.generated.cs and Extensions/SqlServerTests.generated.cs are T4 output of the sibling .tt files. Edit the .tt, never the .generated.cs. Data/MiniProfilerTests.cs is about 1900 lines and mixes many drivers in one fixture, so provider-specific failures there are easy to misattribute.
 - **(delta 2026-10-21)** The Coverage block below still prints Tier 2 630/692 sampled from an older run. Frontmatter `coverage_tier_2` (703/703) is the authoritative figure. `Linq/SqlExtensionsTests.cs`, `Linq/SelectTests.cs` and the small UserTests edits in this delta were checked by stat only.
 - **(delta 2026-10-21)** Infrastructure/TestRunCounterTests.cs and the TestProgressStateTests changes pin TESTS-INFRA heartbeat behavior. Earlier claims about `DoneLatchesWhenCompletedReachesTotal` semantics are superseded.
+- **(delta 2026-11-11)** Linq/EagerRenderCacheTests.cs is wholly `#if BUGCHECK`, like QueryCacheEvictionTests: the per-command eager render cache has no coverage on a normal CI build. Its sibling combined-command fixtures (Linq/CombinedCommandsExtensibilityTests.cs, Linq/CombinedEagerLoadTests.cs) run on SQLite only, and Update/CombinedDmlTests.cs excludes remote contexts by design.
+- **(delta 2026-11-11)** About 113 modified fixtures were read as diffs only. Large ones (DateTimeFunctionsTests +1340, MathFunctionTests +1408, StringConcatTests +1190, EagerLoadingTests +756, ParameterTests +605, ValueConversionTests +847) are characterized by driving PR, not test by test.
+- **(delta 2026-11-11)** Identity/ is cross-listed with the IDENTITY area. Treat the IDENTITY INDEX as authoritative for those fixtures.
 ## See also
 
+- [IDENTITY INDEX](../IDENTITY/INDEX.md) -- LinqToDB.Identity, tested by Identity/ here.
 - [TESTS-INFRA INDEX](../TESTS-INFRA/INDEX.md) -- TestBase, TestConfiguration, shared infrastructure.
 - [TESTS-MODEL INDEX](../TESTS-MODEL/INDEX.md) -- shared POCO/entity models.
 - [EXPR-TRANS INDEX](../EXPR-TRANS/INDEX.md) -- LINQ-to-SQL expression translation, exercised by Linq/.
@@ -1182,6 +1238,139 @@ Read (coverage-fill, 2026-10-10):
 - Tests/Linq/Extensions/SqlServerTests.tt -- read in full (structure, test inventory, production area) -- see Coverage-fill findings
 - Tests/Linq/Extensions/TableIDTests.cs -- read in full (structure, test inventory, production area) -- see Coverage-fill findings
 - Tests/Linq/Infrastructure/DataOptionsTests.cs -- read in full (structure, test inventory, production area) -- see Coverage-fill findings
+
+Read (this run -- delta, 2026-11-11):
+- Tests/Linq/Common/ConvertTests.cs -- diff read
+- Tests/Linq/Common/ReflectionExtensionsTests.cs -- new, read in full: exact reflection binding (PR #6155)
+- Tests/Linq/Create/CreateData.cs -- diff read: CaptureReferenceData
+- Tests/Linq/Data/DataConnectionTests.cs -- diff read
+- Tests/Linq/Data/InterceptorsTests.cs -- diff read: combinedCommands parameterization, eager-load interceptor tests
+- Tests/Linq/Data/MiniProfilerTests.cs -- diff read
+- Tests/Linq/Data/TraceTests.cs -- diff read: DbBatchTraceTruncatesLongParameters
+- Tests/Linq/DataProvider/AccessTests.cs -- diff read
+- Tests/Linq/DataProvider/FirebirdTests.cs -- diff read
+- Tests/Linq/DataProvider/InformixTests.cs -- diff read
+- Tests/Linq/DataProvider/OracleTests.cs -- diff read
+- Tests/Linq/DataProvider/PostgreSQLTests.cs -- diff read
+- Tests/Linq/DataProvider/ProviderSpecificReaderValueTests.cs -- diff read
+- Tests/Linq/DataProvider/SQLiteTests.cs -- diff read
+- Tests/Linq/DataProvider/SapHanaTests.cs -- diff read
+- Tests/Linq/DataProvider/SqlCeTests.cs -- diff read
+- Tests/Linq/DataProvider/SqlServerTests.cs -- diff read
+- Tests/Linq/DataProvider/SqlServerTypesTests.TVP.cs -- diff read
+- Tests/Linq/DataProvider/SybaseTests.cs -- diff read
+- Tests/Linq/DataProvider/Types/SapHanaTypeTests.cs -- diff read
+- Tests/Linq/DataProvider/Types/SqlServerTypeTests.cs -- diff read
+- Tests/Linq/DataProvider/YdbRetryPolicyTests.cs -- diff read
+- Tests/Linq/DataProvider/YdbTests.cs -- diff read
+- Tests/Linq/DataProvider/YdbTransientExceptionDetectorTests.cs -- diff read
+- Tests/Linq/Extensions/PostgreSQLTests.cs -- diff read
+- Tests/Linq/Extensions/QueryHintsTests.cs -- diff read
+- Tests/Linq/Identity/IdentityCustomizationTests.cs -- new, family-level only (IDENTITY area owns depth)
+- Tests/Linq/Identity/IdentityStoreNegativeTests.cs -- new, family-level only (IDENTITY area owns depth)
+- Tests/Linq/Identity/IdentityStoreTests.cs -- new, family-level only (IDENTITY area owns depth)
+- Tests/Linq/Identity/IdentityStoreVariantTests.cs -- new, family-level only (IDENTITY area owns depth)
+- Tests/Linq/Identity/IdentityTestData.cs -- new, family-level only (IDENTITY area owns depth)
+- Tests/Linq/Infrastructure/ActiveIssueTests.cs -- diff read: BaselinesMismatch decide/select tests
+- Tests/Linq/Infrastructure/AssertQueryTests.cs -- new, read: default comparer
+- Tests/Linq/Infrastructure/BaselinesTests.cs -- new, read: NoBaselines / BaselineComparer / BaselinesMismatch
+- Tests/Linq/Infrastructure/DataOptionsTests.cs -- diff read
+- Tests/Linq/Infrastructure/DmlScenarioRenderTests.cs -- new, read in full: Oracle truncate-reset render
+- Tests/Linq/Infrastructure/NullabilityContextTests.cs -- diff read
+- Tests/Linq/Infrastructure/ReferenceDataTests.cs -- new, read in full: reference-data snapshot
+- Tests/Linq/Linq/AggregationTests.cs -- diff read
+- Tests/Linq/Linq/BooleanTests.cs -- diff read
+- Tests/Linq/Linq/CachingTests.cs -- diff read
+- Tests/Linq/Linq/CombinedCommandsExtensibilityTests.cs -- new, read (head and test list): ProcessQuery extension point under combining
+- Tests/Linq/Linq/CombinedEagerLoadTests.cs -- new, test list read
+- Tests/Linq/Linq/CompareWithNullTests.cs -- diff read
+- Tests/Linq/Linq/CompileTests.cs -- diff read: CompiledQueryWithEagerLoad, CompiledQuery_ForEachUntilAsync
+- Tests/Linq/Linq/ComplexTests2.cs -- diff read
+- Tests/Linq/Linq/ConcatUnionTests.cs -- diff read
+- Tests/Linq/Linq/ConcurrencyRefreshTests.cs -- diff read
+- Tests/Linq/Linq/ConcurrencyTests.cs -- diff read
+- Tests/Linq/Linq/ConditionalTests.cs -- diff read
+- Tests/Linq/Linq/ContainsTests.cs -- diff read
+- Tests/Linq/Linq/ConvertTests.cs -- diff read
+- Tests/Linq/Linq/CountTests.cs -- diff read
+- Tests/Linq/Linq/DataContextTests.cs -- diff read
+- Tests/Linq/Linq/DateOnlyFunctionTests.cs -- diff read
+- Tests/Linq/Linq/DateTimeFunctionsTests.cs -- diff read
+- Tests/Linq/Linq/DistinctTests.cs -- diff read
+- Tests/Linq/Linq/EagerLoadingStrategyKeyedQueryTests.cs -- diff read
+- Tests/Linq/Linq/EagerLoadingStrategyUnionTests.cs -- diff read
+- Tests/Linq/Linq/EagerLoadingTests.cs -- diff read
+- Tests/Linq/Linq/EagerRenderCacheTests.cs -- new, read: BUGCHECK-only render cache
+- Tests/Linq/Linq/ExpressionTests.cs -- diff read
+- Tests/Linq/Linq/ExpressionsTests.cs -- diff read
+- Tests/Linq/Linq/FSharpTests.cs -- diff read
+- Tests/Linq/Linq/FromSqlTests.cs -- diff read
+- Tests/Linq/Linq/FunctionTests.cs -- diff read
+- Tests/Linq/Linq/GroupByTests.cs -- diff read
+- Tests/Linq/Linq/InheritanceTests.cs -- diff read
+- Tests/Linq/Linq/InterfaceTests.cs -- diff read
+- Tests/Linq/Linq/IntervalTranslationTests.ClickHouse.cs -- new, head read
+- Tests/Linq/Linq/IntervalTranslationTests.Coarse.cs -- new, head read
+- Tests/Linq/Linq/IntervalTranslationTests.Difference.cs -- diff read
+- Tests/Linq/Linq/IntervalTranslationTests.Queries.cs -- diff read
+- Tests/Linq/Linq/IssueTests.cs -- diff read
+- Tests/Linq/Linq/JoinTests.cs -- diff read
+- Tests/Linq/Linq/L2SAttributeTests.cs -- diff read
+- Tests/Linq/Linq/LoadWithTests.cs -- diff read
+- Tests/Linq/Linq/MappingTests.cs -- diff read
+- Tests/Linq/Linq/MathFunctionTests.cs -- diff read
+- Tests/Linq/Linq/MultiThreadingTests.cs -- diff read
+- Tests/Linq/Linq/OrderByTests.cs -- diff read
+- Tests/Linq/Linq/ParameterTests.Naming.cs -- diff read
+- Tests/Linq/Linq/ParameterTests.SqlServer.cs -- diff read
+- Tests/Linq/Linq/ParameterTests.cs -- diff read
+- Tests/Linq/Linq/PredicateTests.cs -- diff read
+- Tests/Linq/Linq/PreferClientCalculationTests.cs -- diff read
+- Tests/Linq/Linq/QueryGenerationTests.cs -- diff read
+- Tests/Linq/Linq/QueryInheritanceTests.cs -- diff read
+- Tests/Linq/Linq/RemoteContextTests.cs -- diff read
+- Tests/Linq/Linq/SelectQueryOptimizationTests.cs -- diff read
+- Tests/Linq/Linq/SelectTests.cs -- diff read
+- Tests/Linq/Linq/SetTests.cs -- diff read
+- Tests/Linq/Linq/StringConcatTests.cs -- diff read
+- Tests/Linq/Linq/StringFunctionTests.cs -- diff read
+- Tests/Linq/Linq/StringJoinTests.cs -- diff read
+- Tests/Linq/Linq/TemporalTableTests.cs -- diff read
+- Tests/Linq/Linq/TestQueryCache.cs -- diff read
+- Tests/Linq/Linq/TypesTests.cs -- diff read
+- Tests/Linq/Linq/ValueConversionTests.cs -- diff read
+- Tests/Linq/Linq/WhereTests.cs -- diff read
+- Tests/Linq/Linq/WindowFunctionsTests.Combinations.cs -- diff read
+- Tests/Linq/Mapping/DynamicColumnsWithoutStoreTests.cs -- new, head read
+- Tests/Linq/Mapping/FluentMappingAliasTests.cs -- diff read
+- Tests/Linq/Mapping/SetUseMappingSchemaTests.cs -- diff read
+- Tests/Linq/SchemaProvider/SchemaProviderTests.cs -- diff read
+- Tests/Linq/Tests.csproj -- diff read: Identity ProjectReference, SAP HANA NuGet packages
+- Tests/Linq/TestsInitialization.cs -- Tier 1, diff read: DB2 resolver via adapter, PreLoadSQLite env assignment removed
+- Tests/Linq/Tools/ToDiagnosticStringTests.cs -- diff read
+- Tests/Linq/TypeMapping/MappingTests.cs -- diff read
+- Tests/Linq/Update/BulkCopyTests.cs -- diff read
+- Tests/Linq/Update/CombinedDmlTests.cs -- new, read (head): DML combined engine, off/on round-trip counts
+- Tests/Linq/Update/CreateTempTableTests.cs -- diff read
+- Tests/Linq/Update/DeleteTests.cs -- diff read
+- Tests/Linq/Update/InsertTests.cs -- diff read
+- Tests/Linq/Update/MergeTests.Types.cs -- diff read
+- Tests/Linq/Update/TruncateTableTests.cs -- diff read
+- Tests/Linq/Update/UpdateFromTests.Row.cs -- diff read
+- Tests/Linq/Update/UpdateWithOutputTests.cs -- diff read
+- Tests/Linq/Update/UpsertTests.Single.cs -- diff read
+- Tests/Linq/UserTests/Issue1046Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue1398Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue1564Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue2161Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue256Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue278Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue3251Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue4336Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue445Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue513Tests.cs -- diff read
+- Tests/Linq/UserTests/Issue5683Tests.cs -- diff read
+- Counts: 17 added files raise coverage_tier_2 from 703/703 to 720/720. Tier 1 unchanged at 4/4. No deletions.
 
 Read (this run -- delta, 2026-10-21):
 - Tests/Linq/TestsInitialization.cs -- Tier 1, diff read: PurgeDB2ConnectionPool at teardown

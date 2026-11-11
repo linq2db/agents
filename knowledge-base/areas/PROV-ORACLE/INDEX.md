@@ -3,10 +3,10 @@ area: PROV-ORACLE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 12/12
-coverage_tier_2: 20/20
+coverage_tier_2: 21/21
 ---
 
 # PROV-ORACLE
@@ -36,6 +36,7 @@ All extend `OracleDataProvider` which extends [`DynamicDataProviderBase<OraclePr
 
 - **Oracle.DataAccess / Oracle.ManagedDataAccess** -- `CreateAdapter()` at `OracleProviderAdapter.cs:442` loads the assembly by name (`Oracle.DataAccess` or `Oracle.ManagedDataAccess`), reflects all Oracle-specific types (`OracleConnection`, `OracleDataReader`, `OracleBulkCopy`, etc.), and builds compiled lambdas for type-mapped operations (decimal precision loop at `:541-579`, `DateTimeOffset`-from-`OracleTimeStampTZ` at `:527-534`).
 - **Devart.Data.Oracle** -- `CreateDevartAdapter()` at `OracleProviderAdapter.cs:646` follows the same pattern but uses `OracleLoader` for bulk copy and `ExecuteArray` for array-bound parameters.
+- **Reader-method probing** -- `TryAddTypeReader<TType>` looks the custom data-reader method up through the `GetPublicInstanceMethodEx(methodName, IndexParams)` extension (`LinqToDB.Internal.Extensions`) instead of a raw `Type.GetMethod` call (public-instance lookup only).
 
 Key capability flags:
 - `BindingByNameEnabled`: `true` for Native + Devart, `false` for Managed. `OracleDataProvider.InitCommand` disables bind-by-name when there are no parameters to avoid `:NEW` token parse errors in triggers (`OracleDataProvider.cs:154-160`).
@@ -59,9 +60,10 @@ BasicSqlBuilder<OracleOptions>
 - **`BuildSelectClause`** -- injects `FROM SYS.DUAL` when no FROM tables (`OracleSqlBuilderBase.cs:31-42`).
 - **`BuildGetIdentity`** -- emits `RETURNING <field> INTO :IDENTITY_PARAMETER` (`OracleSqlBuilderBase.cs:44-55`).
 - **`GetIdentityExpression`** -- returns `<sequence>.nextval` from `[SequenceName]` attribute (`OracleSqlBuilderBase.cs:57-74`). Oracle 11g has no native `IDENTITY` columns; v12+ has them, but linq2db still defaults to sequences for compatibility.
+- **`ShouldBuildWhere`** -- no longer calls `SqlOptimizer.ConvertSkipTake` at render time: TAKE/SKIP are read from `selectQuery.Select.TakeValue` / `SkipValue`, already resolved during render-prep (`SqlExpressionConvertVisitor.ResolveSkipTakeValues`), and the v11 ROWNUM predicate injection is driven from those values.
 - **`BuildSetOperation`** -- maps `Except` -> `MINUS` / `ExceptAll` -> `MINUS ALL` (`OracleSqlBuilderBase.cs:85-94`).
 - **`BuildDataTypeFromDataType`** -- Oracle-specific DDL types: `date`, `timestamp`, `Number(N)`, `Raw(16)` for GUID, `BLOB` for binary, `NClob`/`Clob`, etc. (`OracleSqlBuilderBase.cs:96-152`).
-- **`BuildDropTableStatement`** / **`BuildCommand`** -- wraps DROP in `BEGIN ... EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;` PL/SQL blocks and creates/drops sequences + triggers for identity columns (`OracleSqlBuilderBase.cs:308-532`).
+- **`BuildDropTableStatement`** -- wraps DROP in `BEGIN ... EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;` PL/SQL blocks (`OracleSqlBuilderBase.cs:308-343`). The identity-related multi-command emission (`CommandCount` / `BuildCommand`: `CREATE SEQUENCE`, `CREATE OR REPLACE TRIGGER`, truncate sequence reset) was removed from the builder and moved to [`OracleDmlService`](#dml-service-oracledmlservice). The builder keeps `MakeIdentitySequenceName` / `MakeIdentityTriggerName` for the DROP path.
 - **`BuildCreateTableStatement`** / **`BuildEndCreateTableStatement`** -- wraps `CREATE TABLE` in `EXECUTE IMMEDIATE` inside `BEGIN ... END;` for `IF NOT EXISTS` semantics (ORA-955 swallowed); appends `ON COMMIT DELETE/PRESERVE ROWS` for global temporary tables (`OracleSqlBuilderBase.cs:632-686`).
 - **`BuildMultiInsertQuery`** / **`BuildMultiInsertClause`** -- Oracle `INSERT ALL` / `INSERT FIRST` multi-table insert (`OracleSqlBuilderBase.cs:690-735`).
 - **Hints** -- `StartStatementQueryExtensions` initialises a `HintBuilder`; `FinalizeBuildQuery` inserts the `/*+ ... */` block at `_hintPosition` in the SQL string (`OracleSqlBuilderBase.cs:743-789`). `QB_NAME` query-block naming is supported.
@@ -76,10 +78,20 @@ BasicSqlBuilder<OracleOptions>
 - `LimitFormat` -> `FETCH NEXT {0} ROWS ONLY`
 - `OffsetFormat` -> `OFFSET {0} ROWS`
 - `OffsetFirst` -> `true` (OFFSET precedes FETCH)
-- `ShouldBuildWhere` -- skips v11's ROWNUM injection for SELECT queries; v12+ uses native pagination.
+- `ShouldBuildWhere` -- skips v11's ROWNUM injection for SELECT queries; v12+ uses native pagination. It now takes `selectQuery.Where.SearchCondition` directly (`condition.IsTrue` check) instead of passing it through `PrepareSearchCondition` first.
 - `CanSkipRootAliases` -- false when TAKE/SKIP present (issue #2785).
 
 **`OracleSqlBuilderBase.Merge.cs`** configures Oracle MERGE specifics: `FakeTable = "dual"`, `FakeTableSchema = "sys"`, `IsValuesSyntaxSupported = false`, `SupportsColumnAliasesInSource = false`, `IsUpsertUpdateWhereAfterSet = true` -- added this delta; Oracle only accepts `WHEN MATCHED THEN UPDATE SET ... WHERE cond`, not `WHEN MATCHED AND cond THEN UPDATE SET ...` (`OracleSqlBuilderBase.Merge.cs:24-26`); overrides `BuildMergeInto`, `BuildMergeOperationInsert`, `BuildMergeOperationUpdate`, `BuildMergeOperationUpdateWithDelete` with Oracle `WHEN MATCHED` / `WHEN NOT MATCHED` syntax.
+
+### DML service (`OracleDmlService`)
+
+`OracleDataProvider.CreateDmlService()` returns `new OracleDmlService()` (`OracleDataProvider.cs:122`). `OracleDmlService` (`OracleDmlService.cs`, public sealed, extends `DmlServiceBase`) overrides `BuildCommandScenario(SqlStatement, SqlProviderFlags, ISqlExpressionFactory)` and returns an `SqlCommandScenario` of ordered `SqlCommandStep`s for three statement shapes, falling back to the base scenario otherwise:
+
+- **`SqlTruncateTableStatement { ResetIdentity: true }` with identity fields** -- two `NonQuery` steps: the truncate itself, then an `SqlRawStatement` PL/SQL `DECLARE ... BEGIN ... END;` block that reads `<seq>.NEXTVAL`, alters the sequence to `INCREMENT BY -<value> MINVALUE 0`, reads it once more, and restores `INCREMENT BY 1 MINVALUE 0`. The sequence name is an `SqlObjectNameExpression(..., ConvertType.SequenceName, insideStringLiteral: true)` with no schema, so the quoted identifier is escaped for `EXECUTE IMMEDIATE '...'` literal-body position (a table name carrying an apostrophe would otherwise close the literal). `OutcomeSteps = [0]` -- the truncate's outcome is the result (`OracleDmlService.cs:32-58`).
+- **`SqlCreateTableStatement` with identity fields** -- three steps: the create, `CREATE SEQUENCE SIDENTITY_<table>`, and `CREATE OR REPLACE TRIGGER TIDENTITY_<table> BEFORE INSERT ON <table> FOR EACH ROW BEGIN SELECT <seq>.NEXTVAL INTO :NEW.<col> FROM dual; END;`. Names are `SqlObjectNameExpression`s (`ConvertType.SequenceName` / `TriggerName` / `NameToQueryTable` / `NameToQueryField`) carrying the table schema so the builder quotes them (`OracleDmlService.cs:60-88`). Replaces the old `CommandCount` = 3 / `BuildCommand(commandNumber)` pair in the builder.
+- **`SqlInsertStatement { Insert.WithIdentity: true }`** -- single `NonQuery` step with `OutParameterName = "IDENTITY_PARAMETER"`: the insert renders a trailing `RETURNING <id> INTO :IDENTITY_PARAMETER` (`OracleSqlBuilderBase.BuildGetIdentity`), and the interpreter adds the OUT parameter and reads it back after `ExecuteNonQuery` (`OracleDmlService.cs:90-100`). This replaces the provider flag `SqlProviderFlags.IsIdentityParameterRequired = true`, which was removed from the `OracleDataProvider` constructor.
+
+`IsTableNotFoundExceptionCore` returns `false`.
 
 ### SQL optimizer hierarchy
 
@@ -254,6 +266,7 @@ On runtimes supporting `SUPPORTS_COMPOSITE_FORMAT` (net8+), format strings for D
 | `OracleDataProvider` | Abstract base; 6 concrete sealed subclasses above |
 | `OracleSqlBuilderBase` + `.Merge.cs` | SQL builder base (abstract, partial) |
 | `Oracle11SqlBuilder` / `Oracle12SqlBuilder` | Dialect-specific builders |
+| `OracleDmlService` | `DmlServiceBase` subclass (public sealed): multi-step command scenarios for identity insert (OUT parameter), create-table-with-identity (sequence + trigger), truncate-with-identity-reset (PL/SQL block) |
 | `Oracle11SqlOptimizer` / `Oracle12SqlOptimizer` | Statement transformation + take/skip rewriting |
 | `OracleSqlExpressionConvertVisitor` / `Oracle12SqlExpressionConvertVisitor` | Expression-level rewrites |
 | `Oracle11ParametersNormalizer` / `Oracle122ParametersNormalizer` | Identifier length enforcement |
@@ -270,10 +283,10 @@ On runtimes supporting `SUPPORTS_COMPOSITE_FORMAT` (net8+), format strings for D
 
 ### Identity / sequences
 
-Oracle 11g has no `IDENTITY` columns. `OracleSqlBuilderBase` models identity via:
-1. `GetIdentityExpression` emits `<schema>.<sequence>.nextval`.
-2. On `CREATE TABLE` with an identity field, `CommandCount` returns 3 and `BuildCommand` emits two extra commands: `CREATE SEQUENCE SIDENTITY_<table>` and `CREATE OR REPLACE TRIGGER TIDENTITY_<table> BEFORE INSERT ... SELECT seq.NEXTVAL INTO :NEW.<col> FROM dual` (`OracleSqlBuilderBase.cs:492-531`).
-3. After insert, `BuildGetIdentity` emits `RETURNING <field> INTO :IDENTITY_PARAMETER`.
+Oracle 11g has no `IDENTITY` columns. Identity is modelled via sequences and triggers, orchestrated by [`OracleDmlService`](#dml-service-oracledmlservice) (not the SQL builder):
+1. `OracleSqlBuilderBase.GetIdentityExpression` emits `<schema>.<sequence>.nextval`.
+2. On `CREATE TABLE` with an identity field, `OracleDmlService.BuildCommandScenario` returns a 3-step scenario: the create, then `CREATE SEQUENCE SIDENTITY_<table>` and `CREATE OR REPLACE TRIGGER TIDENTITY_<table> BEFORE INSERT ... SELECT seq.NEXTVAL INTO :NEW.<col> FROM dual` as `SqlRawStatement`s (`OracleDmlService.cs:60-88`). The former `CommandCount` / `BuildCommand` pair in `OracleSqlBuilderBase` is gone.
+3. After insert, `BuildGetIdentity` emits `RETURNING <field> INTO :IDENTITY_PARAMETER`, and the scenario step carries `OutParameterName = "IDENTITY_PARAMETER"` so the interpreter reads the OUT parameter (`OracleDmlService.cs:90-100`).
 
 Oracle 12c+ supports `GENERATED ALWAYS AS IDENTITY`. The schema provider reads `IDENTITY_COLUMN = YES` for v12+.
 
@@ -331,6 +344,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 - `IsApplyJoinSupported = true` only for v12+.
 - `CalculateSupportedCorrelatedLevelWithAggregateQueries = version < OracleVersion.v12` -- on v11 the supported correlated-subquery level is calculated with aggregate queries taken into account (`OracleDataProvider.cs:50`), next to `SupportedCorrelatedSubqueriesLevel = 1`.
 - `IsColumnSubqueryShouldNotContainParentIsNotNull` and `IsColumnSubqueryWithParentReferenceAndTakeSupported` differ by version (`OracleDataProvider.cs:47-48`).
+- `IsIdentityParameterRequired` -- no longer set by Oracle (the identity OUT parameter is declared by `OracleDmlService` via `OutParameterName`).
 
 ## Files (Tier 1 / Tier 2)
 
@@ -351,7 +365,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 | `Source/LinqToDB/Internal/DataProvider/Oracle/OracleBulkCopy.cs` | Bulk copy (4 strategies) |
 | `Source/LinqToDB/DataProvider/Oracle/OracleTools.cs` | Public registration entry point |
 
-### Tier 2 (20/20 visited)
+### Tier 2 (21/21 visited)
 
 | File | Status |
 |---|---|
@@ -375,6 +389,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 | `Source/LinqToDB/Internal/DataProvider/Oracle/Translation/OracleMemberTranslator.cs` | Read (full -- multiple delta runs; all sub-translators inspected including TrimStart/TrimEnd, reworked TranslateStringJoin, TranslateIsNullOrWhiteSpace, and the new `OracleWindowFunctionsMemberTranslator`) |
 | `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSpecificQueryable.cs` | Read -- sealed impl |
 | `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSpecificTable.cs` | Read -- sealed impl |
+| `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDmlService.cs` | Read (full, new this delta) -- DML command scenarios for identity |
 
 ### Tier 3 (1 file -- skipped)
 
@@ -396,13 +411,15 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 
 7. **`function with ref_cursor return type returns object`** -- noted in `OracleSchemaProvider.cs:15` as a missing schema feature.
 
+8. **Identity object naming duplicated.** `OracleDmlService.SequenceName` / `TriggerName` re-implement `OracleSqlBuilderBase.MakeIdentitySequenceName` / `MakeIdentityTriggerName` (the builder copies are still used by the DROP path), so the `SIDENTITY_` / `TIDENTITY_` prefixes live in two places (`OracleDmlService.cs:21-24`).
+
 ## Inbound / outbound dependencies
 
 **Inbound:** `OracleTools` is the public entry point. `OracleFactory` is loaded by `DataProviderFactoryBase` via assembly scanning.
 
 **Outbound:**
-- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md): `BasicSqlBuilder<OracleOptions>`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`.
-- [INTERNAL-API](../INTERNAL-API/INDEX.md): `DynamicDataProviderBase<OracleProviderAdapter>`, `IDynamicProviderAdapter`, `BasicBulkCopy`, `ProviderDetectorBase<OracleProvider,OracleVersion>`, `UniqueParametersNormalizer`, `TypeMapper`, `SchemaProviderBase`, `MemberTranslatorBase`.
+- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md): `BasicSqlBuilder<OracleOptions>`, `BasicSqlOptimizer`, `SqlExpressionConvertVisitor`, `DmlServiceBase` / `SqlCommandScenario` (via `OracleDmlService`).
+- [INTERNAL-API](../INTERNAL-API/INDEX.md): `DynamicDataProviderBase<OracleProviderAdapter>`, `IDynamicProviderAdapter`, `BasicBulkCopy`, `ProviderDetectorBase<OracleProvider,OracleVersion>`, `UniqueParametersNormalizer`, `TypeMapper`, `SchemaProviderBase`, `MemberTranslatorBase`, `GetPublicInstanceMethodEx` extension.
 - [MAPPING](../MAPPING/INDEX.md): `LockedMappingSchema`, `MappingSchema`.
 
 ## See also
@@ -415,7 +432,7 @@ Oracle raises errors when mixing CHAR/VARCHAR2 and NCHAR/NVARCHAR2 in set operat
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 12 / 12
-- Tier 2 (visited / total): 20 / 20 (100%)
+- Tier 2 (visited / total): 21 / 21 (100%)
 - Tier 3 (skipped, logged): 1 (`OracleHints.tt`)
 
 Delta run (sha 4a478ff14):
@@ -451,4 +468,11 @@ Read (this run -- delta, sha 89b5ce162):
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` -- new `SqlProviderFlags.CalculateSupportedCorrelatedLevelWithAggregateQueries = version < OracleVersion.v12`.
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleMappingSchema.cs` -- float/double infinity literal checks switched to `FloatingPointHelper.IsNegativeInfinity` / `IsPositiveInfinity` (no behavior change).
 - `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlExpressionConvertVisitor.cs` -- new `ConvertDefaultValue` override: a `DateTime` default typed `DateTimeOffset` becomes a `DateTimeOffset` value with zero offset.
+
+Read (this run -- delta):
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDmlService.cs` (A) -- new public sealed `DmlServiceBase` subclass: `BuildCommandScenario` returns multi-step scenarios for truncate-with-identity-reset (truncate + PL/SQL sequence reset block, `insideStringLiteral` sequence name), create-table-with-identity (create + `CREATE SEQUENCE` + `CREATE OR REPLACE TRIGGER`), and identity insert (`OutParameterName = "IDENTITY_PARAMETER"`).
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleDataProvider.cs` (M) -- `CreateDmlService()` override returning `OracleDmlService`, removed `SqlProviderFlags.IsIdentityParameterRequired = true`.
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleSqlBuilderBase.cs` (M) -- removed `_identityField`, `CommandCount` and `BuildCommand` (moved to `OracleDmlService`), `ShouldBuildWhere` now reads `selectQuery.Select.TakeValue` / `SkipValue` instead of calling `SqlOptimizer.ConvertSkipTake`.
+- `Source/LinqToDB/Internal/DataProvider/Oracle/Oracle12SqlBuilder.cs` (M) -- `ShouldBuildWhere` uses `selectQuery.Where.SearchCondition` directly (no `PrepareSearchCondition`).
+- `Source/LinqToDB/Internal/DataProvider/Oracle/OracleProviderAdapter.cs` (M) -- `TryAddTypeReader` uses `GetPublicInstanceMethodEx` (new `LinqToDB.Internal.Extensions` using) instead of `Type.GetMethod`.
 </details>

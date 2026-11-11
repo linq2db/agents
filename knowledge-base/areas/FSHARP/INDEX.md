@@ -3,8 +3,8 @@ area: FSHARP
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 8/8
 coverage_tier_2: 0/0
 ---
@@ -40,13 +40,15 @@ The effect: F# records, whose generated constructors have no settable properties
 
 `IsOption` (`FSharpOptionSupport.fs:88`) detects `FSharpOption<_>` / `FSharpValueOption<_>` by generic type definition; `IsScalarOption` (line 95) additionally requires the element type to satisfy `MappingSchema.Default.IsScalarType` **or** to be a scalar single-case union (`FSharpSingleCaseUnionSupport.IsScalarSingleCaseUnion`) -- an option over a complex/entity element is left untouched (not treated as a column). A `TODO` notes the `MappingSchema.Default` check should switch to the callsite schema once metadata readers are schema-aware (#5675).
 
-`build` (line 28) constructs a bidirectional `ValueConverter<TOption, TProvider>` via explicit `Expression` trees, cached by `GetConverter` (line 103) in a `ConcurrentDictionary<Type, IValueConverter>` keyed by the closed option type. A non-nullable value-typed element (`int`, `decimal`, etc.) is wrapped in `Nullable<'a>` as the provider type, so `None`/`ValueNone` serializes as SQL `NULL` rather than `default('a)` -- fixes issue #4646 (`int option` storing `None` as `0`). Reference-typed and already-nullable elements pass through unwrapped (the `Nullable.GetUnderlyingType` check also avoids the invalid `Nullable<Nullable<_>>`). For an option over a scalar single-case union (e.g. `UserId option`) the provider type is driven by the union's wrapped scalar: the union is unwrapped on the way out and rebuilt via the case constructor on the way in. The converter is created with `handlesNulls = true`.
+`build` (line 28) constructs a bidirectional converter via explicit `Expression` trees, cached by `GetConverter` (line 103) in a `ConcurrentDictionary<Type, IValueConverter>` keyed by the closed option type. The converter instance is a `StorageTransparentConverter<TOption, TProvider>` (defined in `FSharpSingleCaseUnionSupport.fs:18`, see below) created via `ActivatorExt.CreateInstance`, not a plain `ValueConverter<,>`. A non-nullable value-typed element (`int`, `decimal`, etc.) is wrapped in `Nullable<'a>` as the provider type, so `None`/`ValueNone` serializes as SQL `NULL` rather than `default('a)` -- fixes issue #4646 (`int option` storing `None` as `0`). Reference-typed and already-nullable elements pass through unwrapped (the `Nullable.GetUnderlyingType` check also avoids the invalid `Nullable<Nullable<_>>`). For an option over a scalar single-case union (e.g. `UserId option`) the provider type is driven by the union's wrapped scalar: the union is unwrapped on the way out and rebuilt via the case constructor on the way in. The converter is created with `handlesNulls = true`.
 
 `FSharpOptionMetadataReader` (line 108) implements `IMetadataReader` (`Source/LinqToDB/Metadata/IMetadataReader.cs`): `GetAttributes(Type)` returns `ScalarTypeAttribute` for a scalar option type; `GetAttributes(Type, MemberInfo)` returns `ColumnAttribute(CanBeNull = true)` (needed so a struct `voption` column does not DDL as NOT NULL) plus a `ValueConverterAttribute` wrapping the cached converter for every scalar-option member. The DB type is intentionally left unset -- `ColumnDescriptor` derives it from the value converter's provider type against the active provider-inclusive schema, preserving provider-faithful facets (decimal precision/scale, string length) that deriving from context-free `MappingSchema.Default` would truncate (issue #5645, e.g. `decimal option` -> `decimal(18,0)`).
 
 ### `FSharpSingleCaseUnionSupport` / `FSharpSingleCaseUnionMetadataReader`
 
-`FSharpSingleCaseUnionSupport.fs` (internal) -- automatic mapping for single-case scalar discriminated unions such as `type UserId = UserId of int`, mirroring the option support. `IsSingleCaseUnion` (line 43) requires `FSharpType.IsUnion` with exactly one case having exactly one field (this excludes option/voption, list and multi-case unions); `IsScalarSingleCaseUnion` (line 48) additionally requires the wrapped field type to be a `MappingSchema.Default` scalar (same #5675 TODO). `build` (line 26) creates a `ValueConverter<TUnion, TField>` from expression trees: to-DB reads the wrapped-field property, from-DB calls the static case constructor (`FSharpValue.PreComputeUnionConstructorInfo`); `handlesNulls = false` because the constructor has no null branch, so linq2db short-circuits a NULL read to `null` instead of calling it with `default('T)`. Converters are cached in a `ConcurrentDictionary<Type, IValueConverter>`; `WrappedField` / `CaseConstructor` helpers are shared with the option converter. `FSharpSingleCaseUnionMetadataReader` (line 69) returns `ScalarTypeAttribute` for the type and a `ValueConverterAttribute` per scalar-union member (DB type left unset, as for options). Per the readme, a `[<Struct>]` union cannot hold `null`: a NULL read yields the union wrapping the element default (`Age 0`); use `option` for nullable columns.
+`FSharpSingleCaseUnionSupport.fs` (internal) -- automatic mapping for single-case scalar discriminated unions such as `type UserId = UserId of int`, mirroring the option support. `IsSingleCaseUnion` (line 50) requires `FSharpType.IsUnion` with exactly one case having exactly one field (this excludes option/voption, list and multi-case unions); `IsScalarSingleCaseUnion` (line 55) additionally requires the wrapped field type to be a `MappingSchema.Default` scalar (same #5675 TODO). `build` (line 33) creates a `StorageTransparentConverter<TUnion, TField>` from expression trees: to-DB reads the wrapped-field property, from-DB calls the static case constructor (`FSharpValue.PreComputeUnionConstructorInfo`); `handlesNulls = false` because the constructor has no null branch, so linq2db short-circuits a NULL read to `null` instead of calling it with `default('T)`. Converters are cached in a `ConcurrentDictionary<Type, IValueConverter>`; `WrappedField` / `CaseConstructor` helpers are shared with the option converter. `FSharpSingleCaseUnionMetadataReader` (line 76) returns `ScalarTypeAttribute` for the type and a `ValueConverterAttribute` per scalar-union member (DB type left unset, as for options). Per the readme, a `[<Struct>]` union cannot hold `null`: a NULL read yields the union wrapping the element default (`Age 0`); use `option` for nullable columns.
+
+**`StorageTransparentConverter<'TModel, 'TProvider>`** (`FSharpSingleCaseUnionSupport.fs:18`, internal): subclass of `ValueConverter<'TModel, 'TProvider>` that additionally implements the core marker interface `IStorageTransparentConverter` (namespace `LinqToDB.Internal.Mapping`). The marker declares that the stored value is the payload itself, so the query builder may combine such a column with an unconverted one. Both the option and the union converters are built as this type, so the marker applies to both.
 
 ### `FSharpMemberTranslator`
 
@@ -75,6 +77,7 @@ Rewriting is done by the private `FSharpRewriteVisitor(mappingSchema)` (an `Expr
 | `FSharpQueryExpressionInterceptor` | `FSharpQueryExpressionInterceptor.fs` | `IQueryExpressionInterceptor`; rewrites F# block/record-copy-update/quotation/group-join shapes |
 | `FSharpOptionSupport` | `FSharpOptionSupport.fs` | Builds/caches `IValueConverter` for option / voption (incl. options over single-case unions) |
 | `FSharpOptionMetadataReader` | `FSharpOptionSupport.fs` | `IMetadataReader`; supplies column + value-converter attributes for scalar-option members |
+| `StorageTransparentConverter<,>` | `FSharpSingleCaseUnionSupport.fs` | `ValueConverter<,>` subclass tagged with core marker `IStorageTransparentConverter`; used for both option and union converters |
 | `FSharpSingleCaseUnionSupport` | `FSharpSingleCaseUnionSupport.fs` | Builds/caches `IValueConverter` for single-case scalar unions |
 | `FSharpSingleCaseUnionMetadataReader` | `FSharpSingleCaseUnionSupport.fs` | `IMetadataReader`; scalar-type + value-converter attributes for union members |
 | `FSharpMemberTranslator` | `FSharpMemberTranslator.fs` | `MemberTranslatorBase`; option `IsSome`/`IsNone`/`Value` -> SQL |
@@ -90,7 +93,7 @@ Rewriting is done by the private `FSharpRewriteVisitor(mappingSchema)` (an `Expr
 | `Source/LinqToDB.FSharp/FSharpEntityBindingInterceptor.fs` | Core interceptor implementation |
 | `Source/LinqToDB.FSharp/FSharpQueryExpressionInterceptor.fs` | Expression-tree interceptor: block inlining, record-copy `Update` rewrite, quotation reduction, group-join flatten |
 | `Source/LinqToDB.FSharp/FSharpOptionSupport.fs` | F# option/voption value-converter + metadata reader |
-| `Source/LinqToDB.FSharp/FSharpSingleCaseUnionSupport.fs` | Single-case scalar union value-converter + metadata reader |
+| `Source/LinqToDB.FSharp/FSharpSingleCaseUnionSupport.fs` | `StorageTransparentConverter`, single-case scalar union value-converter + metadata reader |
 | `Source/LinqToDB.FSharp/FSharpMemberTranslator.fs` | Option member access translation |
 | `Source/LinqToDB.FSharp/readme.md` | NuGet readme; documents `UseFSharp()` |
 
@@ -100,7 +103,7 @@ Rewriting is done by the private `FSharpRewriteVisitor(mappingSchema)` (an `Expr
 
 **Outbound (this package depends on):**
 - `LinqToDB` core project (`LinqToDB.csproj`) -- `DataOptions`, `TypeAccessor`, `MemberAccessor`, `EntityBindingInterceptor`, `IEntityBindingInterceptor`, `SqlGenericConstructorExpression`, `MappingSchema`, `DefaultValue`.
-- `LinqToDB` core project, expression-interception and option-mapping surface -- `IQueryExpressionInterceptor`, `QueryExpressionArgs`, `IMetadataReader`, `IValueConverter`/`ValueConverter<,>`, `ScalarTypeAttribute`, `ColumnAttribute`, `ValueConverterAttribute`, `MappingSchema.CombineSchemas`, `Methods.LinqToDB.Update.*`, `Methods.Queryable.*` / `Methods.Enumerable.*` (`LinqToDB.Internal.Reflection`).
+- `LinqToDB` core project, expression-interception and option-mapping surface -- `IQueryExpressionInterceptor`, `QueryExpressionArgs`, `IMetadataReader`, `IValueConverter`/`ValueConverter<,>`, `IStorageTransparentConverter` (`LinqToDB.Internal.Mapping`), `ActivatorExt` (`LinqToDB.Internal.Common`), `ScalarTypeAttribute`, `ColumnAttribute`, `ValueConverterAttribute`, `MappingSchema.CombineSchemas`, `Methods.LinqToDB.Update.*`, `Methods.Queryable.*` / `Methods.Enumerable.*` (`LinqToDB.Internal.Reflection`).
 - `LinqToDB` core translation surface -- `MemberTranslatorBase`, `ITranslationContext`, `TranslationFlags`, `SqlPlaceholderExpression`, `DataOptions.UseMemberTranslator` (`LinqToDB.Linq.Translation`, `LinqToDB.Internal.DataProvider.Translation`).
 - `FSharp.Core` (explicit package ref on `net462`; SDK-provided on netstandard2.0+).
 
@@ -163,4 +166,10 @@ Read (this run -- delta):
 - `Source/LinqToDB.FSharp/FSharpEntityBindingInterceptor.fs` (M) -- `TryMapMembersToConstructor` now maps constructor positions via `FSharpType.GetRecordFields` declaration index (new `open Microsoft.FSharp.Reflection`) instead of `CompilationMappingAttribute.SequenceNumber`, because static `let` bindings take sequence numbers and shifted positions. Line anchors in the body refreshed (type :20, `isRecord` :31, `TryMapMembersToConstructor` :39, `ConvertConstructorExpression` :58).
 
 coverage_tier_1 unchanged at 8/8 (file already Tier 1, re-read in full this run).
+
+Read (this run -- delta):
+- `Source/LinqToDB.FSharp/FSharpSingleCaseUnionSupport.fs` (M) -- new internal `StorageTransparentConverter` (`ValueConverter` subclass plus core marker `IStorageTransparentConverter`) now used as the converter type for single-case unions (`handlesNulls=false`). Line anchors refreshed (`IsSingleCaseUnion` :50, `IsScalarSingleCaseUnion` :55, `build` :33, reader :76).
+- `Source/LinqToDB.FSharp/FSharpOptionSupport.fs` (M) -- `build` now instantiates `StorageTransparentConverter` (via `ActivatorExt.CreateInstance`) instead of a plain `ValueConverter`, with unchanged `handlesNulls=true` and Nullable/union-unwrap logic. Anchors still valid (`IsOption` :88, `IsScalarOption` :95, `build` :28, `GetConverter` :103, reader :108).
+
+coverage_tier_1 unchanged at 8/8 (both files already Tier 1, re-read in full this run).
 </details>

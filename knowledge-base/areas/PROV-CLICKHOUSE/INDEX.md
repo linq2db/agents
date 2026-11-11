@@ -3,10 +3,10 @@ area: PROV-CLICKHOUSE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 10/10
-coverage_tier_2: 13/13
+coverage_tier_2: 14/14
 ---
 
 # PROV-CLICKHOUSE
@@ -54,10 +54,13 @@ ClickHouse supports three ADO.NET client libraries, each with distinct capabilit
 | UUID handling | `byte[16]` or `Guid.Parse` string | string `"D"` format | string `"D"` format |
 | `IsDBNullAllowed` | Always `true` (Octonica bug workaround) | Schema table `AllowDBNull` column | Schema table |
 | Parameters | Disabled (all parameters inlined as literals) | Disabled | Disabled |
+| `GetParameterTypeName` (debug SQL) | `ClickHouseDbType` enum name of the parameter | ClickHouse type parsed from `ClickHouseDbParameter.QueryForm` (`{name:type}`) | `MySqlDbType` name via `MySqlProviderAdapter.GetDbType` |
 
 `ClickHouseProviderAdapter` (`Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs`) wraps each client via the `TypeMapper`/`TypeWrapper` pattern (see [INTERNAL-API](../INTERNAL-API/INDEX.md)). For `MySqlConnector`, it delegates directly to `MySqlProviderAdapter.GetInstance(MySqlProvider.MySqlConnector)` and wraps the result (`ClickHouseProviderAdapter.cs:103`). Singletons are double-checked-locked per provider (`ClickHouseProviderAdapter.cs:23-28`).
 
 **Driver version detection** -- `ClickHouse.Driver` v1.0 introduced `ClickHouseClient` / `InsertOptions` types. The adapter probes for them at load time and populates `CreateDriverClientFactory` / `CreateDriverInsertOptionsFactory` only when present (`ClickHouseProviderAdapter.cs:221-235`).
+
+**Parameter type names** -- the adapter exposes `internal Func<DbParameter, string?>? GetParameterTypeName`, set by every adapter factory, so the SQL builder can print the type the *client* reports for a parameter in debug SQL (the base `DbType`/Size/Precision suffix is misleading here: Octonica reports Precision 38 and Scale 9 for every type). Octonica registers wrappers `OctonicaWrappers.ClickHouseParameter` (`ClickHouseDbType` property) and a mirrored `OctonicaWrappers.ClickHouseDbType` enum (values 0..27 plus ClickHouse-specific codes from 16384 `IpV4` up to 16397 `Variant`), and returns `ClickHouseDbType.ToString()`. ClickHouse.Driver registers `DriverWrappers.ClickHouseDbParameter` with a `QueryForm` getter and extracts the `type` out of `{name:type}` (null when the prefix/suffix does not match, because the client ignores `DbType` and resolves the type from `ClickHouseType` or the value). The MySqlConnector adapter ctor sets it to `Convert.ToString(mySqlProviderAdapter.GetDbType(p))`.
 
 ### Provider detection and MySql protocol pass-through
 
@@ -86,7 +89,9 @@ The cross-provider relationship with PROV-MYSQL: `ClickHouseProviderDetector` do
 
 **Parameters** -- `BuildParameter` throws unconditionally; all query parameters are inlined by `ClickHouseSqlOptimizer.DisableParameters` before the builder runs (`ClickHouseSqlBuilder.cs:32`).
 
-**LIMIT/OFFSET** -- `LIMIT skip, take` form (comma-separated); when TAKE is absent but SKIP is present, emits `18446744073709551615` (UInt64 max) as the effective unlimited take (`ClickHouseSqlBuilder.cs:408`).
+**Debug parameter type printing** -- `PrintParameterType(IDataContext, StringBuilder, DbParameter)` override: when `GetProviderTypeName` yields nothing and `GetClientTypeName` (which asks `ClickHouseProviderAdapter.GetParameterTypeName` on the provider parameter from `TryGetProviderParameter`, swallowing any exception) returns a name, it appends that name alone, plus ` -- <DbType>` when the name differs from `parameter.DbType`; otherwise it falls back to `base.PrintParameterType`. The client type name is printed without the base Size/Precision suffix.
+
+**LIMIT/OFFSET** -- `LIMIT skip, take` form (comma-separated); when TAKE is absent but SKIP is present, emits `18446744073709551615` (UInt64 max) as the effective unlimited take (`ClickHouseSqlBuilder.cs:408`). `BuildOffsetLimit` no longer calls `SqlOptimizer.ConvertSkipTake`: it reads `selectQuery.Select.TakeValue` / `SkipValue`, which are resolved during render-prep (`SqlExpressionConvertVisitor.ResolveSkipTakeValues`). `BuildCteBody` creates the nested builder and calls `BuildSql(new SqlSelectStatement(selectQuery), StringBuilder, RenderContext, Indent, ColumnAliasMode.None, null)` -- the old `OptimizationContext` plumbing is gone.
 
 **CTE** -- column list syntax is not supported (ClickHouse GitHub issue #22932); `FixCteAliases` in the optimizer propagates SELECT column aliases directly onto the CTE body columns (`ClickHouseSqlOptimizer.cs:65`). `MATERIALIZED` CTE hint is supported; `NOT MATERIALIZED` is not (`ClickHouseSqlBuilder.cs:424-425`). `RECURSIVE` keyword required.
 
@@ -118,6 +123,16 @@ The cross-provider relationship with PROV-MYSQL: `ClickHouseProviderDetector` do
 
 The optimizer creates `ClickHouseSqlExpressionConvertVisitor` via `CreateConvertVisitor`, passing the `ClickHouseOptions` instance to enable `UseStandardCompatibleAggregates` checks at visitor creation time.
 
+### Date/time coercion helpers (`ClickHouseExpressionExtensions`)
+
+`internal static class ClickHouseExpressionExtensions` (`Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseExpressionExtensions.cs`) holds `ISqlExpressionFactory` extension methods shared by the member translator and the convert visitor, because the `toUnixTimestamp64*` family and the sub-second interval operators refuse `DateTime` / `Date` / `Date32` operands by name:
+
+- `AsDateTime64(expression, keepPrecision = false)` -- wraps the operand in a mandatory `DateTime64` cast. Unconditional: a reported `DateTime64` is as often the mapping schema's default for a CLR `DateTime` as what the server sees (#6115). Skips an existing mandatory `DateTime64` cast (the IN-list visitor revisits its own output every convert pass), a non-null `SqlValue` typed `DateTime64`, and a non-nullable value-type `SqlParameter` typed `DateTime64` (written as a literal). A declared `DateTime64` precision above `DEFAULT_DATETIME64_PRECISION` (7) is kept, below it only with `keepPrecision`. The result type is built from the system type alone so a DbType naming the operand's own ClickHouse type is not carried over.
+- `AsDate32(expression)` -- mandatory cast to `DbDataType(typeof(DateTime), DataType.Date32)`.
+- `ToUnixTimestamp64Nano(expression)` / `ToUnixTimestamp64Milli(expression)` -- `long`-typed function calls over `AsDateTime64(expression)`.
+- `Now(type, utc)` -- `now()` (NotNullable parameters) or `now('UTC')`, typed by `DateTimeType`.
+- `DateTimeType(type)` -- `type.WithDataType(DataType.DateTime).WithPrecision(null)`: the server answers a `DateTime` from `now(...)` / `makeDateTime(...)` whatever the mapping schema makes of the CLR type, and a value written beside it takes its type from this one.
+
 ### Expression conversion visitor (`ClickHouseSqlExpressionConvertVisitor`)
 
 Key rewrites:
@@ -125,8 +140,9 @@ Key rewrites:
 - **Bitwise operators** -- `|` -> `bitOr`, `&` -> `bitAnd`, `^` -> `bitXor`; unary bitwise NOT -> `bitNot`; unary negation -> `negate` (`ClickHouseSqlExpressionConvertVisitor.cs:107`).
 - **Decimal arithmetic** -- `%` and `/` on Decimal types cast operands to `Double` first, then cast the result back (ClickHouse issue #39287) (`ClickHouseSqlExpressionConvertVisitor.cs:120`). The rebuilt `%` `SqlBinaryExpression` now carries the original `element.Precedence` (PR #5750); left unstated it defaulted to `Unknown`, which the renderer treats as loosest-binding and so bracketed the node wherever it sat.
 - **String concatenation** (PR #5504) -- the previous visitor-level rewrite of string `+` binary expressions into `concat(...)` has been **removed**. Concatenation is now handled entirely at the builder level via `ConcatStyle = ConcatBuildStyle.Function` / `ConcatFunctionName = "concat"` in `ClickHouseSqlBuilder`. The visitor retains `ConcatRequiresExplicitStringCast = false` (`ClickHouseSqlExpressionConvertVisitor.cs:22`).
-- **Integer truncating division** (PR #5750) -- `TruncateDivide(value, divisor)` emits `intDiv(value, divisor)` typed `long`, because the ClickHouse `/` operator yields a float even for two integers.
-- **Interval / elapsed-time lowering** (PR #5750) -- `CanLowerIntervalDifference` and `CanLowerIntervalShift` are `true`. `ElapsedTicks` renders `intDiv(toUnixTimestamp64Nano(end) - toUnixTimestamp64Nano(start), 100)` (a tick is 100 ns and linq2db maps date/time to `DateTime64(7)`, so the division is exact); `date_diff` is avoided as its finest unit is a second. `LowerTemporalArithmetic` renders `temporal +/- toIntervalNanosecond(interval * 100)`. Both are bounded by `long` nanosecond arithmetic: usable span is about 292 years, and ClickHouse wraps silently beyond that, yielding plausible but wrong numbers.
+- **Integer truncating division** (PR #5750) -- `TruncateDivide(value, divisor)` emits `intDiv(value, divisor)` typed `long`, because the ClickHouse `/` operator yields a float even for two integers. `ElapsedTicks` now reuses it (`TruncateDivide(nanoseconds, 100L)`).
+- **Interval / elapsed-time lowering** (PR #5750) -- `CanLowerIntervalDifference` and `CanLowerIntervalShift` are `true`. `ElapsedTicks` renders `intDiv(toUnixTimestamp64Nano(end) - toUnixTimestamp64Nano(start), 100)` where both operands go through `Factory.ToUnixTimestamp64Nano` (coerced to `DateTime64(7)` -- a tick is 100 ns, so the division is exact; a `DateTime64` finer than a tick keeps its own precision and is truncated to whole ticks); `date_diff` is avoided as its finest unit is a second. `LowerTemporalArithmetic` renders `temporal +/- toIntervalNanosecond(interval * 100)` with the temporal operand itself coerced by `AsDateTime64` (ClickHouse refuses `addNanoseconds cannot be used with Date32`), and the result typed from the coerced operand. Both are bounded by `long` nanosecond arithmetic: usable span is about 292 years, and ClickHouse wraps silently beyond that, yielding plausible but wrong numbers.
+- **IN-list date/time operand** -- `VisitInListPredicate` override: after the base visit, when `Expr1` is typed `DateTime`/`Date`/`Date32`/`DateTime64` and either some list value is `DateTime64` or the list is a single `SqlParameter` beside a computed (non-stored-column) `DateTime`/`DateTimeOffset` operand, `Expr1` is rebuilt through `AsDateTime64` (with `keepPrecision` when it is a stored column). ClickHouse converts the list to the operand's type and refuses a lossy conversion with `Type mismatch in IN or VALUES section`, where a comparison would promote both sides. A `DateOnly` operand is left alone.
 - **NTILE window ORDER BY** (PR #5817) -- `IsWindowOrderByRequired(SqlExtendedFunction)` also returns `true` for `NTILE`: an unordered `NTILE` gets a default frame ClickHouse rejects ("Unsupported window frame type for function 'NTILE'"); a sort key restores the default frame it accepts.
 - **LIKE** -- `ESCAPE` clause stripped (not supported); `%` and `_` are the escape characters.
 - **`startsWith` / `endsWith` / `Contains`** -- mapped to `startsWith`, `endsWith`, and `position` / `positionCaseInsensitive` functions.
@@ -179,17 +195,18 @@ Foreign keys, stored procedures, and functions are not supported. Views are dete
 
 Extends `ProviderMemberTranslatorDefault` with:
 
-- **Date functions** -- `toYear`, `toQuarter`, `toMonth`, `toDayOfYear`, `toDayOfMonth`, `toISOWeek`, `toHour`, `toMinute`, `toSecond`, `toDayOfWeek` (+1 for ISO weekday), `toUnixTimestamp64Milli % 1000` for milliseconds. Date arithmetic via `addYears/Months/Quarters/Weeks/Days/Hours/Minutes/Seconds`; millisecond `addDays` converts through `toUnixTimestamp64Nano` / `fromUnixTimestamp64Nano` (`ClickHouseMemberTranslator.cs:110`).
-- **`MakeDateTime`** -- maps to `makeDateTime(y,m,d,H,M,S)` or `makeDateTime64(...)` with milliseconds.
-- **Truncation to date** -- `TranslateDateTimeTruncationToDate` and `TranslateDateTimeOffsetTruncationToDate` both cast to `DataType.Date32` (`ClickHouseMemberTranslator.cs:170-179`). The `DateTimeOffset` override is a separate method but produces an identical `Date32` cast (PR #5517 was the context for this path).
-- **Truncation to time** -- complex expression: `toInt64((toUnixTimestamp64Nano(toDateTime64(t, 7)) - toUnixTimestamp64Nano(toDateTime64(toDate32(t), 7))) / 100)` yielding TimeSpan ticks (`ClickHouseMemberTranslator.cs:183`). Both `TranslateDateTimeTruncationToTime` and `TranslateDateTimeOffsetTruncationToTime` delegate to the shared `CommonTruncationToTime` static helper (`ClickHouseMemberTranslator.cs:209-217`).
-- **`now()` translation** (PR #5467):
+- **Date functions** -- `toYear`, `toQuarter`, `toMonth`, `toDayOfYear`, `toDayOfMonth`, `toISOWeek`, `toHour`, `toMinute`, `toSecond`, `toDayOfWeek` (+1 for ISO weekday). `Week` now passes `factory.AsDateTime64(dateTimeExpression)` to `toISOWeek` (previously an inline `toDateTime64(x, 1)` call). `Millisecond` is `((toUnixTimestamp64Milli(x) % 1000) + 1000) % 1000`, with the operand coerced by `ToUnixTimestamp64Milli`: the epoch is negative before 1970 and `%` truncates toward zero, so the remainder is brought back into range (`toMillisecond` would do it in one call but needs ClickHouse 24.6). Date arithmetic via `addYears/Months/Quarters/Weeks/Days/Hours/Minutes/Seconds`; millisecond `addDays` converts through `toUnixTimestamp64Nano` (via `Factory.ToUnixTimestamp64Nano`) / `fromUnixTimestamp64Nano` (`ClickHouseMemberTranslator.cs:110`).
+- **`MakeDateTime`** -- maps to `makeDateTime(y,m,d,H,M,S)` or `makeDateTime64(...)` with milliseconds; the no-millisecond form is typed `ClickHouseExpressionExtensions.DateTimeType(dateType)` (plain `DateTime`, no precision).
+- **Truncation to date** -- `TranslateDateTimeTruncationToDate` and `TranslateDateTimeOffsetTruncationToDate` both return `factory.AsDate32(...)`, i.e. a mandatory cast to `DataType.Date32` (`ClickHouseMemberTranslator.cs:170-179`). The `DateTimeOffset` override is a separate method but produces an identical `Date32` cast (PR #5517 was the context for this path).
+- **Truncation to time** -- `toInt64((toUnixTimestamp64Nano(t) - toUnixTimestamp64Nano(toDate32(t))) / 100)` yielding TimeSpan ticks; both nano calls go through `ToUnixTimestamp64Nano`, which applies the `DateTime64` coercion (the former explicit `toDateTime64(t, 7)` wrappers were dropped) (`ClickHouseMemberTranslator.cs:183`). Both `TranslateDateTimeTruncationToTime` and `TranslateDateTimeOffsetTruncationToTime` delegate to the shared `CommonTruncationToTime` static helper (`ClickHouseMemberTranslator.cs:209-217`).
+- **`now()` translation** (PR #5467), now all routed through `Factory.Now(type, utc)`:
   - `TranslateNow` -- emits `now()` with no arguments and `ParametersNullabilityType.NotNullable` (`ClickHouseMemberTranslator.cs:227`). Used for `Sql.GetDate()` / `DateTime.Now`.
   - `TranslateServerNow` -- delegates directly to `TranslateNow` (i.e. emits `now()`), with an inline comment explaining that `CURRENT_TIMESTAMP` is a ClickHouse alias for `now()` but triggers parser bugs in some CH versions (`ClickHouseMemberTranslator.cs:219`). This avoids the base class default of emitting `CURRENT_TIMESTAMP`.
   - `TranslateUtcNow` -- emits `now('UTC')` with a `"UTC"` string argument (`ClickHouseMemberTranslator.cs:233`). Used for `DateTime.UtcNow` / `Sql.CurrentTimestampUtc`.
   - `TranslateZonedNow` -- emits `now()` without arguments, using the provided `dbDataType` (`ClickHouseMemberTranslator.cs:240`).
   - `TranslateZonedUtcNow` -- emits `now('UTC')` with `"UTC"` argument, using the provided `dbDataType` (`ClickHouseMemberTranslator.cs:247`).
-- **Math** -- `roundBankers` for midpoint rounding.
+  - The result type of every variant is `DateTimeType(type)` -- `DataType.DateTime` with precision cleared -- rather than the passed type verbatim.
+- **Math** -- `roundBankers` for midpoint rounding; the rounding path first passes the value through `UncutDecimalLiteral(factory, value)` (base helper) before choosing the precision form.
 - **Strings** -- `lowerUTF8`, `upperUTF8`, `lengthUTF8`.
   - **`TrimStart` / `TrimEnd`** (PR #5515): `TranslateTrimStart` emits `trimLeft(value)` when no trim characters are specified, or `trim(LEADING {chars} FROM {value})` when trim characters are given. `TranslateTrimEnd` emits `trimRight(value)` or `trim(TRAILING {chars} FROM {value})` (`ClickHouseMemberTranslator.cs:278-297`).
   - **`string.Join`** (PR #5504): `TranslateStringJoin` signature extended with `bool withoutSeparator`. When `withoutSeparator` is `true`, the aggregate is configured with `HasSequenceIndex(0)` (no separator argument from the caller) and an empty-string constant is used as the separator in `arrayStringConcat`. When `false`, the existing `HasSequenceIndex(1).TranslateArguments(0)` path applies (separator at index 0 in arguments) (`ClickHouseMemberTranslator.cs:300-328`).
@@ -215,15 +232,16 @@ Extends `ProviderMemberTranslatorDefault` with:
 | `ClickHouseOctonicaDataProvider` | same | Concrete for Octonica |
 | `ClickHouseDriverDataProvider` | same | Concrete for ClickHouse.Driver |
 | `ClickHouseMySqlDataProvider` | same | Concrete for MySqlConnector |
-| `ClickHouseSqlBuilder` | `Internal/.../ClickHouseSqlBuilder.cs` | SQL text generation; owns `ConcatStyle=Function` / `ConcatFunctionName="concat"`; `WindowFunctionRespectNullsRequired` gates RESPECT NULLS to FIRST_VALUE/LAST_VALUE/NTH_VALUE; `BuildJoinType` GLOBAL + strictness hints |
+| `ClickHouseSqlBuilder` | `Internal/.../ClickHouseSqlBuilder.cs` | SQL text generation; owns `ConcatStyle=Function` / `ConcatFunctionName="concat"`; `WindowFunctionRespectNullsRequired` gates RESPECT NULLS to FIRST_VALUE/LAST_VALUE/NTH_VALUE; `BuildJoinType` GLOBAL + strictness hints; `PrintParameterType` prints client type names; `BuildOffsetLimit` reads resolved `TakeValue`/`SkipValue` |
 | `ClickHouseSqlOptimizer` | `Internal/.../ClickHouseSqlOptimizer.cs` | Statement rewrite; owns DisableParameters and FixCteAliases |
-| `ClickHouseSqlExpressionConvertVisitor` | `Internal/.../ClickHouseSqlExpressionConvertVisitor.cs` | Expression-level rewrites; LIKE, bitwise, casts, aggregate suffixes; `intDiv` truncating divide, nanosecond interval difference/shift lowering, NTILE ORDER BY requirement, `ConvertDefaultValue` default-date minimum (`LeastDate`) |
+| `ClickHouseSqlExpressionConvertVisitor` | `Internal/.../ClickHouseSqlExpressionConvertVisitor.cs` | Expression-level rewrites; LIKE, bitwise, casts, aggregate suffixes; `intDiv` truncating divide, nanosecond interval difference/shift lowering (operands coerced to DateTime64), NTILE ORDER BY requirement, `ConvertDefaultValue` default-date minimum (`LeastDate`), `VisitInListPredicate` DateTime64 coercion |
+| `ClickHouseExpressionExtensions` | `Internal/.../ClickHouseExpressionExtensions.cs` | Factory extensions: `AsDateTime64`, `AsDate32`, `ToUnixTimestamp64Nano/Milli`, `Now`, `DateTimeType` |
 | `ClickHouseMappingSchema` | `Internal/.../ClickHouseMappingSchema.cs` | Type mappings, literal generators, three driver-specific sub-schemas |
-| `ClickHouseProviderAdapter` | `Internal/.../ClickHouseProviderAdapter.cs` | ADO.NET type wrapping; contains `OctonicaWrappers` and `DriverWrappers` |
+| `ClickHouseProviderAdapter` | `Internal/.../ClickHouseProviderAdapter.cs` | ADO.NET type wrapping; contains `OctonicaWrappers` (incl. `ClickHouseParameter`, `ClickHouseDbType`) and `DriverWrappers` (incl. `ClickHouseDbParameter`); `GetParameterTypeName` |
 | `ClickHouseProviderDetector` | `Internal/.../ClickHouseProviderDetector.cs` | Auto-detection by name/file probe |
 | `ClickHouseBulkCopy` | `Internal/.../ClickHouseBulkCopy.cs` | Three ProviderSpecific paths + multi-row fallback |
 | `ClickHouseSchemaProvider` | `Internal/.../ClickHouseSchemaProvider.cs` | Schema via `system.tables` / `system.columns` |
-| `ClickHouseMemberTranslator` | `Internal/.../Translation/ClickHouseMemberTranslator.cs` | LINQ member -> SQL function mapping; TrimStart/TrimEnd (PR #5515); string.Join withoutSeparator (PR #5504); IsNullOrWhiteSpace via replaceRegexpAll; NewGuid7 -> generateUUIDv7(); CreateWindowFunctionsMemberTranslator(); CreateAggregateFunctionsMemberTranslator() |
+| `ClickHouseMemberTranslator` | `Internal/.../Translation/ClickHouseMemberTranslator.cs` | LINQ member -> SQL function mapping; TrimStart/TrimEnd (PR #5515); string.Join withoutSeparator (PR #5504); IsNullOrWhiteSpace via replaceRegexpAll; NewGuid7 -> generateUUIDv7(); CreateWindowFunctionsMemberTranslator(); CreateAggregateFunctionsMemberTranslator(); date parts/now/truncation via `ClickHouseExpressionExtensions` |
 | `ClickHouseWindowFunctionsMemberTranslator` (nested) | `Internal/.../Translation/ClickHouseMemberTranslator.cs` | Window-function capability flags; bare STDDEV/VARIANCE mapped to STDDEV_SAMP/VAR_SAMP |
 | `ClickHouseAggregateFunctionsMemberTranslator` (nested) | `Internal/.../Translation/ClickHouseMemberTranslator.cs` | `IsMinMaxOverBooleanSupported = true` (PR #5725) |
 | `ClickHouseTools` | `DataProvider/ClickHouse/ClickHouseTools.cs` | Public registration API |
@@ -246,7 +264,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 | `Internal/DataProvider/ClickHouse/ClickHouseDataProvider.cs` | Provider base + three concrete subclasses; `SqlProviderFlags` (incl. `IsAffectedRowsCountSupported = false`), `SetParameter`, `BulkCopy` dispatch |
 | `Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs` | SQL text generation |
 | `Internal/DataProvider/ClickHouse/ClickHouseSqlOptimizer.cs` | Statement finalization; DisableParameters, FixCteAliases |
-| `Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs` | ADO.NET type wrappers; Octonica and Driver wrappers; MySql delegation |
+| `Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs` | ADO.NET type wrappers; Octonica and Driver wrappers; MySql delegation; `GetParameterTypeName` |
 | `Internal/DataProvider/ClickHouse/ClickHouseProviderDetector.cs` | Auto-detection by name/file probe |
 | `Internal/DataProvider/ClickHouse/ClickHouseMappingSchema.cs` | Type mappings and literal generators; three sub-schemas |
 | `Internal/DataProvider/ClickHouse/ClickHouseBulkCopy.cs` | Three provider-specific bulk-copy paths |
@@ -258,8 +276,9 @@ Extends `ProviderMemberTranslatorDefault` with:
 
 | File | Notes |
 |---|---|
-| `Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` | Bitwise/decimal/LIKE/cast/aggregate rewrites; string concat rewrite removed (PR #5504); `intDiv` truncating divide, interval difference/shift lowering, NTILE ORDER BY (PRs #5750, #5817); `ConvertDefaultValue` -> `RaiseDefaultDate` with `LeastDate` |
-| `Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` | Date, math, string, Guid LINQ member translations; TrimStart/TrimEnd added (PR #5515); string.Join withoutSeparator (PR #5504); IsNullOrWhiteSpace via replaceRegexpAll; NewGuid7 -> generateUUIDv7(); nested ClickHouseWindowFunctionsMemberTranslator; nested ClickHouseAggregateFunctionsMemberTranslator (PR #5725) |
+| `Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` | Bitwise/decimal/LIKE/cast/aggregate rewrites; string concat rewrite removed (PR #5504); `intDiv` truncating divide, interval difference/shift lowering, NTILE ORDER BY (PRs #5750, #5817); `ConvertDefaultValue` -> `RaiseDefaultDate` with `LeastDate`; `VisitInListPredicate` DateTime64 coercion; `AsDateTime64` in interval lowering |
+| `Internal/DataProvider/ClickHouse/ClickHouseExpressionExtensions.cs` | New: `AsDateTime64` / `AsDate32` / `ToUnixTimestamp64Nano` / `ToUnixTimestamp64Milli` / `Now` / `DateTimeType` factory helpers (#6115) |
+| `Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` | Date, math, string, Guid LINQ member translations; TrimStart/TrimEnd added (PR #5515); string.Join withoutSeparator (PR #5504); IsNullOrWhiteSpace via replaceRegexpAll; NewGuid7 -> generateUUIDv7(); nested ClickHouseWindowFunctionsMemberTranslator; nested ClickHouseAggregateFunctionsMemberTranslator (PR #5725); date/now/truncation via `ClickHouseExpressionExtensions` |
 | `Internal/DataProvider/ClickHouse/ClickHouseSchemaProvider.cs` | system.tables / system.columns queries |
 | `Internal/DataProvider/ClickHouse/ClickHouseSpecificQueryable.cs` | Thin wrapper implementing `IClickHouseSpecificQueryable<T>` |
 | `Internal/DataProvider/ClickHouse/ClickHouseSpecificTable.cs` | Thin wrapper implementing `IClickHouseSpecificTable<T>` |
@@ -297,6 +316,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 - **Deprecated `All*` join hints** -- `Join.AllOuter/AllSemi/AllAnti/AllAny/AllAsOf` and `JoinAll*Hint()` are `[Obsolete]` with "TODO: remove in v7" (PR #5555); they alias the plain hints.
 - **Interval arithmetic range** -- nanosecond-based `ElapsedTicks` / `LowerTemporalArithmetic` are exact only within about 292 years of span; ClickHouse wraps silently past that (PR #5750).
 - **No affected-row counts** -- `IsAffectedRowsCountSupported = false` because async ALTER mutations report none (PR #5643).
+- **Unconditional DateTime64 coercion** -- `AsDateTime64` casts any non-`DateTime64` date/time operand (and any reported `DateTime64` that is not a literal/parameter) because the mapping schema's default and the server's real type cannot be told apart (#6115); `Millisecond` extraction avoids `toMillisecond` (needs ClickHouse 24.6) in favor of a double-modulo.
 
 ## Inbound / outbound dependencies
 
@@ -310,7 +330,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 - `TypeMapper`, `TypeWrapper`, `IDynamicProviderAdapter` from [INTERNAL-API](../INTERNAL-API/INDEX.md).
 - `LockedMappingSchema`, `MappingSchema`, `DataType`, `DbDataType` from [MAPPING](../MAPPING/INDEX.md).
 - `SchemaProviderBase`, `ColumnInfo`, `TableInfo` from [METADATA](../METADATA/INDEX.md).
-- `MySqlProviderAdapter.GetInstance(MySqlProvider.MySqlConnector)` from PROV-MYSQL -- the MySqlConnector ClickHouse adapter path delegates entirely to the MySQL adapter (`ClickHouseProviderAdapter.cs:103`).
+- `MySqlProviderAdapter.GetInstance(MySqlProvider.MySqlConnector)` and `GetDbType` from PROV-MYSQL -- the MySqlConnector ClickHouse adapter path delegates entirely to the MySQL adapter (`ClickHouseProviderAdapter.cs:103`).
 - External assemblies loaded at runtime: `Octonica.ClickHouseClient`, `ClickHouse.Driver`, `MySqlConnector`.
 
 ## See also
@@ -323,7 +343,7 @@ Extends `ProviderMemberTranslatorDefault` with:
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 10 / 10
-- Tier 2 (visited / total): 13 / 13 (100%)
+- Tier 2 (visited / total): 14 / 14 (100%)
 - Tier 3 (skipped, logged): 2
 
 Read (this run -- delta):
@@ -358,5 +378,12 @@ Read (this run -- delta, sha 05150894e):
 Read (this run -- delta, sha 89b5ce162):
 - `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseMappingSchema.cs` -- MySql sub-schema `StringToFloat`/`StringToDouble` now return `FloatingPointHelper.*` NaN/infinity constants instead of `float.`/`double.` BCL fields; no behavioral change
 - `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` -- added `using System`, static `LeastDate(DataType)` and `ConvertDefaultValue` override calling `RaiseDefaultDate` (1970-01-01 for Date/DateTime, else 1900-01-01)
+
+Read (this run -- delta, sha f90c5bcfb):
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseExpressionExtensions.cs` -- new (Tier 2): `AsDateTime64` / `AsDate32` / `ToUnixTimestamp64Nano` / `ToUnixTimestamp64Milli` / `Now` / `DateTimeType` factory helpers (#6115)
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseProviderAdapter.cs` -- added `GetParameterTypeName` (Octonica `ClickHouseDbType` wrapper + enum, ClickHouse.Driver `ClickHouseDbParameter.QueryForm` parse, MySqlConnector `GetDbType`)
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlBuilder.cs` -- `PrintParameterType` / `GetClientTypeName` override; `BuildOffsetLimit` reads `Select.TakeValue`/`SkipValue` instead of `ConvertSkipTake`; `BuildCteBody` uses `RenderContext`
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/ClickHouseSqlExpressionConvertVisitor.cs` -- `ElapsedTicks` via `ToUnixTimestamp64Nano` + `TruncateDivide`; `LowerTemporalArithmetic` coerces the temporal via `AsDateTime64`; new `VisitInListPredicate` DateTime64 coercion
+- `Source/LinqToDB/Internal/DataProvider/ClickHouse/Translation/ClickHouseMemberTranslator.cs` -- Week/Millisecond date parts, `makeDateTime` result type, date/time truncation and `now()` routed through the new extensions (the `toDateTime64(x, 7)` wrappers in time truncation dropped); `UncutDecimalLiteral` applied in the Math rounding path
 
 </details>

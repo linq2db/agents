@@ -3,8 +3,8 @@ area: TOOLS
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 15/15
 coverage_tier_2: 13/13
 ---
@@ -37,7 +37,7 @@ Both depend on `LinqToDB.Metrics.ActivityID`/`ActivityService`/`ActivityBase` (I
 ### DataProvider/SqlServer/Schemas (`DataProvider/SqlServer/Schemas/`)
 
 Typed LINQ model over SQL Server system catalog views.
-- `Schemas.generated.cs` -- T4-generated (from `Schemas.tt`); ~30 typed schema models on `SystemSchemaModel`. Generated against SQL Server 2022 (`16.00.1135`). Tier 3.
+- `Schemas.generated.cs` -- T4-generated (from `Schemas.tt`, fed by `Schemas.xml`); ~30 typed schema models on `SystemSchemaModel`. Generated against SQL Server 2022 (`16.00.1135`, header at `Schemas.generated.cs:23`). Tier 3. The XML-doc text in `Schemas.xml` / `Schemas.generated.cs` was rewritten so that relative Microsoft Learn links (e.g. `/fabric/...`, `../../relational-databases/...md`, `#remarks`) became absolute `https://learn.microsoft.com/...` URLs to clear docs-build warnings (#6264); doc-comment text only, no schema/type changes.
 - `SystemDB : DataConnection, ISystemSchemaData` -- exposes `System` (`SystemSchemaModel`). Three ctors (`string`, `DataOptions`, `DataOptions<SystemDB>`).
 - `ISystemSchemaData : IDataContext` -- requires `System { get; }`.
 - `SystemSchemaExtensions.GetTableRowCountInfo(ISystemSchemaData)` -- `IQueryable<TableRowCountInfo>` over `sys.partitions` (index types 0/1, user tables), grouped by `ObjectID`, summing `Rows`; uses `SqlFn.ObjectSchemaName`/`ObjectName` + `.InlineParameters()`. The nested `TableRowCountInfo` positional record (`ObjectID`, `SchemaName`, `TableName`, `RowCount`) now has no body block -- cosmetic.
@@ -61,7 +61,7 @@ Object-to-object conversion via expression compilation.
 
 ### Root files
 
-- `EnumerableExtensions.ToDiagnosticString<T>` -- ASCII table formatter (numeric right-aligned, InvariantCulture).
+- `EnumerableExtensions.ToDiagnosticString<T>` -- ASCII table formatter (numeric right-aligned, InvariantCulture). Two overloads: `(StringBuilder, bool addTableHeader = true)` and `(string? header = null, bool addTableHeader = true)`. Behavior now: the scalar branch forwards `addTableHeader` (`EnumerableExtensions.cs:42`; previously dropped, so scalar sources always got a header); column widths always include value widths (`:85`; previously with `addTableHeader=false` widths ignored values and cells could overflow the divider); for scalar/member-less types (`ta.Members.Count == 0`) the header name and the right-align type fall back to `ta.Type` (`:100`, `:115`) instead of indexing `ta.Members[i]`.
 - `MappingSchemaExtensions` -- comparer factory on `MappingSchema`/`IDataContext`/`ITable<T>`; `GetKeyEqualityComparer` falls back to all-columns when no PK.
 
 ## Key types
@@ -91,7 +91,7 @@ Object-to-object conversion via expression compilation.
 
 **Tier 2** (13 files, all read): `Activity/StatActivity.cs`, `Activity/StatActivitySum.cs`, `Comparers/ArrayEqualityComparer.cs`, `Comparers/BitArrayEqualityComparer.cs`, `Comparers/EnumerableEqualityComparer.cs`, `Comparers/EnumerableEqualityComparer\`1.cs`, `EntityServices/EntityCreatedEventArgs.cs`, `EntityServices/EntityMapEntry.cs`, `Mapper/Mapper.cs`, `Mapper/MemberMapperInfo.cs`, `EnumerableExtensions.cs`, `MappingSchemaExtensions.cs`, `LinqToDB.Tools.csproj`.
 
-**Tier 3** (1, not read): `DataProvider/SqlServer/Schemas/Schemas.generated.cs` (T4 auto-generated).
+**Tier 3** (1, not read): `DataProvider/SqlServer/Schemas/Schemas.generated.cs` (T4 auto-generated; doc-link rewrite delta inspected via diff only). Input `Schemas.xml` is not counted in the tier lists.
 
 ## Inbound / outbound dependencies
 
@@ -129,4 +129,9 @@ Read (this run -- delta):
 - Source/LinqToDB.Tools/Comparers/IgnoreComparisonAttribute.cs -- empty class body replaced by a semicolon terminator; no behavior change.
 - Source/LinqToDB.Tools/DataProvider/SqlServer/Schemas/SystemSchemaExtensions.cs -- `TableRowCountInfo` record empty body replaced by a semicolon terminator; no behavior change.
 - Source/LinqToDB.Tools/LinqToDB.Tools.csproj -- `ProjectReference` to `LinqToDB.csproj` gained `PrivateAssets="contentfiles;build"`.
+
+Read (this run -- delta, 2026-11-11, f90c5bcfb):
+- Source/LinqToDB.Tools/EnumerableExtensions.cs -- read in full; `ToDiagnosticString` fixes: scalar branch forwards `addTableHeader`, column widths always account for values, member-less types use `ta.Type` for header name and alignment.
+- Source/LinqToDB.Tools/DataProvider/SqlServer/Schemas/Schemas.xml -- diff reviewed; relative Learn doc links made absolute `https://learn.microsoft.com/...` (docs-build warnings, #6264).
+- Source/LinqToDB.Tools/DataProvider/SqlServer/Schemas/Schemas.generated.cs -- Tier 3, diff stat only (46 lines, doc-comment links); header still SQL Server `16.00.1135`.
 </details>

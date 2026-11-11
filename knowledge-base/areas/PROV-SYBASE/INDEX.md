@@ -3,9 +3,9 @@ area: PROV-SYBASE
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
-coverage_tier_1: 10/10
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+coverage_tier_1: 11/11
 coverage_tier_2: 6/6
 ---
 
@@ -113,7 +113,7 @@ Key overrides:
 -  -- delegates to  (no native MERGE upsert idiom for this path).
 -  -- emits  keyword.
 -  -- emits .
--  /  /  -- two-command truncate:  followed by  to reset the identity seed.
+- `BuildTruncateTable` -- emits only `TRUNCATE TABLE ` (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs:271-274`). The former builder-level `CommandCount` / `BuildCommand` two-command truncate (identity-seed reset) was removed from the builder; the reset step now lives in `SybaseDmlService.BuildCommandScenario` (see "DML service" below).
 -  -- uses  guard (no  syntax).
 -  /  -- for non-temporary tables with : wraps the DDL in .
 -  -- falls back to the fallback implementation.
@@ -137,6 +137,14 @@ Temporary table name handling --  prefixes names with  (local) or  (global) base
 -  -- ASE MERGE does not support the  source syntax.
 -  /  -- wraps identity-insert-enabled targets with  around the MERGE.
 
+
+### DML service (`SybaseDmlService`)
+
+`SybaseDmlService` (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDmlService.cs:15`, public sealed, extends `DmlServiceBase`) is created by `SybaseDataProvider.CreateDmlService()` (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs:121-124`). It replaces builder-level `CommandCount` / `BuildCommand` multi-command logic with a declarative `SqlCommandScenario`:
+- `BuildCommandScenario` -- for `SqlTruncateTableStatement { ResetIdentity: true }` on a table with `IdentityFields.Count > 0`, returns a scenario of two `NonQuery` steps: the truncate statement itself, then a `SqlRawStatement` `sp_chgattribute <table>, 'identity_burn_max', 0, '0'` (table name built via `SqlObjectNameExpression` with `ConvertType.NameToQueryTable` and the table options). `OutcomeSteps = [0]`, so the truncate result is the reported outcome. All other statements delegate to `base.BuildCommandScenario` (legacy path).
+- Identity inserts are not split into a scenario: they keep emitting their own trailing `SELECT @@IDENTITY` via `SybaseSqlBuilder.BuildGetIdentity`.
+- `IsTableNotFoundExceptionCore` returns `false` (no table-not-found detection for ASE).
+- Upsert: not moved into the service. `InsertOrUpdate` still goes through `SybaseSqlBuilder.BuildInsertOrUpdateQuery` -> `BuildInsertOrUpdateQueryAsUpdateInsert` (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs:236-239`).
 
 ### SQL optimizer
 
@@ -176,7 +184,11 @@ Extends .
 - `CountDateBoundaries` override -- emits `CAST(DateDiff(part, start, end) AS bigint)` (mandatory cast). `DATEDIFF` returns a 32-bit int, so millisecond counts overflow past about 24 days; the base decomposition counts whole days first, so the millisecond count only spans the remainder of one day (at most 86,400,000).
 
 
-**Default date value lowering (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:106-140`):**
+**Date vs datetime comparison (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:91-141`):**
+- `ConvertExprExprPredicate` override -- ASE compares a `date` with a `datetime` as a date (time part dropped), so when one side is `DataType.Date` and the other a timestamp (`IsTimestamp`: DateTime / DateTime2 / SmallDateTime) the date side is wrapped in a mandatory CAST to `DataType.DateTime` before delegating to base.
+- `VisitInListPredicate` override -- `IN` twin: a `date` operand is cast to `datetime` when a list value is a timestamp (or a single parameter beside a computed, non-stored-column DateTime operand); for a timestamp operand with non-parameter list values, each `date` value is cast to `datetime`.
+
+**Default date value lowering (`Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:158-192`):**
 - `ConvertDefaultValue` override -- for `DateTime` / `DateTimeOffset` / `DateOnly` (`IsDate`) delegates to `ConvertDefaultDate`, other types go to the base.
 - `ConvertDefaultDate` -- ASE writes a date literal as an untyped string that adopts the type of the column beside it, so the default is emitted as a mandatory `SqlCastExpression` to the mapped type. Lower bound by `DataType`: `SmallDateTime` -> 1900-01-01, `Date` -> none (value used as is), otherwise -> 1753-01-01 (`datetime` minimum). Values below it are raised through the base `RaiseDefaultDate`. A mapped type ASE does not spell (offset, rowversion timestamp) is cast to `DataType.DateTime`, which ASE reads an offset through.
 
@@ -281,7 +293,8 @@ Extends . Sub-translators:
 | MERGE identity |  wrapping |  |
 | Bulk copy native limit | Only non-temp tables; unescaped names | ,  |
 | System tables | , , ,  |  |
-| Truncate + identity | Two commands:  +  |  |
+| Truncate + identity | Two `NonQuery` steps via `SybaseDmlService.BuildCommandScenario`: `TRUNCATE TABLE` + `sp_chgattribute ... 'identity_burn_max'` raw statement (was builder `CommandCount`/`BuildCommand`) | `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDmlService.cs:19-35` |
+| Date vs datetime compare | `date` operand cast to `datetime` in comparisons and `IN` against timestamps (ASE drops the time part otherwise) | `Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs:91-141` |
 | DateTime lower bound | 1753-01-01 |  |
 | DateTime.Now | Returns null (client-side only; no ASE server-local equivalent) |  |
 | DateTimeOffset literal | Offset stripped; stored/emitted as  | ,  |
@@ -300,6 +313,7 @@ Extends . Sub-translators:
 |---|---|---|
 | SybaseDataProvider | Internal/.../SybaseDataProvider.cs | Abstract base; SybaseDataProviderNative / SybaseDataProviderManaged are the concrete singletons; IsInsertOrUpdateWithPredicateSupported=false forces UPDATE-then-INSERT emulation for predicated upserts |
 | SybaseSqlBuilder | Internal/.../SybaseSqlBuilder.cs (+.Merge.cs) | SQL text generation; T-SQL/ASE dialect; ConcatBuildStyle.Pipes; SqlConcatExpression NULL-propagation guard (PR #5504) |
+| SybaseDmlService | Internal/.../SybaseDmlService.cs | DmlServiceBase subclass; truncate+identity-reset scenario (TRUNCATE + sp_chgattribute raw step); replaces builder CommandCount/BuildCommand |
 | SybaseSqlOptimizer | Internal/.../SybaseSqlOptimizer.cs | Statement rewrites (UPDATE compatibility, CorrectMultiTableQueries) |
 | SybaseSqlExpressionConvertVisitor | Internal/.../SybaseSqlExpressionConvertVisitor.cs | Function name mapping, LIKE escapes, EXISTS wrapping, column type casts; default date value CAST lowering (ConvertDefaultValue); date shift (DateAdd) and elapsed-time lowering (DateDiff, ms resolution) (PR #5750) |
 | SybaseMappingSchema | Internal/.../SybaseMappingSchema.cs | Type defaults, literal converters (string/char/TimeSpan/binary/DateTime/DateTimeOffset); sub-schemas for native/managed |
@@ -319,7 +333,7 @@ Extends . Sub-translators:
 
 ## Files (Tier 1 / Tier 2)
 
-**Tier 1** (10 files, all read in full):
+**Tier 1** (11 files, all read in full):
 
 | File | Notes |
 |---|---|
@@ -333,6 +347,7 @@ Extends . Sub-translators:
 | DataProvider/Sybase/SybaseTools.cs | Public entry point |
 | DataProvider/Sybase/SybaseProvider.cs | ADO.NET client enum |
 | DataProvider/Sybase/SybaseOptions.cs | Provider options |
+| Internal/DataProvider/Sybase/SybaseDmlService.cs | New: DmlServiceBase subclass owning the truncate+identity-reset command scenario |
 
 **Tier 2** (6 files, all read in full):
 
@@ -364,6 +379,7 @@ Tier 3: none identified.
 - SqlConcatExpression (PR #5504) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseSqlBuilder.BuildSqlConcatExpression consumes the new AST node directly.
 - WindowFunctionsMemberTranslator (PR #5468 Sql.Window API) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseWindowFunctionsMemberTranslator subclasses it with IsWindowFunctionsSupported => false, keeping Sql.Window.* LINQ calls client-side-only, consistent with the SqlProviderFlags-level flag.
 - SqlExpressionConvertVisitor interval seams (CanLowerIntervalDifference, FinestDateUnit, IntervalResolution, ShiftDate, CountDateBoundaries; PR #5750) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); SybaseSqlExpressionConvertVisitor overrides them to provide DateAdd/DateDiff based date shifts and elapsed-time lowering.
+- DmlServiceBase, SqlCommandScenario / SqlCommandStep / SqlStepKind, SqlRawStatement, ISqlExpressionFactory (SybaseDmlService) -- [SQL-PROVIDER](../SQL-PROVIDER/INDEX.md); CreateDmlService hook on the data provider -- [INTERNAL-API](../INTERNAL-API/INDEX.md).
 - T-SQL dialect heritage shared with [PROV-SQLSERVER](../PROV-SQLSERVER/INDEX.md): TOP, IDENTITY, @@IDENTITY, CONVERT, DatePart, DateAdd, temp-table #/## prefixes, OBJECT_ID() for existence checks, SET IDENTITY_INSERT ON/OFF.
 
 
@@ -397,7 +413,7 @@ Tier 3: none identified.
 
 <details><summary>Coverage</summary>
 
-**Tier 1 -- read in full (10/10):**
+**Tier 1 -- read in full (11/11):**
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlOptimizer.cs
@@ -408,6 +424,7 @@ Tier 3: none identified.
 - Source/LinqToDB/DataProvider/Sybase/SybaseTools.cs
 - Source/LinqToDB/DataProvider/Sybase/SybaseProvider.cs
 - Source/LinqToDB/DataProvider/Sybase/SybaseOptions.cs
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDmlService.cs
 
 **Tier 2 -- read in full (6/6):**
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.Merge.cs
@@ -437,6 +454,12 @@ Tier 3: none identified.
 
 **Read (this run -- delta, sha 89b5ce16278728b9936ba374827fea002c76e962):**
 - Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs -- new `ConvertDefaultValue` override and private `IsDate` / `ConvertDefaultDate` helpers: date-typed default values become a mandatory CAST to the mapped type, raised to the datetime/smalldatetime minimum via base `RaiseDefaultDate`, unspelled types cast to datetime. Existing logic unchanged.
+
+**Read (this run -- delta, sha f90c5bcfb86d88db436a6494f0640c4c43dd691f):**
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDmlService.cs -- new file: `SybaseDmlService : DmlServiceBase` with `BuildCommandScenario` producing TRUNCATE + `sp_chgattribute ... 'identity_burn_max'` steps for identity-reset truncates; `IsTableNotFoundExceptionCore` => false.
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseDataProvider.cs -- new `CreateDmlService()` override returning `SybaseDmlService` (lines 121-124); flags otherwise unchanged.
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlBuilder.cs -- builder-level `CommandCount` / `BuildCommand` truncate-identity logic removed; `BuildTruncateTable` now emits only `TRUNCATE TABLE `; `BuildInsertOrUpdateQuery` still `BuildInsertOrUpdateQueryAsUpdateInsert`; `BuildGetIdentity` still emits `SELECT @@IDENTITY`.
+- Source/LinqToDB/Internal/DataProvider/Sybase/SybaseSqlExpressionConvertVisitor.cs -- new `ConvertExprExprPredicate` and `VisitInListPredicate` overrides plus `IsTimestamp` helper: `date` operands cast to `datetime` against timestamps. Earlier date shift / default-value logic unchanged (line numbers moved by +52).
 
 **Tier 3:** none.
 </details>

@@ -3,8 +3,8 @@ area: CODEGEN
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-10
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 6/6
 coverage_tier_2: 2/2
 ---
@@ -27,7 +27,7 @@ All three streams are `Collect()`-ed and combined via `Combine` before being fed
 
 **Code emission.** `GenerateCode` (`BuildersGenerator.cs:165`) emits a single source file `ExpressionBuilder.g.cs` containing a `partial class ExpressionBuilder` with a `private static partial ISequenceBuilder? FindBuilderImpl(BuildInfo, ExpressionBuilder)`. The body is a three-level dispatch: `switch (expr.NodeType)` → `case ExpressionType.Call: switch (call.Method.Name)` → per-builder `CanBuildMethod(call[, info][, builder])` guards. The `Any`-kind builders fall outside the switch and are tried unconditionally after all typed cases.
 
-**Internal analyzers.** Three `[DiagnosticAnalyzer(LanguageNames.CSharp)]` classes in namespace `CodeGenerators`, wired into `LinqToDB.csproj` the same way as the generator (`OutputItemType="Analyzer"`). Rule ids are tracked in `AnalyzerReleases.Unshipped.md` (all `Usage`, `Warning`). `AnalyzerReleases.Shipped.md` is the shipped counterpart. Both are registered as `AdditionalFiles` in `CodeGenerators.csproj`.
+**Internal analyzers.** Three `[DiagnosticAnalyzer(LanguageNames.CSharp)]` classes in namespace `CodeGenerators`, wired into `LinqToDB.csproj` the same way as the generator (`OutputItemType="Analyzer"`). Rule ids are tracked in `AnalyzerReleases.Unshipped.md` (all `Usage`, `Warning`). `AnalyzerReleases.Shipped.md` is the shipped counterpart. Both files are kept in the project folder but are **no longer registered** as `AdditionalFiles` in `CodeGenerators.csproj` (the `AdditionalFiles` item group was removed since the previous run), so they are documentation-only for the build and no release-tracking analyzer consumes them.
 
 - `SqlBuilderAliasAnalyzer` (`LINQ2DB0001`). Inside a `BasicSqlBuilder`-derived type (`LinqToDB.Internal.SqlProvider.BasicSqlBuilder`), flags *reads* of node-held names that must be resolved through `AliasesContext`: `SqlColumn.Alias` → `GetColumnAlias`, `SqlTableSource.Alias` → `GetTableAlias`, `SqlCteTableField.Name` and `SqlCteField.Name` → `GetFieldName` (the `Guards` array). Registers an `OperationKind.PropertyReference` action. Assignments to the property are skipped, and `DerivesFrom` walks the enclosing type's base chain. `SqlTable.Alias` and `SqlField.PhysicalName` are deliberately unguarded (source of truth on the node, PhysicalName is also used verbatim in DDL). `RawAlias` is the escape hatch. Generated code is not analyzed (`GeneratedCodeAnalysisFlags.None`). Rationale: non-mutating aliasing keeps final names off cached AST nodes so statements can be aliased and rendered concurrently.
 - `ServerSideOnlyContractAnalyzer` (`LINQ2DB0002` and `LINQ2DB0003`). 0002: throw-only stub with no server-side-only declaration. 0003: declared server-side-only member whose stub throws something other than `ServerSideOnlyException`. A member counts as declared via `[ServerSideOnly]`, an `Sql.Expression`-derived attribute with effective `ServerSideOnly` (all `Sql.Extension` ctors), an `Sql.TableFunction`-derived attribute, or `[ExpressionMethod]`. Detection logic is `ServerSideOnlyContract` (`Symbols.TryCreate`, `TryGetStub`, `Classify`, `Options`), **linked** from `Source/LinqToDB.Analyzers/ServerSideOnlyContract.cs` (csproj `Compile Include` + `Link`) so the shipped `L2DB1003`/`L2DB1004` decide identical cases (two Roslyn components cannot reference each other). Exception sets are hardcoded to `ServerSideOnlyException` (no knobs, unlike the shipped twin). Unlike the twin it analyzes generated code (`Analyze | ReportDiagnostics`) because checked-in generated files such as `Sql.Row.generated.cs` carry the defects. Uses `RegisterOperationBlockAction`.
@@ -79,7 +79,7 @@ The `EquatableReadOnlyList<T>` wrapper (`EquatableReadOnlyList.cs:28–30`) is w
 | `ServerSideOnlyContractAnalyzer.cs` | `LINQ2DB0002`/`0003` analyzer (detection core linked from `LinqToDB.Analyzers`) |
 | `ProjectFlagsAnalyzer.cs` | `LINQ2DB0004`/`0005`/`0006` flow analyzer |
 
-**Tier 2 (all read, 2/2; the `Tests/Tests.Analyzers.Internal/**` files owned since the kb-areas row was extended):**
+**Tier 2 (all read, 2/2, the `Tests/Tests.Analyzers.Internal/` files owned since the kb-areas row was extended):**
 
 | File | Role |
 |---|---|
@@ -99,7 +99,7 @@ All `Source/CodeGenerators` `.cs` files are Tier 1.
 - `IsPackable`: `false` — never shipped as a NuGet package directly.
 - References: `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers`, `Meziantou.Polyfill` (polyfills `System.HashCode` and `IsExternalInit` for netstandard2.0 targets).
 - Linked source: `LinqToDB.Analyzers/ServerSideOnlyContract.cs` (`Compile Include` + `Link`, same idiom as `LinqToDB.Compat`).
-- `AdditionalFiles`: `AnalyzerReleases.Shipped.md`, `AnalyzerReleases.Unshipped.md` (release tracking for `LINQ2DB0001`..`0006`, all `Usage`/`Warning`).
+- `AdditionalFiles`: none now. The `AnalyzerReleases.Shipped.md` / `AnalyzerReleases.Unshipped.md` registration (release tracking for `LINQ2DB0001`..`0006`, all `Usage`/`Warning`) was removed from the csproj in this delta. The files remain on disk as documentation.
 
 Hook-in from `LinqToDB.csproj` (`Source/LinqToDB/LinqToDB.csproj:26`):
 
@@ -125,7 +125,7 @@ Hook-in from `LinqToDB.csproj` (`Source/LinqToDB/LinqToDB.csproj:26`):
 
 ## Known issues / debt
 
-None identified. Generator is self-contained, adding a new builder requires only decorating the class with the appropriate attribute — no manual registration step. `ProjectFlagsAnalyzer` is tightly coupled to the syntactic shape of `GetProjectFlags` and the `ProjectFlagExtensions` predicate bodies (by design, drift is reported as `LINQ2DB0006`). Test gap: `LINQ2DB0001`..`0003` have no fixtures in `Tests.Analyzers.Internal` (only `ProjectFlagsAnalyzerTests` exists).
+None identified. Generator is self-contained, adding a new builder requires only decorating the class with the appropriate attribute — no manual registration step. `ProjectFlagsAnalyzer` is tightly coupled to the syntactic shape of `GetProjectFlags` and the `ProjectFlagExtensions` predicate bodies (by design, drift is reported as `LINQ2DB0006`). Test gap: `LINQ2DB0001`..`0003` have no fixtures in `Tests.Analyzers.Internal` (only `ProjectFlagsAnalyzerTests` exists). The `AnalyzerReleases.*.md` files are no longer fed to the compiler as `AdditionalFiles`, so rule-id release tracking is not enforced by the build and the files can drift from the actual rule set.
 
 ## See also
 
@@ -166,5 +166,8 @@ Read (this run -- delta, internal-analyzer tests; Tier 2 now 2/2, Tier 1 list re
 - `Tests/Tests.Analyzers.Internal/AnalyzerVerifier.cs` (A) — Roslyn test-SDK wrapper, net80 reference assemblies, no linq2db reference
 - `Tests/Tests.Analyzers.Internal/ProjectFlagsAnalyzerTests.cs` (A) — Model const plus 46 fixtures for LINQ2DB0004..0006 (header, helpers and full test inventory read)
 - `Tests/Tests.Analyzers.Internal/Tests.Analyzers.Internal.csproj` (A) — Tier 3 metadata: net10.0 only, plain ProjectReference to CodeGenerators, Workspaces 5.9.0 override
+
+Read (this run -- delta):
+- `Source/CodeGenerators/CodeGenerators.csproj` (M) — removed the `AdditionalFiles` item group that registered `AnalyzerReleases.Shipped.md` and `AnalyzerReleases.Unshipped.md` (diff vs 05150894 reviewed, the linked `ServerSideOnlyContract.cs` `Compile Include` is unchanged)
 
 </details>

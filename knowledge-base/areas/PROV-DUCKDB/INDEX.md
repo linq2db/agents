@@ -3,8 +3,8 @@ area: PROV-DUCKDB
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 13/13
 coverage_tier_2: 4/4
 ---
@@ -40,23 +40,24 @@ Reader mappings handle DuckDB.NET non-standard return types:
 `SetParameterType` override (DuckDBDataProvider.cs:170-178): maps `DataType.VarNumeric` -> `DbType.Decimal`; delegates all other types to the base.
 ### SQL builder (`DuckDBSqlBuilder`)
 
-`DuckDBSqlBuilder` extends `BasicSqlBuilder<DuckDBOptions>` (Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs:19).
+`DuckDBSqlBuilder` extends `BasicSqlBuilder<DuckDBOptions>` (Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs:20).
 
 Notable overrides:
 
-- `ConcatStyle` = `ConcatBuildStyle.Pipes` (DuckDBSqlBuilder.cs:35): delegates concatenation to the base builder. This replaces the prior visitor-level rewrite (PR #5504). `ConcatRequiresExplicitStringCast` is `false` in the visitor (DuckDBSqlExpressionConvertVisitor.cs:14), so no CAST wrapping is emitted for string operands.
-- `IsRecursiveCteKeywordRequired` = `true`; `SupportsMaterializedCteHint` = `true` (DuckDBSqlBuilder.cs:32-33).
-- `BuildDataTypeFromDataType` maps all linq2db `DataType` values to DuckDB SQL types. Includes DuckDB-specific types: HUGEINT/UHUGEINT (Int128/UInt128), BITSTRING, INTERVAL, BIGNUM, TIMETZ, TIME_NS, TIMESTAMP_NS/_MS/_S (precision-dispatched) (DuckDBSqlBuilder.cs:49-111).
-- `Convert` (identifier quoting): standard double-quote escaping; parameters rendered with a `$` prefix; `merge_action` pseudo-function maps to lowercase `merge_action` (DuckDBSqlBuilder.cs:118-160).
-- `BuildGetIdentity`: emits a RETURNING clause instead of a post-insert select (DuckDBSqlBuilder.cs:38-47).
-- Identity via sequences: DuckDB does not support GENERATED AS IDENTITY with PRIMARY KEY. `BuildCreateTableStatement` prepends a CREATE SEQUENCE IF NOT EXISTS statement before the CREATE TABLE; `BuildCreateTableFieldType` appends a DEFAULT NEXTVAL clause (DuckDBSqlBuilder.cs:189-220). Sequence name formula: tableName_fieldName_seq (DuckDBSqlBuilder.cs:421).
-- `BuildTruncateTableStatement`: DuckDB ALTER SEQUENCE RESTART is not implemented; TRUNCATE does not reset sequences. Workaround: create a replacement reset sequence and switch the column DEFAULT to it. The old sequence becomes orphaned (DuckDBSqlBuilder.cs:345-388). On DROP TABLE, both the primary and reset sequences are dropped (DuckDBSqlBuilder.cs:262-296).
-- `BuildJoinType`: CrossApply -> INNER JOIN LATERAL, OuterApply -> LEFT JOIN LATERAL (DuckDBSqlBuilder.cs:223-232).
-- `BuildObjectName`: strips schema/db for temp tables; supports a three-part database.schema.name form (DuckDBSqlBuilder.cs:234-260).
-- `GetParameterCastType` (replaces the former `BuildParameter` override, DuckDBSqlBuilder.cs:~403-415): returns the parameter own `DbDataType` for `DataType.Interval` and `DataType.Decimal` parameters and `null` otherwise. The base builder uses the returned type to emit an explicit CAST around the parameter, guiding DuckDB operator overload resolution (for example timestamp minus interval, DECIMAL arithmetic). Whether a given reference is cast is decided by the optimizer (see `TuneParameters` below), not by a flag on the shared parameter.
-- `BuildCreateTableNullAttribute`: emits NOT NULL only for non-PK non-nullable fields; PK nullability is implicit (DuckDBSqlBuilder.cs:298-301).
-- `GetWindowNullsPlacement` -> `WindowNullsPlacement.AfterLastArgument` (DuckDBSqlBuilder.cs:40-43): DuckDB places IGNORE NULLS inside the parentheses after the last argument, e.g. LAG(expr, offset, default IGNORE NULLS), NTH_VALUE(expr, n IGNORE NULLS).
-- `BuildDistinctModifier` (DuckDBSqlBuilder.cs:45-49): emits DISTINCT followed by `BuildDistinctOnExpressions`, backing DISTINCT ON queries; paired with `IsDistinctOnSupported = true` on the provider.
+- `ConcatStyle` = `ConcatBuildStyle.Pipes` (DuckDBSqlBuilder.cs:36): delegates concatenation to the base builder. This replaces the prior visitor-level rewrite (PR #5504). `ConcatRequiresExplicitStringCast` is `false` in the visitor (DuckDBSqlExpressionConvertVisitor.cs:14), so no CAST wrapping is emitted for string operands.
+- `IsRecursiveCteKeywordRequired` = `true`; `SupportsMaterializedCteHint` = `true` (DuckDBSqlBuilder.cs:33-34).
+- `BuildDataTypeFromDataType` maps all linq2db `DataType` values to DuckDB SQL types. Includes DuckDB-specific types: HUGEINT/UHUGEINT (Int128/UInt128), BITSTRING, INTERVAL, BIGNUM, TIMETZ, TIME_NS, TIMESTAMP_NS/_MS/_S (precision-dispatched) (DuckDBSqlBuilder.cs:63-125).
+- `Convert` (identifier quoting): standard double-quote escaping; parameters rendered with a `$` prefix; `merge_action` pseudo-function maps to lowercase `merge_action` (DuckDBSqlBuilder.cs:132-174). `PrintParameterName` likewise guarantees a single leading `$` when parameter values are printed for logging/debug (DuckDBSqlBuilder.cs:344-349).
+- `GetProviderTypeName` (DuckDBSqlBuilder.cs:351-377): supplies the type name shown in the `DECLARE`-style parameter debug output. DuckDB.NET exposes no provider-specific parameter type, so after the base lookup it maps `DbType` to a DuckDB type name (BOOLEAN, TINYINT/UTINYINT, SMALLINT/USMALLINT, INTEGER/UINTEGER, BIGINT/UBIGINT, FLOAT, DOUBLE, DECIMAL for Currency, BIGNUM for VarNumeric, DATE, TIME, TIMESTAMP, TIMESTAMPTZ, UUID); any other `DbType` yields `null`. Debug/logging only, no effect on executed SQL.
+- `BuildGetIdentity`: emits a RETURNING clause instead of a post-insert select (DuckDBSqlBuilder.cs:52-61).
+- Identity via sequences: DuckDB does not support GENERATED AS IDENTITY with PRIMARY KEY. `BuildCreateTableStatement` prepends a CREATE SEQUENCE IF NOT EXISTS statement before the CREATE TABLE; `BuildCreateTableFieldType` appends a DEFAULT NEXTVAL clause (DuckDBSqlBuilder.cs:203-235). Sequence name formula: tableName_fieldName_seq (`GetIdentitySequenceName`, DuckDBSqlBuilder.cs:449).
+- `BuildTruncateTableStatement`: DuckDB ALTER SEQUENCE RESTART is not implemented; TRUNCATE does not reset sequences. Workaround: create a replacement reset sequence and switch the column DEFAULT to it. The old sequence becomes orphaned (DuckDBSqlBuilder.cs:387-430). On DROP TABLE, both the primary and reset sequences are dropped (DuckDBSqlBuilder.cs:276-310).
+- `BuildJoinType`: CrossApply -> INNER JOIN LATERAL, OuterApply -> LEFT JOIN LATERAL (DuckDBSqlBuilder.cs:237-246).
+- `BuildObjectName`: strips schema/db for temp tables; supports a three-part database.schema.name form (DuckDBSqlBuilder.cs:248-274).
+- `GetParameterCastType` (replaces the former `BuildParameter` override, DuckDBSqlBuilder.cs:440-443): returns the parameter own `DbDataType` for `DataType.Interval` and `DataType.Decimal` parameters and `null` otherwise. The base builder uses the returned type to emit an explicit CAST around the parameter, guiding DuckDB operator overload resolution (for example timestamp minus interval, DECIMAL arithmetic). Whether a given reference is cast is decided by the optimizer (see `TuneParameters` below), not by a flag on the shared parameter.
+- `BuildCreateTableNullAttribute`: emits NOT NULL only for non-PK non-nullable fields; PK nullability is implicit (DuckDBSqlBuilder.cs:312-316).
+- `GetWindowNullsPlacement` -> `WindowNullsPlacement.AfterLastArgument` (DuckDBSqlBuilder.cs:41-44): DuckDB places IGNORE NULLS inside the parentheses after the last argument, e.g. LAG(expr, offset, default IGNORE NULLS), NTH_VALUE(expr, n IGNORE NULLS).
+- `BuildDistinctModifier` (DuckDBSqlBuilder.cs:46-50): emits DISTINCT followed by `BuildDistinctOnExpressions`, backing DISTINCT ON queries; paired with `IsDistinctOnSupported = true` on the provider.
 ### SQL optimizer (`DuckDBSqlOptimizer`)
 
 `DuckDBSqlOptimizer` extends `BasicSqlOptimizer` (Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlOptimizer.cs:8). Notable overrides:
@@ -134,7 +135,7 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 | Type | File | Role |
 |---|---|---|
 | `DuckDBDataProvider` | Internal/.../DuckDB/DuckDBDataProvider.cs | Main provider: flags, readers, parameter handling |
-| `DuckDBSqlBuilder` | Internal/.../DuckDB/DuckDBSqlBuilder.cs | SQL emitter |
+| `DuckDBSqlBuilder` | Internal/.../DuckDB/DuckDBSqlBuilder.cs | SQL emitter (incl. parameter debug type names) |
 | `DuckDBSqlOptimizer` | Internal/.../DuckDB/DuckDBSqlOptimizer.cs | Query optimizer |
 | `DuckDBSqlExpressionConvertVisitor` | Internal/.../DuckDB/DuckDBSqlExpressionConvertVisitor.cs | Expression converter: integer divide, interval-difference / interval-shift lowering, window ORDER BY constant policy |
 | `DuckDBProviderAdapter` | Internal/.../DuckDB/DuckDBProviderAdapter.cs | Dynamic-load adapter for DuckDB.NET |
@@ -184,10 +185,10 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - `BasicSqlBuilder`, `BasicSqlOptimizer`, `DynamicDataProviderBase`, `LockedMappingSchema` -- all from the shared linq2db engine
 - `SchemaProviderBase` -- schema infrastructure
 - `ProviderMemberTranslatorDefault`, `AggregateFunctionBuilder`, `DateFunctionsTranslatorBase`, `WindowFunctionsMemberTranslator` -- translator infrastructure
-- `SqlExpressionConvertVisitor` hooks (`TruncateDivide`, `ElapsedTicks`, `LowerTemporalArithmetic`, `CanLowerIntervalDifference`, `CanLowerIntervalShift`, `CanWrapWindowOrderByConstant`), `QueryHelper.EnsureParameterCast`, and `BasicSqlBuilder.GetParameterCastType` -- shared SQL-AST / builder seams the provider overrides
+- `SqlExpressionConvertVisitor` hooks (`TruncateDivide`, `ElapsedTicks`, `LowerTemporalArithmetic`, `CanLowerIntervalDifference`, `CanLowerIntervalShift`, `CanWrapWindowOrderByConstant`), `QueryHelper.EnsureParameterCast`, `BasicSqlBuilder.GetParameterCastType` and `BasicSqlBuilder.GetProviderTypeName` -- shared SQL-AST / builder seams the provider overrides
 ## Known issues / debt
 
-- **TRUNCATE does not reset sequences** (DuckDBSqlBuilder.cs:345-388): the workaround creates a replacement reset sequence and re-points the column default, leaving the original sequence orphaned. A clean fix requires DuckDB to implement ALTER SEQUENCE RESTART.
+- **TRUNCATE does not reset sequences** (DuckDBSqlBuilder.cs:387-430): the workaround creates a replacement reset sequence and re-points the column default, leaving the original sequence orphaned. A clean fix requires DuckDB to implement ALTER SEQUENCE RESTART.
 - **Bitstring parsing** (`ParseBitString`, DuckDBDataProvider.cs:91-109): parses 0/1 chars into `byte[]` LSB-first per byte. This is a private method on the provider; any future change to DuckDB.NET bitstring wire format would require updating it.
 - **No stored procedure support**: `GetProcedures` returns empty (DuckDB has macro/scalar functions but no traditional stored procedures accessible via the schema provider).
 - **T4/NuGet DuckDB package skips netfx TFM** (from MEMORY.md): DuckDB.NET has no net462 TFM, so the T4 NuGet package and LINQPad NuGet driver are unsupported. CLI scaffold and LINQPad driver are supported via netstandard2.0.
@@ -235,7 +236,10 @@ Singleton that loads DuckDB.NET dynamically (Source/LinqToDB/Internal/DataProvid
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlOptimizer.cs -- `TuneParameters`: operand casts now applied from a `SqlBinaryExpression` case via `QueryHelper.EnsureParameterCast` instead of mutating the shared parameter `NeedsCast`; `withStack` dropped.
 - Source/LinqToDB/Internal/DataProvider/DuckDB/Translation/DuckDBMemberTranslator.cs -- Local variable rename in DateAdd `ToInterval` (`intervalExpr` -> `intervalUnit`); no behavior change.
 
-**Read (this run -- delta):**
+**Read (prior delta run, 2026-11-11, earlier pass):**
 - Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBMappingSchema.cs -- float/double infinity checks routed through `FloatingPointHelper` (new `using LinqToDB.Internal.Common`), `Instance` made lazy (`Lazy<MappingSchema>`); no change to emitted SQL literals.
+
+**Read (this run -- delta):**
+- Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs -- re-read in full. New `GetProviderTypeName` override (lines 351-377) mapping `DbType` to DuckDB type names for the parameter debug/DECLARE output (#6198), `PrintParameterName` (lines 344-349) documented; all line citations in the SQL-builder subsystem and Known issues shifted by roughly +14 (class decl now line 20, `ConcatStyle` 36, `BuildDataTypeFromDataType` 63-125, `Convert` 132-174, create-table 203-235, `BuildTruncateTableStatement` 387-430, `GetParameterCastType` 440-443, `GetIdentitySequenceName` 449) and updated in place. No behavioral change to existing overrides.
 
 </details>

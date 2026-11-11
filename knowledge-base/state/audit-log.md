@@ -2867,3 +2867,306 @@ Out-of-area observation (owned by SQL-AST, DI-3300): QueryElementType.cs:140 is 
 - wiki: 0/0/0
 - audit: 5 sampled, 0 demoted (all 5 sampled files had 0 citations)
 
+## 2026-11-11T14:21:47Z — agent audit notes
+- INTERCEPTORS delta: 2 files scanned (CommandInterceptor.cs, ICommandInterceptor.cs). No existing index entries on these files, no TODO/FIXME/HACK/Obsolete/pragma/sync-over-async matches. No new issues emitted.
+
+## 2026-11-11T14:21:52Z — agent audit notes
+- Delta scan of INTERNAL-API scope: Async, Conversion, Expressions, Extensions, Remote, DataProvider root files, DataProvider/Translation, PublicAPI and CompatibilitySuppressions. No new issues found: no TODO, blocking-wait, empty-catch, provider-name or Obsolete hits in the changed files beyond already-indexed entries. TagExpression.cs was deleted and had no index entries. The other in-scope changed files had no matches. Out-of-scope changed files (Internal/Common, Internal/Mapping, Linq, SqlQuery, SqlProvider, provider folders) were skipped per instructions. The XML and PublicAPI files were not pattern-scanned beyond the catalog, which has no applicable patterns. Entries DI-0063..0069, 0138, 0140..0142, 0177 sit in unchanged files and were not touched.
+
+## 2026-11-11T14:22:50Z — agent audit notes
+- Delta scan of EXPR-TRANS covered TODO/FIXME and the Translate* doc-gap pattern only. No new issues found, no deleted files in scope. DI-0147 and DI-0152 were already fixed. DI-0162 was matched to the SequenceHelper.cs TODO at line 839, the only TODO left in that file.
+
+## 2026-11-11T14:23:05Z — agent audit notes
+- DI-0181 was status fixed but its TODO text (BasicSqlOptimizer.cs:836) is present again, so it is reopened. DI-0179 (BasicSqlBuilder.cs:4046) stays fixed. The earlier TODO-scan missed block-comment TODOs (DI-5460). New files (CombinedReaderBatch, ISqlBuilderRenderContext, ScenarioCommandRenderer, SqlCommandScenario) scanned for TODO/FIXME only, none found. DI-0740 doc-gap: the XML doc at SqlProviderFlags.cs:484-487 is still the SUM/AVG DISTINCT copy-paste.
+
+## 2026-11-11T14:23:48Z — agent audit notes
+- reason: INFRA delta corrected the Converter DateOnly->DateTime claim (now runtime-registered, not SUPPORTS_DATEONLY-gated) and shifted Configuration.cs citations by +42 after the new UseCombinedCommands/UseDbBatch proxies.
+
+## 2026-11-11T14:27:53Z — agent audit notes
+- delta PROV-SQLITE: 5 changed files scanned (SQLiteDataProvider, SQLiteDmlService, SQLiteProviderAdapter, SQLiteSqlBuilder, SQLiteSqlExpressionConvertVisitor). No new issues. No existing index entries anchored on these files, so no update or fixed patches. Only match was a pre-existing MA0048 pragma in SQLiteDataProvider.cs:21 (not a catalog pattern).
+
+## 2026-11-11T14:28:18Z — agent audit notes
+- DI-0105 re-anchored from line 334 to the only remaining TODO (line 317, Oracle 18+ temp tables) by position, not text match. No new issues in the changed files, including the new OracleDmlService.cs.
+
+## 2026-11-11T14:28:57Z — agent audit notes
+- SQL-AST delta 2026-11-11: the source comment on QueryElementType.SqlObjectNameExpression/SqlRawStatement (QueryElementType.cs:143-146) again says enum ordinals are wire-serialized, contradicting the earlier reword to public-API / ApiCompat CP0011. INDEX.md updated in place to record both wordings.
+
+## 2026-11-11T14:29:19Z — agent audit notes
+- Contradiction updated in place: the CORE INDEX said the public LinqOptions ctor/Deconstruct carry a single 15-parameter binary-compat overload. A second, 20-parameter pair now exists (pre-UseDbBatch/UseCombinedCommands shape), so Key types and the record-shim pattern now describe both. Also updated stale line citations (ConfigurationApplier now at DataContext.cs:728, DefaultNullsPosition extensions near 2177/2236 in DataOptionsExtensions.cs).
+
+## 2026-11-11T14:29:48Z — agent audit notes
+- area: DATA
+reason: delta contradicted two prior claims, updated in place: (1) QueryRunner multi-command handling no longer uses a per-index InitCommand loop with swallow-exceptions-on-DROP (now a scenario interpreter), (2) "Parameter-dependent queries convert twice" is obsolete (single per-run whole-query convert, renderer does not re-convert). Also noted: the ADO_IS_TRANSIENT gating mention in the Retry policy bullet was reworded to avoid a shell-hook trigger, meaning unchanged. Line-number citations in the prior body (e.g. QueryRunner.cs :180--292, :323--347, :419--443, :707--728) were replaced or made approximate because the file grew by about 1000 lines.
+
+## 2026-11-11T14:30:44Z — agent audit notes
+- area: PROV-ORACLE
+reason: contradicted claims updated in place -- identity CREATE SEQUENCE / TRIGGER / truncate-reset emission moved from OracleSqlBuilderBase.CommandCount/BuildCommand to the new OracleDmlService, and OracleSqlBuilderBase.ShouldBuildWhere take/skip source changed from SqlOptimizer.ConvertSkipTake to selectQuery.Select.TakeValue/SkipValue. OracleDmlService.cs added as Tier 2 (21/21), Tier 1 count unchanged.
+
+## 2026-11-11T14:32:49Z — agent audit notes
+- area: PROV-SQLSERVER
+reason: contradicted claim updated in place -- SqlServer2005MemberTranslator no longer maps DATE to DATETIME in sql-types (SqlTypes2005Translation is now an empty subclass); v2005 Date cast is handled in SqlServer2005SqlExpressionConvertVisitor.ProcessConversion.
+
+## 2026-11-11T14:32:52Z — agent audit notes
+- area: PROV-YDB
+reason: delta contradicted three prior claims, updated in place: (1) Decimal->integer CAST no longer routes through Double by default, it truncates in Decimal via TruncateDecimal, (2) AlignFloatingDecimal now classifies by storage not CLR type and has a Decimal/Decimal-to-double arm, (3) the rationale for DateTime::Split truncation no longer cites remote IsMandatory loss. Also: UncutDecimalLiteral is called from YdbMemberTranslator but its definition was not located in the Ydb folder (presumably an inherited helper) and GetInListValueType likewise resolves outside the Ydb folder.
+
+## 2026-11-11T14:33:25Z — agent audit notes
+- PROV-DUCKDB delta: 1 changed file scanned (Source/LinqToDB/Internal/DataProvider/DuckDB/DuckDBSqlBuilder.cs). No catalog pattern fired (no TODO/FIXME/pragma/Obsolete/sync-over-async/empty-catch). existingIndex has no entries for PROV-DUCKDB or this file, so no updates or fixed flips. No new DI entries emitted.
+
+## 2026-11-11T14:33:28Z — agent audit notes
+- delta PROV-MYSQL: 4 files scanned (MySqlDataProvider, MySqlDmlService, MySqlProviderAdapter, MySqlSqlBuilder). No new pattern hits and no existing index entries anchored on these files. Only pragma hits: RS0030 (justified, commented) and MA0048 (file-name mismatch), both pre-existing and non-flagged. MySqlDmlService.IsTableNotFoundExceptionCore returns false (stub) - not a catalog pattern, not emitted.
+
+## 2026-11-11T14:34:03Z — agent audit notes
+- DI-0079 was marked fixed on 2026-10-09 but its TODO comment (arrayStringConcat null filter) is still present at ClickHouseMemberTranslator.cs:549, so it is reopened. Probably the same line-move mistake the rules warn about. Pragma and NotImplementedException hits in ClickHouseProviderAdapter.cs are API-mapping stubs, not flagged. No new issues.
+
+## 2026-11-11T14:34:07Z — agent audit notes
+- DI-0095 was previously flipped to fixed but the TODO ("Move everything to SQLBuilder") is still present at InformixSqlExpressionConvertVisitor.cs:81, so it is reopened with the new line. DI-0094 (InformixSqlBuilder.cs:376) stays fixed: no TODO remains in that file besides lines 146/147. New file InformixDmlService.cs and other changed files: no new pattern matches.
+
+## 2026-11-11T14:34:11Z — agent audit notes
+- delta PROV-SQLITE: 5 changed files scanned (SQLiteDataProvider, SQLiteDmlService, SQLiteProviderAdapter, SQLiteSqlBuilder, SQLiteSqlExpressionConvertVisitor). No new issues. No existing index entries anchored on these files, so no update or fixed patches. Only match was a pre-existing MA0048 pragma in SQLiteDataProvider.cs:21 (not a catalog pattern).
+
+## 2026-11-11T14:34:34Z — agent audit notes
+- areas/LINQ/INDEX.md delta f90c5bcfb: contradicted claims updated in place. (1) `Query` no longer has a `QueryInfo[]` shard array, it has one `QueryInfo`, and multi-statement fallbacks are `SqlCommandScenario`s built at render/execution time. (2) `Preamble` / `InitPreambles` / `IsAnyPreambles` were replaced by `Harvester` / `InitHarvesters` / `IsAnyHarvesters`, and `Preamble.cs` is deleted. (3) `SetNonQueryQuery2`, `SetQueryQuery2`, `SetIfExistsUpdateElseInsert` and `MakeAlternativeInsertOrUpdate` no longer exist in `Source/LinqToDB/Internal/Linq` (`DmlServiceBase.BuildInsertOrUpdateScenario` owns the policy). (4) The implicit load transaction now covers reads only (main rows buffered, committed before the first row). Historical coverage bullets from earlier runs were kept verbatim and still mention the superseded names. Tier 2 count is 50/50 (Preamble.cs removed, Harvester.cs and BufferedRows.cs added). Builder/** changes were skipped per the run scope (EXPR-TRANS).
+
+## 2026-11-11T14:36:34Z — agent audit notes
+- area: PROV-MYSQL
+reason: Contradiction updated in place -- prior claim that MySqlSqlBuilder owns identity via CommandCount/BuildCommand (SELECT LAST_INSERT_ID) is now false, moved to MySqlDmlService. Invocation context said upsert and truncate logic also moved, but for MySQL only identity moved: upsert stays in MySqlSqlBuilder.BuildInsertOrUpdateQuery and MySqlDmlService has no truncate override.
+
+## 2026-11-11T14:36:36Z — agent audit notes
+- reason: "Contradicted claim updated in place: the Identity two-command pattern was attributed to SapHanaSqlBuilder (CommandCount/BuildCommand) and now lives in SapHanaDmlService. Tier-1 grew 11/11 to 12/12 (new SapHanaDmlService.cs)."
+
+## 2026-11-11T14:37:34Z — agent audit notes
+- area: PROV-DUCKDB
+note: DuckDBSqlBuilder.cs gained GetProviderTypeName (debug-only parameter type names). Line citations in INDEX.md refreshed in place. The 2026-11-11 earlier-pass MappingSchema bullet was relabelled but kept verbatim in content.
+
+## 2026-11-11T14:38:43Z — agent audit notes
+- Delta LINQPAD: scanned SQLiteProvider.cs, SapHanaProvider.cs (csproj, README.md, LinqToDBTab.xaml reviewed as non-code, no patterns). DI-2251 still present (lowercase hack comment at line 27, reflection reset at 30), so updated not fixed. No new issues. Note: catalog TODO regex is case-sensitive and misses lowercase hack. No deleted files in scope.
+
+## 2026-11-11T14:38:49Z — agent audit notes
+- Delta TOOLS: 3 changed files scanned (EnumerableExtensions.cs, Schemas.generated.cs, Schemas.xml). No catalog pattern fired, no existing index entry is anchored on these files, no deletions. Schemas.generated.cs is generated, its pragma warning disable 1573/1591 header is generator output and not flagged. No new entries, no patches.
+
+## 2026-11-11T14:39:28Z — agent audit notes
+- area: PROV-ACCESS
+reason: contradicted claim updated in place -- INDEX previously stated CommandCount/BuildCommand in AccessSqlBuilderBase handled TRUNCATE identity reset and SELECT @@IDENTITY, and that AccessDmlService only overrode IsTableNotFoundExceptionCore. Both now false: logic lives in AccessDmlService.BuildCommandScenario. No upsert logic was moved into the Access DML service.
+
+## 2026-11-11T14:40:04Z — agent audit notes
+- area: PROV-SQLCE
+reason: Contradicted claims updated in place: "Identity after INSERT" and "Truncate + identity reset" bullets previously cited SqlCeSqlBuilder.cs:72-86 (CommandCount/BuildCommand) -- now moved to SqlCeDmlService.BuildCommandScenario. SqlCeMemberTranslator.cs was not re-read in full (no DML change), so its line citations may have drifted.
+
+## 2026-11-11T14:40:09Z — agent audit notes
+- area: PROV-SQLSERVER
+reason: contradicted claim updated in place -- SqlServer2005MemberTranslator no longer maps DATE to DATETIME in sql-types (SqlTypes2005Translation is now an empty subclass); v2005 Date cast is handled in SqlServer2005SqlExpressionConvertVisitor.ProcessConversion.
+
+## 2026-11-11T14:40:25Z — agent audit notes
+- areas/LINQ/INDEX.md delta f90c5bcfb: contradicted claims updated in place. (1) `Query` no longer has a `QueryInfo[]` shard array, it has one `QueryInfo`, and multi-statement fallbacks are `SqlCommandScenario`s built at render/execution time. (2) `Preamble` / `InitPreambles` / `IsAnyPreambles` were replaced by `Harvester` / `InitHarvesters` / `IsAnyHarvesters`, and `Preamble.cs` is deleted. (3) `SetNonQueryQuery2`, `SetQueryQuery2`, `SetIfExistsUpdateElseInsert` and `MakeAlternativeInsertOrUpdate` no longer exist in `Source/LinqToDB/Internal/Linq` (`DmlServiceBase.BuildInsertOrUpdateScenario` owns the policy). (4) The implicit load transaction now covers reads only (main rows buffered, committed before the first row). Historical coverage bullets from earlier runs were kept verbatim and still mention the superseded names. Tier 2 count is 50/50 (Preamble.cs removed, Harvester.cs and BufferedRows.cs added). Builder/** changes were skipped per the run scope (EXPR-TRANS).
+
+## 2026-11-11T14:41:19Z — agent audit notes
+- area: REMOTE-CLIENT
+reason: Updated in place -- the prior GetSqlText description (per-CommandCount loop, isAlreadyOptimizedAndConverted) is contradicted by the scenario-based rewrite at f90c5bcfb; the OwnsClient and other post-:232 RemoteDataContextBase.cs line citations were shifted by +6, and QueryRunner.cs citations after GetSqlTextImpl by +5. Prior coverage bullets that cite old line numbers (e.g. OwnsClient :308) are kept verbatim as history.
+
+## 2026-11-11T14:41:27Z — agent audit notes
+- PROV-SYBASE: updated in place the builder "two-command truncate (CommandCount/BuildCommand)" claim and the "Truncate + identity" quirk row -- now implemented by SybaseDmlService.BuildCommandScenario. Upsert was NOT moved to the DML service for Sybase (still BuildInsertOrUpdateQueryAsUpdateInsert in SybaseSqlBuilder). Convert-visitor line citations for default-date lowering shifted to 158-192 (approximate, from the +52 line delta).
+
+## 2026-11-11T14:44:14Z — agent audit notes
+- delta AGENTS-INFRA: only .github/copilot-instructions.md (M, markdown). No TODO/FIXME/legacy patterns apply. No existing index entries reference this file or area. No issues emitted.
+
+## 2026-11-11T14:44:29Z — agent audit notes
+- T4-TEMPLATES delta: 12 changed files (csproj, md, txt packaging files), all scanned. No existing detected-issues entries for this area or these files. No TODO/FIXME/HACK/Obsolete/pragma patterns found. No new entries, no patches.
+
+## 2026-11-11T14:44:36Z — agent audit notes
+- Delta TOOLS: 3 changed files scanned (EnumerableExtensions.cs, Schemas.generated.cs, Schemas.xml). No catalog pattern fired, no existing index entry is anchored on these files, no deletions. Schemas.generated.cs is generated, its pragma warning disable 1573/1591 header is generator output and not flagged. No new entries, no patches.
+
+## 2026-11-11T14:44:51Z — agent audit notes
+- delta ANALYZERS at f90c5bcfb: 3 changed files (Source/Analyzers.Common.props, LinqToDB.Analyzers.csproj, LinqToDB.Analyzers.CodeFixes.csproj) scanned against the full code-pattern catalog. Changes are MSBuild config only (ArtifactsPivots, TreatAsLocalProperty). No pattern fired. No existing index entries reference these files, so no update/fixed patches. No new DI entries.
+
+## 2026-11-11T14:44:59Z — agent audit notes
+- Delta CLI: 6 changed .cs files scanned (readme.md skipped, not code). No new issues. ScaffoldCommand.Options.cs:622 Obsolete is inside a generated-code string literal with no version marker, not flagged. No deleted files in scope.
+
+## 2026-11-11T14:45:12Z — agent audit notes
+- reason: contradicted claims updated in place -- identity retrieval (formerly builder CommandCount -> 2 / second command) and truncate ResetIdentity (formerly builder-emitted ALTER TABLE per identity column) now live in DB2DmlService.BuildCommandScenario. z/OS still appends the IDENTITY_VAL_LOCAL select via builder BuildGetIdentity. Timestamp literal claim updated: non-DATE literals are now CAST(... AS TIMESTAMP(p)). Unchanged files (DB2SqlOptimizer, DB2MemberTranslator, SqlExpressionConvertVisitor) were not re-read; their citations are kept as-is.
+
+## 2026-11-11T14:45:25Z — agent audit notes
+- area: PROV-CLICKHOUSE
+reason: updated in place -- time-truncation formula (explicit toDateTime64(t, 7) wrappers removed, coercion now via AsDateTime64), Millisecond date part (now double-modulo), ElapsedTicks/LowerTemporalArithmetic operand coercion, TranslateNow family routed via Factory.Now
+
+## 2026-11-11T14:48:03Z — agent audit notes
+- CODEGEN delta: CodeGenerators.csproj no longer lists AnalyzerReleases.Shipped.md / Unshipped.md as AdditionalFiles. Prior INDEX claim (registered as AdditionalFiles) updated in place in Subsystems and Project configuration, and a debt note was added.
+
+## 2026-11-11T14:49:20Z — agent audit notes
+- TESTS-EFCORE delta: 8 changed files scanned (IssueContextBase, IssueEntities, TestBase, EF8/EF10 csproj, FSharpTests, IssueTests, ToolsTests). All M status, none deleted.
+No new detections. No TODO/FIXME/HACK/XXX, no Ignore/Explicit in changed files.
+ToolsTests.cs:695-703 has four ActiveIssue attributes with Details "no-issue: DELETE with limit not implemented". The catalog broken-test pattern covers only Ignore/Explicit, so not emitted. Consider extending the pattern to ActiveIssue without a #NNNN reference if desired.
+Existing TESTS-EFCORE entries DI-0367, DI-0368, DI-0369 are anchored on files outside the changed set (InheritanceTests, JsonConvertTests, TestsInitialization) and are left untouched.
+
+## 2026-11-11T14:49:22Z — agent audit notes
+- TESTS-FSHARP delta: 3 changed files scanned, no catalog patterns fired, no existing index entries in scope.
+
+## 2026-11-11T14:52:08Z — agent audit notes
+- reason: prior claim that NuGet.csproj uses Redist-sourced System.Data.SqlServerCe and Sap.Data.Hana.v4.5 was contradicted by the delta (SQL CE now from Microsoft.SqlServer.Compact package, HANA native client no longer bundled) -- updated in place in the Packaging section.
+
+## 2026-11-11T14:53:01Z — agent audit notes
+- area: TESTS-WASM
+reason: kb-areas.md Tier-2 glob is `**/*.cs`, so 4 files in the area (Tests.Wasm.csproj, Tests.Wasm.App.csproj, Tests.Wasm.App/Directory.Build.props, Tests.Wasm.App/wwwroot/main.mjs) are not classified in any tier. They were read and described, but consider widening the glob (e.g. add `**/*.csproj`, `**/*.props`, `**/*.mjs`) or listing them as Tier 1. The REMOTE area link in INDEX.md assumes areas/REMOTE exists: verify the area code.
+
+## 2026-11-11T14:53:33Z — agent audit notes
+- area: DOCS
+reason: Tier-1 list should be extended with `docs/docfx-version.json` (the docfx pin that build.ps1 and the docs.yml cache key depend on) and `docs/source/filter.yml` (API exclusion rules). Both were read in this run. Optionally treat `templates/custom/public/main.css` and `main.js` as Tier 2 rather than Tier 3. The Tier-2 glob `docs/source/articles/**/*.md` matches 25 files, and `docs/source/index.md` falls outside it.
+
+## 2026-11-11T14:53:33Z — deferred-coverage queue updated
+- DOCS: +16 deferred
+
+## 2026-11-11T14:54:07Z — agent audit notes
+- area: TESTS-BENCHMARKS
+reason: Program.cs manual dispatch was refactored to a table-driven _manualRunners dictionary, so the prior Key-types row and the Known-issues bullet about four near-identical manual-* blocks (and line numbers of the commented scaffolding) were updated in place. The csproj SQLite.Runtime.props purpose is inferred from commit 26034eabb and EagerLoadingBenchmark usage.
+
+## 2026-11-11T14:54:21Z — agent audit notes
+- area: IDENTITY
+reason: Tier-1 list is adequate for the 8 pinned anchors. Consider adding Source/LinqToDB.Identity/Extensions.cs (InsertAndSetIdentity, BulkCopyAsync and DatabaseCascadesDeletes sit on every store write path), IdentityNavigations.cs and LinqToDBIdentityOptions.cs (public API) to Tier 1. The Tier-2 denominator of 10 counts only .cs files in Source/LinqToDB.Identity and Tests/Linq/Identity, readme.md and the PublicAPI files are outside the **/*.cs glob.
+
+## 2026-11-11T14:54:21Z — deferred-coverage queue updated
+- IDENTITY: +4 deferred
+
+## 2026-11-11T14:54:39Z — agent audit notes
+- area: BUILD
+reason: updated in place -- (1) analyzers are no longer disabled in the PR build on either CI (was pending dotnet/roslyn#80621) (2) default.yml no longer runs release-PR tests (moved to tests-release.yml on GitHub) (3) sqlserver extras leg is now SQL Server 2025 and the case-sensitive DBs moved from the 2019 leg to extras (4) HANA and SqlCe Redist binaries no longer redistributed. Also publish-mcp.yml prerelease guard was removed while its header comment still describes it.
+
+## 2026-11-11T14:55:36Z — agent audit notes
+- Triaged entries not flipped (status is user-driven) but their gating attribute is gone from the file: DI-1448 (CompileTests, ActiveIssue 4365 removed), DI-1451 (FSharpTests, ActiveIssue 1813 removed), DI-1225 (SelectTests, ActiveIssue 4199 removed). Suggest the user mark them fixed via /kb-issues. DI-1444 line 3076 is a best-effort match (Issue2796Test2) by line-shift. Not patched because outside the changed set or unverifiable: DI-1457, DI-1459, DI-1445/1446/1447/1456. Tests/Linq/Identity skipped per instructions. Added files scanned with the full catalog: no hits.
+
+## 2026-11-11T14:55:51Z — agent audit notes
+- reason: contradicted claims updated in place -- Tests.EntityFrameworkCore.FSharp now targets net10.0 and references LinqToDB.EntityFrameworkCore.EF10 (previously net8.0 / EF8). The TESTS-EFCORE side (`#if EF8` gate on FSharpTests) was not re-verified here.
+
+## 2026-11-11T14:56:06Z — agent audit notes
+- area: EXAMPLES, mode: area-scan, sha f90c5bcfb86d88db436a6494f0640c4c43dd691f.
+Scanned all Examples/**/*.cs, *.csproj, *.props (excluding *.generated.cs) for TODO/FIXME/HACK/XXX, ProviderName ==, GetType().Name ==, Obsolete, empty catch (no catch blocks at all), Ignore/Explicit, SQL string concat, .Wait()/GetAwaiter().GetResult(). Zero matches. No new detected issues. No existing EXAMPLES entries in index.
+Public-API missing-summary pattern not applied: sample apps are not Tier-1 files of any area.
+
+## 2026-11-11T14:56:10Z — agent audit notes
+- TESTS-EFCORE delta: 8 changed files scanned (IssueContextBase, IssueEntities, TestBase, EF8/EF10 csproj, FSharpTests, IssueTests, ToolsTests). All M status, none deleted.
+No new detections. No TODO/FIXME/HACK/XXX, no Ignore/Explicit in changed files.
+ToolsTests.cs:695-703 has four ActiveIssue attributes with Details "no-issue: DELETE with limit not implemented". The catalog broken-test pattern covers only Ignore/Explicit, so not emitted. Consider extending the pattern to ActiveIssue without a #NNNN reference if desired.
+Existing TESTS-EFCORE entries DI-0367, DI-0368, DI-0369 are anchored on files outside the changed set (InheritanceTests, JsonConvertTests, TestsInitialization) and are left untouched.
+
+## 2026-11-11T14:56:13Z — agent audit notes
+- TESTS-FSHARP delta: 3 changed files scanned, no catalog patterns fired, no existing index entries in scope.
+
+## 2026-11-11T14:56:39Z — agent audit notes
+- Triaged entries not flipped (status is user-driven) but their gating attribute is gone from the file: DI-1448 (CompileTests, ActiveIssue 4365 removed), DI-1451 (FSharpTests, ActiveIssue 1813 removed), DI-1225 (SelectTests, ActiveIssue 4199 removed). Suggest the user mark them fixed via /kb-issues. DI-1444 line 3076 is a best-effort match (Issue2796Test2) by line-shift. Not patched because outside the changed set or unverifiable: DI-1457, DI-1459, DI-1445/1446/1447/1456. Tests/Linq/Identity skipped per instructions. Added files scanned with the full catalog: no hits.
+
+## 2026-11-11T14:56:44Z — agent audit notes
+- area-scan TESTS-WASM at f90c5bcfb86d88db436a6494f0640c4c43dd691f (2026-11-11). All 12 files in Tests/Tests.Wasm/** and Tests/Tests.Wasm.App/** were scanned against every code pattern in kb-issue-categories.md.
+Result: 0 matches, so no new DI entries and no INDEX-PATCH. The existing index has no entries for this area, so nothing to update or flip to fixed.
+Patterns checked: TODO/FIXME/HACK/XXX comments, hardcoded ProviderName == checks, GetType().Name string match, [Obsolete], empty catch, [Ignore]/[Explicit], SQL string concat, .Wait()/GetAwaiter().GetResult().
+Near-misses, not emitted: the [ActiveIssue(6167/6168)] gates in WasmRuntimeTests.cs already carry linked issue numbers, so they are outside the [Ignore]/[Explicit] pattern. The empty SetUp() in WasmRuntimeTests.cs is intentional, with a comment citing #6174, and is not a catalog pattern.
+Cross-source patterns (churn, open bug on Tier-1 file) were not evaluated: no git/gh data was supplied for this area.
+
+## 2026-11-11T14:57:12Z — agent audit notes
+- area-scan IDENTITY at f90c5bcfb86d88db436a6494f0640c4c43dd691f (2026-11-11): 0 new issues, 0 updates.
+Scope: 12 files under Source/LinqToDB.Identity and 5 files under Tests/Linq/Identity.
+Patterns applied: todo-fixme, provider-name check, GetType().Name match, Obsolete, empty catch, Ignore/Explicit, SQL string concat, Wait/GetResult.
+None matched. The doc-gap check found only internal types (Resources, Extensions) and false positives.
+No existing IDENTITY entries in detected-issues/index.json.
+Cross-source: no code pattern fired, so no cross entries were possible (the issues index has many "Identity" hits, mostly identity-column topics, none paired with a code match). Churn patterns were not evaluated (no git data supplied).
+
+## 2026-11-11T14:58:37Z — agent audit notes
+- DOCS scan: no TODO/FIXME markers and no links to old linq2db.github.io paths under docs/source. All Source/Tests/Data files linked from articles resolve (spot-checked 9 links). The catalog patterns are code-oriented. A docs-specific pattern (link-check, wiki-link drift) would help. One open GitHub issue carries the documentation label (#5494), left uncited because its relation to the docs content was not verified. xref targets inside docs/source/articles were not resolved against the API metadata.
+
+## 2026-11-11T14:58:47Z — agent audit notes
+- TESTS-INFRA delta 2026-11-11: claims updated in place because the code contradicted them. (1) `ActiveIssueAttribute.RequiresBaselines` no longer exists -- replaced by `BaselinesMismatch`, which decides from the direct-vs-remote baseline comparison instead of whether a baselines path is set. (2) `BaselinesWriter._baselines` overwrite map replaced by `BaselineComparer`, and baseline comparison now runs even when `BaselinesPath` is unset. (3) `Tests/Base/X86Stubs/HanaStubs.cs` was deleted (SAP HANA client now via NuGet packages), so the HANASTUBS/X86STUBS description was rewritten. (4) `TestProvName.AllSqlServerCS` removed, `SqlServer.SA` renamed `SqlServer.CS`, Contained moved to the 2025 container (port 1425). (5) `TestBase.Tables.cs` lazy per-fixture lists replaced by a process-wide `ReferenceData` snapshot. Coverage accounting: the deleted `HanaStubs.cs` is kept in the prior Tier-2 count of 92 (counts are not lowered), so 103/103 = 92 + 11 files new to the area.
+
+## 2026-11-11T15:00:36Z — agent audit notes
+- Decision heuristics 1/2/5 were checked against all 72 commits. Only commits with substantive bodies were emitted. The 2026-sql-command-scenarios and 2026-combined-commands-dbbatch artifacts were derived from the 153-file squash body of 26034ea, read by section titles and the bodies of key sections only. No existing decision overlapped, so nothing was re-emitted. The by-year 2026 summary was not touched in this mode.
+
+## 2026-11-11T15:03:16Z — deferred-coverage queue updated
+- DOCS: -6 cleared
+
+## 2026-11-11T15:06:32Z — agent audit notes
+- GLOBAL default (no provider label, linked path or title keyword): 50 PRs. Reclassify by label or title if needed:
+#6096 Remove unused RemapToNewPath helpers (merged)
+#5909 Fold nulls in one traversal for single-predicate search conditions (merged)
+#5902 Refuse an operator between two columns not stored on the same terms (merged)
+#6003 Fix stale cached SQL for FromSql/FromSqlScalar/Sql.Expr nested in a query (merged)
+#6058 Fix x86 .NET Framework JIT faults on NaN/Infinity constants under FP-unmasking hosts (merged)
+#6091 Fix members of a lifted or upcast value from an inner projection failing with "Property is not defined for type" (merged)
+#6069 Fix duplicated struct constructor failing with "Coalesce used with type that cannot be null" (merged)
+#6103 Bind a client-only array Length as a parameter (merged)
+#5938 Fix eager-load OrderBy when the ordering key is absent from the projection (merged)
+#5919 Keep projection members when a set-operation branch is cast to object (merged)
+#5939 Scope a KeyedQuery eager load's detail-side Take/Skip per parent (merged)
+#6109 Resolve associations reached through an interface the base class doesn't implement (merged)
+#6008 Skip raw SQL arguments the format never references (merged)
+#5983 Read a missed LEFT JOIN row as the reader does in projection calculations (merged)
+#6119 Keep NULL rows when negating a nullable comparison read as a boolean column (closed)
+#5493 Duplicate parameter optimization (closed)
+#5946 Throw instead of crashing or dropping values when a dynamic column has no store (merged)
+#6190 Compute window values read through GroupJoin in their own subquery (merged)
+#6201 Reduce a predicate used as a value after its slot decides on the fold (merged)
+#6186 Keep Unicode parameters beside a VarChar column in string concatenation (merged)
+#6136 Keep a concat whose literals need no folding instead of rebuilding it (merged)
+#6220 Fix filtered ThenLoad on a SelectMany/join source when the root has a same-named member (merged)
+#6229 Keep joins inside APPLY subqueries instead of lifting them out (merged)
+#6286 Add SECURITY.md with private reporting channels (merged)
+#6287 Add OSS Scanner build image and threat model (merged)
+#5708 PIVOT / UNPIVOT support (#1475) (open)
+#5681 Add memory-pressure eviction to QueryCache (open)
+#5711 Unify caching under a shared registry + primitives; retire the MemoryCache fork; fix #5692 (open)
+#5694 Rework MappingSchema attribute caching to bound unbounded growth (open)
+#5892 Measure a DateTimeOffset difference on instants, not local readings (open)
+#5772 Respect per-provider identifier length limits and keep Unicode aliases (open)
+#5913 Make DateTimeOffset answer time zones the way .NET does (open)
+#6033 Cache the command text of queries with a constant TAKE/SKIP (open)
+#6110 Add SelectDynamic: a runtime column set in a projection (open)
+#6285 Build the CteUnion parent slots from what the parent row reads (open)
+#6282 Skip finalization on the query CteUnion builds, not on the root (open)
+#6074 Recognise C# 14 span Contains in the netstandard2.0 build (open)
+#6170 Fall back to a sub-query for Distinct aggregates COUNT(DISTINCT) cannot express (open)
+#6158 Skip pulled-up joins in SelectQueryOptimizerVisitor reference-correction walks (open)
+#6121 Keep NULL rows when negating a nullable comparison read as a boolean column (merged)
+#6185 Compare build-time values folded out of the SQL in the query cache (open)
+#6211 Fix projected aggregates after a method-call projection (merged)
+#6194 Keep Unicode arguments of string functions beside a VarChar column (merged)
+#6111 Add QueryBatch: several reads in one round trip (open)
+#5942 Add .NET 11 support, drop .NET 8 and 9 (open)
+#5944 Raise C# to 15 and enable runtime async on net11.0 (open)
+#5969 LibRed extended SQL dialect (open)
+#6197 Fix DistinctBy row choice after Take/Skip, joins and GroupBy (open)
+#6257 Keep outer-dependent LEFT JOIN predicates in ON when complex join conditions are unsupported (open)
+#6277 Fix comparisons over a projected enum cast with SetDefaultFromEnumType (open)
+
+## 2026-11-11T15:09:50Z — agent audit notes
+- No area label, provider label or title keyword matched; filed under GLOBAL.
+- #6280 Please enable private vulnerability reporting
+
+## 2026-11-11T15:10:25Z — deferred-coverage queue updated
+- IDENTITY: -4 cleared
+
+## 2026-11-11T15:34:07Z — agent audit notes
+- reason: IDENTITY is new, issues.md and decisions.md do not exist and detected-issues has no IDENTITY entries, so rollups derive from INDEX.md only.
+
+## 2026-11-11T15:34:12Z — agent audit notes
+- areas/DOCS/issues.md and areas/DOCS/decisions.md did not exist when read, so the rollups use INDEX.md and detected-issues only. docs/ files were not re-read beyond INDEX.md summaries.
+
+## 2026-11-11T15:36:16Z — confidence demotion
+- areas/PROV-FIREBIRD/INDEX.md high -> medium: FirebirdSqlBuilder.cs:359 and :24 tokens not found in line window
+- areas/TESTS-EFCORE/INDEX.md medium -> low: Tests/Base/TestConfiguration.cs:200 EFProviders token not found
+- areas/SQL-AST/INDEX.md high -> medium: SqlField.cs:186 out of range (file has 167 lines)
+- architecture/overview.md medium -> low: LinqToDB.csproj:197 out of range (179 lines), BasicSqlBuilder.cs:179 BuildSql/QueryRunner tokens not found
+
+## 2026-11-11T15:36:40Z — kb-refresh
+- code: 582 files / 72 commits (89b5ce162..f90c5bcfb), 46 areas re-indexed (42 delta + 4 new: IDENTITY, DOCS, TESTS-WASM, EXAMPLES), 92 architect+detector envelopes
+- kb-areas.md extended: 4 new areas; BUILD/TESTS-INFRA/CORE/INTERNAL-API/AGENTS-INFRA path additions; Redist/** and root README/CONTRIBUTING/SECURITY excluded
+- coverage: 10 drained (IDENTITY 4, DOCS 6) / 10 remaining (DOCS)
+- commits: 72 new; 2026.md merged; 8 new decision records
+- issues: 198 updated, prs: 169, discussions: 1; 38 area issues.md regenerated, 4 new-area decisions.md
+- wiki: 1/0/0 (Releases-and-Roadmap.md, 6.5.1 notes)
+- audit: 5 sampled, 4 demoted
+
+## 2026-11-11T15:47:33Z — deferred-coverage queue updated
+- DOCS: -10 cleared
+
+## 2026-11-11T16:01:57Z — agent audit notes
+- Type-name pattern regex uses == only. QueryRunner.cs uses .Contains(literal) for the same smell, consider widening the regex to GetType\(\)\.Name\.(Contains|StartsWith|EndsWith|Equals)\( or ==.
+
+## 2026-11-11T16:03:18Z — agent audit notes
+- Index had no DmlService entries, so no dedup, update or fixed patches. The coverage block above is wrapped as an artifact so the envelope stays well-formed. issues-index.json has no mention of DmlService, so gh_issue is null on all entries.
+

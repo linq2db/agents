@@ -3,25 +3,27 @@ area: TESTS-BENCHMARKS
 kind: area-index
 sources: [code]
 confidence: low
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 coverage_tier_1: 0/0
-coverage_tier_2: 33/45
+coverage_tier_2: 35/47
 ---
 
 # TESTS-BENCHMARKS
 
-BenchmarkDotNet harness measuring query execution overhead, SQL emission latency, query-plan-cache internals, and TypeMapper expression-compilation cost across four runtime targets. No Tier-1 anchors are designated yet; see the AUDIT-NOTE below.
+BenchmarkDotNet harness measuring query execution overhead, SQL emission latency, query-plan-cache internals, render-pipeline / eager-loading cost and TypeMapper expression-compilation cost across four runtime targets. No Tier-1 anchors are designated yet; see the AUDIT-NOTE below.
 
 ## Subsystems
 
 ### 1. Queries/ -- live-query benchmarks (MockDb, no real DB)
 
-Ten benchmark classes under `Tests/Tests.Benchmarks/Benchmarks/Queries/`. Each follows the pattern:
+Twelve benchmark classes under `Tests/Tests.Benchmarks/Benchmarks/Queries/` (ten prior + `RenderPipelineBenchmark` and `EagerLoadingBenchmark` added by delta 2026-11-11). Each follows the pattern:
 
 - `[GlobalSetup]` wires a `MockDbConnection` + `DataConnection` (or `Db` subclass) backed by a static `QueryResult` payload.
 - `[Benchmark]` methods compare LINQ, `CompiledQuery`, and raw ADO.NET execution paths.
 - `[Benchmark(Baseline = true)]` is always the raw ADO.NET path so ratios are LINQ/compiled overhead over pure ADO.
+
+The two delta 2026-11-11 classes do not follow this LINQ-vs-ADO.NET pattern: they have no raw ADO.NET baseline and exist to compare a branch against master (see below).
 
 | Class | Provider | Measures |
 |---|---|---|
@@ -35,10 +37,27 @@ Ten benchmark classes under `Tests/Tests.Benchmarks/Benchmarks/Queries/`. Each f
 | `Issue3253Benchmark` | SQLite (Microsoft) | Small/Large INSERT and UPDATE with variable vs static parameters; `Query.ClearCaches()` variant; async variants |
 | `Issue3268Benchmark` | SQL Server 2008 | UPDATE with nullable vs non-nullable columns; compiled vs dynamic; measures `DataConnection` creation overhead with `_Full` variants |
 | `CacheActivityBenchmark` | SQLite (Microsoft) | 18-method query-plan-cache suite: bucket fill, chain-hash partitioning, `MappingSchema` churn, realistic hit/miss mix, long chains, `NoLinqCache` scope, hot/cold tiering, bucket/global cap eviction, `CompiledQuery` reuse, concurrent reads/writes, memory footprint |
+| `RenderPipelineBenchmark` | SQLite (Microsoft) over `MockDbConnection` | Delta 2026-11-11: 7 `[Benchmark]` methods over the prepare/render pipeline: `Render_Hot`, `Execute_Select`, `Execute_Insert`, `Render_ValueDependent`, `Render_SkipTake`, `Render_ComplexParam`, `Prepare_Cold` |
+| `EagerLoadingBenchmark` | SQLite (Microsoft), real in-memory shared-cache DB | Delta 2026-11-11: `Execute_Hot` and `Prepare_Cold` for `LoadWith` over `EagerParent`/`EagerChild` |
 
 `Issue3253Benchmark` uses `LinqToDB.Internal.Linq.Query.ClearCaches()` to force cache-miss regressions -- it was introduced for issue #3253 which tracked query-plan cache bloat with high column counts.
 
 `CacheActivityBenchmark` (`Benchmarks/Queries/CacheActivityBenchmark.cs:35`) exercises `LinqToDB.Internal.Linq.Query`'s cache internals through public APIs only (`IQueryable.ToSqlQuery()`, `Query.ClearCaches()`, `CompiledQuery.Compile`, `NoLinqCache.Scope()`) so the same file compiles unmodified on master and on a query-cache refactor branch -- diffs between runs are attributable to the cache change. Its nested `BenchmarkConfig : ManualConfig` forces `InProcessEmitToolchain` (`Benchmarks/Queries/CacheActivityBenchmark.cs:41-44`) so BenchmarkDotNet doesn't spawn child processes, working around environments where antivirus/EDR blocks dynamic child-process execution. `RunManually(warmups, iterations)` (`Benchmarks/Queries/CacheActivityBenchmark.cs:481`) is an alternate Stopwatch-based runner covering the same 18 benchmark methods, invoked when BDN's toolchain itself is blocked; it trades statistical rigor for a stable branch-vs-master comparison and prints a Markdown table tagged by the `CACHE_BENCH_TAG` environment variable.
+
+Delta 2026-11-11 -- `RenderPipelineBenchmark` (`Benchmarks/Queries/RenderPipelineBenchmark.cs:34`) targets the render-pipeline redesign (`DataConnection.QueryRunner.GetCommand` plus the per-query render cache on `QueryInfo`) with public APIs only, so one file compiles on master and on the redesign branch. `Setup` (`:76`) builds a one-row `QueryResult` (with a `Schema` DataTable and `Return = 1`) and a `MockDbConnection(result, ConnectionState.Open)`, wrapped by `new DataConnection(new DataOptions().UseConnection(SQLiteTools.GetDataProvider(SQLiteProvider.Microsoft), _cn))`. The nested `Entity` table (`Id`, `Name`, `Value`, `Created`) is the only model. Rendering goes through a `[NoInlining] Render<T>(IQueryable<T>)` helper returning `q.ToSqlQuery().Sql.Length` (`:73`), so no mock execution is needed for render benchmarks.
+
+Method intent in `RenderPipelineBenchmark`:
+
+- `Render_Hot` re-renders one non-parameter-dependent query 200 times (cache hit).
+- `Execute_Select` / `Execute_Insert` execute a SELECT / `_db.Insert` through the mock (render reuse + interpreter + map, or non-query execute).
+- `Render_ValueDependent` uses `_inList.Contains(x.Id)` (SQL varies with values, rebuilt per call).
+- `Render_SkipTake` isolates parameterised SKIP/TAKE resolution (moved into the convert visitor).
+- `Render_ComplexParam` renders `BuildComplexParam()` (correlated `Any`, self join, two IN-lists, LIKE, date parameter, ordering, Skip/Take) -- the memory-acceptance basis for the two-pass-convert POC.
+- `Prepare_Cold` calls `Query.ClearCaches()` then renders 48 structurally distinct shapes from `BuildDistinct(i)`.
+
+Nested `BenchmarkConfig` forces `InProcessEmitToolchain` with 6 warmups / 20 iterations, `MemoryDiagnoser`, GitHub Markdown exporter. `RunManually(warmups = 5, iterations = 20)` (`:254`) runs all seven with Stopwatch plus `GC.GetTotalAllocatedBytes` (AppDomain monitoring on non-NETCOREAPP), then reports the retained heap delta for 48 distinct cached queries (the "statement-drop memory claim"), tagged by `RENDER_BENCH_TAG`.
+
+Delta 2026-11-11 -- `EagerLoadingBenchmark` (`Benchmarks/Queries/EagerLoadingBenchmark.cs:34`) is the eager-loading counterpart. Eager loading issues a main query plus a detail query and materialises both, so a mock cannot supply the result sets; it runs on a **real** in-memory SQLite database (`Mode=Memory;Cache=Shared`, name made unique per instance via a `Guid`, `:72`), anchored by a keep-alive `DbConnection` from `_provider.CreateConnection` (`:89`). `Setup` creates `EagerParent` (with an `[Association]` `List<Child> Children`) and `EagerChild` tables and seeds 40 parents x 5 children. `Execute_Hot` runs `GetTable<Parent>().LoadWith(p => p.Children).ToList()` 100 times; `Prepare_Cold` clears caches and runs 32 structurally distinct `LoadWith` shapes from `BuildDistinct`. The class comment records that `QueryInfo.EagerCommandCache` still retains the statement graph (not migrated to the statement-free `BakedQuery`), so the retained-footprint figure printed by `RunManually` (`:174`, 32 distinct cached eager queries) is the branch-vs-master memory signal for that path. Same `InProcessEmitToolchain` config and `RENDER_BENCH_TAG` env var as `RenderPipelineBenchmark`.
 
 ### 2. QueryGeneration/ -- SQL emission only (no DB round-trip)
 
@@ -82,19 +101,19 @@ All TypeMapper benchmarks use synthetic `Original.*` / `Wrapped.*` classes defin
 `TestClasses/ProviderMocks/` (namespace `LinqToDB.Benchmarks.TestProvider`) contains 7 classes that implement the full ADO.NET `DbConnection`/`DbCommand`/`DbDataReader`/`DbParameter`/`DbParameterCollection`/`DbTransaction` hierarchy against an in-memory `QueryResult`:
 
 - `QueryResult` -- payload: `Names[]`, `FieldTypes[]`, `DbTypes[]`, `Data object?[][]`, `Return int`, optional `Match Func<string,bool>` predicate for multi-result routing.
-- `MockDbConnection` -- supports single-result and multi-result (`QueryResult[]`) constructors; routes via `MockDbCommand`. The delta-added QueryGeneration benchmarks pass `(Array.Empty<QueryResult>(), ConnectionState.Open)` to hand linq2db an already-open connection.
+- `MockDbConnection` -- supports single-result and multi-result (`QueryResult[]`) constructors; routes via `MockDbCommand`. The delta-added QueryGeneration benchmarks pass `(Array.Empty<QueryResult>(), ConnectionState.Open)` to hand linq2db an already-open connection; `RenderPipelineBenchmark` (delta 2026-11-11) uses the single-result `(result, ConnectionState.Open)` form.
 - `MockDbCommand` -- calls `GetResult()` which applies `Match` predicate for multi-result routing; `ExecuteNonQuery()` returns `QueryResult.Return`.
 - `MockDbDataReader` -- `Read()` increments row index into `Data`; `IsDBNull` checks for null; typed getters cast directly. `GetSchemaTable()` returns `QueryResult.Schema` (needed for column-metadata discovery).
 - `MockDbParameter` / `MockDbParameterCollection` / `MockDbTransaction` -- minimal stub implementations.
 
-These mocks eliminate network and serialisation cost, making every `[Benchmark]` measure only linq2db's own translation and materialisation overhead.
+These mocks eliminate network and serialisation cost, making every `[Benchmark]` measure only linq2db's own translation and materialisation overhead (except `EagerLoadingBenchmark`, which needs a real SQLite database).
 
 ## Key types
 
 | Type | File | Role |
 |---|---|---|
-| `Config` | `Config.cs` | `IConfig` singleton; jobs: .NET 4.6.2 (baseline), 8.0, 9.0, 10.0; RyuJIT x64; MemoryDiagnoser; GitHub Markdown exporter; `FilteredColumnProvider` strips Job/Error/Median/Gen*/Ratio/StdDev columns |
-| `Program` | `Program.cs` | Entry point; four manual-runner CLI modes bypass BenchmarkDotNet entirely: `manual-cache [iterations] [warmups]` (`Program.cs:24-30`, `CacheActivityBenchmark.RunManually`), `manual-paramreuse [iterations] [warmups]` (`Program.cs:35-41`), `manual-weakjoin [iterations] [warmups]` (`Program.cs:44-50`), `manual-deepjoin [iterations] [warmups] [onlyDepth]` (`Program.cs:53-60`); otherwise default filter `*.Queries.* *.QueryGeneration.*` (TypeMapper benchmarks opt-in only); `BenchmarkSwitcher.FromAssembly` |
+| `Config` | `Config.cs` | `IConfig` singleton; jobs: .NET 4.6.2 (baseline), 8.0, 9.0, 10.0; RyuJIT x64; MemoryDiagnoser; GitHub Markdown exporter; `FilteredColumnProvider` strips Job/Error/Median/Gen*/Ratio/StdDev columns. Delta 2026-11-11: passed to `BenchmarkSwitcher` only on the default (no-args or user-supplied args) path, not in the new `bdn` mode |
+| `Program` | `Program.cs` | Entry point. Delta 2026-11-11: manual runners are now table-driven -- `_manualRunners` (`Program.cs:24-32`) maps `manual-cache`, `manual-paramreuse`, `manual-render`, `manual-eager`, `manual-weakjoin`, `manual-deepjoin` to `Action<string[]>` lambdas using a shared `Arg(args, index, default)` int parser (`Program.cs:34-35`); usage `<verb> [iterations] [warmups]` (deepjoin also `[onlyDepth]`); defaults: cache and render and eager 20 iterations / 5 warmups, paramreuse 2000 / 200, weakjoin 8 / 2, deepjoin 3 / 1 / depth 0. `Main` (`Program.cs:37-51`) dispatches a runner and returns, else a new `bdn` first argument runs `BenchmarkSwitcher.FromAssembly(...).Run(args.Skip(1))` with each class's own `[Config]` (so InProcessEmit classes spawn no child process), else falls through to the commented scaffolding and `BenchmarkSwitcher` with default filter `*.Queries.* *.QueryGeneration.*` and `Config.Instance` (`Program.cs:135-141`); TypeMapper benchmarks are opt-in only |
 | `MockDbConnection` | `TestClasses/ProviderMocks/MockDbConnection.cs` | Core mock entry point |
 | `QueryResult` | `TestClasses/ProviderMocks/QueryResult.cs` | Mock result payload |
 | `NorthwindDB` | `Models/Northwind/NorthwindDB.cs` | `DataConnection` subclass wired to `MockDbConnection(Array.Empty<QueryResult>())`; used by `QueryGenerationBenchmark` and `ParameterReuseBenchmark` |
@@ -106,18 +125,20 @@ These mocks eliminate network and serialisation cost, making every `[Benchmark]`
 | `WeakJoinScanBenchmark` | `Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs` | Delta: `DeepChain13` / `Wide20` weak-join scan cost; `manual-weakjoin` |
 | `ParameterReuseBenchmark` | `Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs` | Delta: cost of duplicate-parameter equality checks; `manual-paramreuse` |
 | `DeepJoinChainBenchmark` | `Benchmarks/QueryGeneration/DeepJoinChainBenchmark.cs` | Delta: deep self-join chain depth sweep, no `[Benchmark]` methods; `manual-deepjoin` |
+| `RenderPipelineBenchmark` | `Benchmarks/Queries/RenderPipelineBenchmark.cs` | Delta 2026-11-11: 7 render/execute/prepare benchmarks over a SQLite-provider `MockDbConnection`; retained-footprint report for 48 cached queries; `manual-render` |
+| `EagerLoadingBenchmark` | `Benchmarks/Queries/EagerLoadingBenchmark.cs` | Delta 2026-11-11: `LoadWith` hot/cold benchmarks over a real shared-cache in-memory SQLite DB; retained-footprint report for 32 cached eager queries; `manual-eager` |
 
 ## Files (Tier 1 / Tier 2)
 
-No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Tier 2 (42 prior + 3 added by delta 2026-10-09).
+No Tier-1 files are declared in `kb-areas.md` for this area. All 47 files are Tier 2 (42 prior + 3 added by delta 2026-10-09 + 2 added by delta 2026-11-11).
 
-**Read (33 / 45; +1 via delta 2026-07-05, +4 via delta 2026-10-09):**
+**Read (35 / 47; +1 via delta 2026-07-05, +4 via delta 2026-10-09, +2 via delta 2026-11-11):**
 
 | File | Notes |
 |---|---|
-| `Program.cs` | Entry point; default filter; `manual-cache` dispatch (delta 2026-07-05); `manual-paramreuse`, `manual-weakjoin`, `manual-deepjoin` dispatch (delta 2026-10-09) |
+| `Program.cs` | Entry point; default filter; `manual-cache` dispatch (delta 2026-07-05); `manual-paramreuse`, `manual-weakjoin`, `manual-deepjoin` dispatch (delta 2026-10-09); delta 2026-11-11: refactored to the `_manualRunners` dictionary, added `manual-render`, `manual-eager` and the `bdn` pass-through mode |
 | `Config.cs` | Job matrix (net462/net80/net90/net10), exporters, columns |
-| `linq2db.Benchmarks.csproj` | OutputType=Exe; refs LinqToDB.csproj + BenchmarkDotNet; TFMs from `..\linq2db.Providers.props` |
+| `linq2db.Benchmarks.csproj` | OutputType=Exe; refs LinqToDB.csproj + BenchmarkDotNet; TFMs from `..\linq2db.Providers.props`; delta 2026-11-11: also imports `..\..\SQLite.Runtime.props` (SQLite native runtime for the real-DB `EagerLoadingBenchmark`) |
 | `Benchmarks/Queries/SelectBenchmark.cs` | SELECT benchmark; representative Queries pattern |
 | `Benchmarks/Queries/FetchSetBenchmark.cs` | Multi-row fetch |
 | `Benchmarks/Queries/FetchGraphBenchmark.cs` | LoadWith eager loading |
@@ -127,6 +148,8 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Ti
 | `Benchmarks/Queries/Issue3253Benchmark.cs` | Issue #3253 perf regression; cache-clear variant |
 | `Benchmarks/Queries/Issue3268Benchmark.cs` | Issue #3268 nullable column overhead |
 | `Benchmarks/Queries/CacheActivityBenchmark.cs` | New (delta 2026-07-05): query-plan-cache benchmark suite, 18 methods; forces `InProcessEmitToolchain`; `RunManually` fallback runner |
+| `Benchmarks/Queries/RenderPipelineBenchmark.cs` | New (delta 2026-11-11): render-pipeline / render-cache benchmarks over a mock connection, retained-footprint runner |
+| `Benchmarks/Queries/EagerLoadingBenchmark.cs` | New (delta 2026-11-11): `LoadWith` hot/cold benchmarks on real in-memory SQLite, retained-footprint runner |
 | `Benchmarks/QueryGeneration/QueryGenerationBenchmark.cs` | SQL emission only |
 | `Benchmarks/QueryGeneration/WeakJoinScanBenchmark.cs` | New (delta 2026-10-09): weak-association-join scan cost (Firebird v5 mock) |
 | `Benchmarks/QueryGeneration/ParameterReuseBenchmark.cs` | New (delta 2026-10-09): shared-parameter equality-check cost (Access/Ace) |
@@ -151,7 +174,7 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Ti
 | `Models/Northwind/NortwindExtensions.cs` | LINQ-expressed Northwind views |
 | `Models/Northwind/Northwind.cs` | Delta 2026-10-09: entity definitions (read head and the delta diff); change is `ActiveProduct`/`DiscontinuedProduct` switched to `class X : Product;` (no behavioural change) |
 
-**Not read (12 / 45):**
+**Not read (12 / 47):**
 
 | File | Skip reason |
 |---|---|
@@ -170,13 +193,14 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Ti
 
 **Outbound (this area depends on):**
 
-- `Source/LinqToDB/LinqToDB.csproj` -- direct project reference (sole project dependency in csproj).
-- `LinqToDB.Internal.Linq.Query` (`Query.ClearCaches()`) -- used in `Issue3253Benchmark`, and extensively in `CacheActivityBenchmark` (bucket fill, tier promotion/decay, cap eviction, concurrent reader/writer paths).
+- `Source/LinqToDB/LinqToDB.csproj` -- direct project reference.
+- `SQLite.Runtime.props` (repo root, imported by `linq2db.Benchmarks.csproj`) -- delta 2026-11-11: SQLite runtime assets for the real-database `EagerLoadingBenchmark`.
+- `LinqToDB.Internal.Linq.Query` (`Query.ClearCaches()`) -- used in `Issue3253Benchmark`, extensively in `CacheActivityBenchmark` (bucket fill, tier promotion/decay, cap eviction, concurrent reader/writer paths), and in `RenderPipelineBenchmark` / `EagerLoadingBenchmark` (`Prepare_Cold` and the retained-footprint baselines).
 - `LinqToDB.Linq.NoLinqCache` (`NoLinqCache.Scope()`) -- used in `CacheActivityBenchmark.NoLinqCacheScope` to measure the do-not-cache short-circuit.
 - `DataOptions.UseDisableQueryCache(true)` -- used by `WeakJoinScanBenchmark` and `DeepJoinChainBenchmark` so each build re-translates the query (delta 2026-10-09).
-- `ToSqlQuery().Sql` -- SQL-emission entry used by the delta-added QueryGeneration benchmarks.
+- `ToSqlQuery().Sql` -- SQL-emission entry used by the delta-added QueryGeneration benchmarks and by `RenderPipelineBenchmark.Render`.
 - `LinqToDB.Internal.Expressions.Types.TypeMapper` + `LinqToDB.Internal.Expressions.ExpressionGenerator` -- used by all TypeMapper benchmarks.
-- `LinqToDB.DataProvider.PostgreSQL`, `.SqlServer`, `.SQLite`, `.Access`, `.Firebird` -- provider-specific `GetDataProvider()` calls in benchmark setups.
+- `LinqToDB.DataProvider.PostgreSQL`, `.SqlServer`, `.SQLite`, `.Access`, `.Firebird` -- provider-specific `GetDataProvider()` calls in benchmark setups (`SQLiteTools.GetDataProvider(SQLiteProvider.Microsoft)` also in `RenderPipelineBenchmark` and `EagerLoadingBenchmark`).
 - `LinqToDB.Async` -- `ToListAsync()` in `FetchGraphBenchmark`.
 
 **Inbound (who depends on this area):** None at runtime; this is an executable benchmark harness. The solution filter `linq2db.Benchmarks.slnf` is the only structural inbound reference.
@@ -184,9 +208,11 @@ No Tier-1 files are declared in `kb-areas.md` for this area. All 45 files are Ti
 ## Known issues / debt
 
 - `QueryGenerationBenchmark` has most providers commented out -- only Access and Firebird are active. The commented block suggests intended multi-provider parameterisation that was never fully enabled. Any new provider added to the benchmark would produce richer regression data.
-- `Program.cs` contains a large commented-out manual-run block (now lines 62-139, shifted from 32-112 by the delta-added `manual-paramreuse` / `manual-weakjoin` / `manual-deepjoin` dispatches, and originally 22-97) that duplicates all benchmark class invocations. This is development scaffolding; it is not dead code (uncommenting enables profiler-guided runs) but it adds noise.
-- `Program.cs` now carries four near-identical `args[0] == "manual-*"` dispatch blocks, each re-declaring `iters`/`warmups` parsing; the fourth uses distinct local names (`dn`/`dw`/`dd`) to avoid pattern-variable clashes. Not yet factored into a table-driven dispatcher.
-- Three of the four manual runners (`WeakJoinScanBenchmark`, `ParameterReuseBenchmark`, `DeepJoinChainBenchmark`) duplicate the mean/median/Stopwatch/GC.Collect loop from `CacheActivityBenchmark.RunManually`. `DeepJoinChainBenchmark` and `WeakJoinScanBenchmark` explicitly cite BDN restore failure (NU1101), `ParameterReuseBenchmark` cites NuGet PackageSourceMapping.
+- `Program.cs` contains a large commented-out manual-run block (delta 2026-11-11: now lines 53-130, after the dispatch blocks were replaced by the compact `_manualRunners` table; previously 62-139, 32-112, originally 22-97) that duplicates all benchmark class invocations. This is development scaffolding; it is not dead code (uncommenting enables profiler-guided runs) but it adds noise.
+- Resolved by delta 2026-11-11: the four near-identical `args[0] == "manual-*"` dispatch blocks (each re-declaring `iters`/`warmups` parsing, with `dn`/`dw`/`dd` locals) were replaced by the table-driven `_manualRunners` dictionary and the `Arg` helper (`Program.cs:24-35`).
+- Five of the six manual runners (`WeakJoinScanBenchmark`, `ParameterReuseBenchmark`, `DeepJoinChainBenchmark`, and the delta 2026-11-11 `RenderPipelineBenchmark` and `EagerLoadingBenchmark`) duplicate the mean/median/Stopwatch/GC.Collect loop from `CacheActivityBenchmark.RunManually`. `DeepJoinChainBenchmark` and `WeakJoinScanBenchmark` explicitly cite BDN restore failure (NU1101), `ParameterReuseBenchmark` cites NuGet PackageSourceMapping. `RenderPipelineBenchmark` and `EagerLoadingBenchmark` also duplicate `GetAllocatedBytes()` and the retained-footprint measurement block almost verbatim.
+- `RenderPipelineBenchmark` and `EagerLoadingBenchmark` share the `RENDER_BENCH_TAG` env var (the eager one reuses the render name), so tagged outputs from `manual-render` and `manual-eager` are distinguished only by the printed header line.
+- `EagerLoadingBenchmark` relies on a real SQLite in-memory database kept alive by a shared-cache keep-alive connection; unlike the rest of the Queries folder it is not mock-isolated, so its timings include SQLite execution cost and are only meaningful as branch-vs-master deltas.
 - `ParameterReuseBenchmark` has a public constructor that calls `Setup()` in addition to `[GlobalSetup]` (same pattern as `QueryGenerationBenchmark`), and `DivergingValues` mutates shared `_counter` state, so its results depend on call order within a process.
 - `OracleReaderExpressionsBenchmark` documents a workaround for issue #2032 (complex reader expressions) via double-compile. The issue link is `https://github.com/linq2db/linq2db/issues/2032` -- worth verifying if it has since been resolved.
 - No `results/` directory state documented -- BenchmarkDotNet artifacts path is set to `..\..\..\..\..\..\Tests\Tests.Benchmarks`, meaning results land in the project root, which is committed. The `.gitignore` status of this directory is not validated here.
@@ -225,5 +251,14 @@ Tier 2 (cumulative after delta): 29 / 42 files read (69%). Denominator increased
 - Citation re-verification: `QueryGenerationBenchmark.cs:1` anchors the file (class declared at line 15), `CacheActivityBenchmark.cs:35` (class), `:42` (`InProcessEmitToolchain`, inside the cited 41-44), `:481` (`RunManually`) all confirmed against current source.
 
 Tier 2 (cumulative after this delta): 33 / 45 files read (73%). Denominator +3 (three new files), numerator +4 (three new files + `Northwind.cs`). Confidence remains `low` per the prior audit demotion (not re-promoted by this delta); still below the 90% Tier-2 threshold.
+
+**Read (this run -- delta, 2026-11-11):**
+
+- `Tests/Tests.Benchmarks/Benchmarks/Queries/RenderPipelineBenchmark.cs` -- added: 7 `[Benchmark]` methods (`Render_Hot`, `Execute_Select`, `Execute_Insert`, `Render_ValueDependent`, `Render_SkipTake`, `Render_ComplexParam`, `Prepare_Cold`) over a `MockDbConnection` with the SQLite provider; InProcessEmit config; `RunManually` plus 48-query retained-footprint report, `RENDER_BENCH_TAG`.
+- `Tests/Tests.Benchmarks/Benchmarks/Queries/EagerLoadingBenchmark.cs` -- added: `Execute_Hot` / `Prepare_Cold` for `LoadWith` on a real shared-cache in-memory SQLite database with a keep-alive connection; `RunManually` plus 32-query retained-footprint report (notes `EagerCommandCache` still retains the statement graph).
+- `Tests/Tests.Benchmarks/Program.cs` -- modified: dispatch rewritten as the table-driven `_manualRunners` dictionary with an `Arg` helper, new `manual-render` and `manual-eager` verbs, new `bdn` pass-through mode using per-class configs; commented scaffolding block now at lines 53-130. Already counted as read, no numerator change. Contradicted claims updated in place (Key types `Program` row, Known issues dispatch-block bullet).
+- `Tests/Tests.Benchmarks/linq2db.Benchmarks.csproj` -- modified: added `<Import Project="..\..\SQLite.Runtime.props" />` (commit 26034eabb, #5673). Already counted as read, no numerator change.
+
+Tier 2 (cumulative after this delta): 35 / 47 files read (74%). Denominator +2 (two new files), numerator +2. Confidence remains `low` (not re-promoted); still below the 90% Tier-2 threshold; no claims rest on unread files.
 
 </details>

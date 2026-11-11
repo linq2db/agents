@@ -3,8 +3,8 @@ area: T4-TEMPLATES
 kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
-last_verified: 2026-10-21
-last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
+last_verified: 2026-11-11
+last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 ---
 
 # T4-TEMPLATES -- GitHub themes
@@ -27,20 +27,21 @@ last_verified_sha: 89b5ce16278728b9936ba374827fea002c76e962
 - **template** -- 6 closed issues share this keyword. Sample: #1427, #1550, #1551, #1866, #1897, #2485.
 - **code** -- 6 closed issues share this keyword. Sample: #871, #1191, #1489, #2633, #3374, #4375.
 - **generates** -- 5 closed issues share this keyword. Sample: #1191, #1450, #1919, #3374, #4854.
+- **t4models NuGet binaries** -- [#5861](https://github.com/linq2db/linq2db/issues/5861) (closed 2026-10-27) moved the SQL Server Compact binaries shipped by linq2db.SqlCe and linq2db.t4models from the hand-copied Redist/SqlCe folder to the Microsoft.SqlServer.Compact NuGet package. Closing PR: [#6163](https://github.com/linq2db/linq2db/pull/6163).
 
 ## Active discussions
 - No active discussions.
 
 ## Stats
 - Open issues: 4 (area-tagged: #2037, #5183, #1553; cross-referenced: #6021)
-- Closed issues: 66
+- Closed issues: 67 (66 area-tagged; cross-referenced: #5861)
 - Open PRs: 3 (cross-referenced, all draft: #5707, #6036, #6037)
-- Total PRs: 27 (24 area-tagged + 3 cross-referenced)
+- Total PRs: 28 (24 area-tagged + 4 cross-referenced: #5707, #6036, #6037, #6163)
 - Discussions: 1
-- Last fetched: 2026-10-21
+- Last fetched: 2026-11-11
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 97 (69 issues + 27 PRs + 1 discussions)
-- Themes extracted: 15 (5 open, 10 resolved)
+- Index entries scanned: 100 (71 issues + 28 PRs + 1 discussion)
+- Themes extracted: 16 (5 open, 11 resolved)
 </details>
