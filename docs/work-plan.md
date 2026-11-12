@@ -128,6 +128,13 @@ The **authorized change surface**, not a prediction. One row per planned edit: `
 - contract changes where a caller must tolerate a new value — a `throw` that becomes a `return null`, an added enum member a `switch` does not handle
 - a provider newly set on an existing flag — it joins every rewrite the flag gates, so search that provider's baselines for the SQL those rewrites change, and the tests that assert SQL shape (`EnumerateAccessibleSources`, source counts), `UserTests` included, not only the fixtures the original change touched (#6157: Access on `IsComplexJoinConditionSupported` broke `Issue2832Tests`)
 - a value materialised at build time and kept in a cache — a constant substituted into an exposed tree, a delegate compiled from one, a value compared by instance — gets a row naming what its object graph reaches (data contexts, argument arrays, query instances), whether reading or enumerating it can execute work or reach a data context whatever its runtime type, and every holder that keeps it (a closure, a by-value comparison, a compiled-query cache key) (#6110: a compiled `nameSelector` delegate closed over the whole argument array, data context included; an `IEnumerable<T>` holding a query passed a static-type check, and `q.AsEnumerable().Select(...)` then passed a runtime-type check while `CompiledTable`'s cache key kept it alive)
+- a TFM added or dropped gets four rows of its own:
+  - every new `Queryable` / `Enumerable` overload of a method name linq2db registers with `[BuildsMethodCall]`, one row per arity, from the new ref pack's metadata (its XML docs omit the new members);
+  - a sweep of the dropped TFM's tokens (`net8`, `NET8_0`, `Net80`) and any tooling floor it carried (a Roslyn version) across comments, YAML and readmes;
+  - every mirrored per-band project and its `linq2db.slnx` configuration entries, one path per hit;
+  - the netstandard2.0 break inventory ([`code-design.md`](code-design.md)), re-derived for each `#if NET<N>` arm a later master merge brings in.
+
+  (#5942: a count-only `JoinBuilder` check let .NET 11's tuple-returning `FullJoin` crash, #6311; a copied EF10 slnx block excluded the EF11 F# model from `Testing`; stale net8 / Roslyn 4.8 comments; a merge's `NET8_0_OR_GREATER` arm was stripped and left netstandard2.0, now the net8/net9 asset, without the SAP HANA .NET client names.)
 
 Every row carries exactly one verdict: `covered by E-n` | `deferred: <reason>` | `out-of-scope`. If a search finds nothing, write `Localized — searched <symbol> across <scope>, no callers or emitted-SQL change.` **A bare "localized" with no named search is invalid.**
 
