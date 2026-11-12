@@ -1,5 +1,5 @@
 <#
-PostToolUse hook on Bash: track docker containers the current Claude Code
+PostToolUse hook on Bash / PowerShell: track docker containers the current Claude Code
 session started. Appends container names parsed from `docker start <name>...`
 commands to `.build/.agents/docker-session-started.txt` (deduplicated, UTF-8
 without BOM).
@@ -11,8 +11,8 @@ Consumers:
    "Session-started containers — tracked only if the hooks are wired".
 
 Wired in the user's `.claude/settings.local.json` under `hooks.PostToolUse`
-with matcher "Bash". Hook receives a JSON payload on stdin whose
-`tool_input.command` is the literal Bash command string.
+with matcher "Bash|PowerShell". Hook receives a JSON payload on stdin whose
+`tool_input.command` is the literal command string of either tool.
 #>
 
 $ErrorActionPreference = 'Continue'
@@ -23,7 +23,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($raw)) { exit 0 }
 
     $payload = $raw | ConvertFrom-Json -ErrorAction Stop
-    if ($payload.tool_name -ne 'Bash') { exit 0 }
+    if ($payload.tool_name -notin 'Bash', 'PowerShell') { exit 0 }
 
     $cmd = [string]$payload.tool_input.command
     if ([string]::IsNullOrWhiteSpace($cmd)) { exit 0 }
