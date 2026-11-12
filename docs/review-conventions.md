@@ -116,6 +116,16 @@ in-tree or consumer-facing and stay reviewable. (Surfaced on #5850: the same fal
 sites swallow a failed `TryBuildSequence` appeared in a source comment and in the commit message that
 introduced it. The comment fix was accepted and pushed; the commit-message finding was rejected.)
 
+### A defect outside the diff: search for its issue before raising it
+
+Before presenting a defect the PR doesn't touch — a sibling site of the class the PR fixes, a gap spotted
+while reading surrounding code — search open issues for it: `gh issue list --repo linq2db/linq2db --search
+"<symbol or file>" --state open`, and again for the PR's linked issue number, which sibling issues
+usually cite ("same class as #N"). When one exists, report the defect as tracked by it instead of asking how to
+handle it. This applies to inline reviews too, not only `/review-pr`. (Surfaced on #6074: the
+`TrimStart()` / `TrimEnd()` gate was raised as a new finding while #6075, filed in the PR's own first
+session and citing #6067, already tracked it.)
+
 ### Formatting on PR-touched lines — and untouched lines the PR made inconsistent
 
 "Don't reformat unrelated code" forbids touching lines the task doesn't modify; it does **not** suppress review findings on lines the PR itself adds or modifies. On PR-introduced lines, flag trailing whitespace, 3+ consecutive blank lines, mixed tabs/spaces that visibly misalign, or indentation not matching the enclosing scope; the fix is a one-line ```suggestion. **An inconsistency the PR *creates* on an untouched line is also in scope** — when the PR changes line A and that makes untouched line B inconsistent with it, B is reviewable, routed to a **file-level** comment since GitHub rejects a line comment outside a diff hunk. Read the rule as "don't go looking for pre-existing problems", not "never mention an unmodified line". (#5750)
