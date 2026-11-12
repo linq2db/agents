@@ -218,6 +218,7 @@ A change that removes or raises a modern TFM in `<TargetFrameworks>`, or narrows
 2. **Classify** each by the table above. Most are feature parity; only the first two rows need work.
 3. **Sweep**: run `Tests/Linq` on SQLite with `-LinqToDBAsset netstandard2.0`. A `MissingMethodException` is a feature-parity gap (the tests call net-only API); any other red is a candidate hard fail.
 4. **Record** the result (classified hard fails and provider items, or "none") in the PR body, and file each actionable item as its own issue.
+5. **Sweep the non-code places that name the TFM**, which no build fails on: `docs/source/docfx.json` and `toc.yml` (a metadata entry for a deleted project fails the docs build's `-WarningsAsErrors`), every packed `readme.md` (`git grep -n -E "net(8|9)\.0|\.NET (8|9)" -- "*.md"`, with the TFM's numbers), the buckets of `Data/Setup Scripts/UserDataProviders.json` and `UserDataProviders.json.template`, and comments in `Directory.Packages.props`. The PR's `docs` workflow must be green, not only `build`. (#5942: all three were found by review, the docfx one after the docs job had been red for days.)
 
 #### Adding a .NET major TFM: re-check the ban lists
 
@@ -227,6 +228,10 @@ RS0030 bans by documentation ID, so **per overload**. A new .NET major adds over
 2. **Classify** each `newInTarget` gap: the same hazard as its banned twin (culture-sensitive formatting or parsing, current-culture comparison, a reflection invoke that skips `TargetInvocationException` unwrapping) → ban it beside the twin with the same message; the sanctioned alternative the message names (`IFormatProvider`, `StringComparison`, `char` / `Rune`) → leave it. Older gaps of the same hazard count too: the check first ran on the .NET 11 PR ([#5942](https://github.com/linq2db/linq2db/pull/5942)), which is what found the .NET 9 span twins.
 3. **Build** `-c Release` for the new TFM, so each added ban either passes or exposes the call sites that already bind to the new overload.
 4. **Record** the added entries, or "none", in the PR body.
+
+#### Adding a .NET major TFM: code already gated on it has never compiled
+
+An `#if NET<N>_0_OR_GREATER` block that reaches master before TFM N is in `<TargetFrameworks>` is compiled, and run, for the first time by the PR that adds N. Treat every such block as untested: list them (`git grep -n "NET<N>_0_OR_GREATER" origin/master -- Source`) and give each one a test in that PR before trusting it. (#5942: master's `Queryable.FullJoin` arm never matched, because .NET 11 ships `FullJoin` only with an optional comparer, so every call has six arguments, and it left both join sides non-nullable.)
 
 #### net11.0 runtime-async needs a separate browser-wasm build
 
