@@ -110,7 +110,8 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 - **Release notes URL:** https://github.com/ydb-platform/ydb-dotnet-sdk/releases
 - **Update rule:** **Public-API surface diff via fuget** (see *Fuget API-diff procedure*) — show diff to user before committing.
 - **API-diff exclusions:** `Ydb.Sdk.Services.*` (the high-level Query / Table services namespace; linq2db consumes only the lower-level `Ydb.Sdk.Ado` ADO.NET surface).
-- **Last verified:** 2026-05-15 on release 6.3.0
+- **0.36-0.38 review (done after the fact; #5763 bumped 0.35.0 -> 0.38.0 outside this procedure):** 0.38 stopped prefixing `YdbParameter.ParameterName` with `$`, so debug/trace SQL prints `DECLARE p_1 Int32` while the query uses `$p_1`. Accepted by the maintainer as-is: baselines stay without `$`, and the CTE-vs-parameter conflict check still holds because `YdbSqlBuilder.BuildSql` reserves CTE names as bare parameter names before rendering (`CteNameCollidesWithParameter` baseline: CTE `$p`, parameter `$p_1`). `StrictSerializableRw` / `CommitTimestamp` and query stats are optional features, not deps work.
+- **Last verified:** 2026-11-12, between releases (0.38.0, the latest; no prereleases)
 
 ## ClickHouse.Driver
 
@@ -118,7 +119,9 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 - **Update rule:** On every bump:
   1. **TFM support cap:** version `0.9.0` is the last release that supports `net462`. The net462 conditional row (the `!net8+` split) **must stay at `0.9.0`** unless / until linq2db drops net462 or ClickHouse re-adds netfx support.
   2. **Public-API surface diff via fuget** (see *Fuget API-diff procedure* category note). Show the diff to the user before committing the bump.
-- **Last verified:** 2026-05-15 on release 6.3.0
+  3. **A new assembly in the package needs a `files` entry in `Build/licenses/components.json`** — the notices harvest reports versions, not files (1.4.0 added `ClickHouse.Driver.Common.dll`, 1.5.0 `ClickHouse.Driver.Tcp.dll`).
+- **Native TCP client (1.5.0+) is not a linq2db provider:** `ClickHouseTcpClient` is "a separate API ... and has no ADO.NET layer" (release notes). Maintainer rule: linq2db supports only providers with an ADO.NET layer, so no TCP test provider until upstream ships one.
+- **Last verified:** 2026-11-12, between releases (1.4.0 -> 1.5.0)
 
 ## System.Data.SQLite
 
@@ -169,7 +172,8 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
   1. Pull the README diff between the current and target version (per the nupkg method above) to extract the **list of newly polyfilled APIs**.
   2. For each new API, search the linq2db codebase for our own polyfill or conditional-build (`#if`) implementing the same API. If found, propose to **delete** our copy and rely on Meziantou.Polyfill instead.
   3. **Always show the full list of new APIs to the user for review**, even if no internal duplicates are found — the user may want to start using one of the new polyfills somewhere.
-- **Last verified:** 2026-09-09 on release 6.5.0 prep (1.0.158 → 1.0.165: 1350 → 1355 polyfills, **0 removals**, no internal duplicate to delete; `RuntimeHelpers.GetSubArray<T>` offered and declined — it would enable array range-slicing on net462/netstandard2.0 next to the existing `Index`/`Range` polyfills, but has no current caller)
+- **C# 15 feature types are available but opt-in:** `IUnion`, `UnionAttribute` (unions) and `IsClosedTypeAttribute` (closed hierarchies) are in the allowlist since 2026-11-12.
+- **Last verified:** 2026-11-12, between releases (1.0.165 → 1.0.171: 1355 → 1399, 0 removals, no internal duplicate). Earlier: 2026-09-09 on release 6.5.0 prep (1.0.158 → 1.0.165: 1350 → 1355 polyfills, **0 removals**, no internal duplicate to delete; `RuntimeHelpers.GetSubArray<T>` offered and declined — it would enable array range-slicing on net462/netstandard2.0 next to the existing `Index`/`Range` polyfills, but has no current caller)
 
 ## Oracle.ManagedDataAccess.Core
 
@@ -275,7 +279,7 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
      <PackageVersion Include="Net.IBM.Data.Db2"     Version="10.0.0.100"  Condition="'$(TargetFramework)'=='net10.0'" />
      ```
      Same pattern for `-lnx` and `-osx`. Apply on every X.x → (X+1).x bump that drops a supported TFM.
-  2. **The CI install script must match — one branch per TFM.** Versions are pinned in `Build/Azure/scripts/db2.provider.sh` (lnx; the osx twin was dropped with the macOS jobs in #5834). It carries the *same* TFM conditional as `Directory.Packages.props` (`if [ "$TFM" = "net10.0" ]` → 10.x, else → 9.x) and states `MUST match Net.IBM.Data.Db2-<plat> in Directory.Packages.props for this TFM` in a comment. So **every bump of either row updates the matching script branch**: bumping the net10 row bumps `DB2_PKG_VERSION` in the `net10.0` branch; bumping the lower row bumps the `else` branch. The script is the `script_linux_local` of the combined `w_DB2InformixDuckDB` leg (`test-matrix.yml`), so it backs **informix** too — a wrong version breaks two providers.
+  2. **The CI install script must match.** Since .NET 8/9 were dropped (#5942) there is one row for every TFM, and `db2.provider.sh` pins one `DB2_PKG_VERSION`; its old net10.0/else split installed the 9.x driver on net11.0 legs until the 2026-11-12 deps update removed it. The history below describes the split era. **One branch per TFM (split era).** Versions are pinned in `Build/Azure/scripts/db2.provider.sh` (lnx; the osx twin was dropped with the macOS jobs in #5834). It carries the *same* TFM conditional as `Directory.Packages.props` (`if [ "$TFM" = "net10.0" ]` → 10.x, else → 9.x) and states `MUST match Net.IBM.Data.Db2-<plat> in Directory.Packages.props for this TFM` in a comment. So **every bump of either row updates the matching script branch**: bumping the net10 row bumps `DB2_PKG_VERSION` in the `net10.0` branch; bumping the lower row bumps the `else` branch. The script is the `script_linux_local` of the combined `w_DB2InformixDuckDB` leg (`test-matrix.yml`), so it backs **informix** too — a wrong version breaks two providers.
      - *(Superseded rule, kept for context: this entry previously said "do not update these scripts when adding a TFM-conditional entry — CI runs the lower-TFM matrix and needs the older client." That predated the scripts gaining their own TFM conditional; since then, leaving them alone silently pins CI to a stale client. Corrected 2026-08-03 during 6.4.0 prep.)*
   3. **The LINQPad driver is a third consumer of these rows, and it ships the version to users.** `Source/LinqToDB.LINQPad` compiles the ids *and versions* into a generated `NuGetPackageVersions` class (the `GenerateNuGetPackageVersions` target in `LinqToDB.LINQPad.csproj`) and hands them to LINQPad, which downloads that client per connection. The item transforms expand against the **driver's own** TFM, `net8.0-windows7.0`, so only the **lower** row of the split above is ever picked up — bumping the `net10.0` row alone leaves every user's LINQPad downloading the old client, and nothing in the build says so. This one is *correct* as it stands (10.x ships a net10.0-only dependency group and the driver assembly is `lib/net8.0`), so the action is to **confirm it deliberately** on each bump rather than to sync it: if the driver should follow, the lower row has to move too. The csproj target carries the same warning at the resolution site.
   4. **API-surface diff via fuget** (see *Fuget API-diff procedure*) — diff between the previous active version and the new active version, reviewed by the user before commit.
@@ -364,6 +368,7 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 - **Release notes URL:** _none per MTP version._ `microsoft/testfx` hosts the code but tags **MSTest** versions (3.x/4.x), not MTP's 2.x line, so there is no release body to read for a 2.3.3 → 2.4.0 bump.
 - **Risk surface is this repo's own MTP extension, not the runner itself.** `Tests/Base/TestProgressReporter.cs`, `TestProgressState.cs`, `TestRunCommandLineProvider.cs` and `TestCommandLine.cs` implement the `--test-progress` heartbeat that every test run in this workflow depends on, registered per-assembly via three `AssemblyInfo.TestProgress.cs` files. An MTP minor can move `ITestApplicationBuilder` / `IDataConsumer`, which shows up as a `Tests.Base` compile error — or, worse, as a silently missing heartbeat. Nothing shipped is affected.
 - **All five rows move together** via the shared property; check that every `Microsoft.Testing.Extensions.*` id has the target version published, not just `Microsoft.Testing.Platform`.
+- **Co-bump with `NUnit3TestAdapter`:** adapter 6.3.1 depends on `Microsoft.Testing.Platform.MSBuild` >= 2.4.1, so MTP 2.4.0 + adapter 6.3.1 fails restore (NU1605).
 - **Last verified:** 2026-09-09 on release 6.5.0 prep (2.3.3 → 2.4.0)
 
 ## Microting.EntityFrameworkCore.MySql
@@ -376,6 +381,7 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 ## Microsoft.SourceLink.GitHub
 
 - **Release notes URL:** https://github.com/dotnet/sourcelink/releases
+- **Update rule:** stay on the 10.0.x line while net10.0 is the lowest band. 11.0.100 depends on `System.IO.Hashing` 11.0.0, which the notices harvest then reports as bundled in the net10.0 / net472 builds of `linq2db.cli`, the LINQPad driver and the T4 packages; 10.0.404 keeps it at the 10.0.x band.
 - **Last verified:** 2026-09-09 on release 6.5.0 prep (10.0.303 → 10.0.401)
 
 ## Microsoft.SqlServer.TransactSql.ScriptDom
@@ -387,7 +393,18 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 
 - **Release notes URL:** https://mysqlconnector.net/overview/version-history/
 - **Co-bump:** gates `Microting.EntityFrameworkCore.MySql` (see its entry) — 10.0.11 requires MySqlConnector 2.6.2.
-- **Last verified:** 2026-09-09 on release 6.5.0 prep (2.6.1 → 2.6.2)
+- **3.0.0 raised every dependency floor to the .NET 10 band:** `Microsoft.Extensions.Logging.Abstractions` / `DependencyInjection.Abstractions` / `System.Diagnostics.DiagnosticSource` >= 10.0.15 on all TFMs, plus `Microsoft.Bcl.Memory` >= 10.0.15 on netfx / netstandard2.0, and dropped the net6.0 / net9.0 assets (net9 apps use net8.0). The large fuget "removal" list is only those dropped TFMs; no bound member changed. It needs `$(LegacyNetPackageLatest)` / `$(BandLatest)` at 10.0.15 or later. Pomelo / Microting declare open floors, so they accept 3.0; EF11 (Microting 11.0.0-preview.1) passed its MySQL suite on it.
+- **Last verified:** 2026-11-12, between releases (2.6.2 → 3.0.0; Tests net10.0 + net462 and EF10 / EF11 MySQL suites green)
+
+## LinqKit
+
+- **Update rule:** test-only, but **1.4.1 changed the platform of every net462 test exe.** LinqKit 1.3.11 → `LinqKit.Core` 1.2.11 → `NETStandard.Library` 1.6.1 was the only path that put `Microsoft.NETCore.Platforms` in the net462 graph. Without that package the SDK's `AdjustDefaultPlatformTargetForNetFrameworkExeWithNoNativeCopyLocalItems` (`GetDefaultPlatformTargetForNetFramework`: x86 only for `Microsoft.NETCore.Platforms` or a `runtimes/win7-x86/` native) compiles the exe AnyCPU, while `Tests/linq2db.Providers.props` had already picked the x86 IBM drivers at evaluation; the 64-bit host fails one type load and NUnit discovers **zero tests**, with no error. `Tests/Directory.Build.targets` now sets `Prefer32Bit` for such exes, so the platform no longer depends on the package graph. If net462 discovery ever reports zero tests after a bump, read the exe's CLR header (`Requires32Bit`) first.
+- **Last verified:** 2026-11-12, between releases (1.3.11 → 1.4.1)
+
+## System.Security.Cryptography.Pkcs
+
+- **Update rule:** transitive-vulnerability pin, still needed: SqlClient 7.1.1 asks >= 8.0.1 (netfx) / >= 9.0.18 (net10+) and Oracle Core >= 8.0.1, all inside GHSA-2fmv-rv2c-59x7 / GHSA-846f-f764-76mx (8.0.0-8.0.1, 9.0.0-9.0.20, 10.0.0-10.0.12). Pinned to `$(LegacyNetPackageLatest)`; EF Core 10.0.15 needs >= 10.0.13. From net11 the `Microsoft.AspNetCore.App` framework supplies it, so projects with that FrameworkReference drop the Tests-wide pin there (a net11-only `-c Testing` restore otherwise fails NU1510).
+- **Last verified:** 2026-11-12, between releases (9.0.21 → `$(LegacyNetPackageLatest)` = 10.0.15)
 
 ## OpenTelemetry / OpenTelemetry.Exporter.Console (`$(OpenTelemetryVersion)`)
 
