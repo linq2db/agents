@@ -35,3 +35,22 @@ Unestablished: whether step 4 embedded *A narrowed provider set is a claim* (if 
 
 - GAP-05 recurs: round 1's MAJ001 also lacked an obligation next to a TO that existed but did not discriminate (closed by TO-19/TO-20).
 - GAP-03, GAP-07 and GAP-10 do not recur.
+
+## Round 3 — reviewed HEAD 6d69aeb09
+
+- **MAJ003** (TO-37 #6298 gate red on strict providers, `EnumMappingTests.cs:2918`) — GAP-02 — A-4 pinned TO-35..TO-38 on bare `[DataSources]` with one declared failure from a SQLite.MS-only measurement, while G-01 already recorded the head SQL as `CAST([Gender] AS INTEGER) = @gender` with `'F'`, an int-vs-string compare a strict server rejects; second class GAP-08: G-01 recorded `pass` with "left to `test-all`" in its sub-bullets, which `work-plan.ps1` validates only on the head line and one spelling; no CI ran TO-37 (6d69aeb09 never built: Linux legs ran 89c474425, Windows restore failed without #6295) — G-01 — preventable: yes
+
+### Aggregate
+
+1 finding, GAP-02 (second class GAP-08): a known-issue gate claimed for every provider from one provider's measurement, against the plan's own recorded SQL and with a strict-provider container already in use.
+
+### Recommended durable fix
+
+- GAP-02 → `docs/testing.md` *Gating an assertion failure* (embedded by `skills/work-plan/SKILL.md:73`): an unscoped `[ActiveIssue]` on bare `[DataSources]` is measured on one strictly typed provider and one file DB before pinning; a recorded mismatched-type compare (`CAST(col AS Int) = 'F'`) predicts a server error, so scope the gate or use `no-declaration:`.
+- GAP-08 → `scripts/work-plan.ps1` -Validate: fold G-01 sub-bullets into the "left to CI" check and match "left to `test-all`" / "pending"; warn on a bare-`[DataSources]` P8 row measured on SQLite only with no reason.
+
+### Continuity with rounds 1-2
+
+- GAP-02 recurs from round 2's second class (SUG001), in the same #6298 area: a cross-provider claim stated from one provider.
+- Round 1's GAP-07 fix (sibling gate inheritance) landed but does not cover a new gate's reach.
+- Round 2's recommended P8/critic rule ("sibling fixture does not coincide") was not found in `docs/work-plan.md` or `agents/plan-critic.md`; unverified whether it landed under other wording.
