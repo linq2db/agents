@@ -422,6 +422,8 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 
 ## P12 Critic verdict (M/L)
 
+**Current verdict: weak** (A-5 / A-6 round 1).
+
 **weak** — `plan-critic` on a different model, run against the branch worktree. Five objections, all
 accepted; four of them re-verified here rather than taken on the critic's word, and two changed the
 design. What it searched: `AsyncStateMachine|IAsyncStateMachine|AsyncMethodBuilder|MethodImplAttributes`
