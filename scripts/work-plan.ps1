@@ -483,7 +483,13 @@ function Invoke-Validate {
         # A `proof: control` obligation needs its red on record even when P8 names the mutation in prose, which the
         # check above cannot see, and a G-01 row that itself says the run is missing is not a pass. #6151: TO-9 read
         # "pass; the mutation run is not recorded", and its mutant was later measured green.
-        $g01Lines = @($g01 -split "`r?`n")
+        # one entry per bullet, continuation lines folded in: a red-arm note wrapped onto the next line belongs to
+        # the TO-n its bullet names (#5956: a "not run" on a continuation line slipped past this check)
+        $g01Lines = @()
+        foreach ($l in @($g01 -split "`r?`n")) {
+            if ($g01Lines.Count -eq 0 -or $l -match '^\s*-\s') { $g01Lines += $l }
+            else { $g01Lines[$g01Lines.Count - 1] += ' ' + $l.Trim() }
+        }
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to = $Matches[1]
@@ -860,12 +866,24 @@ function Invoke-Validate {
     if (-not $ok) { exit 1 }
 }
 
+function Expand-BraceList {
+    param([string] $Token)
+
+    $m = [regex]::Match($Token, '\{([^{}]*,[^{}]*)\}')
+    if (-not $m.Success) { return @($Token) }
+
+    $head = $Token.Substring(0, $m.Index)
+    $tail = $Token.Substring($m.Index + $m.Length)
+    return @($m.Groups[1].Value.Split(',') | ForEach-Object { Expand-BraceList ($head + $_.Trim() + $tail) })
+}
+
 # Every path-like backticked token in a P6 row, so one E-n may list several files. A row with
 # none falls back to its first backticked token, which is what this used to read for every row.
 function Get-RowPaths {
     param([string] $Row)
 
-    $tokens = @([regex]::Matches($Row, '`([^`]+)`') | ForEach-Object { $_.Groups[1].Value })
+    # a `{a,b}` brace list names several paths; -Reconcile matches literal paths only (#5956: 98 false "unplanned")
+    $tokens = @([regex]::Matches($Row, '`([^`]+)`') | ForEach-Object { Expand-BraceList $_.Groups[1].Value })
     $paths  = @($tokens | Where-Object { $_ -match '/' -or $_ -match '^[\w.\-]+\.(cs|csproj|fsproj|vbproj|props|targets|json|md|slnx|slnf|txt|yml|yaml|ps1|xml)(:.*)?$' })
     if ($paths.Count -gt 0) { return $paths }
     if ($tokens.Count -gt 0) { return @($tokens[0]) }

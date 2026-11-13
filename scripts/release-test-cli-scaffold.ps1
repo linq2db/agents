@@ -95,7 +95,13 @@ if (-not $RepoRoot) {
     $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 }
 if (-not $CliDll) {
-    $CliDll = Join-Path $RepoRoot '.build\publish\LinqToDB.CLI\Debug\net9.0\win-x64\dotnet-linq2db.dll'
+    # newest published TFM: the tool's TFM set moves with each .NET major (net9.0 went with #5942)
+    $publishRoot = Join-Path $RepoRoot '.build\publish\LinqToDB.CLI\Debug'
+    $published   = @(Get-ChildItem -Path $publishRoot -Directory -Filter 'net*' -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path (Join-Path $_.FullName 'win-x64\dotnet-linq2db.dll') } |
+        Sort-Object { [version]($_.Name -replace '^net', '') } -Descending)
+    $CliDll = if ($published.Count -gt 0) { Join-Path $published[0].FullName 'win-x64\dotnet-linq2db.dll' }
+              else { Join-Path $publishRoot 'net10.0\win-x64\dotnet-linq2db.dll' }
 }
 
 if (-not (Test-Path $CliDll)) {
