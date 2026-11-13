@@ -717,7 +717,7 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 
 ## P9 Verification gates
 
-- G-01: blocked — TO-5's red arm has never been run. CI at round-1 head
+- G-01: pass — (2026-11-13) every TO-n is `pass` or `n/a`; TO-5's red arm ran the same day. CI at round-1 head
   `37fc49396` (2026-11-13): GitHub tests run 43408124185 green, all five Access legs included; Azure test-all 25629
   green except four SQL Server legs (2008/2012/2014/2016) still running when read, none of which runs Access. Per
   obligation, as of 2026-11-13 (TO-1/TO-2 updated, TO-2 per A-25; the rest as of 2026-11-12, A-23):
@@ -749,10 +749,19 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   - TO-3: pass — `SchemaProviderTests` 14/14 on both LibRed configs (2026-09-21), and 44/44 procedures + schema +
     `Issue792` + create-data after A-18's `GetSchema` rewrite.
   - TO-4: pass — `AccessTypeTests` 72/72 across the four locally reachable flavours (A-11, A-12); Jet on CI x86 only.
-  - TO-5: blocked (red arm not run) — the control half passes (G-01a: `Access.Ace.OleDb` full suite, 1 provider-free
-    failure; G-01b: 84/0 and 98/0 on the shared path). No mutation routing a Microsoft flavour through a LibRed arm
-    has been executed, so the guard's ability to disagree is unshown. Two SC-5 edges with no control at all are open
-  under the review gate below: the `DetectProvider` "LibRed"-first marker and the unscoped `AccessDmlService` arms.
+  - TO-5: pass (red arm: 2026-11-13, below) — both arms at `c2888aded` on `Access.Ace.OleDb`, net10.0 Debug, filter
+    create-data + `AccessProceduresTests` + `AccessTypeTests` + `DataProvider.AccessTests` + `Issue681Tests`, each
+    capturing into its own `BaselinesPath` (`worktree-probe-arms.ps1`), each compared with
+    `baselines-capture-compare.ps1 -Pr 5956 -AllCaptured` against CI's `baselines/pr_5956`:
+    - control (head): 234 cases, 0 failed, 10 skipped; 149 captured files, **0 match neither** side.
+    - red arm (mutant: `CreateSqlBuilder` sends `AccessProvider.OleDb` to `AccessLibRedSqlBuilder`): 234 cases,
+      **0 failed** — so the tests alone do not see it — and **148 of 148** Access files match neither side.
+      Mechanism, read from `Issue681Tests.TestInsert`: blank parameter types in the preamble (A-4), the dropped
+      `[Database\TestData].` qualifier (A-5), and the builder's provider name in the header. The guard is the
+      baseline diff, and it disagrees.
+    Earlier controls: G-01a (`Access.Ace.OleDb` full suite, 1 provider-free failure) and G-01b (84/0, 98/0).
+    The two SC-5 edges this row used to list as uncontrolled (the `DetectProvider` "LibRed"-first marker and the
+    unscoped `AccessDmlService` arms) are closed by A-24: E-50 and the P10 line.
   - TO-6: pass — 89 files regenerate byte-identical and `Tests.T4` compiles (2026-09-22). Not regenerated since the
     alpha.4 bump; CLI CI legs green at head (run 43287410004).
   - TO-7: pass (red arm: the netstandard2.0 build failed on `Enumerable.ToHashSet()` before it was fixed, G-05) — G-05
