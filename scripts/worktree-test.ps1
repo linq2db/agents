@@ -166,6 +166,10 @@ Output (stdout, single JSON object):
     "linqToDBAsset": "netstandard2.0", // only with -LinqToDBAsset; the asset the tests ran against
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
+    "failedFullNames": [ "Tests.UserTests.Issue1347Tests.Test2(\"SQLite.MS\")", ... ],
+                                     // from the run's TRX report, with the class; failedTests carries the method
+                                     // only, which is ambiguous for common names (Test2). Empty when no TRX was
+                                     // written (bare-NUnit hosts, where --test-progress is skipped too)
     "failures":  [ { "test": "SomeTest(\"SQLite.MS\")", "message": [ "Shouldly...", ... ] } ],
                                      // first -MaxFailures (20) distinct failures, each with up to
                                      // -FailureLines (8) message lines - stack frames and the
@@ -450,6 +454,11 @@ if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider.Count -gt 0) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
 if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed') }
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
+
+# The console names a failed test by method only; the TRX report carries its class. Gated like --test-progress:
+# a bare-NUnit host rejects MTP options.
+$trxDir = Join-Path (Split-Path -Parent $LogPath) ([System.IO.Path]::GetFileNameWithoutExtension($LogPath) + '-trx')
+if ($useTestProgress) { $dotnetArgs += @('--report-trx', '--report-trx-filename', 'run.trx', '--results-directory', $trxDir) }
 if ($NoBuild) { $dotnetArgs += '--no-build' }
 
 # -NoBuild after a failed build runs the previous assembly without saying so (#5673: a failed master-control build
@@ -579,6 +588,18 @@ if (Test-Path -LiteralPath $LogPath) {
     }
 }
 
+$failedFullNames = @()
+$trxFile         = Join-Path $trxDir 'run.trx'
+if (Test-Path -LiteralPath $trxFile) {
+    $trxNs   = @{ t = 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010' }
+    $trxXml  = [xml][System.IO.File]::ReadAllText($trxFile)
+    $classes = @{}
+    foreach ($u in (Select-Xml -Xml $trxXml -XPath '//t:UnitTest' -Namespace $trxNs)) { $classes[$u.Node.id] = $u.Node.TestMethod.className }
+    foreach ($r in (Select-Xml -Xml $trxXml -XPath "//t:UnitTestResult[@outcome='Failed']" -Namespace $trxNs)) {
+        $failedFullNames += ($classes[$r.Node.testId] + '.' + $r.Node.testName)
+    }
+}
+
 if (-not $hint -and $failedTests.Count -gt 0 -and $Project -match 'Tests[\\/]Linq[\\/]' -and $Filter -notmatch 'CreateData\.CreateDatabase') {
     $hint = 'Filter has no CreateData.CreateDatabase: a data-dependent failure may be a stale or unseeded test database. Rerun with it before reading the failure as a defect.'
 }
@@ -600,6 +621,7 @@ $result = [ordered]@{
     testProgress = $useTestProgress
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
+    failedFullNames = @($failedFullNames | Select-Object -Unique)
     failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }

@@ -39,6 +39,10 @@ A **preprocessor symbol** is such a concept. Before removing, renaming or moving
 
 When an in-flight task surfaces an *unrelated* master breakage (usually a CI failure from a merge race), finish the in-flight branch first: resolve the conflict → force-push → `git switch -c <recovery-branch> origin/master` → open the recovery PR, which can run CI in parallel. Switching mid-rebase strands the in-flight branch rebased-but-unpushed and costs context.
 
+### A conflict resolved to upstream's side can still leave a duplicate
+
+When a rebase conflicts on a file upstream also added or rewrote (an add/add conflict, or a file a stacked parent adopted) and you take upstream's side, diff that file against upstream once the rebase finishes: `git diff <upstream> HEAD -- <file>`. A later commit whose hunk applies cleanly can re-insert code upstream's copy already carries, with no conflict reported. (2026-11-13: a block was in a shared analyzer file twice after a stacked rebase; restoring upstream's blob fixed it.)
+
 ### After every successful push: PR body check
 
 Check for a PR on the branch (`gh pr list --head <branch> --json number,title,body,url`):

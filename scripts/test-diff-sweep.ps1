@@ -55,6 +55,8 @@ Contract
   -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`) and untracked
                        files under -Path, every line counted as added; not with -Ref
 
+Fixer for `chains` hits: `split-test-chains.ps1 -File <path> -Lines '<n,n,...>'` (read each hit first).
+
 `chains` holds statement-level chains. A chain nested inside parentheses or braces - a call argument,
 `new X(new DataOptions().UseConfiguration(...))`, an object initializer - goes to `nestedChains`:
 on #5640 those were 35 of 148 hits and none was a layout defect.
