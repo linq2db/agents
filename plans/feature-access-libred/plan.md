@@ -104,7 +104,7 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
 - U-22 How does a missing table surface, for `AccessDmlService`'s table-not-found classification? — Not through `LibRedException` and not through a `Number`: a `SELECT` raises `LibRed.Sql.Binding.SqlBindException` with `Table 'X' does not exist.` (which the existing Access rule's `"does not exist"` substring match would already catch) while a `DROP TABLE` raises a plain `System.InvalidOperationException` with `DROP TABLE 'X': no such table.` (which it would **not**). E-11 must cover both shapes, and `DropTableTests` is the instrument — resolved-by probe
 - U-18 Does the "Microsoft-created database" constraint mean the *container* or the *populated schema and data*? The **container**: `Access.sql:26-35` drops every table before recreating them, so the LibRed configs run the normal create-data flow and everything but the file header is LibRed-written; the user was shown that consequence together with the two alternatives (commit fully populated MS-written files and skip create-data, or add a separate MS-written read-only fixture) and answered "this is fine", i.e. the container-only reading — resolved-by user answer, 2026-09-20
 - U-17 Does the bare `REFERENCES Person` form used outside the create script work? — **No.** `Tests/Base/TestBase.Identity.cs:36-37` re-adds `PersonDoctor`/`PersonPatient` after every identity reset using the column-list-free form, which is measured to fail on LibRed with the same `Foreign key on 'Parent' has 1 columns but references 0`; `ResetPersonIdentity`/`ResetAllTypesIdentity` are reached from 71 sites across 17 test files — resolved-by probe, covered by D-11
-- U-23 (A-23) Is `ConcatUnionTests.Issue3360_LiteralsInFirstQuery`'s LibRed failure ("Byte array for Guid must be exactly 16 bytes long") LibRed's, as its gate says, or linq2db's own literal? ChrisJollyAU measured (issue comment, 2026-10-16) that a quoted `'{…}'` GUID literal in a `UNION ALL` against GUID columns makes the column binary on ACE and LibRed alike (76 bytes for the literal row), while `{guid {…}}` returns a `Guid` on both ACE OLE DB and LibRed. E-9's `LibRedMappingSchema` is now an empty leaf over the base, so LibRed emits the quoted form. That contradicts U-9's alpha.2 measurement, where `{guid {…}}` failed to parse, so the package moved. Probe: give the LibRed leaf the OLE DB GUID converter, then run the test on both LibRed configs. Run it against OLE DB as a control, which passes today with `{guid {…}}`. — OPEN
+- U-23 (A-23) Is `ConcatUnionTests.Issue3360_LiteralsInFirstQuery`'s LibRed failure ("Byte array for Guid must be exactly 16 bytes long") LibRed's, as its gate says, or linq2db's own literal? ChrisJollyAU measured (issue comment, 2026-10-16) that a quoted `'{…}'` GUID literal in a `UNION ALL` against GUID columns makes the column binary on ACE and LibRed alike (76 bytes for the literal row), while `{guid {…}}` returns a `Guid` on both ACE OLE DB and LibRed. E-9's `LibRedMappingSchema` is now an empty leaf over the base, so LibRed emits the quoted form. That contradicts U-9's alpha.2 measurement, where `{guid {…}}` failed to parse, so the package moved. Probe: give the LibRed leaf the OLE DB GUID converter, then run the test on both LibRed configs. Run it against OLE DB as a control, which passes today with `{guid {…}}`. — resolved-by probe (A-24, 2026-11-12). With the LibRed leaf using the OLE DB converter, the test passes on both LibRed configs, direct and `LinqService`; the gate reports "Test passed but is marked with [ActiveIssue]"; the `Access.Ace.OleDb` control is 12/12. The failure was linq2db's literal, and E-49 fixes it.
 - U-7 Is a Microsoft Access engine installed here, so the committed test databases can be produced by MS code per D-7? — Yes: `Get-OdbcDriver` lists `Microsoft Access Driver (*.mdb, *.accdb)` in both 32- and 64-bit, and `New-Object -ComObject ADOX.Catalog` succeeds in a 64-bit process, which is what `AccessTools.CreateDatabase` needs (`AccessTools.cs:129`) — resolved-by probe
 - U-8 Does `Data/Create Scripts/Access.sql` run end to end through LibRed? — Partly: replaying all 70 statements on the `GO` divider created all 15 tables, but 2 `ALTER TABLE … REFERENCES Person` statements fail because LibRed requires the referenced column list (fix measured to work → D-11) and 5 `CREATE Procedure` statements fail — action procedures with parameters, `UPDATE`/`DELETE` bodies, and `Scalar_DataReader` — while parameterised `SELECT` procedures all succeed (→ D-10) — resolved-by probe
 - U-9 How must a GUID literal be written? — As a plain `'xxxxxxxx-…'` string, which compares equal to a `GUID` column; the OLE DB `{guid {…}}` form and the ODBC escape form both fail to parse, and a `Guid` parameter round-trips and reads back as `Guid` — resolved-by probe, chosen in D-6
@@ -572,6 +572,85 @@ the superseded reasoning stays readable; the paragraph immediately following is 
   - `Tests/Linq/Create/CreateData.cs` — the `AccessAction` → `AccessNamedParametersAction(connection, provider)`
     refactor that E-21a's LibRed arm uses.
 
+**Review round 1 fixes (A-24)**
+
+- E-45 `Source/LinqToDB/Internal/DataProvider/LibRedProviderAdapter.cs` — add `CreateDatabase` as
+  `Action<string, bool>` (connection string, ACCDB?). It is built as a hand-made expression over
+  `LibRedConnection.CreateDatabase(string, Collation?, JetVersion)`, with `Expression.Default` for the `Collation?`
+  that `TypeMapper` cannot wrap, and `JetVersion.Version12_2007` / `Version4` as enum constants. Keep
+  `DatabaseExists`, `DropDatabase` and `ClearPool`, now consumed (MIN002). **The database-management statics bind
+  lazily, on first use, not in `CreateAdapter`** (critic round 7). This answers igor's own MIN002 point: an eager
+  binding to an alpha surface fails every LibRed connection when a statics signature moves.
+- E-46 `Source/LinqToDB/DataProvider/Access/AccessTools.cs` — new public overloads
+  `CreateDatabase(string databaseName, AccessProvider provider, bool deleteIfExists = false, AccessVersion version = AccessVersion.Ace)`
+  and `DropDatabase(string databaseName, AccessProvider provider, string? extension = null)`. The LibRed arm uses E-45;
+  every other value takes today's ADOX / file-delete path. XML docs are included (MIN002).
+- E-47 `Source/LinqToDB.LINQPad/DatabaseProviders/DatabaseProviderBase.cs`,
+  `Source/LinqToDB.LINQPad/DatabaseProviders/IDatabaseProvider.cs`,
+  `Source/LinqToDB.LINQPad/Drivers/DriverHelper.cs` and all 16 `Source/LinqToDB.LINQPad/DatabaseProviders/*Provider.cs`
+  overrides (15 at head) — `ClearAllPools(string providerName, string? connectionString)`. `ClearConnectionPools` passes
+  `settings.Connection.GetFullConnectionString()`, the 14 non-Access providers ignore it, and Access's LibRed arm
+  calls `ClearPool` on a connection built from it (MIN002, user: "linqpad too"). Whether `ClearPool` on a fresh,
+  unopened connection clears the pool for that string is measured by E-58's create/drop test, not assumed.
+- E-48 `Source/LinqToDB/Internal/DataProvider/Access/AccessLibRedSchemaProvider.cs`:
+  - a reported length of 0 is treated as unknown at all three projections (columns, procedure parameters,
+    `GetProcedureResultColumns`' `ColumnSize`) (MIN005);
+  - `IsNullable = false` for `Bit` in **base-table** columns only (MIN006). Two cases pass the driver's value
+    through, because a computed or outer-joined Yes/No can be NULL in a result set:
+    - view columns, `IS_NULLABLE` as reported;
+    - procedure result columns, `AllowDBNull`, as `AccessOleDbSchemaProvider` does.
+
+    The evidence is `DistinctTests.cs:271-273` / E-35: LibRed reads unmatched outer-join rows as NULL (critic round 8);
+  - for the ACCDB types (critic round 7: the data-type rows alone leave `DataType = Undefined`):
+    - `BigInt` / `DateTime2` rows in `_dataTypes`;
+    - a **LibRed-side** `GetDataType` override mapping `bigint` → `Int64` and `datetime2` → `DateTime2` before
+      deferring to `AccessSchemaProviderBase`, leaving the shared switch alone (P3; the OLE DB / ODBC ACCDB gap is
+      theirs to file);
+    - the exact `TYPE_NAME` strings LibRed reports are read at implementation;
+  - the `CreateFormat` casing comment reworded (NIT001).
+- E-49 `Source/LinqToDB/Internal/DataProvider/Access/AccessMappingSchema.cs` — `LibRedMappingSchema` gets the
+  `{guid {…}}` Guid converter directly, not by chaining `OleDbInstance` (MIN007).
+- E-50 `Source/LinqToDB/Internal/DataProvider/Access/AccessProviderDetector.cs` — the `Contains("LibRed")` test moves
+  after the `Access.Odbc` / `Access.OleDb` markers (SUG002).
+- E-51 `Source/LinqToDB/Internal/DataProvider/Access/AccessDmlService.cs` — the `InvalidOperationException` arm also
+  matches beta.1's missing-table text for `DROP TABLE`. The match is **anchored** on `Table '` … `' does not exist`,
+  so a missing-file message cannot be swallowed by `DropTable(ifExists)` (critic round 7).
+- E-52 `Directory.Packages.props` (`LibRed.Ado` 11.0.0-beta.1), `Build/licenses/components.json` and the regenerated
+  `Build/licenses/generated/THIRD-PARTY-NOTICES.linq2db.cli.txt` (the beta.1 versions of the LibRed packages and
+  their ANTLR dependency).
+- E-53 `Source/LinqToDB/DataProvider/Access/AccessProvider.cs` — `<remarks>` on `LibRed`: prerelease, and no
+  `.ldb` / `.laccdb` lock file (SUG001).
+- E-54 `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — delete the 12 lines that duplicate `PublicAPI.Shipped.txt`;
+  retype `AccessLibRedSqlBuilder.BuildObjectName`'s `ConvertType` to `LinqToDB.Internal.SqlProvider.ConvertType`; add
+  E-45/E-46's new members (MIN004).
+- E-55 `Build/Azure/README.md` (drop "net11.0 only"), `UserDataProviders.json.template` (LibRed paths `\\` → `/`)
+  (MIN003).
+- E-56 `Source/LinqToDB.CLI/CommandLine/Commands/Mcp/McpInfoTool.cs` (the note matches `Bundled: true`) and
+  `Source/LinqToDB.CLI/SKILL.md` (LibRed in the provider and bundled lists) (MIN010).
+- E-57 `Source/LinqToDB.LINQPad/UI/Model/DynamicConnectionModel.cs` — the `Providers.Count == 1` auto-assign is skipped
+  when the stored provider names a hidden entry of the database.
+- E-58 tests:
+  - `Tests/Linq/Linq/FromSqlTests.cs`:
+    - `:2037` goes back to `AllAccess` with the `:1437` LibRed gate, and `:2052` / `:2072` get a reason line (MIN008);
+    - the gates still stamped "LibRed.Ado 11.0.0-alpha.4" are re-stamped beta.1, which A-24 measured as still
+      failing. That covers `FromSqlTests.cs:1439`, `ContainsTests.cs:366` and `MergeTests.Types.cs:350`.
+  - `Tests/Linq/DataProvider/AccessTests.cs`:
+    - `TestConvertToDate_WithNull` goes back to `AllAccess` with a LibRed arm (MIN009);
+    - a LibRed `AccessTools.CreateDatabase` / `DropDatabase` test uses a per-context file name, because the two LibRed
+      configs run in parallel lanes. It asserts the file exists and opens, a second create without `deleteIfExists`
+      leaves it alone, and drop removes it while a pooled connection to it was opened and closed. It also checks
+      `ClearPool` on the connection string;
+    - the `AccessFactory` dispatch test is `[IncludeDataSources(TestProvName.AllAccessLibRed)]`, so it runs only where
+      `LibRed.Ado` is referenced (net10.0 / net11.0). It is a characterization test, since the arm exists at head.
+  - `Tests/Linq/SchemaProvider/SchemaProviderTests.cs`: a LibRed ACCDB `BIGINT` / `DATETIME2` / `BIT NULL` schema test,
+    asserting `DataType`, `SystemType` and `ColumnType` / `MemberType`. It is red before E-48 on `DataType` and
+    `SystemType`.
+  - `Tests/Linq/Linq/ConcatUnionTests.cs`: the `Issue3360_LiteralsInFirstQuery` LibRed gate is removed.
+  - E-49's other consumers run on both LibRed configs before push: `AccessTypeTests.TestGuid` (literal mode),
+    `TypesTests.Guid1`, `TypesTests.ContainsGuid`, and the three baseline tests G-02 counted.
+  - E-50, E-51's Microsoft-flavour claim and E-57 have no failable obligation. Each is recorded as reasoned in G-01.
+- E-30 output regenerated: `Tests/Tests.T4/Cli/*/AccessLibRed/*` (MIN005, MIN006 change it).
+
 ## P7 Impact map (M/L)
 
 Searched in this worktree (branch base `77800f967`), never in the primary clone. Patterns are named per row; the four scout sweeps that produced them are recorded in the session, and the two largest are `AccessProvider\.(OleDb|ODBC)` over `Source/` (24 hits / 7 files) and `TestProvName\.AllAccess` over `Tests/` (644 hits / 132 files).
@@ -855,6 +934,24 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - **No mutating stored query is ever executed during schema discovery.** The `MSysObjects.Flags` low-byte
   gate runs before the column probe, not after it (A-3). This is the safety property to re-check if the
   view-discovery code is ever reordered.
+
+- **(A-24) A database component on a LibRed table name is dropped, not refused.** This is the library-wide
+  contract: an unsupported name component never reaches the SQL. `Issue681Tests` pins it by passing
+  `TestUtils.NO_DATABASE_NAME` ("UNUSED_DB") to providers without database support, and `SqlCeSqlBuilder` does
+  the same. Answers igor-tkachev's MAJ001 (review 5540266938).
+- **(A-24) A `LibRedConnection` passed without an explicit provider is not detected.** No linq2db detector
+  identifies a flavour from the connection object; `ProviderDetectorBase` uses it only to probe the server version.
+  Answers MIN001.
+- **(A-24) LINQPad's Access entries require their own connection strings.** A paired "with … schema merged" entry
+  requires its second string. Choosing an unpaired entry clears the stored secondary string, and the secondary is
+  never auto-selected from the string. That follows from the explicit selector (A-19): every stored
+  `(Provider, SecondaryProvider)` pair maps to exactly one entry.
+- **(A-24) `DatabaseUtils.CopyDatabases`' LibRed arms stay**, though the whole per-file switch is unreachable
+  (`TestExternals.Configuration` is never assigned). They follow the existing arms, and removing the dead switch is
+  unrelated cleanup. This settles E-40's conflict with P7.
+- **(A-24) `AccessDmlService`'s LibRed arms are not gated on LibRed.** The `OleDbException` and `OdbcException` arms
+  return on type first, so a Microsoft flavour reaches them only with an `InvalidOperationException` that neither
+  driver raises. The "no such procedure" text goes beyond E-11a.
 
 ## P13 Upstream defect register — collected, not yet triaged
 
@@ -1561,6 +1658,116 @@ amendment; it records what the branch already is. Revised once after critic roun
 - re-derives: none in P5 — this amendment changes no decision. It does mark E-9's D-6 basis as stale: D-6 chose the
   unbraced literal, and A-17 reversed it.
 
+### A-24 — review round 1 fixes, and `LibRed.Ado` 11.0.0-beta.1 (E-45..E-58; 2026-11-13, user dispositions)
+
+`/review-pr` round 1 at head `f4956a907`: three `code-reviewer` passes, igor-tkachev's two reviews, ChrisJollyAU's
+GUID comment. The user dispositioned each item interactively; this amendment records the fix set and the facts
+measured during the walk. Probes ran in a detached worktree on `f4956a907` with scratch edits only.
+
+- **Measured:**
+  - **U-23:** resolved. LibRed's GUID failure in set operations was our quoted literal; E-49 fixes it.
+  - **Bit columns:** LibRed stores NULL into `BIT NULL` as `False`, as ACE does. Its schema still reports the
+    column nullable, which is why E-48 forces `false`.
+  - **ACCDB-only types:** LibRed accepts `BIGINT` / `DATETIME2` on an `.accdb`, and the schema returned
+    `Undefined` / `object` for both, so E-48 adds the two data-type rows. On an `.mdb` LibRed refuses both types,
+    and ACE 2016 refuses them in DDL on either format.
+  - **`FromSqlTests` trio, with the narrowings undone:**
+    - `:2037` fails with `NotSupportedException` "Positional ('?') parameters are not supported yet", direct and remote.
+    - `:2052` / `:2072` fail on `ToSqlQuery().Parameters`: on a provider that is not parameter-order dependent,
+      linq2db sends no argument that no `{n}` references. The narrowing is right; only the reason line was missing.
+  - **`TestConvertToDate_WithNull`:** does not throw on LibRed.
+  - **beta.1:**
+    - Without E-51, 165 of 225 gated and Access-fixture cases fail, because `DROP TABLE` of a missing table now
+      says "Table 'X' does not exist".
+    - With E-51: 225 cases, 0 failed, 23 verified skips on each LibRed config.
+    - No gate lifts and nothing regresses in that set; the full suite is CI's job.
+  - **`DataType.DateTime2` binding:** clean on an `.accdb` (insert, read, filter by parameter).
+  - **E-49 pre-coding probe on beta.1** (critic round 8), with the direct `{guid {…}}` converter on the LibRed leaf:
+    - **Scope:** `CreateDatabase` plus `FullyQualifiedName~Guid|Issue3360|AccessTypeTests|DataTypesTests` on both
+      LibRed configs, direct and remote — 100 cases per config. This includes `TypesTests.Guid1` / `Guid2` /
+      `ContainsGuid`, every `TestGuid`, and the literal mode of `AccessTypeTests.TestGuid`.
+    - **Result:** 96 passed and 2 verified skips. The only failures are `Issue3360_LiteralsInFirstQuery` reporting
+      "Test passed but is marked with [ActiveIssue]".
+    - **Conclusion:** filters, `IN` lists and literal inserts all work through the literal, and the GUID stop rule
+      does not fire.
+  - **CI at `3f439360a`** (head minus one XML-doc line):
+    - Azure test-all 25600 succeeded.
+    - GitHub run 43284232683 has one failure, `AssociationTests.Test2` on `ClickHouse.MySql.LinqService`: a
+      MySqlConnector connect timeout, an infrastructure flake not attributable to the branch.
+- **G-01 (A-24 implementation, 2026-11-13, `C:\Worktrees\linq2db\5956-access-libred`, uncommitted)** — pass on
+  the local scope below; CI not yet run on the result.
+  - **Builds:**
+    - net10.0 Debug `Tests/Linq`: 0 warnings.
+    - Release `Source/LinqToDB` on netstandard2.0, net462 and net10.0.
+    - Release LINQPad, CLI, `Tests/Linq` and `Tests.T4`, the last over the regenerated scaffold.
+    - `-p:RunApiAnalyzersDuringBuild=true` leaves only 3 `RS0016` on `AccessSqlExpressionConvertVisitor`, which
+      master (#6203) lacks too: master drift, not this branch's.
+  - **Fixtures:** `CreateData` + `AccessTests` + `AccessTypeTests` + `AccessProceduresTests` + `SchemaProviderTests` +
+    `Issue792Tests` + the `FromSqlTests` gates + `Issue3360` + `~Guid` + `Issue2608Test` + `TestMergeTypes` +
+    `DropTableTests` + `DataTypesTests`, all 0 failed:
+    - `Access.LibRed.Mdb` 222 cases;
+    - `Access.LibRed.Accdb` 223;
+    - `Access.Ace.OleDb` 223.
+
+    After the layout fixes, `AccessTests` + `SchemaProviderTests` re-ran 68 / 69 / 66, 0 failed.
+  - **New tests ran:** `CreateDatabaseLibRed` (×2 formats), `FactoryResolvesAssemblyName`, `AccessLibRedColumnTypes`
+    (Accdb only, red before E-48 by U-23's probe: `Undefined` / `object` / `bool?`) and
+    `TestConvertToDate_WithNull`'s LibRed arm. `ArgumentReferencedByPositionIsSent`'s gate reports as a verified skip.
+  - **Scaffold regeneration (E-30)** via `release-test-cli-scaffold.ps1 -Providers AccessLibRed`, CLI net10.0
+    win-x64, 5/5 templates. As predicted, `bool?` → `bool` on stored Yes/No columns and `VarChar(0)` → `VarChar`.
+    Also beta.1's own fix: Access-written parameterised queries now describe as `QueryProc<…Result>`, as the OLE DB
+    key produces, retiring A-18's "`[@name]` quoting, no client-side remedy" upstream defect. LibRed keeps base-column
+    nullability in those results, the transport difference A-18 already recorded.
+  - **test-diff-sweep** (`-Base f4956a907 -IncludeWorkingTree`) after fixes: 0 one-line chains in new code (5
+    found and split), 0 nested chains (2 refactored). The 2 `narrowedWithoutReason` hits are not layout hits:
+    - `AccessTests.cs:839` is the whole `AllAccess` family on an Access-only test;
+    - `FromSqlTests.cs:2040` restores master's own provider set, with its gate directly above.
+- **Dropped:** a `bool` mapped to `Int64` binds `-1` on LibRed. The user ruled it out, since Access has a native
+  Yes/No type and nothing in the repo maps a `bool` to `Int64`; E-34's width list stands. `DateTimeOffset` columns
+  cannot be created on any Access flavour, which predates this branch.
+- **Adjudicated in P10:** MAJ001 (unsupported component), MIN001 (no connection-type detection), the LINQPad
+  pairing behaviour (MIN011), `CopyDatabases`' dead arms, and the ungated `AccessDmlService` arms.
+- **Plan corrections:**
+  - G-02's "OLE DB is the outlier" is withdrawn, because U-23 measured LibRed's quoted literal as the defect.
+  - The A-2 premise that `CreateDatabase` cannot be expressed is retired by E-45's hand-built expression.
+- conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*.
+  Applied to E-58; `test-diff-sweep.ps1` counts go in G-01 once implemented.
+- re-derives:
+  - E-34: the width list is kept.
+  - A-2: `CreateDatabase` is now mapped.
+  - D-6: the GUID literal is now `{guid {…}}`, the third answer this decision has had. D-6's body ("chosen:
+    unbraced", "rejected: `{guid {…}}` — SqlParseException") is historical. The alpha.2 measurement no longer holds,
+    since U-23 measured `{guid {…}}` parsing and matching on alpha.4.
+  - TO-2 / SC-2 / G-02: E-49 removes the "3 — the GUID literal" category. LibRed's GUID-literal baselines now
+    match OLE DB's `{guid {…}}`.
+    - Predicted move: those 3 baseline files per LibRed config, plus their `LinqService` twins, and any other test
+      emitting a GUID literal on LibRed.
+    - Read on the CI baselines branch after the push.
+  - P3:75 ("`Tests/Linq` gets a `net11.0`-conditional reference") is stale: the reference is net10.0 + net11.0 in
+    `linq2db.Providers.props` (E-42).
+- critic round 7 (this amendment) refuted E-48's sufficiency and raised leads; the revision above folds them in.
+- **Stop rules for the tests that double as probes** (critic round 8). Each failure changes a design, so none is
+  patched around in place:
+  - **GUID consumers fail on E-49** (an indexed-column filter, `IN`, a literal `INSERT`): stop and re-ask. The
+    candidates are a parameter for every GUID, as ODBC does, or the quoted form outside set operations.
+  - **`ClearPool` on a fresh, unopened connection is unobservable or a no-op**: drop E-47's LibRed arm, record why,
+    and keep the interface change only if another provider needs it (none does), otherwise revert it.
+  - **Drop fails while a pooled connection to the file exists**: E-46's LibRed drop arm calls `ClearPool` first.
+
+  The `ClearPool` observable is OS-specific. On Windows, `File.Delete` of the file fails while a pooled handle is
+  open and succeeds after `ClearPool`. On Linux a delete never fails on an open handle, so that half runs on
+  Windows only. If no handle is held on either OS, `ClearPool` is recorded as unobservable.
+- **SC-2 / TO-2 are superseded by this amendment.** The divergences from `Access.Ace.OleDb` are now the
+  trace-only parameter-type comment and the dropped database component; the GUID literal is no longer one.
+  - "U-23 measured `{guid {…}}` parsing and matching" overstated it: U-23 ran a set-operation projection that reads
+    the literal back, on alpha.4. Filters through the literal are what the pre-coding GUID probe below measures,
+    on beta.1.
+  - The baseline move is closed by a grep of the LibRed baselines for the quoted-brace GUID shape. **Counted
+    2026-11-13:** `git grep -l -E "'\{[0-9a-fA-F]{8}-" origin/baselines/pr_5956 -- Access.LibRed.Mdb` → 30 files,
+    including `TestGuid` ×3, `TypesTests.Guid1/Guid2/ContainsGuid`, the `Issue3360` / `SelectWithNulls` set operations,
+    `ConstantTests`, the DML GUID tests and `CreateDatabase`. That is the upper bound of E-49's move per LibRed config;
+    G-02's "3" undercounted.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
@@ -1821,5 +2028,35 @@ superseded list. Its two residual objections are both applied:
 
 Round cap reached; the plan goes to the review with both verdicts. Not checked by it: any CI run, `validate`
 itself, and the runtime behaviour behind U-23, the `FromSqlTests` trio and `AccessTests.cs:787`.
+
+**refuted** (round 7, A-24 delta E-45..E-58, before implementation) — `plan-critic` on fable.
+- **Refuted:** E-48's two `_dataTypes` rows alone leave `DataType = Undefined`, because
+  `AccessSchemaProviderBase.GetDataType` (`:39-77`) has no `bigint` / `datetime2` arm. Verified in code. → a
+  LibRed-side `GetDataType` override.
+- **Weak, folded in:**
+  - E-49 re-derives (TO-2, SC-2, G-02, D-6's body);
+  - lazy binding of the E-45 statics;
+  - an anchored E-51 match;
+  - per-context file names and the TFM / context gate for E-58's tests;
+  - the three alpha.4 gate stamps;
+  - E-48's sibling `GetProcedureResultColumns`;
+  - the 15/14 override count;
+  - P3:75.
+- **Checked and sound by it:** the beta.1 package graph is identical to alpha.4 (Antlr 4.13.1, same TFMs, licence
+  and DLL set); E-46 / E-47 touch no existing OLE DB / ODBC call path; E-54's count of 12 duplicates is right.
+
+**refuted** (round 8, the A-24 revision, the one resubmit allowed).
+- **Refuted, folded in:** the revision's `Bit` non-nullable force in `GetProcedureResultColumns` contradicts E-35's
+  measurement that LibRed reads unmatched outer-join rows as NULL. The force is restricted to base-table columns;
+  views and procedure results pass the driver's value through, as OLE DB does.
+- **Weak, folded in:**
+  - a stop rule for each deferred probe, with the OS-specific `ClearPool` observable;
+  - the baseline move closed by a grep: 30 files per config, not G-02's 3;
+  - "matching on alpha.4" corrected;
+  - SC-2 / TO-2 superseded.
+- **Probe it asked for, run before coding:** E-49's GUID consumers on beta.1 pass (100 cases per config; the only
+  red is the gate E-58 removes).
+
+Round cap reached; the user decides whether implementation proceeds on this revision without a third critic pass.
 
 
