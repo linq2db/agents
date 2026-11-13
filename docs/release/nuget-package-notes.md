@@ -381,7 +381,7 @@ Patterns are wildcard-friendly (`Internal.*`, `*.Internal.*`, `Foo.Bar.IBaz`). T
 ## Microsoft.SourceLink.GitHub
 
 - **Release notes URL:** https://github.com/dotnet/sourcelink/releases
-- **Update rule:** stay on the 10.0.x line while net10.0 is the lowest band. 11.0.100 depends on `System.IO.Hashing` 11.0.0, which the notices harvest then reports as bundled in the net10.0 / net472 builds of `linq2db.cli`, the LINQPad driver and the T4 packages; 10.0.404 keeps it at the 10.0.x band.
+- **Update rule:** bump freely. Its `Microsoft.Build.Tasks.Git` declares `System.IO.Hashing` as a plain dependency, and `PrivateAssets` alone still copied that DLL into every project's output and the LINQPad lpx. `Directory.Build.props` therefore references SourceLink with `IncludeAssets="build;buildMultitargeting;buildTransitive"`, which cascades to the dependency. Keep that attribute: dropping it brings the DLL back into the lpx and into `Build/licenses/components.json`. Check that `obj/<proj>/<cfg>/<tfm>/<asm>.sourcelink.json` is still generated after a bump.
 - **Last verified:** 2026-09-09 on release 6.5.0 prep (10.0.303 → 10.0.401)
 
 ## Microsoft.SqlServer.TransactSql.ScriptDom
