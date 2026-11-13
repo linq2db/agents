@@ -53,7 +53,7 @@ read 24/24 tables.
 ## P2 Success criteria
 
 - SC-1 The test configurations `Access.LibRed.Mdb` and `Access.LibRed.Accdb` both resolve to the single LibRed `IDataProvider` (D-1, amended A-1) and the Access test suite executes against both, with the per-test outcome recorded and the create-data step green. → TO-1, TO-8
-- SC-2 The SQL emitted for a LibRed provider is identical to the OLE DB flavour's except at the three divergences this plan names, proven by the baselines diff rather than by inspection. → TO-2
+- SC-2 The SQL emitted for a LibRed provider is identical to its OLE DB twin's (`.accdb` ↔ `Access.Ace.OleDb`, `.mdb` ↔ `Access.Jet.OleDb`) except at the four divergences A-25 names — the trace-only parameter-type `DECLARE`/`SET` preamble, `@name` spelling (OLE DB's positional `_N` duplicates, D-3), the dropped `[Database\…]` qualifier (A-5) and `Replace` on `.mdb` (the Jet driver's gap, not the format's) — proven by the baselines diff rather than by inspection. → TO-2
 - SC-3 The LibRed schema provider returns tables, columns (nullability, length, precision, scale, identity), primary-key columns and foreign-key **column pairs** for a database Microsoft's engine created. → TO-3
 - SC-4 A type-coverage fixture exists for Access and runs on **all six** Access providers, with every per-provider divergence either passing or carrying a named, justified exclusion. → TO-4
 - SC-5 The four existing Access providers are unchanged: no emitted-SQL delta, no flag delta, no mapping-schema delta, zero baseline changes under their four baseline directories, and the shared create-script still builds their databases. → TO-5, TO-9
@@ -702,7 +702,7 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - TO-1 (SC-1) — proof: control — the Access suite on both new configs via `/test run <filter> worktree <path>` with `--provider Access.LibRed.Mdb` and `Access.LibRed.Accdb`, each producing a per-test pass/fail list discriminated against the same filter on `Access.Ace.OleDb`, where the discriminating inputs are the tests that differ only by transport (parameter-heavy queries from D-3's naming change, GUID literals from D-6, `CHAR` padding from D-13) and a run reporting zero tests is a failure rather than a pass; **the expected-red set is enumerated before the run, not discovered by it** — the census is `TestProvName\.AllAccess(Odbc|OleDb|Jet)|ProviderName\.Access(Jet|Ace)(Odbc|OleDb)` over `Tests/**/*.cs` — **82 hits across 23 files** — of which the ones that matter are the gates keyed to the four concrete names LibRed does not inherit (`PredicateTests.cs:136-648` ten `ThrowsForProvider` pairs, `Issue1363Tests.cs:27-33`, `DateTimeFunctionsTests.cs:1817-1819`, `IntervalTranslationTests.Queries.cs:653,708,836`), the **binary transport branches in the test tree** where LibRed silently takes the OLE DB arm (`AccessTests.cs:47,48,53,61,139` `isODBC`, `Issue1925Tests.cs:58-65`, `DropTableTests.cs:89`, `MergeTests.Types.cs:561`, `QueryGenerationTests.cs:140,156`, `TypesTests.cs:502,513`), the two hint tests (E-22b), the 13 procedure tests (E-22a), `DataTypesTests.cs:44` (`supportLiterals: !Odbc` — the D-6 GUID-literal instrument) and `Access.sql:276,279`'s `char(20)`/`nchar(20)` columns (the D-13 padding instrument)
 - TO-10 (SC-1, D-12) — **done 2026-09-23** — proof: control — the provider lists really do exclude LibRed below net11: staging the LibRed job config as `UserDataProviders.json` and listing tests from a net10.0 build of `Tests/Linq` (note `-c Testing` is net11.0-only on this branch, `Directory.Build.props:225-226`) yields **zero** cases for `Access.LibRed.Mdb` and `Access.LibRed.Accdb`, while the same config on a net11.0 build yields both; the discriminating arm is the net10.0 one, which is what a `full_run` release leg exercises (`test-workflow-linux.yml:7-8,149`) and the only place the omission can be observed. **Measured**: net11.0 lists 15 529 cases, 7 313 `Access.LibRed.Mdb` + 7 313 `Access.LibRed.Accdb`; net10.0 lists 903 and **0** of either (the three `LibRed` hits in that log are the `UserDataProviders.json` banner the harness echoes at discovery, not case names). **Correction to this row's instrument**: it must be built `-c Azure`, not `-c Debug`. `TestConfiguration.cs:62-65` appends `.Azure` to the TFM config name only under the `AZURE` symbol, and the job config declares its providers under `NET110.Azure` — so a `-c Debug` pair resolves zero on *both* TFMs and the control cannot disagree
 - TO-11 (SC-1, U-19, U-20) — proof: red-green — one linq2db round-trip over LibRed, run before Phase A is called done: `db.GetTable<Person>().ToList()` through a `DataConnection` on a LibRed connection string returns the seeded rows. It is red before E-5a (`NotSupportedException` out of `GetSchemaTable` inside `IsDBNullAllowed`) and green after, and it exists because every other measurement behind this plan is raw ADO — this is the first obligation that exercises linq2db's own read path at all, which is precisely how U-19 went unnoticed through five probe rounds
-- TO-2 (SC-2) — proof: control — baselines for the two new configs reviewed with `baselines-reviewer` and cross-compared against `Access.Ace.OleDb`, where the expected delta set is exactly parameter names (D-3), GUID literal form (D-6) and `DateValue` vs `CAST(… AS Date)` (D-5), so **any fourth category of difference is a finding**
+- TO-2 (SC-2) — proof: control — the CI baselines branch for the two new configs cross-compared against their OLE DB twins (`.build/.agents/pr5956-crosscompare.ps1` + `-residual.ps1`), where the expected delta set is exactly SC-2's four categories (restated by A-25 from the original parameter names / GUID literal / `DateValue`), so **any fifth category of difference is a finding**
 - TO-3 (SC-3) — proof: red-green — a schema-provider test against `Data/TestData.LibRed.accdb` asserting every user table present with no `MSys*`/`#Dual` leakage, `Person`'s columns with correct nullability/length and the identity flag on `PersonID`, `Person`'s primary key, and the `Doctor`→`Person` foreign key **with its column pair**; the FK is the discriminating input because `Access.Ace.Odbc` returns none (`AccessODBCSchemaProvider.cs:25-30`), and it is red before E-7 because the provider cannot be constructed at all; the existing instrument for the PK/FK half is `Tests/Linq/SchemaProvider/SchemaProviderTests.cs:327` `PrimaryForeignKeyTest`, whose `[DataSources(false, AllOracle12, AllAccessOdbc)]` already admits LibRed. **It must also assert per-column `SystemType` for `AllTypes`** — or diff LibRed's whole `DatabaseSchema` for that table against `Access.Ace.OleDb`'s — because `SchemaProviderBase.GetSystemType:577-585` returns `null` for any `DATA_TYPE` the overridden `GetDataTypes` list omits, which surfaces as an `object`-typed member in scaffolded output and would otherwise be committed as the baseline by TO-6's idempotence check
 - TO-4 (SC-4) — proof: characterization for the four existing flavours and red-green for the two LibRed ones — `AccessTypeTests` over `TestProvName.AllAccess` with one test per Access storage type (`COUNTER`, `INTEGER`, `SMALLINT`, `BYTE`, `SINGLE`, `DOUBLE`, `CURRENCY`, `DECIMAL`, `BIT`, `DATETIME`, `GUID`, `VARCHAR`, `CHAR`, `MEMO`, `BINARY`, `VARBINARY`, `LONGBINARY`), each exercising non-nullable + nullable, parameter + literal and the bulk-copy modes `TypeTestsBase` drives, and each per-provider exclusion naming the provider and the reason
 - TO-5 (SC-5) — proof: control — the symmetry guard on the unchanged path: the same Access filter on `Access.Jet.OleDb`, `Access.Ace.OleDb`, `Access.Jet.Odbc` and `Access.Ace.Odbc` before and after Phase A, with `git diff` over their four baseline directories empty; this is what covers E-5/E-9/E-10, every one of which edits a method the existing flavours also execute
@@ -717,21 +717,35 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 
 ## P9 Verification gates
 
-- G-01: blocked — CI test-all 25600 and GitHub tests run 43284232683 (both on `3f439360a`, which differs from head
-  `f4956a907` by one XML-doc line) are in flight, and TO-5's red arm has never been run. Per obligation, as of
-  2026-11-12 (A-23):
-  - TO-1: blocked (red arm: A-13's first pass, 1 440 failures before the branch's own defects were fixed) — no run
-    at this head. The newest full LibRed run is igor-tkachev's at `93c54d54e` (net10.0, Linux): 15 745 cases, 2
+- G-01: blocked — TO-5's red arm has never been run. CI at round-1 head
+  `37fc49396` (2026-11-13): GitHub tests run 43408124185 green, all five Access legs included; Azure test-all 25629
+  green except four SQL Server legs (2008/2012/2014/2016) still running when read, none of which runs Access. Per
+  obligation, as of 2026-11-13 (TO-1/TO-2 updated, TO-2 per A-25; the rest as of 2026-11-12, A-23):
+  - TO-1: pass (red arm: A-13's first pass, 1 440 failures before the branch's own defects were fixed) — GitHub run
+    43408124185 on `37fc49396`: job `Lin zz_Access_LibRed` green, main test assembly 17 311 succeeded / 0 failed /
+    332 skipped; the four Microsoft legs (`r_Access_MDB_Odbc`, `z_Access_MDB_OleDb`, `x_Access_ACE_OleDb`,
+    `v_Access_ACE_Odbc`) green in the same run, which is the `Access.Ace.*` discrimination. Superseded history: the newest full LibRed run is igor-tkachev's at `93c54d54e` (net10.0, Linux): 15 745 cases, 2
     failed, both provider-free stack-depth tests. That run predates E-34, E-36 and the master merges that brought the
     `FromSqlTests` narrowings. A-20's own net11.0 run had the same case count and 31 failures. There is no
     `Access.Ace.OleDb` discrimination at this head either. This unblocks when test-all 25600's `zz_Access_LibRed` leg
     and an `Access.Ace.*` leg are read green.
-  - TO-2: fail (red arm: the cross-comparison disagreed) — as written. SC-2 names three divergences: parameter names,
+  - TO-2: pass (red arm: the cross-comparison disagreed with SC-2 as first written) — against SC-2 as restated by A-25.
+    History: SC-2 first named three divergences: parameter names,
     the GUID literal form and `DateValue`. The local capture (2026-09-23, alpha.3, the baselines gate row below)
     measured a different three: ~1 130 trace-only parameter-type comments, 16 database-qualified names (A-5's
     `BuildObjectName`) and 3 GUID literals. The first is the "fourth category" TO-2 calls a finding, and no `P10`
     line adjudicates it. Either SC-2 is re-stated to the measured set, or this row stays failed. It was not
     re-captured on alpha.4 or after E-34, and the CI baselines branch for 25600 is unread.
+    **Re-measured 2026-11-13 on CI `baselines/pr_5956` @ `baaedab0a0d` (beta.1, `37fc49396`)**, pairing
+    `Access.LibRed.Accdb`↔`Access.Ace.OleDb` and `Access.LibRed.Mdb`↔`Access.Jet.OleDb` by file name: 7 935 pairs,
+    5 440 identical. Stripping four categories — `DECLARE`/`SET` trace lines (parameter type names), `@name` spelling
+    incl. OLE DB's `_N` de-dup suffixes (D-3: LibRed binds by name), the `[Database\TestData].` qualifier (A-5) and
+    statement headers — leaves **one** differing file: `ConvertTests.DecimalToString` on Mdb, where LibRed emits
+    `Replace(CStr(…), …)` and `Access.Jet.OleDb` emits `CStr(…)` because `AccessJetMemberTranslator` disables
+    `Replace` for the Jet driver; the test passes on LibRed, so it is an engine capability, not a defect. GUID
+    literal: 0 differences (E-49 moved LibRed to `{guid {…}}`; 31 files per config, same count as OLE DB).
+    `DateValue`: 0 differences. Scripts: `.build/.agents/pr5956-crosscompare.ps1` + `-residual.ps1` (primary
+    clone). Those four categories plus the one residual are SC-2's restated set (A-25); nothing outside it.
   - TO-3: pass — `SchemaProviderTests` 14/14 on both LibRed configs (2026-09-21), and 44/44 procedures + schema +
     `Issue792` + create-data after A-18's `GetSchema` rewrite.
   - TO-4: pass — `AccessTypeTests` 72/72 across the four locally reachable flavours (A-11, A-12); Jet on CI x86 only.
@@ -788,9 +802,13 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   markers, `TestBase.Identity.cs`, `TypeTestsBase`'s name hook, the `AllNativeAccess` narrowings, and the
   `[ActiveIssue(3893)]` re-scoping. It is also what makes the LibRed failure list *interpretable*: every
   cluster left there is LibRed's, because the same tests pass on Access through Microsoft's driver.
-- G-02: blocked — on TO-2's `fail` as written (SC-2 unadjudicated), on U-23 (which contests this row's "OLE DB is
-  the outlier" sentence below), and on the CI baselines branch regenerated by test-all 25600 on alpha.4, unread as of
-  A-23. The local capture of 2026-09-23 on alpha.3 — **TO-2 captured and cross-compared.** Both LibRed configurations and
+- G-02: pass — (2026-11-13) TO-2 passes against SC-2 as restated by A-25. U-23 was resolved by A-24, which also
+  withdrew this row's "OLE DB is the outlier" sentence below; E-49 made LibRed emit OLE DB's form, so the GUID
+  category is now empty. The CI baselines branch was read 2026-11-13 (TO-2 row above): round 1 moved only the two LibRed directories (30 files per
+  config, all GUID-literal lines; plus new baselines for `CreateDatabaseLibRed`, `TestConvertToDate_WithNull`,
+  `AccessLibRedColumnTypes` and the now-passing `Issue3360_LiteralsInFirstQuery`), and nothing under the four
+  Microsoft directories. Against baselines master those four carry 12 modified files (the `AccessProceduresTests`
+  parameter renames of the 2026-09-22 re-control) and 72 added (`AccessTypeTests` + `BoolStoredAsInteger`), no emitted-SQL move. The local capture of 2026-09-23 on alpha.3 — **TO-2 captured and cross-compared.** Both LibRed configurations and
   `Access.Ace.OleDb` captured over the full suite into an isolated `BaselinesPath` under the worktree's
   `.build/.agents/` — not the shared `c:\GitHub\linq2db.bls`, which concurrent sessions write to — seeded
   per `worktree.md` with only the TFM bucket, its `BasedOn` and an absolute path, so `--provider` and every
@@ -834,7 +852,10 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - G-05: pass — TO-7: `Source/LinqToDB` builds clean in Release on `netstandard2.0`, `net462` and
   `net11.0`. The portable arm earned its place: `Enumerable.ToHashSet()` does not exist on
   netstandard2.0 (the polyfill's overload requires a comparer), caught only by that build.
-- G-06: blocked — the matrix half rests on test-all 25600's `zz_Access_LibRed` leg (in flight). E-24 and TO-10 still
+- G-06: pass — (2026-11-13) matrix half: the `zz_Access_LibRed` leg runs in the GitHub tests workflow and was green
+  in run 43408124185 on `37fc49396` (TO-1 row above). The two Microsoft-path edges listed below as open are closed by
+  A-24: E-50 moved the `Contains("LibRed")` test after the Microsoft markers, and P10 adjudicates the ungated
+  `AccessDmlService` arms. E-24 and TO-10 still
   call the leg `z_Access_LibRed`; A-20 renamed it. The `full_run` text that used to stand here leaned on TO-10, which
   A-20 made moot, so it is withdrawn. The no-unrelated-reformatting half holds (A-23 + critic round 5, read from
   `git diff -U0 origin/master...origin/pr/5956`). The removed lines in the Microsoft-shared Access files are of these
@@ -1767,6 +1788,28 @@ measured during the walk. Probes ran in a detached worktree on `f4956a907` with 
     including `TestGuid` ×3, `TypesTests.Guid1/Guid2/ContainsGuid`, the `Issue3360` / `SelectWithNulls` set operations,
     `ConstantTests`, the DML GUID tests and `CreateDatabase`. That is the upper bound of E-49's move per LibRed config;
     G-02's "3" undercounted.
+
+### A-25 — SC-2 restated to the divergence set CI measured (2026-11-13, user: "a")
+
+The round-1 CI baselines (`baselines/pr_5956` @ `baaedab0a0d`, beta.1, head `37fc49396`) were cross-compared pair by
+pair against each LibRed config's OLE DB twin — `.accdb` against `Access.Ace.OleDb`, `.mdb` against `Access.Jet.OleDb`,
+since the twin shares the file format. The result is in G-01 → TO-2. A-24's restatement (the parameter-type comment
+and the database component) named two of the categories found. The user chose to restate SC-2 to the measured set
+rather than keep TO-2 failed:
+
+- **The trace-only parameter preamble.** The `DECLARE`/`SET` lines differ in the printed type name (A-4: `LibRedParameter`
+  exposes no provider type). These lines are never sent to the database.
+- **The `@name` spelling.** OLE DB is parameter-order dependent, so a value used twice is sent twice as `@p` / `@p_1`.
+  LibRed binds by name and sends it once (D-3). The text of the statement is otherwise identical.
+- **The dropped database component**, `[Database\TestData].[T]` → `[T]` (A-5, and A-24's P10 line on the library-wide
+  contract).
+- **`Replace` on `.mdb`.** `AccessJetMemberTranslator` returns `null` for `String.Replace` because the Jet *driver*
+  lacks the function. LibRed's engine has it whatever the file format, so LibRed keeps the base Access translator
+  on `.mdb`. `ConvertTests.DecimalToString` passes there.
+
+GUID literals and `DateValue` no longer differ, so they leave the set. TO-2's red arm stands: the same
+cross-comparison disagreed with SC-2 as first written. P2 (SC-2) and P8 (TO-2) are edited in place to the new
+wording; this row records why.
 
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
