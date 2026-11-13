@@ -169,6 +169,8 @@ CI produces prerelease nugets to pipeline artifacts. This step blocks until the 
 
 **Testing should already be under way.** [`/release-verify`](../release-verify/SKILL.md) step 6a hands the team nugets from the **prep PR**, because `build.yml` (`with_nugets: true`, triggers on every PR) publishes a `nugets` artifact on each prep push. Treat this step as *confirmation plus delta-check*, not the first ask — if `state.publish.steps.team-test.note` records an earlier handover, name the build the team already tested and ask only about what changed since.
 
+**On resume, this gate stays open until its own ask has been answered.** A remark such as "tests passed, continue release" does not close it when this step never issued its ask: the gate exists because the agent cannot observe the team's testing, and ticking it from a guessed mapping writes an unobserved state onto the shared PR body. Verify the checkable side first (the artifact exists, no commits since the tested build), then state what the gate requires, say the ask was never issued, and ask whether the tested build is this gate's; mark `green` only on a reply that names it. (6.5.0, #5907: ticked on `tests passed, continue release 5907`, correct only because the team test had run in parallel.)
+
 **The delta matters.** Fixes routinely land between the prep-PR build and the release PR — on 6.4.0 both #5743 and #5744 merged after the prep merge, so the release PR's bits were not what the team first received. Compare the artifact the team tested against the current release-PR build and say plainly which commits are new.
 
 Action:

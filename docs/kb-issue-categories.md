@@ -116,6 +116,8 @@ The detector runs each pattern below against Tier-1 + Tier-2 files in scope. Add
 | File modified in > 8 commits over last 365 days by ≥ 3 distinct authors | `tech-debt` | `med` |
 | Open GH issue labeled `bug` referencing a Tier-1 file with no PR linked | `tech-debt` | `med` |
 
+**A cross-provider "stub" inconsistency is a finding only once the hook's callers reach the stubbed providers.** Before flagging "provider X returns `false` / no-ops a hook its siblings implement", trace every caller: the hook may serve only providers that lack a capability the others handle elsewhere. (2026-11-11, DI-6463 dismissed: `IsTableNotFoundExceptionCore` is a stub in 8 of 10 DML services, but its only caller is the `DropTable(ifExists)` fallback, which only Access and SqlCe reach — the other providers emit `IF EXISTS` or a guarded block in SQL.)
+
 `kb-issue-detector` reads this catalog at the top of its run; new patterns require no agent edit. The catalog can grow; existing detected-issues are not retroactively re-scored.
 
 ## Filtering / querying

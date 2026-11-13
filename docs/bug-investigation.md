@@ -2,6 +2,18 @@
 
 Situational rules for reproducing, scoping, and fixing reported bugs / regressions. The one-line triggers live in [`agent-rules.md`](agent-rules.md) → *Investigating & fixing bugs*; this doc holds the detail and the war-stories that justify each rule. Read it when one of those triggers fires.
 
+## Before coding — situational checklist
+
+The situational half of [`agent-rules.md`](agent-rules.md) → *Before coding a fix or feature*, which keeps `/work-plan` and the findings / evidence pointers inline. Run down this list before the first source edit:
+
+- **When repairing dead or broken code, its payload and its conditions are in scope — don't treat them as fixed points.** Rewrite the block — body and predicate — to do what it was *for*, rather than choosing between deleting it and restoring it as written: *Repairing dead or broken code — its payload and its conditions are in scope* below.
+- **Below the plan threshold in an unfamiliar subsystem, read the KB area first.** A change too small for `/work-plan` still gets the area's `issues.md` / `tech-debt.md` read before the first edit — the known quirks are recorded there.
+- **Offer the root-cause alternative even when the user prescribes a mechanical fix.** Present their approach first, respecting intent, then the simpler root-cause option with its trade-offs, and let them pick — rather than just executing the prescription. (#5715) This covers an issue that prescribes refusing or gating an unsupported API and defers support to an umbrella issue: price the support and offer it first. (#6311: the refusal shipped first; support was one synthesized selector, #6316.)
+- **Repro blocked by a separate, known engine bug → gate the test, defer the fix.** Commit the regression test `[ActiveIssue]`-gated on the **blocker's** issue and fix once it merges: [`testing.md`](testing.md) → *Repro blocked by a separate, known engine bug…*.
+- **A fix in cross-cutting core gets a core-layer regression test, not only the consumer-level one.** Add a provider/consumer-agnostic core test beside the consumer repro: *A fix in cross-cutting core gets a core-layer regression test* below (and *Proving a red test after the fix is committed* after it).
+- **A statically decidable invariant wants an analyzer, not a reflection guard test** — and an internal invariant an internal rule: [`authoring-analyzers.md`](authoring-analyzers.md) → *A statically decidable invariant wants an analyzer*.
+- **Proposing a new cross-cutting core capability? Include a beneficiary survey.** Sweep for existing code with the same gap and for issues it addresses, and fold that into the design: [`code-design.md`](code-design.md) → *A proposed cross-cutting core capability needs a beneficiary survey*.
+
 ## "Fix or disable" cleanup issues — attempt the fix first
 
 When an issue offers a choice — *fix the sites, or disable / suppress the rule* (analyzer-rule cleanups, lint-debt batches like #5532) — do **not** open with a disable-everything plan. Work rule-by-rule: attempt the genuine fix, and reach disable/suppress only after *demonstrating* the fix is infeasible — breaking public/interface API, the needed API absent on a target TFM, the only available fix a behavioral no-op / analyzer appeasement, or every current site a false positive. Put that evidence in the per-rule proposal. Disable is the documented fallback, not the lead. (Corrected mid-#5532, after an opening plan proposed disabling 9 of 10 rules.)
@@ -200,7 +212,7 @@ Two things to carry into the write-up. Log the **facts** rather than inferring t
 
 ## Measuring a query build's stack use
 
-A stack regression (`Stack overflow.` on CI, `Issue3674Tests.InThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows*.
+A stack regression (`Stack overflow.` on CI, `Issue3674Tests.InThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows*.
 
 - **Whole-build peak, uninstrumented (Windows).** Run the query on a 16 MB thread after `Query.ClearCaches()`. Afterwards, from that thread, `VirtualQuery` the address of a local to get the stack's `AllocationBase` and top, then walk up from `AllocationBase` to the first region with `State == MEM_COMMIT` (`0x1000`) and no `PAGE_GUARD` (`0x100`). Its distance to the top is the deepest the stack reached: commit only grows, at 4 KB resolution. This catches every recursion, not just the one you suspect.
 - **Attributing the peak to a site.** Wrap the suspect recursive method (e.g. `ExpressionEqualityComparer.UpdateHashCode`) in a counting wrapper that records the minimum address of a local and a three-frame stack at each new minimum. The wrapper adds a frame per level, so it overstates the depth: use it for *where*, and the committed peak for *how much*.

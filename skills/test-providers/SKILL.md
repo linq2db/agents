@@ -1,6 +1,6 @@
 ---
 name: test-providers
-description: Configure the local test environment — enable / disable test-provider entries in `UserDataProviders.json` per TFM bucket, manage the docker containers those providers need (start / stop / setup-script run), and reset the file from `UserDataProviders.json.template`. Owns every edit to `UserDataProviders.json` and every `docker start` / `docker stop` call across the `.claude/` toolset; `/test` and `test-runner` consume the resulting state read-only.
+description: Configure the local test environment — enable / disable providers in `UserDataProviders.json` per TFM bucket, start / stop / set up their docker containers, reset from the template. Sole owner of those edits and docker calls; `/test` and `test-runner` only read the state.
 ---
 
 # test-providers

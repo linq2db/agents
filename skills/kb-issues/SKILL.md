@@ -1,6 +1,6 @@
 ---
 name: kb-issues
-description: Query and act on the detected-issues store under .claude/knowledge-base/detected-issues/. Filter via the shared selection grammar (random N, by area, severity, category, source, file, status). Per-result actions include showing detail, creating a GitHub issue (delegates to /create-issue), driving /fix-issue, marking wontfix / duplicate / dismissed / triaged.
+description: Query and act on the KB detected-issues store — filter by random N, area, severity, category, source, file or status, then show detail, create a GitHub issue (via /create-issue), drive /fix-issue, or mark wontfix / duplicate / dismissed / triaged.
 ---
 
 # /kb-issues

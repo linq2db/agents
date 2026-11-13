@@ -4,7 +4,7 @@ kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
 last_verified: 2026-11-11
-last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+last_verified_sha: 1732302e2365c87b9465ab754b768a149308a537
 ---
 
 # PROV-POSTGRES -- GitHub themes
@@ -30,8 +30,8 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 - **CTE MATERIALIZED** -- PostgreSQL 12+ MATERIALIZED keyword now supported (#5323, closed 2026-04-20).
 - **String-to-JSONB Contains** -- Operator translation now respects case behavior (#5347, closed 2026-06-23).
 - **Array of enums conversion** -- LinqToDBConvertException when reading or writing arrays of enums fixed (#4643, closed 2026-09-06).
-- **Negative typed literals** -- long.MinValue rendered as -9223372036854775808::BigInt was parsed as a negation of a bigint; the literal is now parenthesized before the cast (PR #5974, merged 2026-10-09).
-- **Bulk copy timeout on every batch** -- BulkCopyTimeout was applied only to the first COPY batch; now applied to every batch (PR #5980, merged 2026-10-09).
+- **Negative typed literals** -- long.MinValue rendered as -9223372036854775808::BigInt was parsed as a negation of a bigint; the literal is now parenthesized before the cast (#5972; PR #5974, merged 2026-10-09).
+- **Bulk copy timeout on every batch** -- BulkCopyTimeout was applied only to the first COPY batch; now applied to every batch (#5979; PR #5980, merged 2026-10-09).
 - **FILTER clause on PostgreSQL 9.2/9.3** -- Filtered aggregates no longer emit FILTER below the 9.5 dialect tier (#5948 closed 2026-10-26; fix PR #5949 merged 2026-10-26).
 - **Npgsql 10 date, time and daterange on netstandard2.0** -- The netstandard2.0 build now converts DateOnly, TimeOnly and NpgsqlRange<DateOnly> back to DateTime, TimeSpan and NpgsqlRange<DateTime> (#6077 closed and PR #6092 merged, 2026-11-10).
 - **INSERT RETURNING as a composable source (first attempt)** -- PR #5982 was closed without merge on 2026-10-24 and is superseded by draft PR #6133.

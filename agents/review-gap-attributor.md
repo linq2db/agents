@@ -1,6 +1,6 @@
 ---
 name: review-gap-attributor
-description: Closes the review loop back to the design. Given a finalized set of review findings and the branch's work plan, attributes each finding to the upstream artifact that would have prevented it (GAP-01..GAP-10), names the gate that would have caught it, and aggregates the dominant class into a systemic fix. Dispatched by `review-pr` / `verify-review` once findings are final. Read-only — it explains what the design pass lacked, it does not re-review and it never edits the plan.
+description: Attributes each finalized review finding to the upstream artifact that would have prevented it (GAP-01..GAP-10), names the gate that would catch it, and aggregates the dominant class into a systemic fix. Dispatched by `review-pr` / `verify-review`. Read-only; never re-reviews or edits the plan.
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

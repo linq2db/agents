@@ -63,3 +63,10 @@ Only after user confirmation of the diff in step 3:
 1. Create branch `infra/bump-versions` from `origin/master`.
 2. Edit `Directory.Build.props` in a **single** `Edit` call that covers all five `<Version>` / `<EFxVersion>` lines as one `old_string` / `new_string` block. Do **not** issue a separate Edit per property — that produces five individual diffs and five permission prompts. The five lines are contiguous in the file, so one Edit replaces them all at once. Preserve existing formatting (tabs, column alignment, comments).
 3. Do **not** commit, push, or open a PR automatically. Per `.claude/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, each of those actions needs its own explicit user request.
+
+## Don'ts
+
+- Don't create `infra/bump-versions` before the user confirms the step-3 diff.
+- Don't apply a partial bump — every `<EFxVersion>` moves, or nothing is edited.
+- Don't split the `Directory.Build.props` change into one `Edit` per property.
+- Don't commit, push, or open a PR without an explicit user request.

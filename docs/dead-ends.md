@@ -441,3 +441,11 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** a browser-wasm app targets plain `net11.0` with `RuntimeIdentifier=browser-wasm`, so NuGet resolves `lib/net11.0` and never selects the `-browser` asset. Measured with packed test packages on a `Microsoft.NET.Sdk.WebAssembly` app under Node: Mono failed with `Runtime Async is not supported on this platform`, and CoreCLR loaded the same `lib/net11.0`. NuGet keys on TFM + RID only, so no layout can give Mono and CoreCLR different files.
 
 **Don't re-attempt:** a platform TFM for a RID-only distinction. Use `runtimes/browser-wasm/lib/<tfm>`, which both browser runtimes load. (#5944)
+
+## ANALYZERS: proving a generator does no syntax work through `trackIncrementalGeneratorSteps`
+
+**Tried:** asserting that a generator's `GeneratorRunResult.TrackedSteps` contains no syntax-provider step, as the instrument for "the generator does no per-tree work in a project that has not opted in".
+
+**Failed because:** an untracked `CreateSyntaxProvider` (no `.WithTrackingName`) records no step. Measured by adding one on purpose: the tracked steps were `AnalyzerConfigOptions, Compilation, ImplementationSourceOutput, SourceOutput`, and the assertion stayed green.
+
+**Don't re-attempt:** use an instrument that can go red — a source guard that parses the generator file for `.SyntaxProvider` access, or an internal hook (set by reflection) invoked where the walk starts — and prove each by its mutation.

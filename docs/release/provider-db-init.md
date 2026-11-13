@@ -44,7 +44,7 @@ Recorded on 6.3.0 (Firebird needed recreate + CreateDatabase; Oracle needed CN f
 
 - **Container:** `db2` (`docker start db2`)
 - **Setup script(s):** `Data\Setup Scripts\db2.cmd` (relative to linq2db repo root)
-- **Invocation:** `pushd "Data\Setup Scripts" && db2.cmd && popd`
+- **Invocation:** `db2.cmd`, run from `Data\Setup Scripts` — never chained with `pushd … &&`; the single-command form is in [`test-providers`](../../skills/test-providers/SKILL.md) (shell rules).
 - **Env vars:** none (script uses hardcoded password `Password12!`)
 - **Notes:** Container uses Docker-managed volumes (`/database`, `/hadr`). On `docker stop` + `docker start`, the IBM `icr.io/db2_community/db2:latest` image exits with code 1 — the image's `setup_db2_instance.sh` has a chown bug (refs `.fenced` with leading dot; actual file is `fencedid`) AND `db2icrt` rejects the file because it's owned `root:root` instead of `root:db2iadm1` (DBI20187E in db2icrt.log; root cause documented at [IBM community thread](https://community.ibm.com/community/user/discussion/121-container-community-edition-docker-start-fails-dbi20187e)). `db2.cmd` was updated on 6.3.0 to patch the container's setup script in-place via `docker exec sed` immediately after first-run setup completes — inserts a `chown root:db2iadm1 /database/config/db2inst1/sqllib/adm/fencedid` line before the `create_instance` call. Patch persists in the container's writable layer until `docker rm` — re-run `db2.cmd` if the container is recreated.
 - **Last verified:** 2026-05-16 on release 6.3.0

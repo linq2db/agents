@@ -309,3 +309,4 @@ foreach ($name in $Pipeline) {
 
 if ($invalid.Count -gt 0)    { exit 4 }
 if ($notStarted.Count -gt 0) { exit 1 }
+exit 0

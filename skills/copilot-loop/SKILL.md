@@ -1,6 +1,6 @@
 ---
 name: copilot-loop
-description: Iterative absorb loop for inbound Copilot (and other LLM-bot) review threads on a linq2db PR the user authored. Per round — verify each open thread against current HEAD, propose fixes for still-actual ones, batch commit + push, re-request Copilot, post batched reply+resolve via post-pr-thread-replies.ps1, then auto-wait for the next bot review and loop. Each fix round is explicitly user-confirmed; no GitHub writes without per-round approval.
+description: Absorb loop for Copilot (and other LLM-bot) review threads on the user's own linq2db PR — per round verify open threads at HEAD, propose fixes, commit + push, re-request Copilot, batch reply+resolve, wait for the next bot review. Each round's fixes and GitHub writes are user-confirmed.
 ---
 
 # copilot-loop
@@ -164,6 +164,7 @@ For each thread in the work list, write one item to
 - **Fixed at HEAD before this round:** body = `"Fixed at HEAD: <quote of current code or short reference> — fixed in an earlier commit."`
 - **Inaccurate at HEAD:** body = `"Inaccurate at HEAD. <evidence>. <verdict notes>"`
 - **Still actual + just fixed:** body = `"Fixed in <newHeadSha>: <one-line description of fix>."`
+- **Still actual + declined:** body = `"Accurate; declined for <milestone>: <reason>. Resolving as won't-fix, not fixed."` (naming any follow-up issue), with `resolve: true`. A decline is adjudicated; only the *deferred* case stays open. ([`pr-and-push.md`](../../docs/pr-and-push.md) → *After every successful push: re-request Copilot review*; #5643.)
 - **Still actual + deferred:** body = `"Still actual; deferred for follow-up: <reason>. Not resolving."` and set `resolve: false`.
 
 All replies get `resolve: true` except the explicit deferred case.

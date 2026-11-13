@@ -14,19 +14,21 @@ All three are always-loaded, imported **by the linq2db root `CLAUDE.md` trampoli
 Never mix explanation, questions and proposals in one block of text. When a reply has more than
 one of them, split it into labelled sections in this order, and omit the ones that are empty:
 
-1. **Prose** — what I found, what I did, what it means. Statements only: no questions, no proposals.
-2. **Questions** — what I need from you before continuing. One per bullet, each answerable on its own.
-3. **Next actions** — numbered so you can reply "1, 3" instead of restating it.
+1. **Prose** — what was found, what was done, what it means. Statements only: no questions, no proposals.
+2. **Questions** — what the user must decide before work continues. One per bullet, each answerable on its own; mutually exclusive options are lettered (a/b/c), one label space per turn.
+3. **Next actions** — what the agent proposes to do, numbered so the user can reply "1, 3" instead of restating it.
 
 Rules:
 
 - Keep each section to its own job. A question buried in a paragraph of findings does not count as asked.
 - Don't repeat prose inside the questions or the actions; reference it.
-- If there is nothing to ask and nothing to propose, prose alone is the whole reply.
-- **The turn this is dropped on is the wrap-up.** A closing turn — "here is what landed", a post-push summary, a finalize-session report — is mostly statements, so it reads as pure prose and the format never seems to apply. Then the open items get appended as a trailing paragraph ("two things still outstanding…") instead of a numbered **Next actions** section, which is exactly the content the sections exist to separate: the user has to re-read a wall of results to find what they are being asked to decide. A summary turn that contains *anything* still undecided is a p/q/a turn. Same test as always — the fork is what makes a section, not the turn's length.
+- If there is nothing to ask and nothing to propose, prose alone is the whole reply — but check before omitting: "nothing to ask" has to mean every open point can proceed without the user, not that one felt too small to interrupt for.
+- **An open question is re-asked in full in the reply that needs it.** Never refer back to an earlier one ("the question from my last message is still open") — the reference is invisible in the reply being read.
+- **A prose sentence that names something unresolved and waits on the user is a question wearing prose** ("still open", "worth deciding", "unless you want otherwise") and belongs in **Questions**.
+- **A wrap-up turn with anything undecided is still a sectioned turn.** A closing summary reads as pure prose, so open items get appended as a trailing paragraph instead of a **Next actions** section — the content the sections exist to separate.
 - **Sections 2 and 3 are for real forks only, not for the obvious next step.** A *fork* is one of:
   mutually exclusive options where the choice changes the work; an irreversible or outward-facing
-  action (per *Git commit rules*); or a goal-level ambiguity you cannot resolve from the task. When
+  action (per *Git commit rules*); or a goal-level ambiguity not resolvable from the task. When
   the next step follows from what just happened — widen a narrow run, re-run after a fix, take the
   next item of a plan already agreed — **do it and report the result**. Do not close a turn with a
-  numbered menu whose every answer is "yes"; that is asking permission, not proposing a choice.
+  menu whose every answer is "yes"; that is asking permission, not proposing a choice.

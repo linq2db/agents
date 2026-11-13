@@ -46,9 +46,9 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
   an ORM whose work is dominated by database I/O, so async-machinery overhead is too small to matter.
   The earlier plan-mode draft carried a query-build + execution benchmark obligation; it is dropped.
   Any number produced is informational and gates nothing. See `P10`.
-- **F# and VB `LangVersion` are not touched.** They use a different numbering scheme
-  (`LinqToDB.FSharp.fsproj:4` = 9, `Tests.VisualBasic.vbproj:4` = 16.9); a "C# 15" change means
-  nothing there.
+- **VB `LangVersion` is not touched.** It uses a different numbering scheme
+  (`Tests.VisualBasic.vbproj:4` = 16.9); a "C# 15" change means nothing there. **F# was in this
+  anti-goal until A-4**, which raises the four F# projects from 9 to 11 for the .NET 11 GA SDK.
 - **No TFM list changes.** `Build/TargetFrameworks.props` is branch 1's contract and stays as-is.
 - **Unmergeable before .NET 11 RTM**, inherited from branch 1: `global.json` pins an exact prerelease
   SDK.
@@ -83,7 +83,7 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
 
 ## P5 Decisions (M/L; rejected alternatives mandatory at L)
 
-### D-1 — Opt-in lives in a new root `Directory.Build.targets`, TFM-conditioned, with no switch property
+### D-1 — Opt-in lives in a new root `Directory.Build.targets`, TFM-conditioned (switch property `UseRuntimeAsync` since A-5)
 
 - **chosen:** `<Features Condition=" $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0')) ">$(Features);runtime-async=on</Features>`
   in a **new root `Directory.Build.targets`** (the repo has none today), not beside the existing
@@ -95,7 +95,9 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
   `Directory.Packages.props:146-168` picks package bands that way. Measured across TFMs: `net11.0`,
   `net12.0` and `net13.0` evaluate `True` (`Features` = `strict;runtime-async=on`), `net10.0`,
   `net462` and `netstandard2.0` evaluate `False` (`Features` = `strict`).
-- **rejected:** an `EnableRuntimeAsync` switch property, which the first draft carried so the controls
+- **A-5 reverses the next rejection:** the switch is now `UseRuntimeAsync` (default `true`), because
+  `-p:Features=strict` works only while `Directory.Build.props:51` sets `Features` to exactly `strict`.
+- **rejected (until A-5):** an `EnableRuntimeAsync` switch property, which the first draft carried so the controls
   in `P8` would have an off state — unnecessary, measured: `Features` is an ordinary MSBuild property,
   so passing `-p:Features=strict` as a **global** property overrides the conditioned assignment
   outright (evaluation returns `strict` instead of `strict;runtime-async=on`, and the resulting
@@ -127,7 +129,9 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
   do **not** block a root `.targets`; a probe reproducing that exact shape evaluated
   `Features=strict;runtime-async=on`. The two are net-standard2.0/net10.0 anyway (U-7), so nothing
   fires there. The first `Directory.Build.targets` added under a subdirectory would reintroduce the
-  hole invisibly, and TO-2 is what turns that from silent into red.
+  hole invisibly. For the four packed projects, E-14's third check now turns that red on every pack
+  (`lib/net11.0` with 0 `MethodImpl.Async` methods fails it); for test and Examples projects nothing
+  does, and TO-2 is a one-off.
 
 ### D-2 — `LangVersion 15` repo-wide, not conditioned on TFM
 
@@ -182,7 +186,8 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
 - **why this:** it produces the same evidence at the moment it is actually needed — before the stress
   run is believed — without adding a permanent test whose subject is the compiler.
 - **failure mode of the choice:** a later edit to `Directory.Build.targets` can silently switch the
-  feature off and nothing notices, because the verification is a one-off. Partially covered: with the
+  feature off for test and Examples projects and nothing notices, because the verification is a
+  one-off. (Since A-3, E-14's third check notices it for the four packed projects.) Partially covered: with the
   feature off the branch is a no-op, so the next `[all]` run would agree suspiciously exactly with
   branch 1's.
 
@@ -247,6 +252,13 @@ that, the ship/don't-ship call at .NET 11 RTM has nothing to rest on.
 - E-22 `Examples/Remote/HttpClient/HttpClientClient/HttpClientClient.csproj:10` — `AdditionalProperties="BrowserWasmAssetBuild=true"` on the Remote reference, plus a `ProjectReference Update` carrying it onto the `LinqToDB` reference from `Examples/Directory.Build.props:15` (A-3, U-19).
 - E-23 `Examples/Remote/SignalR/SignalRClient/SignalRClient.csproj:10` — same (A-3).
 
+- E-24 `Source/LinqToDB.FSharp/LinqToDB.FSharp.fsproj:4` — F# `LangVersion` 9 → 11 (A-4).
+- E-25 `Tests/FSharp/Tests.FSharp.fsproj:7` — F# `LangVersion` 9 → 11 (A-4).
+- E-26 `Tests/EntityFrameworkCore.FSharp/Tests.EntityFrameworkCore.FSharp.props:10` — F# `LangVersion` 9 → 11, imported by `Tests.EntityFrameworkCore.FSharp.EF10.fsproj:3` (net10.0, FSharp.Core 10.1.401) and `…EF11.fsproj:3` (net11.0) (A-4).
+- E-27 `Source/LinqToDB.FSharp/FSharpQueryExpressionInterceptor.fs:164,247,252,380,417` — five `|> nonNull` on `ExpressionVisitor.Visit` results removed: at `LangVersion 11` they are FS3262 errors (measured in the authoring session; the per-TFM split, net10.0 / net11.0 only, is reasoned, unprobed) (A-4).
+- E-28 `Directory.Build.targets:3-9` — `UseRuntimeAsync` property defaulting to `true`; the `Features` condition also requires it; the comment names `-p:UseRuntimeAsync=false -t:Rebuild` and why the rebuild is needed (A-5).
+- E-29 `Tests/Tests.Wasm.App/Tests.Wasm.App.csproj` — target `_StripWasmGlobalsFromTransitiveReferences` after `IncludeTransitiveProjectReferences`: strips `WasmBundleMode;WasmRuntime` from the SDK's transitive references and drops the transitive `LinqToDB.Analyzers.CodeFixes` (A-6).
+
 No test file is added for D-5: its effectiveness check is a one-off inspection recorded in `P9`. A-3's checks are the harness (E-17 to E-21) and E-14.
 
 ## P7 Impact map (M/L)
@@ -280,6 +292,12 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - (A-3) Gate shape — `Tests/Base/Attributes/ActiveIssueAttribute.cs:108,199-200` has OS-only `Platforms` and no runtime targeting, so a gate diverging by runtime needs its own case source — covered by E-21 and TO-10.
 - (A-3) Examples — `Examples/Remote/{HttpClient/HttpClientClient,SignalR/SignalRClient}` are Blazor WASM on `$(LatestTargetFramework)`, build-only in CI (`build.yml:174`) — covered by E-22, E-23. `Examples/Remote/Grpc/GrpcClient` is not a browser app — out-of-scope.
 - (A-3) Docs — searched `blazor|wasm|webassembly|runtime.async|\bbrowser\b` over non-corpus `*.md`: no statement goes stale. `Tests.Wasm.App.csproj:7` and `Directory.Build.targets:3-5` comments do — covered by E-9, E-18.
+- (A-4) F# `LangVersion` — searched `LangVersion` over `*.props|*.targets|*.csproj|*.fsproj|*.vbproj|*.md|*.yml` at `origin/pr/5944`: 7 hits, the three F# ones at `11` (E-24..E-26), C# at `15` ×3, VB `16.9`; no doc names an F# language version — covered by E-24, E-25, E-26.
+- (A-4) `nonNull` in F# — searched `git grep -c nonNull origin/pr/5944 -- "*.fs"`: 20 remaining lines, 22 calls (`FSharpMemberTranslator.fs` 5, `FSharpOptionSupport.fs` 3, `FSharpQueryExpressionInterceptor.fs` 7, `Tests/FSharp/Issue5598.fs` 5). None is on an `ExpressionVisitor.Visit` result. One is on another `[NotNullIfNotNull]` call: `FSharpQueryExpressionInterceptor.fs:239-244`, `lam.Transform(…) |> nonNull`, where `Transform` is `[return: NotNullIfNotNull(nameof(expr))]` on every TFM (`Source/LinqToDB/Expressions/ExpressionExtensions.cs:318-319`). It is kept, and Release builds report 0 warnings for it, so F# 11 did not flag that call (measured). Why it is silent is unprobed: the annotation is linq2db's own and `Transform` is a C# extension method, while `Visit` is a BCL instance method. Under `global.json` `rollForward: latestFeature`, a later 11.0.x fsc could start flagging it. The rest are reflection lookups (`GetMethod`/`GetProperty`/`GetType`), `MemberExpression.Expression`, `MethodCallExpression.Object`, `InvokeExt`/`DynamicInvokeExt` (`object?`), and `db.LastQuery` — covered by E-27; `:244` deferred: kept as is, an open review lead.
+- (A-4) FSharp.Core floor — `Directory.Packages.props:42-44` sets `FSharpCoreForNuget` 11.0.101 on net11.0 and 10.0.100 on every other TFM, `:233-234` the test versions; `LinqToDB.FSharp.fsproj:44` references it on every TFM, so the ns2.0 / net462 / net10.0 builds compile `LangVersion 11` against FSharp.Core 10 — reasoned, unprobed: no F# 11 construct that needs FSharp.Core 11 is used (E-27 removes calls, adds none) — covered by E-24.
+
+- (A-5) Off-switch spellings — searched `Features=strict|UseRuntimeAsync|EnableRuntimeAsync` over the branch (`*.md|*.yml|*.ps1|*.cs|*.props|*.targets|*proj`): one shipped mention, `Directory.Build.targets:5` (E-28); `RuntimeAsync|runtime-async` over SDK 11.0.100 targets / props: 0 hits, so `UseRuntimeAsync` is read by nothing in the SDK — covered by E-28.
+- (A-6) Transitive references with project-specific globals — searched `BrowserWasmAssetBuild|WasmBundleMode|WasmRuntime|_TransitiveProjectReferences|GlobalPropertiesToRemove` over the branch's build files: `Tests.Wasm.App.csproj:49` is the only app passing project-specific globals that a bare transitive edge would keep; `Source/Directory.Build.props:39-43` is the existing transitive-drop precedent — covered by E-29.
 - (A-3) Prior constraints — `.claude/plans/issue-5159-wasm-runtime-tests/plan.md:29,64` keeps the browser-wasm app out of `linq2db.slnx`, and `:47` warns a global `IntermediateOutputPath` flattens the graph; D-7 uses a per-pivot path and adds no solution entry — covered by E-8.
 
 ## P8 Test obligations (M/L)
@@ -288,7 +306,7 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - TO-2 (SC-2) The D-5 effectiveness check, run once at implementation time and recorded in P9 rather than committed — on the built net11.0 `linq2db.dll` a named `async` method reports `MethodImplAttributes.Async` and carries no `AsyncStateMachineAttribute`, with the member chosen by first confirming on net10.0 that it is a real `async` method rather than merely `Task`-returning, and the mutation that must actually be run is the same inspection after `-t:Rebuild -p:Features=strict` — proof: control.
 - TO-3 (SC-3) Full `tests [all]` matrix on the branch head, discriminated against branch 1 at `5ece0ee9e`, whose own `[all]` run is the control over an identical test corpus so any delta is attributable to this branch's two properties; sub-surfaces that must be exercised rather than assumed are the `SafeAwaiter` sync-over-async paths (remote/LinqService legs), the 10 hand-written `IAsyncEnumerator` implementations, and `BulkCopyReader` — proof: control.
 - TO-4 (SC-4) Stack budgets run as an explicit pair rather than inside the sweep — `StackUseTests.EagerLoadProjection`, `StackUseTests.TestStackHopOption`, `StackUseTests.TestExpressionVisitorHops`, `StackUseTests.TestSqlVisitorHops`, `Issue3674Tests.InThread` on net11.0, first with the feature on and then rebuilt with `-t:Rebuild -p:Features=strict`, recording per test the asserted hop depth or thread survival; a budget change is a result to record, a process crash is a blocker — proof: control.
-- TO-5 (SC-5) `-t:Rebuild -p:Features=strict` on a net11.0 build produces classic lowering, i.e. TO-2's inspection inverted and therefore not an independent obligation, kept because it is what proves the off-switch the ship decision relies on is real rather than assumed — proof: control.
+- TO-5 (SC-5) `-t:Rebuild -p:Features=strict` (since A-5: `-t:Rebuild -p:UseRuntimeAsync=false`, re-run on E-28) on a net11.0 build produces classic lowering, i.e. TO-2's inspection inverted and therefore not an independent obligation, kept because it is what proves the off-switch the ship decision relies on is real rather than assumed — providers: none (build-time inspection) — proof: control.
 - TO-6 (SC-6) The unchanged path — the net10.0 and net462 builds of the same assembly still carry `AsyncStateMachineAttribute` on the method TO-2 inspects, catching the feature leaking to a TFM whose runtime cannot execute it — proof: control.
 - TO-7 (SC-2, SC-4, SC-5, SC-6) Every arm of TO-2/TO-4/TO-5/TO-6 is built with `-t:Rebuild` (or `--no-incremental`) and each records that `CoreCompile` actually ran, because `Microsoft.Common.CurrentVersion.targets:3883-3889` omits `$(Features)` from `CoreCompileCache` and a `-p:Features=` override touches no file in `$(MSBuildAllProjects)` — without this both arms re-test the same binaries and every control reads as a silent clean — proof: control.
 - TO-8 (SC-7) E-14 against the Release pack of all four packages: RID asset present with 0 `MethodImpl.Async` methods, `lib/net11.0` above 0, package validation clean, third-party-notices `verify` clean, on both CI systems — proof: control. Mutation: removing `BrowserWasmAssetBuild != true` from E-9 must fail it, with the `browser-asset` pivot cleared first, because `$(Features)` is not in `CoreCompileCache` (U-10).
@@ -296,6 +314,7 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - TO-10 (SC-8) `Tests.Wasm` over 4 modes × 2 runtimes: `BundleExitsCleanly` passes on all 8, and the #6167 / #6168 gates hold on both runtimes; a gate that diverges by runtime gets its own case source rather than a widened message — proof: control. E-19's runtime check gets one measured negative per runtime: publish with the other runtime and assert the script reports it.
 - TO-11 (SC-7) One-off, recorded in `P9`: a `Microsoft.NET.Sdk.WebAssembly` app restoring the real packed `linq2db` + `linq2db.Remote.HttpClient.Client` from a local feed, run under Node on Mono and CoreCLR — proof: characterization of the shipped layout, which TO-9/TO-10 reach only through a `ProjectReference`.
 - TO-12 (SC-1, SC-6) Release build of `linq2db.slnx` plus **Release** build of `Examples/Examples.slnx` after E-8 to E-23 (the Examples leg has been Release since #6127, `build.yml:174`, `build-job.yml:50`, so A-2's Debug scope and the matching `P7` row are out of date), and the D-5 inspection re-run on net11.0 `linq2db.dll` (`MethodImpl.Async` above 0) — proof: control.
+- TO-14 (A-4) Release builds of the four F# projects — `linq2db.FSharp`, `Tests.FSharp`, `Tests.EntityFrameworkCore.FSharp.EF10` (net10.0) and `…EF11` — on every TFM they target, 0 warnings. Tests: the F# fixtures in `Tests/Linq` and `FSharpTests` on net11.0 **and** on a FSharp.Core 10 TFM (net10.0 / net462 `Tests.FSharp`, EF10 `FSharpTests`), at the branch head — providers: SQLite.MS locally, or every provider on the CI legs that run them — proof: characterization (no behaviour change claimed; every removed call passed a non-null node to a visitor whose overrides cannot return null).
 - TO-13 (SC-7) E-22 and E-23 pinned: `-getItem:ProjectReference` on both Examples clients shows `AdditionalProperties` on the Remote edge and the `LinqToDB` edge, so the `Update` is shown to have matched rather than inferred from the published counts — proof: control.
 
 ## P9 Verification gates
@@ -309,6 +328,10 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - G-06: — (pending)
 - G-07: — (pending)
 - G-09: — (pending) — Tier L, per `work-plan.ps1 -Action gates` (G-03/G-04 n/a: no public surface; G-08 n/a: no engine-code edit).
+- **A-3 one-offs:** — (pending) — not yet recorded at `3c28ed1b0`: TO-8's mutation (drop `BrowserWasmAssetBuild != true` from E-9 with the `browser-asset` pivot cleared; E-14 must fail), TO-10's one negative per runtime for E-19's runtime check, TO-11 (a `Microsoft.NET.Sdk.WebAssembly` app restoring the packed `linq2db` + `linq2db.Remote.HttpClient.Client` under Node on Mono and CoreCLR), TO-13 (`-getItem:ProjectReference` on both Examples clients). Found missing by the 2026-11-12 `/review-pr` pass.
+- **A-6 (E-29): pass (build half, Mono/Debug only)** — Mono Debug publish of `Tests.Wasm.App` with `-p:BrowserWasmAssetBuild=true`, before and after E-29, both exit 0 with the publish line `Tests.Wasm.App -> …\.build\wasm\Mono\Debug\`: output lines went from LinqToDB ×2, CodeGenerators ×2, Analyzers ×3, CodeFixes ×3 to one each; the app `bin` no longer holds `LinqToDB.Analyzers.CodeFixes.dll`. Open: the other seven bundles and the trim modes, on the `WASM runtime tests` run at the pushed head (to be named here).
+- **A-5 (E-28), TO-5 on E-28:** evaluation measured — `-getProperty:Features` on `LinqToDB.csproj`: net11.0 default `strict;runtime-async=on`; net11.0 `-p:UseRuntimeAsync=false` `strict`; net11.0 `-p:BrowserWasmAssetBuild=true` `strict`; net10.0 `strict` in all three; `Tests.SingleFile` `strict;runtime-async=on`. Lowering arms on `linq2db.dll` net11.0 Release, both with `-t:Rebuild`: `-p:UseRuntimeAsync=false` → **0 `MethodImpl.Async` / 270 `AsyncStateMachineAttribute`**; default → **270 / 0**. After the critic's default change, re-evaluated: the same six `LinqToDB.csproj` values (`UseRuntimeAsync` now `false` under `BrowserWasmAssetBuild=true`), `Tests.SingleFile` `strict;runtime-async=on` / `true`, `Tests.Wasm.App` and `HttpClientClient` (RID `browser-wasm`) `strict` / `false`. The non-browser `Features` value is unchanged by that edit, so the lowering arms stand: pass.
+- **TO-14 (A-4):** — (pending) — local half recorded in the PR body's `80e613db8` section on SDK 11.0.100: Release builds of the F# projects 0 warnings; SQLite.MS net11.0, F# fixtures in `Tests/Linq` 172 passed / 8 skipped, EF11 `FSharpTests` 3 of 3. Open: the FSharp.Core 10 half (net10.0 / net462 `Tests.FSharp`, EF10 `FSharpTests`), on Azure `build` 25580 and `test-all` 25579 at `3c28ed1b0`.
 - **A-3 legs:** — (pending) — TO-10 on `WASM runtime tests`, TO-8 on `Build and pack` and Azure `build`, each observed green at the final head; `Examples build` for TO-12, which now compiles the browser `LinqToDB` inside its 30-minute job.
 
 ## P10 Adjudicated (M/L)
@@ -325,10 +348,8 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - **No committed test asserts that runtime async is on.** The user's call: the lowering is the SDK's
   behaviour, not linq2db's, and the suite should not carry a test for it (D-5). The evidence is
   produced once, at implementation time, and recorded in `P9`.
-- **No `EnableRuntimeAsync` switch property.** The off-switch is `-p:Features=strict`, which is a
-  global MSBuild property and therefore already overrides the conditioned assignment — measured
-  (D-1). A review finding that the feature "cannot be turned off without editing a file" is answered
-  by this entry.
+- ~~**No `EnableRuntimeAsync` switch property.**~~ Retired by A-5: the off-switch is now
+  `-p:UseRuntimeAsync=false -t:Rebuild` (D-1).
 - **`Vbc` receives `runtime-async=on` and its handling of it is unprobed.** `Tests/VisualBasic`
   contains no `Async Function` or `Await`, so there is nothing for it to lower either way; if VB ever
   gains async code here, the flag's VB behaviour becomes a real unknown rather than an inert one
@@ -347,6 +368,21 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
 - **(A-3) `wasi-wasm` gets no asset.** The cause is the Mono runtime, not the browser, and Mono is also
   selectable for `wasi-wasm`. No wasi consumer is known and no asset or test exists for it, so it is left
   as is; a report from such a user would add one RID, by the same mechanism.
+- **(A-3) Browser-wasm is the only Mono consumer left on .NET 11.** Measured in SDK 11.0.100:
+  `Microsoft.NET.TargetFrameworkInference.targets:142-148` (`_CheckForUnsupportedMonoMobileRuntime`)
+  raises NETSDK1242 for `UseMonoRuntime=true` on net11.0+ with `ios`, `tvos`, `maccatalyst` or
+  `android`, while `Microsoft.NET.Sdk.WebAssembly/Sdk/Sdk.props:18` still defaults it to `true`. So the
+  browser asset covers every supported Mono consumer. Not covered: `macos` (absent from the check's
+  list; CoreCLR is its default) and the private `_DisableCheckForUnsupportedMonoMobileRuntime` bypass.
+  A review pass misread the MAUI notes as "Mono stays selectable"; #6315, filed on that reading, was
+  closed not planned.
+- **(A-5) The off-switch holds for a build, not for a pack.** `-p:UseRuntimeAsync=false` (like
+  `-p:Features=strict` before it) makes E-14's third check fail on both CI pack pipelines, because
+  `lib/net11.0` then has 0 `MethodImpl.Async` methods. Intended: a pack without the feature is not what
+  ships. SC-5 is about building without it.
+- **(A-6) E-29 depends on the SDK-private `_TransitiveProjectReferences` item.** A later SDK that renames
+  it would silently bring the duplicate builds back; `Source/Directory.Build.props:39-43` already takes
+  the same dependency. Accepted.
 - **(A-3) E-19's runtime check depends on the runtime pack being downloaded.** With a `wasm-tools`
   workload supplying it from `packs/`, the expected entry is absent and the check fails loudly, in its
   positive form. CI and this box have no workload today.
@@ -372,7 +408,21 @@ No test file is added for D-5: its effectiveness check is a one-off inspection r
   re-derives: P2 (SC-7, SC-8), P4 (U-13..U-21), P5 (D-1 condition, D-3 now excludes browser-wasm projects, D-6..D-9), P6 (E-2 via E-9, E-8..E-23), P7 (A-3 rows), P8 (TO-8..TO-13), P9, P10
   conventions: testing.md → Test layout, A narrowed provider set is a claim, Gating an assertion failure; swept `git diff origin/master... -- Tests/` with `test-diff-sweep.ps1 -IncludeWorkingTree` before implementation (chains and narrowed sets reported, none in `Tests/Tests.Wasm`); to be re-run on the implemented tree and recorded in G-01.
 
+- A-4 (2026-11-12, recorded after the fact during `/review-pr`) — **F# `LangVersion` 9 → 11 (`3c28ed1b0`).** Committed on 2026-11-11 for the .NET 11 GA SDK without a plan amendment; `reconcile` flagged its four files as unplanned. It reverses the F# half of `P3`'s "F# and VB `LangVersion` are not touched", which rested on the numbering scheme being unrelated to C# 15. The reason it moved: the user chose to adopt the GA toolchain's F# along with C# 15. At `LangVersion 11` the five `|> nonNull` calls on `ExpressionVisitor.Visit` results are FS3262 errors, so they are removed (E-27); no other `nonNull` site changes, including `:244` on `Transform`, which carries the same attribute and is not flagged (P7). The projects touched are four, not three: E-26's props file is shared by the EF10 and EF11 F# tests. Runtime async is unaffected: `Fsc` still does not consume `$(Features)` (P10). Approval of E-24..E-27 is void and is re-earned with this amendment.
+  re-derives: P3 (F# half of the `LangVersion` anti-goal), P6 (E-24..E-27), P7 (A-4 rows), P8 (TO-14), P9 (TO-14).
+  conventions: testing.md → Test layout; swept `origin/master...origin/pr/5944 -- Tests/` with `test-diff-sweep.ps1 -Ref origin/pr/5944`: chains 0, nestedChains 0, narrowedSets 0, narrowedWithoutReason 0 — the A-4 test edit-points are project files only.
+- A-5 (2026-11-12, from Igor Tkachev's review SUG001 at `3c28ed1b0`) — **The off-switch becomes `UseRuntimeAsync`.** `-p:Features=strict` turns the feature off only because `Directory.Build.props:51` sets `Features` to exactly `strict`. A global property replaces the whole value, so if that default gains another flag, the documented switch silently drops it. E-28 adds `UseRuntimeAsync` (default `true`) and gates the `Features` append on it. The name is the one the [.NET 11 runtime notes](https://learn.microsoft.com/dotnet/core/whats-new/dotnet-11/runtime) give for a per-project opt-out. SDK 11.0.100's `.targets` / `.props` do not read it (searched `RuntimeAsync|runtime-async`: 0 hits), so it is the repo's own switch today; if a later SDK reads it, `false` still means off. `$(Features)` is still not a `CoreCompile` input (U-10), so the comment names `-t:Rebuild`. Retires P10's "No `EnableRuntimeAsync` switch property" and D-1's rejection of it; approval of E-28 is earned with this amendment.
+  Critic round A-5/A-6 changed the default: `UseRuntimeAsync` defaults to `false` when `BrowserWasmAssetBuild` is `true` or the RID is `browser-wasm`, and to `true` otherwise, so a later SDK that reads the property is never told `true` on a build A-3 keeps classic. `Features` is gated on the property plus the TFM. D-1's reason for rejecting a switch ("someone pinning it in a CI job and no longer testing what ships") is answered by E-14's third check (`verify-browser-wasm-asset.ps1:125-128`), which fails any pack whose `lib/net11.0` has 0 `MethodImpl.Async` methods.
+  conventions: testing.md → Test layout; E-28 is a build file and TO-5 is a build-time inspection, no test code; `test-diff-sweep.ps1` counts as A-4.
+  re-derives: P5 (D-1 off-switch and heading), P6 (E-28), P7 (A-5 row), P8 (TO-5 re-run on E-28; TO-2, TO-4 and TO-7 keep `-p:Features=strict` as recorded — those are dated measurements, and the form still works because `Directory.Build.props:51` is `strict`), P9 (A-5 row), P10 (switch entry retired; off-switch vs. pack line added).
+- A-6 (2026-11-12, from the `/review-pr` pass, measured) — **The WASM app built LinqToDB and the analyzers more than once into the same output.** The SDK adds `LinqToDB` and `LinqToDB.Analyzers.CodeFixes` as bare transitive references, which keep the app's `WasmBundleMode` / `WasmRuntime` globals. `Tests.Wasm.App.csproj:49` strips them only from its one direct edge, and `Source/Directory.Build.props:39-43` drops the transitive CodeFixes only under `Source/`. Measured with one Mono Debug publish: `LinqToDB` and `CodeGenerators` built twice, `LinqToDB.Analyzers` and `LinqToDB.Analyzers.CodeFixes` three times, into the same `bin` paths (`browser-asset` pivot; `$(Configuration)` only for the analyzers, `Source/Analyzers.Common.props:15`). The later instances skipped `CoreCompile` as up-to-date in that run, so the race was latent. Master has the same shape with `WasmBundleMode` alone, and A-3's global `BrowserWasmAssetBuild` added the third analyzer configuration. E-29 fixes it; after the fix, each project built once.
+  class: other consumers that build `LinqToDB` under a project-specific global — swept `runtime-async|RuntimeAsync|BrowserWasmAssetBuild|WasmBundleMode|WasmRuntime` over `*.props|*.targets|*proj|*.ps1|*.yml` at `origin/pr/5944`. The Examples clients (`Examples/Remote/*/…Client.csproj:11-12`) put `AdditionalProperties` on both edges, so the transitive edges match. `build.yml:111` and `AddBrowserWasmAssetToPackage` reach CodeGenerators and CodeFixes only through `LinqToDB.csproj:32,58`, both of which strip the global. No second instance. E-29 keys on the SDK-private `_TransitiveProjectReferences`, the same dependency `Source/Directory.Build.props:39-43` already takes; a renamed item would no-op it silently (P10).
+  re-derives: P6 (E-29), P7 (A-6 row), P9 (A-6 row), P10 (SDK-private item).
+  conventions: testing.md → Test layout; E-29 is a project file, no test code; `test-diff-sweep.ps1` counts as A-4.
+
 ## P12 Critic verdict (M/L)
+
+**Current verdict: weak** (A-5 / A-6 round 1).
 
 **weak** — `plan-critic` on a different model, run against the branch worktree. Five objections, all
 accepted; four of them re-verified here rather than taken on the critic's word, and two changed the
@@ -435,3 +485,26 @@ Applied to the plan: D-1 and D-3 aligned with E-9; TO-8's mutation clears the pi
 Left open and visible:
 - **Not measured:** whether four parallel hooks collapse to one browser `LinqToDB` configuration. E-15 and E-16 pre-build it to make the question moot, the same mitigation `build.yml:90-94` uses.
 - **Not measured before implementation:** SignalR.Client and Grpc pack and validation (TO-8), the #6167/#6168 gate messages on Mono for TrimFull and NoReflectionJson (TO-10), and the `examples` job's 30-minute budget with the extra Release compile.
+
+### A-4 round 1 — **weak** (`plan-critic` on `fable`, delta scope)
+
+Recorded after the fact; the code (`3c28ed1b0`) predates the amendment. Every edit-point stands. Searched: `git show 3c28ed1b0`; `git grep -c nonNull -- "*.fs"`; `\.Visit|nonNull|isNull` over `*.fs`; `Transform|Replace|InvokeExt|DynamicInvokeExt` signatures in `Source/LinqToDB`; `LangVersion|Nullable|TargetFramework|FSharp.Core|TreatWarningsAsErrors` over fsproj / props / `global.json`; `ls-tree` for every F# file; `fsharp|F#` over NuGet / Build / workflows / docs. It also read the visitor's overrides and found that every removed call is inert.
+
+- **`nonNull` census off by one, and `:244` (`Transform`, `[NotNullIfNotNull]`) missing.** Verified here (`git grep -c` = 20; `ExpressionExtensions.cs:318-319`). → P7 row rewritten; E-27 / A-4 narrowed to the observed FS3262 on the five calls.
+- **Lead: `:244` may become FS3262 on a later fsc under `rollForward: latestFeature`.** Accepted as an open review lead, unprobed.
+- **E-26 reaches a fourth project, EF10 F# (net10.0, FSharp.Core 10.1.401).** Verified (`EF10.fsproj:3`). → P3, E-26, TO-14, A-4 corrected.
+- **TO-14's run half is net11.0 only; P9 said `pass`.** → TO-14 requires a FSharp.Core 10 TFM run; P9 back to pending on 25579 / 25580.
+- **The "net10.0 / net11.0 only" FS3262 claim has no measured red side.** → marked reasoned, unprobed in E-27.
+
+### A-5 / A-6 round 1 — **weak** (`plan-critic` on `fable`, delta scope)
+
+Every edit-point stands. Searched: `RuntimeAsync|runtime-async` over SDK 11.0.100 targets / props / tasks / json / xml (one unrelated FSharp.Core.xml hit); `UseRuntimeAsync` as raw bytes over `Roslyn/` and both Sdks (0); `IncludeTransitiveProjectReferences` in the SDK (`Microsoft.PackageDependencyResolution.targets:489-495`, a bare re-Include, so metadata is preserved); every reader and setter of the wasm globals on the branch; both publish logs and the publish/bin dirs.
+
+- **P9's A-6 "pass" was recorded before the after-publish was seen to finish.** It finished (exit 0, publish line present) after the critic read the log. → P9 row now states it and scopes it to Mono/Debug; the seven other bundles stay open on CI.
+- **"Only CodeFixes.dll leaves the bundle" is half-evidenced** (the publish dir is not cleaned by a hand-run publish). → the claim is narrowed to the app `bin`; the CI run settles the rest.
+- **A-6 had no `class:` line.** → added, with the sibling sweep.
+- **E-29 depends on SDK-private `_TransitiveProjectReferences`.** → P10 line.
+- **E-28's unconditional `true` default would tell a later SDK `true` on browser builds.** Accepted → the default is `false` on `BrowserWasmAssetBuild=true` / `browser-wasm` builds.
+- **TO-5 on E-28 had no P9 row; `re-derives:` named only TO-5.** → P9 row added (evaluation measured, lowering pending); TO-2/4/7 recorded as staying on the dated `Features=strict` form; D-1 heading updated.
+- **D-1's reason for rejecting a switch was reversed without an answer.** → answered by E-14's third check, cited in A-5.
+- **The off-switch fails E-14 on a pack.** → P10 line.

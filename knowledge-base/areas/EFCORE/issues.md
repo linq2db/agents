@@ -4,7 +4,7 @@ kind: issues
 sources: [gh-issues, gh-prs, gh-discussions]
 confidence: high
 last_verified: 2026-11-11
-last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+last_verified_sha: 1732302e2365c87b9465ab754b768a149308a537
 ---
 
 # EFCORE -- GitHub themes
@@ -15,19 +15,23 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 - **Include and navigation loading** -- Challenges with eager loading of related entities and collections in entity hierarchies, especially with inheritance patterns. Open: #4012 (eager include of collections into CTE results), #4628 (inherited navigation population). Closed precedent #4603 (ThenInclude inside a recursive CTE, closed 2026-06-14). Recurring pattern in complex entity graphs.
 
-- **Mapping incompatibilities with inheritance** -- EF Core TPH (Table Per Hierarchy) discriminator handling and inherited property materialization not translating correctly. Open: #4644 (inherited properties unnecessarily in SQL), #4666 (Merge into TPH table with discriminator), #4628 (inherited navigation interaction). Entity construction and calculated column expansion were addressed in closed PR #5578.
+- **Mapping incompatibilities with inheritance** -- EF Core TPH (Table Per Hierarchy) discriminator handling and inherited property materialization not translating correctly. Open: #4644 (inherited properties unnecessarily in SQL), #4666 (Merge into TPH table with discriminator), #4628 (inherited navigation interaction). Entity construction and calculated column expansion were addressed in merged PR #5578.
 
 - **EF Core integration lifecycle gaps** -- Transaction, context registration and state management issues when bridging EF Core contexts to linq2db queries. Open: #4653 (transaction assignment on pre-created queryables), #4649 (Set() method tracking semantics, updated 2026-07-11), #4877 (Npgsql TransactionScope with prepared transactions disabled), #4811 (registering multiple DbContext types). Connection leak in the ToLinqToDB helper (#5364) is closed and listed under Resolved themes.
 
-- **Provider support, types and documentation** -- Limited provider support documentation, configuration gaps and type integration for EF Core. Open: #4611 (review of supported providers list and testing matrix), #4665 (integration with EFCore.NetTopologySuite types).
+- **Provider support, types and documentation** -- Limited provider support documentation, configuration gaps and type integration for EF Core. Open: #4611 (review of supported providers list and testing matrix), #4665 (integration with EFCore.NetTopologySuite types), #4044 (jsonb support on PostgreSQL through EF Core), #4652 (missing PostgresBinaryExpression operator types).
 
 - **Value converters with CLR logic** -- EF Core ValueConverter definitions that run CLR code, or that meet a PostgreSQL/NodaTime read path, failing when linq2db translates or materializes the column. Open: #5981 (Npgsql UseNodaTime read of a value-converted DateTime column, updated 2026-11-10). Recent closed regressions #5975, #5976 and #6181 are listed under Resolved themes.
 
 - **Query filters and query cache keys** -- EF Core global query filters that capture values feeding the linq2db query cache. Open: #6235 (cache reuses queries across mapping schemas whose filters capture different values, opened 2026-11-01).
 
-- **Batch update SQL generation** -- EF Core write paths emitting SQL that a provider rejects. Open: #6180 (batch update with ORDER BY throws a near "ORDER" syntax error, opened 2026-10-27).
+- **Merge and batch update SQL generation** -- EF Core write paths emitting SQL that a provider rejects or mis-translates for MERGE and batch UPDATE. Open: #6180 (batch update with ORDER BY throws a near "ORDER" syntax error, opened 2026-10-27), #4640 (JSON column properties null after a MERGE on MSSQL), #4666 (Merge into TPH table with discriminator).
 
 - **Shadow properties** -- EF Core shadow properties not visible to linq2db mapping, including temp-table and discriminator cases. Open: #3174 (shadow property with a temp table, MSSQL), discussion [Configure Linq2DB.EntityFrameworkCore to respect shadow Discriminator property](https://github.com/linq2db/linq2db/discussions/5477) (open).
+
+- **EF model metadata mapping** -- EF Core model constructs that linq2db does not read from the EF model or attributes: owned entities, DataAnnotations-driven configuration and association keys. Open: #4650 (owned entities not supported), #4671 (DataAnnotations attribute reader for the EF integration), #4627 (Association key not found for type).
+
+- **Bulk copy through the EF integration** -- BulkCopy paths run from EF Core contexts failing on duplicate keys, option configuration and complex properties. Open: #4641 (duplicate key violation since 5.3.0 on PostgreSQL), #4660 (setting BulkCopyOptions), #4663 (BulkCopy throws with ComplexProperty, complex type).
 
 ## Resolved themes
 
@@ -45,7 +49,9 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 - **Many-to-many navigation translation** -- EF Core skip navigations backed by a hidden join entity failed with "could not be converted to SQL" (#5585, closed). Fixed by PR #5588 (merged 2026-06-09).
 
-- **EF Core value converters** -- Converter handling in parameters, set operations and server-side writes. Closed: #5177 (nullable struct converters), #5388 (ValueConverter ignored for constant values), #5427 (BulkCopy writing Guid.Empty instead of NULL). Regressions #5975 (DML with EF Core DateTime converters) and #5976 (Concat/Union NotEqual operator error), both closed 2026-10-09, are fixed by PR #5978 (merged 2026-10-09). Regression #6181 (DateTime ValueConverters with CLR logic failing under window functions or grouping) closed 2026-11-10; no linked fix PR is recorded in the index.
+- **Merge fixes** -- Closed Merge bugs from EF Core entities: #4642 (StackOverflowException with OnTargetKey()) and #4657 (fields missing from the output expression). Both closed with has-tests labels; fix PR not checked in this pass.
+
+- **EF Core value converters** -- Converter handling in parameters, set operations and server-side writes. Closed: #5177 (nullable struct converters), #5388 (ValueConverter ignored for constant values), #5427 (BulkCopy writing Guid.Empty instead of NULL). Regressions #5975 (DML with EF Core DateTime converters) and #5976 (Concat/Union NotEqual operator error), both closed 2026-10-09, are fixed by PR #5978 (merged 2026-10-09). Regression #6181 (DateTime ValueConverters with CLR logic failing under window functions or grouping) closed 2026-11-10; no linked fix PR is recorded in the index. Closed #5505 (ValueConverter on a JSONB column in an UPDATE with a ServerSideOnly function, closed 2026-05-11) is a related resolved case; its area tag was not checked in this pass.
 
 - **Window function regressions** -- Regression #6182 ("Window functions cannot be used in search condition" with a window function and a left join) closed 2026-10-30; no linked fix PR is recorded in the index.
 
@@ -58,7 +64,6 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 - **Connection leak in ToLinqToDB** -- Closed #5364 (ToLinqToDB helper leaked the connection). Area tag in the index is DATA.
 
 ## Active discussions
-
 - [AsNoTracking in Linq2db](https://github.com/linq2db/linq2db/discussions/3116) -- [Q&A] Tracking and change-detection patterns with linq2db. (closed)
 - [EF Core 6 VS linq2db benchmarks](https://github.com/linq2db/linq2db/discussions/3393) -- [General] Performance comparison analysis. (closed)
 - [Dynamically generating nested queries](https://github.com/linq2db/linq2db/discussions/3490) -- [Q&A] Dynamic query composition patterns. (closed)
@@ -72,15 +77,19 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 ## Stats
 
-- Open issues: 10
-- Closed issues: 66
+- Open issues: 28 (EF-related by area tag, area: efcore label, or theme citation; label and keyword sweep, not exhaustive)
+- Closed issues: 66 (not recounted this pass)
 - Open PRs: 0
-- Total PRs: 35
+- Total PRs: 35 (not recounted this pass)
 - Discussions: 10 (2 open)
 - Last fetched: 2026-11-11 (index horizon)
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 121 (76 issues + 35 PRs + 10 discussions), EFCORE-tagged, plus a keyword sweep of issue and PR titles and summaries
-- Themes extracted: 22 (9 open + 13 resolved)
+- Index entries scanned: label, area and keyword sweeps over issues-index.json and prs-index.json (no PR in the EF label sweep is open)
+- Open-theme citations kept: 17 (16 issues + discussion 5477); dropped: 0
+- Open-theme citations added: 9 (#4044, #4627, #4640, #4641, #4650, #4652, #4660, #4663, #4671)
+- Resolved citations added: 3 (#4642, #4657, #5505)
+- Open EF-labelled items left unthemed (singletons): #4333, #4656, #4669
+- Themes extracted: 25 (11 open + 14 resolved)
 </details>

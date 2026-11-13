@@ -21,10 +21,11 @@ Actions
               Out: { ok, present, path?, state: { lastSha, omit,
                      includeBrief, markerVersion } }
 
-  upsert      Create or overwrite the draft file.
-              In:  -ManifestFile { pr, lastSha, omit, includeBrief,
+  upsert      Create or overwrite the draft file. An absent lastSha is
+              looked up (PR head); a verified write deletes the manifest.
+              In:  -ManifestFile { pr, lastSha?, omit, includeBrief,
                                    fullText, briefText }
-              Out: { ok, path, created|patched, verify: { ok,
+              Out: { ok, path, lastSha, created|patched, verify: { ok,
                      sentLength, storedLength } }
 
   harvest     Collect every milestone PR's draft (flags + full + brief text).
@@ -488,6 +489,11 @@ function Do-Upsert {
     if (-not (Test-IsInteger $m.pr) -or [long]$m.pr -le 0) { Exit-WithError 'manifest.pr (positive int) required' }
     $prNum = [int]$m.pr
     $lastSha = [string]$m.lastSha
+    if (-not $lastSha) {
+        $sha = Invoke-Gh -ArgumentList @('pr','view',[string]$prNum,'--repo',$Repo,'--json','headRefOid','--jq','.headRefOid')
+        if (-not $sha.ok) { Exit-WithError "head lookup failed for #${prNum}: $($sha.error)" -NextAction 'set manifest.lastSha to the PR head SHA and re-invoke' }
+        $lastSha = $sha.stdout.Trim()
+    }
     $omit = [bool]$m.omit
     $includeBrief = [bool]$m.includeBrief
     $fullText  = [string]$m.fullText
@@ -495,8 +501,9 @@ function Do-Upsert {
 
     $body = Build-DraftBody -PrNumber $prNum -LastSha $lastSha -Omit $omit -IncludeBrief $includeBrief -FullText $fullText -BriefText $briefText
     $res  = Write-Draft -PrNumber $prNum -Body $body
+    if ($res.verifyOk -and $ManifestFile) { Remove-Item -LiteralPath $ManifestFile -ErrorAction SilentlyContinue }
     Write-JsonOutput ([ordered]@{
-        ok = $res.verifyOk; action = 'upsert'; pr = $prNum; path = $res.path
+        ok = $res.verifyOk; action = 'upsert'; pr = $prNum; path = $res.path; lastSha = $lastSha
         patched = -not $res.created; created = $res.created
         verify = [ordered]@{ ok = $res.verifyOk; sentLength = $res.sentLength; storedLength = $res.storedLength }
     })

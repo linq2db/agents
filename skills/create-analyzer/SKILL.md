@@ -1,6 +1,6 @@
 ---
 name: create-analyzer
-description: Scaffold a new user-facing Roslyn analyzer (and optional code fix) rule in the linq2db.Analyzers package. Adds the DiagnosticAnalyzer to Source/LinqToDB.Analyzers, an optional CodeFixProvider to Source/LinqToDB.Analyzers.CodeFixes, an AnalyzerReleases.Unshipped.md entry with the next L2DB1xxx id, and a Tests/Tests.Analyzers fixture skeleton. Use when the user says "create-analyzer", "/create-analyzer", "add an analyzer rule", or "new linq2db analyzer".
+description: Scaffold a user-facing linq2db.Analyzers rule — DiagnosticAnalyzer, optional CodeFixProvider, the AnalyzerReleases.Unshipped.md entry (next L2DB1xxx id) and a Tests.Analyzers fixture. Use when the user says "create-analyzer", "/create-analyzer", "add an analyzer rule", or "new linq2db analyzer".
 ---
 
 # create-analyzer
@@ -35,4 +35,8 @@ When the user asks to add a new user-facing analyzer/code-fix rule. If the `Sour
    - A **shipped `L2DB1xxx`** rule: this already ran inside `/dogfood-analyzer` step 6, in the worktree that had the analyzer attached. Record that table; don't pay for a second build.
    - An **internal `LINQ2DB0xxx`** rule never dogfoods (no consumer corpus — see `authoring-analyzers.md` → *Diagnostic IDs*), so invoke `rules` mode directly against `Source/LinqToDB/LinqToDB.csproj`. This is the path that gets skipped, because the rest of this skill is written for the shipped family.
 
-Do **not** commit — commits require an explicit user request (`.claude/docs/agent-rules.md` → Git commit rules). The one file that *is* committed, to the **agents** repo rather than a linq2db branch, is the perf baseline step 8 writes back.
+## Don'ts
+
+- Don't continue the internal `LINQ2DB0xxx` prefix for a user-facing rule, and don't file a shipped rule under any category but `LinqToDB` (step 1).
+- Don't use `WellKnownFixAllProviders.BatchFixer` for a code fix (step 3).
+- Don't commit — commits require an explicit user request (`.claude/docs/agent-rules.md` → Git commit rules). The one file that *is* committed, to the **agents** repo rather than a linq2db branch, is the perf baseline step 8 writes back.

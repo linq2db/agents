@@ -3,10 +3,10 @@ area: AGENTS-INFRA
 kind: area-index
 sources: [code]
 confidence: high
-last_verified: 2026-10-09
-last_verified_sha: 05150894edc2511f0dd0bc7829b2a309cec36ec9
+last_verified: 2026-11-11
+last_verified_sha: 1732302e2365c87b9465ab754b768a149308a537
 coverage_tier_1: 34/34
-coverage_tier_2: 83/83
+coverage_tier_2: 82/82
 ---
 
 # AGENTS-INFRA
@@ -61,7 +61,7 @@ Each skill occupies its own folder; every folder currently contains only `SKILL.
 - `/kb-status` -- read-only dashboard: build progress, source freshness, counts, staleness summary, audit-log tail.
 
 **PR review cycle:**
-- `/review-pr` -- full PR review: loads context via `pr-context.ps1`, spawns `code-reviewer` + `baselines-reviewer` in parallel, classifies public-API changes, assembles review body, posts pending draft review via `post-pr-review.ps1` after user confirmation.
+- `/review-pr` -- full PR review: loads context via `pr-context.ps1`, spawns `code-reviewer` + `baselines-reviewer` in parallel, classifies public-API changes, assembles review body, posts pending draft review via `post-pr-review.ps1` after user confirmation. The prior-reviewer (bot + human) claim-audit procedure now lives in `review-pr/SKILL.md` step 2b (sub-sections 2b.1-2b.6) -- the former `docs/review-bot-claim-audit.md` was deleted.
 - `/verify-review` -- re-checks prior findings against current HEAD; flips checkboxes in prior review bodies; posts new draft for partial fixes and new findings; uses `apply-verify-writes.ps1` for in-place edits.
 
 **Issue and fix workflow:**
@@ -144,7 +144,6 @@ Each agent definition carries `name`, `description`, `tools`, and `model` frontm
 | `github-authoring.md` | GitHub content-authoring mechanics: retraction endpoints, PATCH verification, encoding traps, wording style |
 | `pr-and-push.md` | Push/PR mechanics: `commit-tree`+`update-ref` recipe, fork-PR `maintainerCanModify` handling, follow-up commit rules |
 | `query-cache-mechanics.md` | Deep reference on the query-plan cache internals (for KB/review agents needing cache behavior facts) |
-| `review-bot-claim-audit.md` | Rules for auditing Copilot/bot review claims before acting on them |
 | `work-plan.md` | (new) Plan schema and tiers for `/work-plan` (`.claude/plans/<key>/plan.md`) |
 | `acting-on-findings.md`, `evidence-discipline.md`, `bug-investigation.md`, `definition-of-done.md`, `turn-conduct.md`, `windows-dev-gotchas.md`, `msbuild-override.md`, `maintaining-the-corpus.md` | (new) Focused detail docs referenced from `AGENTS.md` / `agent-rules.md` (finding disposition, probe/evidence rules, bug-investigation situations, DoD checklist, turn-conduct edge cases, tool-neutral Windows traps, MSBuild override precedence, corpus authoring); named from the always-loaded files, not read in detail this run |
 | `kb-architecture.md` | KB schema: directory layout, frontmatter contract, coverage block format, state files |
@@ -284,7 +283,7 @@ The docker hooks are not registered by anything under `.claude/`, so tracking on
 | `.claude/skills/copilot-loop/SKILL.md` | Copilot-review response loop |
 | `.claude/skills/enable-disabled-test/SKILL.md` | Enable ActiveIssue-gated test workflow |
 
-### Tier 2 (83 files)
+### Tier 2 (82 files)
 
 | File | Role |
 |---|---|
@@ -309,7 +308,6 @@ The docker hooks are not registered by anything under `.claude/`, so tracking on
 | `.claude/docs/github-authoring.md` | GitHub content authoring mechanics |
 | `.claude/docs/pr-and-push.md` | Push/PR mechanics reference |
 | `.claude/docs/query-cache-mechanics.md` | Query-plan cache internals reference |
-| `.claude/docs/review-bot-claim-audit.md` | Rules for auditing bot review claims |
 | `.claude/docs/kb-architecture.md` | KB schema reference |
 | `.claude/docs/kb-areas.md` | Area registry |
 | `.claude/docs/kb-build-steps.md` | Build step definitions |
@@ -416,7 +414,7 @@ Files present on disk but not enumerated in the Tier lists above (added to the c
 <details><summary>Coverage</summary>
 
 - Tier 1 (visited / total): 34 / 34
-- Tier 2 (visited / total): 83 / 83 (100%)
+- Tier 2 (visited / total): 82 / 82 (100%)
 - Tier 3 (skipped, logged): 0
 
 Read (this run -- prior delta):
@@ -440,6 +438,11 @@ Read (this run -- delta, 2026-10-09):
 - `CLAUDE.md` (M) -- rewritten as trampoline importing `.claude/AGENTS.md`, `.claude/CLAUDE.md`, `.claude/docs/agent-rules.md` (content as loaded in session context; BannedSymbols path now `Source/BannedSymbols.txt`).
 - `.claude/AGENTS.md`, `.claude/CLAUDE.md`, `.claude/docs/agent-rules.md` -- read via session context; summarized under Root instructions.
 - 82 `.claude/{agents,docs,hooks,scripts,skills}/**` entries (D) -- not deleted content: the corpus moved into the `linq2db/agents` submodule and the files remain on disk. Spot-confirmed by Glob on `.claude/{skills,agents,hooks}`: all prior skills/agents/hooks still exist; new ones added (see Files section). Bodies not re-read.
+
+Read (this run -- delta, 2026-11-11, agents commit a190215):
+- `.claude/docs/review-bot-claim-audit.md` (D) -- confirmed absent on disk. Removed from the docs table and Tier-2 list (Tier 2 83 -> 82).
+- `.claude/skills/review-pr/SKILL.md` (M) -- read `### 2b. Audit prior reviewer claims (bot + human)`. Holds the audit procedure formerly in the deleted doc.
+- `.claude/docs/review-conventions.md` (M) -- pointer retargeted to review-pr/SKILL.md step 2b. Not otherwise re-read.
 
 NOTE (indexer): the `.claude/` tree is its own repo ([linq2db/agents](https://github.com/linq2db/agents), branch `master`), mounted as a submodule -- so this INDEX tracks the corpus repo tip, independently of which linq2db branch the superproject sits on. `last_verified_sha` refers to the **linq2db** commit the rest of the KB was indexed from, not to a corpus commit.
 </details>

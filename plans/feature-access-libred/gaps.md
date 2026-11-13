@@ -1,0 +1,37 @@
+# Gap ledger — PR #5956 (feature-access-libred)
+
+## Round 1 — reviewed HEAD f4956a907 (2026-11-12/13)
+
+Judged against the plan through A-22 (2026-11-10). DROPPED items omitted (SUG003, NIT002, MIN012).
+
+- **MAJ001** (REPLY+RESOLVE: database component dropped) — GAP-01 — the drop was a 4th LibRed SQL divergence beyond SC-2's three (A-13 run 4 BuildObjectName override); G-02 measured it (16 baselines, "Expected") but it never reached SC-2 or a P10 line, so the drop-not-refuse contract (Issue681Tests / NO_DATABASE_NAME) was first cited in A-24 — G-02 — preventable: partly
+- **MIN001** (REPLY+resolve: LibRedConnection not detected) — not-a-gap: reviewer-disagrees-with-P10 — P10 adjudicated connection-string auto-detection; the connection-object case was added by A-24
+- **MIN002** (FIX: wire DatabaseExists/DropDatabase/ClearPool) — GAP-01 — P2 had no SC for LibRed's product-side database lifecycle, so E-3 bound helpers no requirement asked for; A-2 dropped CreateDatabase as "no consumer" but kept three equally consumer-less helpers — — — preventable: partly
+- **MIN003** (FIX: README "net11.0 only", template `\\`) — GAP-03 — README rows went stale at A-20 (net10 enablement), which updated template/CI/CLI/LINQPad but not E-25's rows; E-16 copied the Windows separator form into a Linux-first provider with no P7 row on path form — — — preventable: yes
+- **SUG001** (FIX: remarks prerelease / no lock file) — GAP-02 — D-9's failure mode names file locking as a risk, but no U-n probed LibRed's locking; G-03's content half never asked for the doc — G-03 — preventable: partly
+- **MIN004** (FIX: PublicAPI duplicates + ConvertType namespace) — GAP-08 — G-03 recorded pass with no head/date and no failable instrument, not re-run after the 2026-11-09/10 master merges that re-added 12 Shipped lines; the LinqToDB.SqlQuery.ConvertType spelling dates from authoring — G-03 — preventable: yes
+- **MIN005** (FIX: length 0 → VarChar(0)) — GAP-02 — A-18 asserted "a length of 0 is reported for the unbounded types" without checking a bounded VarChar from a stored-query expression; also GAP-05: TO-6 checks idempotence only and committed VarChar(0) as baseline — — — preventable: partly
+- **MIN006** (FIX: Bit reported bool?) — GAP-08 — TO-3 required per-column SystemType or a whole-DatabaseSchema diff vs Access.Ace.OleDb; neither arm was built, yet G-01 recorded TO-3 pass from 14/14 and 44/44; also GAP-05: the SystemType arm alone cannot see nullability — G-01 (TO-3) — preventable: yes
+- **NIT001** (FIX COMMENT: CreateFormat casing) — GAP-10 — the comment was written while implementing A-18; no plan block carries comment wording; the counter-evidence lived only in generated scaffold output — — — preventable: no
+- **OOS-ACCDB** (PROMOTED MIN: BIGINT/DATETIME2 typed object) — GAP-02 — A-18's "all 17 names the engine returns were covered" was measured on the suite's MDB-typed database only; the engine's type set was never listed; also GAP-05: TO-3 targets AllTypes, which has no such column — G-01 (TO-3) — preventable: partly
+- **MIN007** (FIX: Issue3360 gate is linq2db's GUID literal) — GAP-02 — A-20 re-stamped Issue3360 as LibRed's without re-probing the {guid {…}} form D-6/U-9 had rejected; the gate's own Details pointed at linq2db SQL; ChrisJollyAU's 2026-10-16 measurement was not recorded in A-21/A-22; G-02's alpha.3 cross-compare was never re-captured — G-02 — preventable: yes
+- **MIN008** (FIX: FromSqlTests trio narrowed without reason) — GAP-09 — FromSqlTests.cs had no E-n through A-22; fbf408b3d (2026-11-09) landed after the reconcile-before-push rule without a reconcile; A-21/A-22 sweeps were scoped (-Path Tests/Tests.Wasm/, -Base HEAD) and could not see it; also GAP-07: the narrowed-set rule reached no conventions: line until A-23 — G-01 — preventable: yes
+- **MIN009** (FIX: TestConvertToDate_WithNull narrowed) — GAP-09 — 5926952da (2026-09-22) narrowed it during A-16 triage, named by neither A-16 nor A-17; AccessTests.cs then got an E-n for a different test (E-36), so a per-file reconcile passes it; also GAP-07 — G-01 — preventable: yes
+- **MIN010** (FIX: McpInfoTool note vs Bundled:true; CLI SKILL.md) — GAP-03 — P7 lists McpInfoTool and ProviderDialectCatalog but not Source/LinqToDB.CLI/SKILL.md; the note went stale at A-20; A-21's sweep checked presence, not content — — — preventable: yes
+- **OOS-BETA1** (FIX: bump to beta.1 + AccessDmlService arm) — GAP-10 — alpha.5/beta.1 and beta.1's new missing-table text post-date A-22; the master retarget (first recorded A-23) retired P3's "unmergeable before .NET 11 RTM" premise that made a prerelease dependency tolerable — — — preventable: no
+- **MIN011** (ACCEPT+P10: LINQPad paired-entry behaviours) — GAP-09 — DriverHelper/DynamicConnectionModel/xaml had no E-n through A-22; A-19's "stored settings are unchanged" contradicts f05176b05; -Reconcile was never run between f05176b05 and A-23, and when it ran the brace-list false positives buried these files — — — preventable: yes
+- **OOS-LINQPAD-AUTOASSIGN** (GUARD: Providers.Count == 1 rewrites a stored connection off Windows) — GAP-03 — A-19 hid OLE DB/ODBC off Windows with no P7 row on consumers of Database.Providers cardinality; also GAP-02: "existing connections still load" claimed without the check — — — preventable: yes
+- **SUG002** (FIX: Contains("LibRed") before the Microsoft markers) — GAP-06 — P3 allows only arms added beside existing ones; E-10 did not place the marker in the first-match chain; also GAP-05: TO-5 had no Microsoft configuration name containing "LibRed" and its red arm was never run — G-01 (TO-5) — preventable: yes
+- **OOS-ACCESSFACTORY** (FIX: assembly-name dispatch untested) — GAP-05 — P7's AccessFactory row was "covered by E-12" but no TO-n names AccessFactory; TO-1/TO-5 run through configuration names only — G-01 — preventable: yes
+
+### Aggregate
+
+18 attributed + 1 not-a-gap. GAP-02 ×4, GAP-03 ×3, GAP-09 ×3, GAP-01 ×2, GAP-08 ×2, GAP-10 ×2, GAP-05 ×1, GAP-06 ×1. Unpreventable 2/18 (11%).
+
+Clusters: (1) A-18's schema-provider rewrite validated only on the suite's MDB-typed database, TO-3's whole-schema diff vs OLE DB never built — MIN005, MIN006, OOS-ACCDB, NIT001; (2) post-approval edits no sweep could see — MIN008, MIN009, MIN011. Single highest-yield prevention: TO-3's whole-DatabaseSchema diff vs OLE DB, re-run after A-18, procedures and parameters included. A-23's pre-review reconcile named MIN007/MIN008/MIN009/MIN011/SUG002 — the mechanism works; it ran seven weeks late.
+
+### Recommended durable fixes
+
+- GAP-09 ×3 → work-plan/SKILL.md *Mode: amend* step 4 + a work-plan.ps1 validate check: the sweep cited on a conventions:/G-01 line must cover `<PR base>...` over all of `Tests/` (reject `-Base HEAD` and a narrower `-Path`); fail on `narrowedWithoutReason` hits in a file whose E-n rows do not name that test.
+- GAP-02 ×4 → plan-critic.md attack vector: when a dependency bump re-measures behaviour and a gate or list is kept, require (a) every D-n-rejected alternative re-probed, (b) a hand-written type list diffed against the engine's catalog, not the suite database, (c) every D-n failure-mode risk to have a U-n probe.
+- GAP-03 ×3 → work-plan/SKILL.md *Mode: amend* step 3: when an amendment flips a premise or changes a list's cardinality, grep the branch diff and consumer-facing docs (README.md, Source/*/SKILL.md, MCP notes) for the retired premise's wording, and add a P7 row per consumer of the changed collection.

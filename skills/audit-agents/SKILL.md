@@ -1,6 +1,6 @@
 ---
 name: audit-agents
-description: Audit the linq2db `.claude/` instruction corpus (docs, skills, agents, hooks, scripts) + the per-agent entry points `AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` for duplicated rules, dead references, terminology drift, retired-path mentions, SKILL template gaps, superproject trampoline drift, and auto-memory entries that would be better as project-level rules. Reports findings in severity order and offers per-finding patches after explicit user confirmation. Read-only until confirmation.
+description: Audit the linq2db `.claude/` corpus and the AGENTS.md / CLAUDE.md / copilot-instructions.md entry points for duplicated rules, dead references, terminology drift, retired paths, SKILL template gaps, trampoline drift and corpus-worthy memory. Severity-ordered report; patches only after confirmation.
 ---
 
 # /audit-agents

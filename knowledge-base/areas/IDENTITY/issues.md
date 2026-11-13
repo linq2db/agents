@@ -4,14 +4,14 @@ kind: issues
 sources: [gh-issues, gh-prs]
 confidence: low
 last_verified: 2026-11-11
-last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
+last_verified_sha: 1732302e2365c87b9465ab754b768a149308a537
 ---
 
 # IDENTITY -- GitHub themes
 
 ## Open themes
 
-- **No open themes** -- The indexes hold no open issue, PR or discussion about the Identity stores (`UserOnlyStore`, `UserStore`, `RoleStore`, `AddLinqToDBStores`). The area's recent work is the monorepo migration, merged 2026-11-04 (#5640, #6251), so its themes are resolved ones until new reports arrive. Known debt (ClickHouse update concurrency, SQL Server `UPDATE` triggers breaking the `OUTPUT` stamp refresh, no FKs from `CreateTable`) comes from the area index, not from GitHub, and is not repeated here.
+- **External-login matching depends on database collation** -- `linq2db.Identity` resolves (`FindByLoginAsync`) and removes (`RemoveLoginAsync`) external logins by comparing `LoginProvider` and `ProviderKey` in SQL only, so the database collation decides what matches. Under a case-insensitive or trailing-space-insensitive collation, a login whose provider key differs only by case or padding is found and deleted. ASP.NET Core is moving its EF Core Identity stores to exact ordinal matching, which makes the gap visible. Open: #6301 (opened 2026-11-11, no fix PR in the index). It is the only open Identity-store report so far, so the theme is a singleton and may grow.
 
 ## Resolved themes
 
@@ -27,7 +27,7 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 ## Stats
 
-- Open issues: 0
+- Open issues: 1
 - Closed issues: 3
 - Open PRs: 0
 - Total PRs: 4 (2 merged, 2 closed unmerged)
@@ -36,6 +36,6 @@ last_verified_sha: f90c5bcfb86d88db436a6494f0640c4c43dd691f
 
 <details><summary>Coverage</summary>
 
-- Index entries scanned: 6240 (3245 issues + 2699 PRs + 296 discussions)
-- Themes extracted: 3 (0 open + 3 resolved)
+- Index entries scanned: 6243 (3247 issues + 2700 PRs + 296 discussions)
+- Themes extracted: 4 (1 open + 3 resolved)
 </details>

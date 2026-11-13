@@ -1,6 +1,6 @@
 ---
 name: chores
-description: One-stop dispatcher for `.claude/` maintenance work on linq2db. Surveys staleness signals across the project (`.claude/` audit lag, unpushed corpus commits, Knowledge Base cursors, KB issue queue, API baselines drift, permission-allowlist lag) and renders a single table the user can pick from instead of remembering which periodic skill to run when. Each row hands off to the actual maintenance skill that performs the work — `chores` itself runs no maintenance, just routes. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
+description: Dispatcher for `.claude/` maintenance — surveys staleness (audit lag, unpushed corpus commits, KB cursors and queue, API baselines drift, allowlist lag) and routes each pick to its skill; runs nothing. Use when the user says "chores", "/chores", "what needs maintenance", or "is anything overdue".
 ---
 
 # /chores

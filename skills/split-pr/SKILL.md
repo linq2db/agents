@@ -1,6 +1,6 @@
 ---
 name: split-pr
-description: Split ready-to-ship work out of a large in-flight PR into its own PR off master, so it can be reviewed, CI'd and merged independently — or, in stacked mode, split a PR's dependent fixes into a GitHub stack of PRs on top of it. Use when the user says "split into dependent/stacked/chained PRs", or when the user says "split this out", "copy X to a separate PR", "reduce the PR surface", or when a long-lived feature branch has accumulated fixes that don't depend on the feature.
+description: Move ready-to-ship work from an in-flight PR to a PR off master, or (stacked) its dependent fixes into a stack on top. Use when the user says "split into dependent/stacked/chained PRs", "split this out", "copy X to a separate PR", "reduce the PR surface", or a long branch holds independent fixes.
 ---
 
 # /split-pr

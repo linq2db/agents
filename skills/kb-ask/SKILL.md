@@ -1,6 +1,6 @@
 ---
 name: kb-ask
-description: Free-form Q&A grounded in the linq2db knowledge base. Answers from a curated KB-doc shortlist only (KB, not source) and returns a synthesized answer plus citations; Claude Code delegates this to the `kb-research` subagent. Optionally fetches full GitHub issue/PR bodies on demand. Read-only; never modifies the repo or the KB.
+description: Free-form Q&A grounded in the linq2db knowledge base — answers from a KB-doc shortlist (not source) with citations, delegated to the `kb-research` subagent; can fetch cited GitHub issue/PR bodies. Read-only.
 ---
 
 # /kb-ask

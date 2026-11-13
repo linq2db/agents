@@ -1,6 +1,6 @@
 ---
 name: find-issues
-description: Search linq2db/linq2db for issues and PRs matching a topic or the content of an existing ticket. Read-only. Topic mode takes a free-form query and returns ranked candidates. Ticket mode takes an issue/PR number or URL, derives search terms from its title/body/labels, excludes self, and returns candidates with a duplicate verdict. In ticket mode when the verdict is "likely duplicate", suggests /merge-duplicates as follow-up.
+description: Search linq2db/linq2db issues and PRs (read-only). Topic mode ranks candidates for a free-form query; ticket mode derives terms from an issue/PR number or URL, excludes it and gives a duplicate verdict, suggesting /merge-duplicates on "likely duplicate".
 ---
 
 # find-issues

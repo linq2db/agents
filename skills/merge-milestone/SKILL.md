@@ -1,6 +1,6 @@
 ---
 name: merge-milestone
-description: Merge every open PR on a milestone, one at a time — sync each with master, wait for its GitHub Actions gate, squash-merge it, then merge its baselines PR on linq2db.baselines. Handles the conflict cascade that sequential merges produce (each PR inherits the previous ones). Use when the user says "merge milestone", "/merge-milestone", "merge all PRs in <ver>", or wants a milestone cleared before release prep. Every merge is gated on one up-front authorization; the skill never widens the set it was given.
+description: Merge every open PR on a milestone one at a time — sync with master, wait for its Actions gate, squash-merge, merge its baselines PR — handling the conflict cascade. Use when the user says "merge milestone", "/merge-milestone", "merge all PRs in <ver>". One up-front go-ahead; never widens the set.
 ---
 
 # /merge-milestone

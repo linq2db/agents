@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Orchestrate the full workflow for reproducing and testing a linq2db issue — load the issue, clarify scope, create an `issue/<n>-<slug>` branch, and drive a regression test through test-writer + test-runner. Does not write the fix code itself; the user drives the fix and the skill wraps the testing loop around it.
+description: Orchestrate reproducing and testing a linq2db issue — load it, clarify scope, create an `issue/<n>-<slug>` branch, drive a regression test through test-writer + test-runner. The user writes the fix; the skill wraps the testing loop around it.
 ---
 
 # /fix-issue
@@ -32,6 +32,8 @@ The user invokes `/fix-issue <issue-ref>` where `<issue-ref>` is one of:
 - `current` — the issue already in conversation context (resolved via the most recent `gh issue view` or explicit user reference)
 
 Only invoke this skill for `linq2db/linq2db` issues. For issues in other repos, say so and stop.
+
+**Docs-only issues** (every change under `docs/`) have nothing to reproduce: run steps 1–3, verify each claim against the artifact it names, make the edits, and skip 3b–6. The verification is `./docs/build.ps1 -WarningsAsErrors` (what CI runs) plus a `Grep` of the generated HTML under `.build/docs/_site/` for each fixed link target — docfx renders a GitHub-wiki `[[…]]` link as plain text, so a clean build alone does not prove a link resolves. (#6300)
 
 ## Steps
 

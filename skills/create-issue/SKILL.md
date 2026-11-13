@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: Create a new issue on linq2db/linq2db covering Task/Bug/Feature work types. Verifies claims against the current codebase, drafts a structured body with file:line references, checks for duplicates, proposes issue type + up to 3 labels + milestone, and posts only after explicit user confirmation. Sets the GitHub issue type via REST PATCH after creation.
+description: Create a linq2db/linq2db Task/Bug/Feature issue — verifies claims against the code, drafts a body with file:line references, checks duplicates, proposes type, up to 3 labels and milestone, posts only after confirmation and sets the issue type via REST.
 ---
 
 # create-issue
@@ -20,6 +20,7 @@ Only when the user explicitly asks to create / file / open an issue, task, bug, 
 1. Parse the user's description.
 2. **Verify any claim about current linq2db behavior by reading the code.** If the user says "we don't do X", "Y is wrong", or "we emit Z" — grep/read the relevant files under `Source/` before drafting. Filing based on memory alone is not acceptable; provider dialects and SQL builders evolve and memories go stale.
 3. **Verify any 3rd-party behavior claim against upstream docs.** If the premise rests on an external system — "Firebird 5 supports `IF NOT EXISTS`", "Oracle 23c adds X", "PostgreSQL 18 does Y", "the SQL standard requires Z" — fetch the evidence before drafting. Feature lists shift across minor versions, release-note summaries drop detail, and "added in v5" may have actually landed in v6. Sources, in priority order:
+   - For .NET SDK or workload behaviour (what a property does, which platforms reject it), Grep the installed SDK first: `C:\Program Files\dotnet\sdk\<ver>\Sdks\**\*.targets|*.props`. It is the build's own logic at the version `global.json` pins. What's-new pages describe previews and drift. (#6315: filed from the MAUI notes' "Mono remained available", it was closed the same day when `_CheckForUnsupportedMonoMobileRuntime` in `Microsoft.NET.TargetFrameworkInference.targets` showed NETSDK1242 for Mono on `ios` / `tvos` / `maccatalyst` / `android`.)
    - Official release notes / grammar / language reference for the exact version (WebFetch).
    - Upstream issue tracker (e.g. `FirebirdSQL/firebird`, `dotnet/runtime`).
    - Empirical reproduction (3–5 line script against a local container) — corroboration, not sole source.

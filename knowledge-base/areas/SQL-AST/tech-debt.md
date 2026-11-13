@@ -2,7 +2,7 @@
 area: SQL-AST
 kind: tech-debt
 sources: [code, gh-issues]
-confidence: medium
+confidence: low
 last_verified: 2026-05-08
 last_verified_sha: d52a4ed0e83317cc11b2ef3d41ddf4ba70acf415
 ---
