@@ -400,7 +400,8 @@ function Invoke-Validate {
     # P9 gate results.
     $p9 = Get-Block -Blocks $blocks -Id 'P9'
     foreach ($row in (Get-BlockRows -Block $p9)) {
-        if ($row -notmatch 'G-\d+') { continue }
+        # Only a bullet that opens with a gate id carries a result; a wrapped continuation line citing a gate is prose.
+        if ($row -notmatch '^-\s+[`*]*G-\d+') { continue }
         if ($row -match '\(pending\)') {
             # work-plan.md -> P9: a gate left with no result is a fail, not an omission.
             if ($Done) { $errors += "P9 : gate still pending at the exit check -- $row" }
