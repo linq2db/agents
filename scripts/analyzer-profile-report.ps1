@@ -82,6 +82,10 @@ whose numbers are chosen so each arm fires alone; a change that makes every row
 
 Default mode: pretty tables on stdout for human consumption.
 `-AsJson` mode: single JSON object to stdout (per script-authoring conventions).
+`-AsJson -OutFile <path>`: the JSON goes to that file and stdout carries one compact
+`{ ok, outFile, bytes }` line. Use it whenever the JSON is consumed later: stdout is
+[Console]::Out, so neither `|` nor `*>` captures it from the PowerShell tool, and a full
+`-Top 2000` report is ~550 KB dumped into the caller's context.
 
 Conventions: `.claude/docs/script-authoring.md`.
 #>
@@ -91,6 +95,8 @@ param(
     [Parameter(Mandatory)][string]$LogPath,
     [int]    $Top = 10,
     [switch] $AsJson,
+    # With -AsJson: write the JSON here instead of stdout.
+    [string] $OutFile,
 
     # -- `rules` mode ---------------------------------------------------------
     [switch] $Own,
@@ -497,7 +503,7 @@ if ($AsJson) {
         }
     }
     if ($ownReport) { $payload['own'] = $ownReport }
-    Write-JsonOutput $payload
+    Write-JsonOutput $payload -OutFile $OutFile
     return
 }
 
