@@ -558,6 +558,8 @@ public void RoundDecimalValueScale([IncludeDataSources(true, TestProvName.AllYdb
 
 Not this: a two-provider `[IncludeDataSources]` whose comment explains only how the query is shaped, or a YDB-only test commented "on the providers that render a literal's scale". `.claude/scripts/test-diff-sweep.ps1` lists every narrowed attribute a branch adds, with the line above it. (#5943: asked for in review rounds 2 and 5, missed again in round 6 — NIT019, NIT020.)
 
+**Exception: a copied list over a provider-agnostic fix.** A new test may keep a sibling's exclusion list unchanged when it reuses the sibling's query shape and the fix it covers runs before any provider code, such as an expression-tree rewrite or an unwrap. The list then describes the providers' support for that shape, which the sibling already covers. Widening it would test that support again, not the fix. Don't flag it in review, and don't ask for a run behind it. (#6074: `InlineArrayMinMax` kept `PredicateOptimization_Subquery`'s eight exclusions for the C# 14 span `Min` / `Max` unwrap.)
+
 ## Test Patterns
 
 ```csharp
