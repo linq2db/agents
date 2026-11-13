@@ -104,6 +104,7 @@ Full measured detail for every probe-resolved row is in `findings.md` (beside th
 - U-22 How does a missing table surface, for `AccessDmlService`'s table-not-found classification? — Not through `LibRedException` and not through a `Number`: a `SELECT` raises `LibRed.Sql.Binding.SqlBindException` with `Table 'X' does not exist.` (which the existing Access rule's `"does not exist"` substring match would already catch) while a `DROP TABLE` raises a plain `System.InvalidOperationException` with `DROP TABLE 'X': no such table.` (which it would **not**). E-11 must cover both shapes, and `DropTableTests` is the instrument — resolved-by probe
 - U-18 Does the "Microsoft-created database" constraint mean the *container* or the *populated schema and data*? The **container**: `Access.sql:26-35` drops every table before recreating them, so the LibRed configs run the normal create-data flow and everything but the file header is LibRed-written; the user was shown that consequence together with the two alternatives (commit fully populated MS-written files and skip create-data, or add a separate MS-written read-only fixture) and answered "this is fine", i.e. the container-only reading — resolved-by user answer, 2026-09-20
 - U-17 Does the bare `REFERENCES Person` form used outside the create script work? — **No.** `Tests/Base/TestBase.Identity.cs:36-37` re-adds `PersonDoctor`/`PersonPatient` after every identity reset using the column-list-free form, which is measured to fail on LibRed with the same `Foreign key on 'Parent' has 1 columns but references 0`; `ResetPersonIdentity`/`ResetAllTypesIdentity` are reached from 71 sites across 17 test files — resolved-by probe, covered by D-11
+- U-23 (A-23) Is `ConcatUnionTests.Issue3360_LiteralsInFirstQuery`'s LibRed failure ("Byte array for Guid must be exactly 16 bytes long") LibRed's, as its gate says, or linq2db's own literal? ChrisJollyAU measured (issue comment, 2026-10-16) that a quoted `'{…}'` GUID literal in a `UNION ALL` against GUID columns makes the column binary on ACE and LibRed alike (76 bytes for the literal row), while `{guid {…}}` returns a `Guid` on both ACE OLE DB and LibRed. E-9's `LibRedMappingSchema` is now an empty leaf over the base, so LibRed emits the quoted form. That contradicts U-9's alpha.2 measurement, where `{guid {…}}` failed to parse, so the package moved. Probe: give the LibRed leaf the OLE DB GUID converter, then run the test on both LibRed configs. Run it against OLE DB as a control, which passes today with `{guid {…}}`. — OPEN
 - U-7 Is a Microsoft Access engine installed here, so the committed test databases can be produced by MS code per D-7? — Yes: `Get-OdbcDriver` lists `Microsoft Access Driver (*.mdb, *.accdb)` in both 32- and 64-bit, and `New-Object -ComObject ADOX.Catalog` succeeds in a 64-bit process, which is what `AccessTools.CreateDatabase` needs (`AccessTools.cs:129`) — resolved-by probe
 - U-8 Does `Data/Create Scripts/Access.sql` run end to end through LibRed? — Partly: replaying all 70 statements on the `GO` divider created all 15 tables, but 2 `ALTER TABLE … REFERENCES Person` statements fail because LibRed requires the referenced column list (fix measured to work → D-11) and 5 `CREATE Procedure` statements fail — action procedures with parameters, `UPDATE`/`DELETE` bodies, and `Scalar_DataReader` — while parameterised `SELECT` procedures all succeed (→ D-10) — resolved-by probe
 - U-9 How must a GUID literal be written? — As a plain `'xxxxxxxx-…'` string, which compares equal to a `GUID` column; the OLE DB `{guid {…}}` form and the ODBC escape form both fail to parse, and a `Guid` parameter round-trips and reads back as `Guid` — resolved-by probe, chosen in D-6
@@ -516,17 +517,60 @@ the superseded reasoning stays readable; the paragraph immediately following is 
   arm in the Access flavour resolution (connection-string sniffing, secondary-provider pairing rules).
 - E-27 `Source/LinqToDB.CLI/CommandLine/Commands/Mcp/McpInfoTool.cs:44` — the hard-coded six-name list.
 - E-28 `Source/LinqToDB.Scaffold/Schema/LegacySchemaProvider.cs:63-64` — the two flavour flags.
-- E-29 `Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata,T4}.tt` + `CLI.ttinclude:13-17` — one row each
-  + the LibRed connection string.
-- E-30 `Tests/Tests.T4/Cli/{All,Default,Fluent,NoMetadata,T4}/AccessLibRed/**` (**new generated output**).
+- E-29 `Tests/Tests.T4/Cli/All.tt`, `Tests/Tests.T4/Cli/Default.tt`, `Tests/Tests.T4/Cli/Fluent.tt`,
+  `Tests/Tests.T4/Cli/NoMetadata.tt`, `Tests/Tests.T4/Cli/T4.tt` + `Tests/Tests.T4/Cli/CLI.ttinclude:13-17` — one
+  row each + the LibRed connection string. (Re-spelled by A-23: the `{…}` brace form matched no file.)
+- E-30 `Tests/Tests.T4/Cli/All/AccessLibRed/*`, `Tests/Tests.T4/Cli/Default/AccessLibRed/*`,
+  `Tests/Tests.T4/Cli/Fluent/AccessLibRed/*`, `Tests/Tests.T4/Cli/NoMetadata/AccessLibRed/*`,
+  `Tests/Tests.T4/Cli/T4/AccessLibRed/*` (**new generated output**; re-spelled by A-23).
 - E-31 `.claude/scripts/release-test-cli-scaffold.ps1:115,132-137,206-235` — matrix row, connection-string
   variable, `$expectedDbs` entry. *(corpus edit — committed to the agents repo, not the linq2db branch)*
-- E-32 `Source/LinqToDB.LINQPad/DatabaseProviders/{AccessProvider,ProviderInfo,DatabaseProviders}.cs`,
-  `LinqToDB.LINQPad.csproj` (`GenerateNuGetPackageVersions`), `README.md` — A-19.
+- E-32 `Source/LinqToDB.LINQPad/DatabaseProviders/AccessProvider.cs`,
+  `Source/LinqToDB.LINQPad/DatabaseProviders/ProviderInfo.cs`,
+  `Source/LinqToDB.LINQPad/DatabaseProviders/DatabaseProviders.cs`,
+  `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj` (`GenerateNuGetPackageVersions`),
+  `Source/LinqToDB.LINQPad/README.md` — A-19 (re-spelled by A-23).
 - E-33 `Tests/Tests.Wasm/ProviderMatrix.cs:Rows` — one `Access.LibRed` row, constructed by `AccessTools.GetDataProvider(provider: AccessProvider.LibRed)`, MERGE `Refused` like the four Microsoft flavours — A-21.
 - E-34 `Source/LinqToDB/Internal/DataProvider/Access/AccessDataProvider.cs:SetParameter` — LibRed arm: a `bool` value bound to `DataType.Byte` / `Int16` / `Int32` (the measured widths) is sent as `1` / `0` of that width, so LibRed stores and compares what ACE does rather than `-1` (and `Byte` stops overflowing) — A-22.
 - E-35 `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByOuterJoinedBooleanKey` — `[ActiveIssue]` on `AllAccessLibRed`, `no-declaration:`, lifted by #5969 (`feature-access-libred-dialect` A-7) — A-22.
 - E-36 `Tests/Linq/DataProvider/AccessTests.cs` — one new test: a `bool` mapped `Byte` / `Int16` / `Int32` round-trips and filters by parameter on every Access flavour — A-22.
+
+**Recorded after the fact (A-23)** — files earlier amendments and commits edited without a `P6` row.
+
+- E-37 `Build/licenses/components.json`, `Build/licenses/generated/THIRD-PARTY-NOTICES.linq2db.cli.txt`,
+  `Build/licenses/texts/antlr4-bsd3.txt` — the four `LibRed.*` packages and `Antlr4.Runtime.Standard` as
+  `linq2db.cli` components, net10.0 and net11.0 (`c44d367bb`, A-20; the P7 row at `components.json` records the miss).
+- E-38 `Source/LinqToDB.CLI/LinqToDB.CLI.csproj`, `Source/LinqToDB.CLI/CommandLine/Commands/Scaffold/ScaffoldCommand.Options.cs`
+  — the unconditional `LibRed.Ado` reference (A-20) and `DatabaseType.AccessLibRed` with its help row (Phase E code half).
+- E-39 `Source/LinqToDB.LINQPad/Drivers/DriverHelper.cs`, `Source/LinqToDB.LINQPad/UI/Model/DynamicConnectionModel.cs`,
+  `Source/LinqToDB.LINQPad/UI/Settings/DynamicConnectionTab.xaml` — A-19's paired merged-schema entries
+  (`f05176b05`): per-provider connection-string labels, and the dialog rejecting a paired entry without its second
+  string in place of the old same-provider check.
+- E-40 `Tests/Base/DatabaseUtils.cs` — two `CopyDatabases` arms for the LibRed `.Data` files (`3b6b73ba7`).
+  The P7 row on this file calls that switch dead code (no `TestExternals.Configuration` assignment); re-checked on
+  `origin/pr/5956` 2026-11-12 — still no assignment, so the arms are unreachable and the P7 row stands.
+- E-41 `Tests/Linq/DataProvider/Types/TypeTestsBase.cs` — the `TypeTableName` hook (A-11).
+- E-42 `Tests/linq2db.Providers.props` — the `LibRed.Ado` test reference, net10.0 and net11.0 (A-8, A-20; E-20 named
+  `Tests/Linq/Tests.csproj`, which A-8 superseded).
+- E-43 LibRed-scoped test gates, narrowings and arms (A-16, A-17, A-20, `fbf408b3d`, `bcca00212`):
+  `Tests/Linq/Data/DataConnectionTests.cs` (MARS supported-list), `Tests/Linq/Data/TraceTests.cs` and
+  `Tests/Linq/Linq/DataContextTests.cs` (`FileNotFoundException` for an invalid file path),
+  `Tests/Linq/Linq/AllAnyTests.cs`, `Tests/Linq/Linq/ArrayTests.cs`, `Tests/Linq/Linq/CompareWithNullTests.cs`,
+  `Tests/Linq/Linq/JoinTests.cs`, `Tests/Linq/Update/UpdateFromTests.cs` (`AllAccess` → `AllNativeAccess`, LibRed
+  passes), `Tests/Linq/Linq/ConcatUnionTests.cs` (one narrowing + the `Issue3360` GUID gate),
+  `Tests/Linq/Linq/ContainsTests.cs` (text vs numeric literal), `Tests/Linq/Linq/DateTimeFunctionsTests.cs`
+  (`MAX` needs the dialect), `Tests/Linq/Linq/FromSqlTests.cs` (positional `?` gate; three `*ReferencedByPositionIsSent`
+  narrowings), `Tests/Linq/Linq/PredicateTests.cs` (five `ThrowsForProvider`), `Tests/Linq/Update/MergeTests.Types.cs`
+  (sub-second `DATETIME`), `Tests/Linq/UserTests/Issue1925Tests.cs` (the `ArgumentException` arm).
+- E-44 Edits inside files an earlier row authorizes for a different change (critic round 5: the reconcile is per file,
+  not per edit):
+  - `Tests/Linq/DataProvider/AccessProceduresTests.cs` — E-22a's narrowing was reverted, but A-18's edits remain: the
+    three call helpers pass parameter names matching the declarations, plus a `resultNullable` arm and a changed
+    `SchemaType` condition. The Microsoft flavours execute these (G-01b's control).
+  - `Tests/Linq/DataProvider/AccessTests.cs` — the `TestConvertToDate_WithNull` narrowing to `AllNativeAccess` (`:787`,
+    no recorded failure; open in G-01) and `Issue3893Test_Rejected`'s Details edit (A-20).
+  - `Tests/Linq/Create/CreateData.cs` — the `AccessAction` → `AccessNamedParametersAction(connection, provider)`
+    refactor that E-21a's LibRed arm uses.
 
 ## P7 Impact map (M/L)
 
@@ -584,17 +628,64 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
 - TO-4 (SC-4) — proof: characterization for the four existing flavours and red-green for the two LibRed ones — `AccessTypeTests` over `TestProvName.AllAccess` with one test per Access storage type (`COUNTER`, `INTEGER`, `SMALLINT`, `BYTE`, `SINGLE`, `DOUBLE`, `CURRENCY`, `DECIMAL`, `BIT`, `DATETIME`, `GUID`, `VARCHAR`, `CHAR`, `MEMO`, `BINARY`, `VARBINARY`, `LONGBINARY`), each exercising non-nullable + nullable, parameter + literal and the bulk-copy modes `TypeTestsBase` drives, and each per-provider exclusion naming the provider and the reason
 - TO-5 (SC-5) — proof: control — the symmetry guard on the unchanged path: the same Access filter on `Access.Jet.OleDb`, `Access.Ace.OleDb`, `Access.Jet.Odbc` and `Access.Ace.Odbc` before and after Phase A, with `git diff` over their four baseline directories empty; this is what covers E-5/E-9/E-10, every one of which edits a method the existing flavours also execute
 - TO-6 (SC-6) — proof: characterization — `release-test-cli-scaffold.ps1` run for the new key, then an empty `git diff` over its five output directories on a second run, plus `Tests.T4` compiling with the committed output (idempotence, not behaviour)
-- TO-7 (SC-7) — proof: control — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net462` clean, which is the arm that would fail if a net11-only API or a LibRed type leaked into shared code, plus a search asserting `LibRed` appears in no `<PackageReference>` under `Source/`
-- TO-8 (SC-1, U-8) — proof: control — `a_CreateData.CreateDatabase` green on both new configs, i.e. `Access.sql` and its `.Data` companion executed through LibRed with D-10's `SKIP` markers and D-11's FK change in place; the discriminating inputs are the two FK statements (which failed before D-11) and the five procedure statements (absent for LibRed, still present for the other four), and it runs first because `TestBase.AwaitDatabaseReady` gates every other obligation on it
+- TO-7 (SC-7) — proof: control — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0` and `-f net462` clean, which is the arm that would fail if a net11-only API or a LibRed type leaked into shared code, plus a search asserting `LibRed` appears in no `<PackageReference>` in `Source/LinqToDB/` (re-scoped by A-23 to match P3: the CLI's reference, E-38, is by design, and the LINQPad driver names only a generated version constant)
+- TO-8 (SC-1, U-8; re-labelled by A-23) — proof: characterization — A-17 made `Access.sql` byte-identical to the merge base, so the FK and `SKIP` inputs that made this a control no longer exist; what remains is create-data green on both LibRed configs; providers: Access.LibRed.Mdb, Access.LibRed.Accdb. Original text: `a_CreateData.CreateDatabase` green on both new configs, i.e. `Access.sql` and its `.Data` companion executed through LibRed with D-10's `SKIP` markers and D-11's FK change in place; the discriminating inputs are the two FK statements (which failed before D-11) and the five procedure statements (absent for LibRed, still present for the other four), and it runs first because `TestBase.AwaitDatabaseReady` gates every other obligation on it
 - TO-12 (SC-1, A-21) — proof: red-green — `Tests.Wasm` on the GitHub `WASM runtime tests` job: `ProviderNamesAreCovered` is red at `3d821f653` (`["Access.LibRed"] should be empty`, run 42731388762) and green with E-33; the row's four `ClientWorks` cases (Mono and CoreCLR × Debug and TrimPartial) pass — which is also what shows server-side construction, through `AssertClientAsync`'s preflight throw (`WasmRuntimeTests.cs:222-228`; `MatrixRowsConstructTheirProvider` skips a row that failed preflight, `:168`, so it cannot) — with MERGE reporting the refusal; its four `ClientFailsUnderFullTrimming` and four `ClientFailsWithoutReflectionJson` cases (`:85-86`, `:116-122`) are verified #6168 skips (`DeserializeNoConstructor` / `JsonSerializerIsReflectionDisabled`), not failures; `BundleExitsCleanly` and `ResolveAttemptsAreCaptured` stay green with the extra configuration in every bundle; providers: the WASM matrix (server-side construction on the Linux runner, client in Node)
 - TO-13 (SC-1, A-22) — proof: red-green — `OrderByTests.OrderByBooleanStoredAsInt16` (`IncludeDataSources(true, AllAccess)`, `OrderByTests.cs:1079`) on `Access.LibRed.Mdb` and `.Accdb`, direct and `LinqService`: red before E-34 (`[1, 3, 2, 4]` should be `[2, 4, 1, 3]`, measured 2026-11-10) and green after; `DistinctOrderByOuterJoinedBooleanKey` reports the E-35 gate as a verified skip on the same four contexts; control: both tests unchanged on `Access.Ace.OleDb` (E-34's arm is LibRed-only); providers: Access.LibRed.Mdb, Access.LibRed.Accdb, Access.Ace.OleDb
 - TO-14 (SC-1, A-22) — proof: red-green — E-36's test over `AllAccess` (direct and `LinqService`): for each of `Byte`, `Int16`, `Int32`, a `true` / `false` pair inserted by parameter reads back as raw `1` / `0` and as `true` / `false`, and `Where(r => r.Flag == p)` with a captured `p = true` returns exactly the `true` row; red on LibRed before E-34 (`Byte`: `OverflowException`; `Int16` / `Int32`: raw `-1`, measured 2026-11-10), green after; control: `Access.Ace.OleDb` green before and after (raw `1`, measured); providers: AllAccess (Jet flavours on CI's x86 legs only)
-- TO-9 (SC-5, D-11) — proof: control — D-11 is behaviour-preserving for Microsoft's engine: `a_CreateData.CreateDatabase` green on `Access.Jet.OleDb` and `Access.Ace.Odbc` after E-18 and E-18a, with the `Doctor`/`Patient` foreign keys present in the resulting file. The form itself is **already proven on all four MS flavours by the repo**: `Access.sql:383,385` create `FK_Nullable`/`FK_NotNullable` with `REFERENCES RelationsTable(ID1, ID2)` today, so the obligation is about the two edited statements rather than about whether ACE accepts explicit columns
+- TO-9 (SC-5, D-11; retired by A-17, recorded by A-23) — proof: characterization (retired: nothing left to characterize) — E-18 and E-18a were reverted to the merge base by A-17, so there is no edited statement left to preserve; providers: none. Original text: D-11 is behaviour-preserving for Microsoft's engine: `a_CreateData.CreateDatabase` green on `Access.Jet.OleDb` and `Access.Ace.Odbc` after E-18 and E-18a, with the `Doctor`/`Patient` foreign keys present in the resulting file. The form itself is **already proven on all four MS flavours by the repo**: `Access.sql:383,385` create `FK_Nullable`/`FK_NotNullable` with `REFERENCES RelationsTable(ID1, ID2)` today, so the obligation is about the two edited statements rather than about whether ACE accepts explicit columns
 
 
 ## P9 Verification gates
 
-- G-01: — (partial, 2026-09-21) — TO-8 green on both LibRed configs (3/3, `CreateData.CreateDatabase`),
+- G-01: blocked — CI test-all 25600 and GitHub tests run 43284232683 (both on `3f439360a`, which differs from head
+  `f4956a907` by one XML-doc line) are in flight, and TO-5's red arm has never been run. Per obligation, as of
+  2026-11-12 (A-23):
+  - TO-1: blocked (red arm: A-13's first pass, 1 440 failures before the branch's own defects were fixed) — no run
+    at this head. The newest full LibRed run is igor-tkachev's at `93c54d54e` (net10.0, Linux): 15 745 cases, 2
+    failed, both provider-free stack-depth tests. That run predates E-34, E-36 and the master merges that brought the
+    `FromSqlTests` narrowings. A-20's own net11.0 run had the same case count and 31 failures. There is no
+    `Access.Ace.OleDb` discrimination at this head either. This unblocks when test-all 25600's `zz_Access_LibRed` leg
+    and an `Access.Ace.*` leg are read green.
+  - TO-2: fail (red arm: the cross-comparison disagreed) — as written. SC-2 names three divergences: parameter names,
+    the GUID literal form and `DateValue`. The local capture (2026-09-23, alpha.3, the baselines gate row below)
+    measured a different three: ~1 130 trace-only parameter-type comments, 16 database-qualified names (A-5's
+    `BuildObjectName`) and 3 GUID literals. The first is the "fourth category" TO-2 calls a finding, and no `P10`
+    line adjudicates it. Either SC-2 is re-stated to the measured set, or this row stays failed. It was not
+    re-captured on alpha.4 or after E-34, and the CI baselines branch for 25600 is unread.
+  - TO-3: pass — `SchemaProviderTests` 14/14 on both LibRed configs (2026-09-21), and 44/44 procedures + schema +
+    `Issue792` + create-data after A-18's `GetSchema` rewrite.
+  - TO-4: pass — `AccessTypeTests` 72/72 across the four locally reachable flavours (A-11, A-12); Jet on CI x86 only.
+  - TO-5: blocked (red arm not run) — the control half passes (G-01a: `Access.Ace.OleDb` full suite, 1 provider-free
+    failure; G-01b: 84/0 and 98/0 on the shared path). No mutation routing a Microsoft flavour through a LibRed arm
+    has been executed, so the guard's ability to disagree is unshown. Two SC-5 edges with no control at all are open
+  under the review gate below: the `DetectProvider` "LibRed"-first marker and the unscoped `AccessDmlService` arms.
+  - TO-6: pass — 89 files regenerate byte-identical and `Tests.T4` compiles (2026-09-22). Not regenerated since the
+    alpha.4 bump; CLI CI legs green at head (run 43287410004).
+  - TO-7: pass (red arm: the netstandard2.0 build failed on `Enumerable.ToHashSet()` before it was fixed, G-05) — G-05
+    for the builds. The search, re-scoped by A-23 to `Source/LinqToDB/`: `git grep -n LibRed origin/pr/5956 --
+    "Source/*/*.csproj" Directory.Packages.props` (2026-11-12) hits `LinqToDB.CLI.csproj:122` (E-38),
+    `LinqToDB.LINQPad.csproj:191` (a version constant, no reference) and `Directory.Packages.props:167`, and nothing
+    in `Source/LinqToDB/LinqToDB.csproj`.
+  - TO-8: pass — create-data green on both LibRed configs (3/3, 2026-09-21, and in every full run since).
+  - TO-9: n/a — retired by A-17 (E-18/E-18a reverted to the merge base).
+  - TO-10: n/a (red arm, 2026-09-23: net11.0 listed 7 313 cases per config where net10.0 listed zero) — A-20
+    removed the net11-only premise, and LibRed is now listed for net10.0 and net11.0. While the premise held, the
+    two arms disagreed, so it was a working control.
+  - TO-11: pass — red→green recorded below (`SelectTests.SimpleDirect`, `NotSupportedException` with E-5a removed).
+  - TO-12: pass — GitHub `build` workflow run 43287410004 on head `f4956a907`, `WASM runtime tests` job green.
+  - TO-13: pass, TO-14: pass — red with E-34 stashed and green with it, A-22's G-01 row.
+  - test-diff-sweep (`test-diff-sweep.ps1 -Repo . -Ref origin/pr/5956`, 2026-11-12): 67 one-line chains, all in
+    generated CLI output under `Tests/Tests.T4/Cli/*/AccessLibRed/` (scaffolder output, not hand-written test code);
+    4 nested chains — 2 in generated output, 2 in `Issue1925Tests.cs:74-75`, which mirror the OLE DB / ODBC arms
+    beside them (`:61-67`); 6 narrowed sets, 2 with a reason line and **4 without**: `AccessTests.cs:787`
+    (`TestConvertToDate_WithNull`, `AllNativeAccess`) and `FromSqlTests.cs:2037,2052,2072` (the three
+    `*ReferencedByPositionIsSent`, `AllNativeAccess`). Those four are open, to fix on the branch. A reason line is
+    not enough (critic round 5): the three `FromSqlTests` share `FromSql_PositionalPlaceholder_DataParameter`'s `?`
+    mechanism (`:1437`), which carries a verified `[ActiveIssue]` on `AllAccessLibRed`, so they take the same gate
+    instead of an exclusion that never reports. `TestConvertToDate_WithNull`'s exclusion has no recorded failure
+    anywhere in this plan, so it needs a LibRed run first.
+- G-01c: pass — (partial, 2026-09-21; history) — TO-8 green on both LibRed configs (3/3, `CreateData.CreateDatabase`),
   and verified against an artifact rather than the runner's word: both containers grew and report
   `hasUserTables=True`, the `.mdb` still `Version4`. TO-11 **red→green proven** — with E-5a removed,
   `SelectTests.SimpleDirect("Access.LibRed.Mdb")` fails `System.NotSupportedException` at
@@ -603,22 +694,24 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   `Access.Ace.Odbc`; the two Jet flavours need an x86 run (both Jet drivers are 32-bit only) and are
   left to CI. **TO-4 green: 72/72** across the four locally reachable flavours (A-11, A-12).
   TO-1/TO-5 still pending.
-- G-01b: — (done, 2026-09-22) — **TO-5 re-control after the alpha.3 bump, narrowed to the shared path this
+- G-01b: pass — (2026-09-22) — **TO-5 re-control after the alpha.3 bump, narrowed to the shared path this
   session actually edits.** The branch's shared-file surface *shrank*: `Access.sql` and `TestBase.Identity.cs`
   are byte-identical to the merge base again (`git diff <merge-base>` empty), so the only edit the Microsoft
   flavours still execute is `AccessProceduresTests` — its parameter names, now matching the declarations, and
   two per-flavour assertion arms. Control: create-data + `AccessProceduresTests` + `AccessTypeTests` +
   `AccessTests` on **`Access.Ace.OleDb` (84 cases, 0 failures)** and **`Access.Ace.Odbc` (98 cases, 0
   failures)**, each in its own host. That is narrower than G-01a's full run and deliberately so; the full
-  control at G-01a still stands for everything else.
-- G-01a: — (done, 2026-09-21) — **TO-5 control: the full suite on `Access.Ace.OleDb` is 7 680 tests with
+  control in the 2026-09-21 full run (next row) still stands for everything else.
+- G-01a: pass — (2026-09-21) — **TO-5 control: the full suite on `Access.Ace.OleDb` is 7 680 tests with
   exactly 1 failure, `TestExpressionVisitorHops(10)`** — provider-independent (no provider in the case
   name), present on the LibRed run too, therefore pre-existing on this branch stack and not ours. So none
   of the shared-file edits regressed the reference flavour: `Access.sql`'s explicit FK columns and `SKIP`
   markers, `TestBase.Identity.cs`, `TypeTestsBase`'s name hook, the `AllNativeAccess` narrowings, and the
   `[ActiveIssue(3893)]` re-scoping. It is also what makes the LibRed failure list *interpretable*: every
   cluster left there is LibRed's, because the same tests pass on Access through Microsoft's driver.
-- G-02: — (done, 2026-09-23) — **TO-2 captured and cross-compared.** Both LibRed configurations and
+- G-02: blocked — on TO-2's `fail` as written (SC-2 unadjudicated), on U-23 (which contests this row's "OLE DB is
+  the outlier" sentence below), and on the CI baselines branch regenerated by test-all 25600 on alpha.4, unread as of
+  A-23. The local capture of 2026-09-23 on alpha.3 — **TO-2 captured and cross-compared.** Both LibRed configurations and
   `Access.Ace.OleDb` captured over the full suite into an isolated `BaselinesPath` under the worktree's
   `.build/.agents/` — not the shared `c:\GitHub\linq2db.bls`, which concurrent sessions write to — seeded
   per `worktree.md` with only the TFM bucket, its `BasedOn` and an absolute path, so `--provider` and every
@@ -656,20 +749,49 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   is a local isolated directory, so the comparison was done with a purpose-built script instead
   (`.build/.agents/compare-baselines.ps1`, pairs by test identity, drops the per-statement provider header,
   buckets by the shape of the first differing line).
-- G-03: — (done) — `PublicAPI.Unshipped.txt` carries every new public type and member (E-13), hand-written
+- G-03: pass — `PublicAPI.Unshipped.txt` carries every new public type and member (E-13), hand-written
   per the no-local-RS0016-check rule; XML docs on `AccessProvider.LibRed` and `ProviderName.AccessLibRed`.
-- G-04: — (done) — no `CompatibilitySuppressions.xml` in the diff.
-- G-05: — (done) — TO-7: `Source/LinqToDB` builds clean in Release on `netstandard2.0`, `net462` and
+- G-04: pass — no `CompatibilitySuppressions.xml` in the diff.
+- G-05: pass — TO-7: `Source/LinqToDB` builds clean in Release on `netstandard2.0`, `net462` and
   `net11.0`. The portable arm earned its place: `Enumerable.ToHashSet()` does not exist on
   netstandard2.0 (the polyfill's overload requires a comparer), caught only by that build.
-- G-06: — (partly discharged 2026-09-23) — provider-matrix coverage: the new configs run under
-  `[access.all]` on CI (E-24) and the leg is green under both a filtered run and a `full_run` pass
-  (TO-10). The `full_run` half is settled locally — TO-10 measured zero LibRed cases on net10.0 and
-  both configs on net11.0 — so what remains is CI actually running the leg green.
-- G-07: — (pending) — no playground scratch on the linq2db branch; the probe lives in the **corpus**
-  beside this plan (`probe/`), never under `Tests/Tests.Playground/`.
-- G-08: — (pending) — engine-code edit: none outside `DataProvider/Access` + the new sibling adapter.
-- G-09: — (pending) — Tier L; derive with `work-plan.ps1 -Action gates`.
+- G-06: blocked — the matrix half rests on test-all 25600's `zz_Access_LibRed` leg (in flight). E-24 and TO-10 still
+  call the leg `z_Access_LibRed`; A-20 renamed it. The `full_run` text that used to stand here leaned on TO-10, which
+  A-20 made moot, so it is withdrawn. The no-unrelated-reformatting half holds (A-23 + critic round 5, read from
+  `git diff -U0 origin/master...origin/pr/5956`). The removed lines in the Microsoft-shared Access files are of these
+  shapes:
+  - a binary `OleDb ? … : …` branch rewritten as a three-way switch;
+  - a column re-alignment of a list that gained a LibRed member;
+  - `IsParameterOrderDependent = true` moved per flavour (D-3);
+  - `GetQueryParameterNormalizer`'s predicate inverted to `Provider == ODBC ? Noop : base`, which is equivalent for
+    the two Microsoft flavours;
+  - `SetParameterType`'s `else` narrowed to `else if (Provider == ODBC)`;
+  - `DetectProvider`'s `is ODBC or OleDb` gaining `or LibRed`.
+
+  Two of those changes alter behaviour on a Microsoft path, recorded as **open** for review:
+  - `DetectProvider`'s configuration-string block now tests `Contains("LibRed")` **before** `Access.Odbc` /
+    `Access.OleDb`, so a Microsoft-flavour configuration name that also contains "LibRed" resolves to LibRed.
+  - `AccessDmlService.IsTableNotFoundExceptionCore`'s new `SqlBindException` / `InvalidOperationException`
+    ("no such table" / "no such procedure") arms are not gated on LibRed, and "no such procedure" is beyond E-11a.
+- G-07: pass — (A-23, 2026-11-12) `git diff --name-only origin/master...origin/pr/5956 -- Tests/Tests.Playground`
+  is empty; the probe lives in the **corpus** beside this plan (`probe/`).
+- G-08: pass — (A-23, 2026-11-12) the gate applies only because `AccessLibRedSqlBuilder.cs` matches `SqlBuilder`;
+  `git diff --name-only origin/master...origin/pr/5956 -- Source` filtered of `DataProvider/Access/`,
+  `LibRedProviderAdapter`, the CLI, LINQPad, `PublicAPI`, `ProviderName.cs` and `LegacySchemaProvider` is empty, so
+  no SQL AST, `IDataProvider` or translator-interface file is touched; the builder is a subclass of
+  `AccessSqlBuilderBase`.
+- G-09: blocked — the adversarial read is `/review-pr` round 1 on #5956, started 2026-11-12 at head `f4956a907`.
+  Until it reports, the diff's 159 files have had igor-tkachev's 2026-10-15 review (at `93c54d54e`) and no other.
+  This gate also holds A-23's six open items, which are named here so that no other gate can flip to `pass` around
+  them. Each needs a branch fix or a `P10` row before G-09 passes:
+  - E-40's dead `CopyDatabases` arms;
+  - the LINQPad behaviours A-19 never decided (E-39);
+  - the three `FromSqlTests` narrowings;
+  - the `AccessTests.cs:787` exclusion;
+  - the `DetectProvider` "LibRed"-first ordering;
+  - the unscoped `AccessDmlService` arms.
+
+  The last two are Microsoft-path behaviour edges, so they also bear on SC-5 / TO-5.
 
 ## P10 Adjudicated (M/L)
 
@@ -1365,6 +1487,80 @@ Decisions (user, 2026-11-10: make LibRed work, split between this PR and #5969):
   narrowed set (`AccessTests.cs:818`, `AllAccess`, reason above it), 0 gates flagged. Not run locally: the Jet
   flavours (x86 only), `Access.Ace.Odbc`.
 
+### A-23 — reconcile before review round 1: P6 catches up with the branch, P9 gets results (E-37..E-44, U-23; 2026-11-12, user: "amend first")
+
+This amendment ran at `/review-pr` round 1's scope gate. `work-plan.ps1 -Action reconcile -Head origin/pr/5956`
+(head `f4956a907`, base `origin/master`) reported **124 of 159 changed files unplanned**, and `validate -Done` failed
+on 24 rows. The PR now targets master, because #5942 and #5944 were squash-merged. No product code changes in this
+amendment; it records what the branch already is. Revised once after critic round 5 (`refuted`).
+
+- **98 of the 124 were a spelling problem, not a scope one.** E-29, E-30 and E-32 used `{a,b,c}` brace lists, which
+  `-Reconcile` does not expand. Those rows cover 95 T4 files (5 `.tt`, `CLI.ttinclude`, 89 generated) and 3 LINQPad
+  files. They are re-spelled as explicit paths and `…/AccessLibRed/*` prefixes, with their scope unchanged.
+- **The other 26 files were edited by earlier amendments or commits that added no `P6` row.** Now E-37..E-43:
+  - the 3 license-notice files (`c44d367bb`; P7 already records that miss);
+  - the CLI csproj and options (Phase E code half, A-20);
+  - 3 LINQPad UI files (`f05176b05`, A-19);
+  - `DatabaseUtils.cs` (`3b6b73ba7`);
+  - `TypeTestsBase.cs` (A-11);
+  - `linq2db.Providers.props` (A-8, A-20);
+  - 15 test files carrying LibRed gates, `AllNativeAccess` narrowings and assertion arms (A-16, A-17, A-20,
+    `fbf408b3d`, `bcca00212`).
+- **0 unplanned is a per-file count, not a per-edit one.** E-44 records three edits inside files an older row
+  authorizes for a different change. Separately, `Get-RowPaths` treats every backticked `name.ext:…` citation as a
+  path, and `-Reconcile` suffix-matches it. So E-5a's `DataProviderBase.cs` / `ClickHouseDataProvider.cs`, E-13's
+  `PublicAPI.Shipped.txt` and E-42's `Tests/Linq/Tests.csproj` would authorize edits to those files. None is in
+  the diff today, but a later edit there would pass the gate silently.
+- **E-40 is dead code, measured, and P6 and P7 now disagree.** `CopyDatabases`' per-file switch runs only when
+  `TestExternals.Configuration` is set. On `origin/pr/5956` the field is declared (`TestExternals.cs:10`), read at
+  `DatabaseUtils.cs:17,25` and never assigned, so `3b6b73ba7`'s two LibRed arms cannot run. P7 calls the copy arm
+  unneeded, while P6 now records it. **Open:** remove the arms on the branch, or adjudicate them in P10.
+- **LINQPad behaviour A-19 never decided (E-39), open.** A-19 says the paired merged-schema entries "only show a
+  second connection string" and that stored settings are unchanged. The code goes further, in three ways:
+  - `DriverHelper.ShowConnectionDialog` now **rejects** a paired entry with no second string, where the second string
+    used to be optional.
+  - Selecting an unpaired entry nulls `Settings.Connection.SecondaryConnectionString` in the `Provider` setter, which
+    destroys a stored value.
+  - The same-provider check and `GetProviderByConnectionString` auto-selection of the secondary are gone.
+
+  These need a `P5` / `P10` line from the user. There is no test, and A-19 is still unverified in LINQPad.
+- **`P3:75`** ("`Tests/Linq` gets a `net11.0`-conditional reference") is stale: the reference lives in
+  `linq2db.Providers.props` (E-42) for net10.0 and net11.0. **TO-7** is re-scoped to `Source/LinqToDB/` to match P3,
+  and its search is run in G-01.
+- **`P6` rows now describing a superseded state** — left as written, the amendment named is authoritative: E-3's
+  `DatabaseExists` / `DropDatabase` / `ClearPool` are still bound and still unused (igor-tkachev's MIN002 at
+  `93c54d54e`); E-5a's `IsDBNullAllowed` override was removed by A-17; E-7's SQL schema reader was replaced by A-18's
+  `GetSchema`; E-9's `LibRedMappingSchema` survives as an **empty** leaf over the base `Instance` — A-17 removed its
+  unbraced GUID converter, so LibRed emits the base `'{…}'` literal; E-16's "NET110 only" and E-23's TFM-scoped
+  section were reversed by A-20; E-18 / E-18a were reverted by A-17; E-22a's narrowing and E-22b were reverted by
+  A-17 / A-20, but both files still carry other edits (E-44); E-20's path is E-42; E-24 and TO-10 name the leg
+  `z_Access_LibRed`, which A-20 renamed to `zz_Access_LibRed`.
+- **`P8` re-labels.** TO-8 becomes `characterization`: A-17 made `Access.sql` byte-identical to the base, so its
+  discriminating inputs are gone. TO-9 is retired, because E-18/E-18a were reverted. TO-10 is `n/a` in G-01, because
+  A-20 removed the net11-only premise.
+- **`P9` restructured.** Every gate row now carries a result word, and G-01 records one line per `TO-n`. Where it
+  cannot record a pass:
+  - TO-1 is `blocked` on the in-flight CI. The newest full run is at an older head.
+  - TO-2 is `fail` as written: SC-2's three named divergences did not occur, and the measured fourth category has no
+    adjudication.
+  - TO-5's red arm has never been run, so `validate -Done` keeps that error by design.
+  - G-01 and G-06's matrix half are `blocked` on test-all 25600 / GitHub run 43284232683.
+  - G-09 is `blocked` on this review.
+- **Open on the branch, from the sweep and critic round 5:**
+  - The three `FromSqlTests.*ReferencedByPositionIsSent` narrowings (`:2037,2052,2072`) should become the same
+    `[ActiveIssue(AllAccessLibRed)]` their `?`-mechanism sibling `:1437` carries.
+  - `AccessTests.cs:787`'s exclusion needs a LibRed run, because no failure is recorded for it.
+  - G-06's two Microsoft-path behaviour edges: the `DetectProvider` "LibRed" marker tested first, and the unscoped
+    `AccessDmlService` arms.
+- **Third-party input since A-22 is U-23 (OPEN).** ChrisJollyAU's GUID-literal measurement points
+  `Issue3360_LiteralsInFirstQuery`'s LibRed gate at linq2db's own empty `LibRedMappingSchema`, not at the engine.
+  The gate's Details (`ConcatUnionTests.cs:1737-1739`) and G-02's "OLE DB is the outlier" both stand against it
+  until the probe runs.
+- conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*,
+  applied to E-43's files after the fact; `test-diff-sweep.ps1 -Repo . -Ref origin/pr/5956` counts in G-01.
+- re-derives: none in P5 — this amendment changes no decision. It does mark E-9's D-6 basis as stale: D-6 chose the
+  unbraced literal, and A-17 reversed it.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
@@ -1590,5 +1786,40 @@ in A-22):
 - Checked and sound by the critic: the `Tests/` census, E-35's gate vocabulary and width, TO-13's red.
 - Not checked by it: any engine behaviour, the `AccessBulkCopy` path (CreateLocalTable seeds through the parameterized
   INSERT here, measured), usages outside `Tests/`.
+
+**refuted** (round 5, A-23 delta: E-29/E-30/E-32 re-spelled, E-37..E-43, TO-8/TO-9 re-labels, P9 restructure) —
+`plan-critic` on fable, read-only against `origin/pr/5956`. Two objections refuted the amendment's own statements, and
+ten were weak. All twelve are folded into the revision. Two were checked in code here first: the `AccessDmlService`
+arms are unscoped (`git diff`), and so is the LINQPad clear-on-switch (`DynamicConnectionModel.cs` `Provider` setter).
+- **refuted — TO-7 `pass` against E-38**: the CLI carries `<PackageReference Include="LibRed.Ado" />`, and TO-7
+  banned it under all of `Source/`. → TO-7 re-scoped to `Source/LinqToDB/` (P3's scope), and the search was run.
+- **refuted — the file arithmetic**: the right split is 98 spelling-only and 26 unrecorded. A-23 had said 112 and 13,
+  and the total was 124, not 125. → corrected.
+- weak, each applied in the revision:
+  - TO-2 relabelled a "no" as a red arm → now `fail` as written.
+  - TO-1 rested on an older head's run, with a false "matching A-20" → now `blocked`.
+  - G-06's shape list was incomplete. → Four more shapes are listed, and two Microsoft-path edges are left open.
+  - G-06's matrix half passed on a dispatch → now `blocked`.
+  - E-22a and E-22b were called "reverted" while their files still differ → E-44.
+  - Citation tokens over-authorize through suffix matching → recorded in A-23.
+  - E-40 conflicts with P7 → open.
+  - The `FromSqlTests` narrowings were the wrong form → open, with the gate form named.
+  - LINQPad has behaviour A-19 never decided → open, for the user.
+  - The `Issue3360` attribution → U-23, OPEN.
+- Checked and clean by it: the TO-8/TO-9 re-labels, G-07, G-08, the five `AllNativeAccess` ActiveIssue narrowings
+  (LibRed now runs them, so they are failable), the MARS pair, and TO-5 being left `blocked`.
+- Not checked by it: any CI run, the sweep counts, LibRed runtime behaviour for the open items, the LINQPad dialog.
+
+**weak** (round 6, the A-23 revision, same critic, the one resubmit allowed) — every correction it could check is
+now true. That covers the 124 = 98 + 26 recount, which it confirmed as right where its own 99 was wrong, from the
+old row spellings and the matcher. It also covers TO-7's search scope (a wider search finds no `Source/LinqToDB/`
+hit), TO-1 / TO-2, G-06's equivalences (checked in `AccessDataProvider.cs`), E-44, U-23's probe design and the
+superseded list. Its two residual objections are both applied:
+- G-02 kept `pass` beside TO-2's `fail` → G-02 is now `blocked`, and its outlier sentence is marked contested by U-23.
+- Six open items had no result word → they are named as G-09's unblock conditions, and the two Microsoft-path edges
+  also sit under TO-5.
+
+Round cap reached; the plan goes to the review with both verdicts. Not checked by it: any CI run, `validate`
+itself, and the runtime behaviour behind U-23, the `FromSqlTests` trio and `AccessTests.cs:787`.
 
 
