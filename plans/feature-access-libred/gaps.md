@@ -71,3 +71,34 @@ GAP-02 dominates again, as in round 1: a plan sentence asserted a capability or 
 - GAP-02 (+GAP-08) → plan-critic.md attack vector and work-plan/SKILL.md *Mode: amend*: no E-n marked implemented, and no earlier premise ("not expressible", "no consumer", "measured by test X") retired, without a recorded probe or decompile; every amendment stop rule gets a G-01 line.
 - GAP-07 + GAP-01 → work-plan.md *conventions:*: an amendment touching `*ProviderAdapter.cs` cites code-design.md's TypeMapper rule; one adding `[ActiveIssue]` cites the tracking-issue requirement.
 - GAP-05/GAP-08 → test-diff-sweep.ps1 usage: re-run after the last test edit and record the head it covered; extend the nested-chain detector to lambdas inside Assert.Throws; every new public overload / UseXxx entry point gets a TO whose red arm is the removed line.
+
+## Round 3 — reviewed HEAD a6027efcb (2026-11-14)
+
+Judged against the plan through A-26 (P6 E-59/E-60 rows at plan.md:654-664, A-26 at plan.md:1847-1884, P10 A-26 lines at plan.md:1001-1008). G-09's A-26 condition is met: Azure test-all 25672 green at a6027efcb. All three findings come from A-26, the round-2 fix amendment.
+
+- **MIN017** (PROVE+FIX: UseAccess still runs the version probe when LibRed is named by ProviderName / configuration string) — GAP-03 — E-59 (plan.md:660-661) and A-26 (plan.md:1854) keyed the skip on the `provider` argument alone; no P7 row listed the other routes by which `UseAccess` reaches LibRed, though the plan names all three (P10 plan.md:934; P7 plan.md:675-676 shows the flavour is resolved inside the detector, after the argument). Secondary GAP-05: `UseAccessLibRed`'s red arm (plan.md:1874) covered only the argument route. Secondary GAP-06: acting-on-findings.md:49 "attack a fix's own new condition" not applied to `provider == AccessProvider.LibRed` — G-01 — preventable: yes
+- **MIN018** (FIX: AccessProvider.LibRed remarks hard-code 11.0.0-beta.1 with no updater; over-general parenthetical) — GAP-03 — A-26 (plan.md:1856) and its P10 line (plan.md:1001-1003) told the remarks to name the tested version; no P7 row recorded its single source (`Directory.Packages.props:167`) or that nothing updates the copy (`release-deps` has no LibRed step), though the same A-26 bullet chose "no version copy" for the CLI SKILL.md, MCP note and LINQPad README. The over-general claim and early wrap are prose (GAP-10 floor); the work-plan.md:300 prose-claim vector was never run on A-26 (no P12 round after round 8) — — — preventable: partly
+- **SUG009** (PROVE+FIX: AutoDetect → .mdb on the LibRed arm untested) — GAP-05 — A-26's E-46 bullet (plan.md:1853) names the AutoDetect outcome change, but its test bullet (plan.md:1857) extended `CreateDatabaseLibRed` only for `deleteIfExists`; `[Values] bool accdb` maps to Ace/Jet only, so reverting `AccessTools.cs:150` stays green; work-plan.md:181 (an enumerated set is an obligation checklist) applied: AccessVersion has three members, the fixture covered two — G-01 — preventable: yes
+
+### Aggregate
+
+3 attributed, 0 not-a-gap: GAP-03 ×2, GAP-05 ×1. Preventable: yes 2, partly 1, no 0.
+
+All three come from A-26, as A-24 produced 6 of round 2's 11. Shared shape: A-26 named a set (LibRed's three naming routes in P10, the AccessVersion members in E-46), then wrote its condition or fixture against a subset. One change would have prevented MIN017 and SUG009: a G-01 line per new or changed condition in a review-fix amendment, listing every input the plan already enumerates that reaches it, with one red-arm case per input.
+
+Fixes (2026-11-14, worktree, not yet committed): MIN017 — `AccessProviderDetector.IsLibRed` picks the dialect from the resolved provider; `UseAccessLibRed` gains `[Values] bool byProviderName` (red 4/4 at a6027efcb, opens 2). SUG009 — `CreateDatabaseLibRed` takes `[Values(Ace, Jet, AutoDetect)] AccessVersion` (AutoDetect red 2/2 with line 150 reverted). MIN018 — remarks name the version by reference (user's choice: no number, no release-deps step). Green: 17/17 on both LibRed configs.
+
+### Continuity
+
+- Round 2's "every new public overload / UseXxx entry point gets a TO whose red arm is the removed line" was never written into the corpus (only gaps.md:73). A-26 applied it anyway (`UseAccessLibRed` red at 2 opens); it still could not catch MIN017, since a red arm on the removed line proves only the fixture's route. Read as "a red arm for every behaviour-changing line", it would have caught SUG009.
+- Round 2's "every amendment stop rule gets a G-01 line" landed at work-plan.md:304; A-26 declared no stop rule, so no bearing.
+- MIN017 repeats round 2's MIN015 (same `UseAccess` probe): the fix closed one of three naming routes.
+- SUG009 repeats round 2's MIN014 ("no TO covered" AutoDetect): the fix amendment named the AutoDetect outcome and again wrote no case.
+- MIN018 is the third finding on the same remarks (SUG001 → SUG004 → MIN018), directly from round 2's SUG004 fix; round 2's SUG004 row (gaps.md:44) framed the remedy as a copy.
+- A-26 had no P12 critic round although it changed XML docs and READMEs (work-plan.md:300); A-24 had two (rounds 7 and 8).
+
+### Recommended durable fixes
+
+- GAP-03 + GAP-05 (MIN017, SUG009) → `work-plan/SKILL.md` *Mode: amend*: each new or changed condition in an amendment's E-n gets a G-01 line listing every input the plan enumerates that reaches it (P10 routes, enum members, P7 resolution order), with a red-arm case per input; the condition tests the resolved value, not the caller's argument.
+- GAP-03 (MIN018) → `code-reviewer.md` rubric rule plus the amend-step P7 scout: prose that restates a single-source value (a package version, a count) cites the source by reference unless the owning update skill gains a step that rewrites the copy; gap-ledger remedies must not prescribe such copies.
+- GAP-08 secondary (MIN018, no critic round on A-26) → `work-plan.ps1 -Action validate`: error when an A-n touching XML docs or READMEs has no later P12 round (enforces work-plan.md:300).
