@@ -903,7 +903,9 @@ Searched in this worktree (branch base `77800f967`), never in the primary clone.
   `LibRedProviderAdapter`, the CLI, LINQPad, `PublicAPI`, `ProviderName.cs` and `LegacySchemaProvider` is empty, so
   no SQL AST, `IDataProvider` or translator-interface file is touched; the builder is a subclass of
   `AccessSqlBuilderBase`.
-- G-09: blocked — (A-27, 2026-11-14) A-26's condition was met: `test-all` 25672 green at `a6027efcb`. `/review-pr`
+- G-09: pass — (A-27, 2026-11-14) `test-all` 25679 green at `837e23c45` (all Azure legs; GitHub `tests [all]` run
+  43616197068 all legs; Azure `build` 25678); baselines delta unchanged (the 12 `AccessProceduresTests` renames).
+  (A-27, 2026-11-14) A-26's condition was met: `test-all` 25672 green at `a6027efcb`. `/review-pr`
   round 3 at that head found three, fixed as A-27 (head `837e23c45`). It passes once A-27's `test-all` (25679) is green.
   (A-26, 2026-11-14) `/review-pr` round 2 at head `c2888aded` (three passes plus the walk) is
   dispositioned; its fixes are A-26. It passes once A-26's commits are pushed and their `test-all` is green.
