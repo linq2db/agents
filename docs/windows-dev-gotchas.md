@@ -501,7 +501,7 @@ Roslyn analyzers, banned-API checks, and Meziantou (`MA*`) rules run **only in R
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0
 ```
 
-(net10.0 alone surfaces most diagnostics, but not all — `NUnit4001` fired only on net462 in 6.5.1, where `MidpointRounding` has two members.) A test-only change needs the same check against `Tests/Linq/Tests.csproj`.
+(net10.0 alone surfaces most diagnostics, but not all — `NUnit4001` fired only on net462 in 6.5.1, where `MidpointRounding` has two members.) A test-only change needs the same check against `Tests/Linq/Tests.csproj`. Pick the `-f` that compiles the edit: code under `#if NET11_0_OR_GREATER` (or another TFM gate) needs that TFM's Release build — a net10.0 build skips it and passes vacuously. (#6316)
 
 **A clean Release build of `linq2db.slnx` says nothing about `Tests.FpuJit`, `Tests.SingleFile` or `Tests.Playground`.** The solution excludes all three from its Release configuration (`<Build Solution="Release|*" Project="false" />`), so analyzer findings in them show up only in a build of the project itself — CI's FPU-sweep job and the single-file `publish -c Release`. Build the project directly when a change touches one. (#6130: the analyzer inventory needed a separate FpuJit build.)
 

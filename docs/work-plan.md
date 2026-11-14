@@ -152,6 +152,8 @@ One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
 
 Where an `E-n` touches a helper reachable from more than one path, one obligation must be a **symmetry guard on the unchanged path**.
 
+Where a `P7` recogniser row lists the declaring types or overloads a predicate admits, each admitted entry gets its own `TO-n`, and `G-01` records a mutation removing that entry which turns it red. (#6316 SUG001: `IsTupleJoin` admitted `Queryable` or `Enumerable`; only `Queryable` was tested.)
+
 **A fix to a rewrite shared by read and write paths owes one `TO-n` per path kind, not only the issue's repro shapes.** A projection, a predicate, a `Set(...).Update()` setter, a `Value(...).Insert()` setter and an entity-builder selector each consume the rewritten node differently, and an issue usually shows only the read side. (#6268: three read tests. The `Set` and `Value` setters happened to work, and the entity-builder selectors silently did not.)
 
 **The PR body's test claims follow the proof modes.** Its Tests section calls a test "red before the fix" only when that test's `TO-n` is `red→green`. A `control` or `characterization` obligation is named as such, and so is a guard test that only a mutation of the new code can redden. (#6189: the body said every new test was red before the fix. Two were green on master, and the plan had already labelled them characterization and guard.)
