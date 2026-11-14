@@ -577,8 +577,11 @@ function Invoke-Validate {
         $entries = @()
         $current = $null
         foreach ($l in $p11.lines) {
-            # bold optional: most plans write `- A-n (date, note) —`, which a bold-only match skipped entirely
-            if ($l -match '^-\s+(?:\*\*)?(A-\d+)') {
+            # bold optional: most plans write `- A-n (date, note) —`, which a bold-only match skipped entirely.
+            # Long plans write `### A-n — <title> (date, …)`, which the bullet-only match skipped: every P11 check
+            # below was blind to #5956's A-24..A-27, and A-26 reached review with no re-derives: line and no critic
+            # round; round 3's three findings all came from it.
+            if ($l -match '^(?:-\s+(?:\*\*)?|#{3,6}\s+)(A-\d+)\b') {
                 if ($null -ne $current) { $entries += $current }
                 $current = [ordered]@{ id = $Matches[1]; text = $l }
             }

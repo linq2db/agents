@@ -2224,7 +2224,7 @@ Round cap reached; the user decides whether implementation proceeds on this revi
 
 
 
-**weak** (round 9, 2026-11-14, Sonnet; `work-plan.md:300`'s prose-claim vector over A-27's `AccessProvider.LibRed` remark at `837e23c45`).
+**Round 9 (2026-11-14, Sonnet; `work-plan.md:300`'s prose-claim vector over A-27's `AccessProvider.LibRed` remark at `837e23c45`) — weak**
 - **Closed by U-24 (probe on beta.1, 2026-11-14: no lock file at any point):** "LibRed keeps no Access lock file" had no probe recorded in this plan. The source is igor-tkachev's SUG001
   probe (review 5540266938, comment 4288552563: "after `Open()` and an `INSERT`, only `a.mdb` exists"), run on Linux
   against 11.0.0-alpha.4, not against the pinned 11.0.0-beta.1. The sentence predates A-27; A-27 only reflowed it.
