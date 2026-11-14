@@ -301,6 +301,8 @@ While the header reads *approval void*, `-Action validate` should not pass. (#60
 
 **A rule distilled from the live plan is re-applied to it before the next push.** When `/session-reflect` or a gap ledger turns this plan's own round into a corpus rule (a critic vector, a `work-plan.md` paragraph, an `evidence-discipline.md` entry), the plan it came from has not been checked against it. Log an `A-n` that re-checks every `SC-n` / `D-n` the rule touches, and run a critic round with it. (#6197: `plan-critic.md`'s closed-list census rule landed twelve minutes after `ef6b80a62` and was never run against A-6. Review round 2 found the next uncensused kind, MIN003, and critic round A-7 found six more.)
 
+**A stop rule an amendment declares gets its own `G-01` line before any `E-n` that depends on it counts as implemented.** The line records the probe and its result, or `not run` with the reason. A stop rule whose premise a decompile can settle (what a third-party method does) is settled by the decompile, not deferred to a test. (#5956: A-24 declared "drop E-47's LibRed arm if `ClearPool` on an unopened connection is a no-op", never ran it, and `G-01` recorded pass; round 2's decompile showed a documented no-op, and the arm plus a 17-file signature change were reverted.)
+
 **A refuted design is recorded as abandoned, not deferred.** "Deferred" asserts the design was sound and the timing was off, so the next reader picks it back up and re-derives the refutation from scratch.
 
 ### P12 Critic verdict (M/L)

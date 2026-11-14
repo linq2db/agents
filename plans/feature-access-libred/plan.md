@@ -1879,6 +1879,10 @@ Verification:
 
 Gap ledger for this round: `gaps.md` → *Round 2*.
 
+Rules distilled from this round (2026-11-14: `code-reviewer.md` rule 32 and rule 31's gate exception, `plan-critic.md`
+vector 9's adapter bullet, `work-plan.md`'s stop-rule paragraph) are already discharged here: E-45 binds through
+`TypeMapper` only, E-47's stop rule was run (decompile + probe) and its arm dropped, and the gates keep their text.
+
 ### Resuming — state as of 2026-09-23 (end of session; supersedes the list below where they differ)
 
 - **The PR is done for now** (user, 2026-09-23). Head `3b6b73ba7`, stacked on #5944 `148744656` on #5942
