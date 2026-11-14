@@ -1923,7 +1923,7 @@ Verification:
 - Green after the fixes: 17/17 on `Access.LibRed.Mdb` / `Access.LibRed.Accdb` (net10.0, Debug, Windows).
 - Release net10.0: `linq2db` and `Tests/Linq` clean (one NUnit4001 on the first `[Values(Ace, Jet, AutoDetect)]`,
   simplified to `[Values]`). OLE DB / ODBC not re-run locally; the full matrix is `test-all` 25679.
-- Owed: `work-plan.md`'s prose-claim critic round over the MIN018 remark (P12); not run.
+- `work-plan.md:300`'s prose-claim critic round over the remark: P12 round 9 (weak; the lock-file sentence is open).
 
 Gap ledger for this round: `gaps.md` → *Round 3*.
 
@@ -2219,3 +2219,17 @@ itself, and the runtime behaviour behind U-23, the `FromSqlTests` trio and `Acce
 Round cap reached; the user decides whether implementation proceeds on this revision without a third critic pass.
 
 
+
+
+**weak** (round 9, 2026-11-14, Sonnet; `work-plan.md:300`'s prose-claim vector over A-27's `AccessProvider.LibRed` remark at `837e23c45`).
+- **Open:** "LibRed keeps no Access lock file" has no probe recorded in this plan. The source is igor-tkachev's SUG001
+  probe (review 5540266938, comment 4288552563: "after `Open()` and an `INSERT`, only `a.mdb` exists"), run on Linux
+  against 11.0.0-alpha.4, not against the pinned 11.0.0-beta.1. The sentence predates A-27; A-27 only reflowed it.
+- **Weak, not folded:** "the version `linq2db.cli` and the LINQPad driver reference" holds by construction (one
+  unconditional `PackageVersion` at `Directory.Packages.props:167`; versionless references at `LinqToDB.CLI.csproj:122`,
+  `Tests/linq2db.Providers.props:67`; `LinqToDB.LINQPad.csproj:191` reads the same item; no `VersionOverride`), but can
+  read as "the version of the installed CLI". The wording is the user's choice (A-27, MIN018 "b").
+- **Checked and sound:** the alpha.2→alpha.3 GUID change (A-17, `plan.md:1396-1397`); "Requires .NET 10 or greater" (A-20; beta.1
+  TFMs not re-inspected); A-27's `class:` greps were run at `837e23c45` by the author.
+- **Stale, outside A-27:** A-19's "net11.0-only" reason for no LINQPad compile reference (`plan.md:1487`); moot, the
+  driver provisions the package by version.
