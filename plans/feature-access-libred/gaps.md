@@ -35,3 +35,39 @@ Clusters: (1) A-18's schema-provider rewrite validated only on the suite's MDB-t
 - GAP-09 ×3 → work-plan/SKILL.md *Mode: amend* step 4 + a work-plan.ps1 validate check: the sweep cited on a conventions:/G-01 line must cover `<PR base>...` over all of `Tests/` (reject `-Base HEAD` and a narrower `-Path`); fail on `narrowedWithoutReason` hits in a file whose E-n rows do not name that test.
 - GAP-02 ×4 → plan-critic.md attack vector: when a dependency bump re-measures behaviour and a gate or list is kept, require (a) every D-n-rejected alternative re-probed, (b) a hand-written type list diffed against the engine's catalog, not the suite database, (c) every D-n failure-mode risk to have a U-n probe.
 - GAP-03 ×3 → work-plan/SKILL.md *Mode: amend* step 3: when an amendment flips a premise or changes a list's cardinality, grep the branch diff and consumer-facing docs (README.md, Source/*/SKILL.md, MCP notes) for the retired premise's wording, and add a P7 row per consumer of the changed collection.
+
+## Round 2 — reviewed HEAD c2888aded (2026-11-13/14)
+
+Judged against the plan through A-25. Dropped or no-gap items omitted: ACCDB complex types, inline DateTime sub-ms, NULL-vs-False.
+
+- **SUG005** (FIX: four LibRed [ActiveIssue] gates with no tracking issue) — GAP-07 — the plan's conventions: lines (A-21..A-24) cite testing.md "Gating an assertion failure" but carry no rule that a gate's "re-check when a newer LibRed ships" must name an issue; the rule was never put in front of the author — G-01 — preventable: yes
+- **SUG004** (FIX: AccessProvider.LibRed remarks omit tested LibRed.Ado version) — GAP-02 — A-24 re-measured GUID behaviour across prereleases yet E-1's XML doc was never listed as a place that must carry the reflection-loaded version; round 1 SUG001 added only "prerelease" — G-03 (content half) — preventable: yes
+- **MIN014** (FIX: AccessTools.CreateDatabase version doc LibRed-only, AutoDetect .accdb vs .mdb) — GAP-01 — E-46 named no required behaviour for `version` on the non-LibRed arms nor the AutoDetect outcome per provider, and no TO covered it — G-03 — preventable: yes
+- **NIT003** (FIX: one-line chain AccessTests.cs:456) — GAP-08 — A-24's G-01 records test-diff-sweep "0 one-line chains in new code", yet one remained in E-58's CreateDatabaseLibRed; sweep ran before the last test edit or missed it — G-01 (test-diff-sweep) — preventable: yes
+- **MIN013** (PROVE+FIX: CreateDatabaseLibRed never reaches deleteIfExists on an existing file) — GAP-05 — no obligation required the deleteIfExists arm on a pre-existing file; the test stayed green with AccessTools.cs:163 removed (walk red arm: 4 IOException cases) — G-01 — preventable: yes
+- **NIT004** (FIX: nested one-line chains Issue1925Tests.cs:74-75) — GAP-08 — A-24 claims "0 nested chains", yet two added nested chains inside Assert.Throws lambdas survived; secondary: sibling arms use the same shape — G-01 (test-diff-sweep) — preventable: partly
+- **MIN015** (PROVE+FIX: UseAccess(cs, LibRed) untested, extra version-probe connection) — GAP-05 — no TO names UseAccess(cs, LibRed); TO-1/TO-5 go through configuration names; the extra open (2 vs 1) is a behaviour no SC named (GAP-01 secondary) — G-01 — preventable: yes
+- **MIN016** (from SUG006, FIX: dead view exception for Bit nullability) — GAP-02 — the view exception rested on an unmeasured premise; same class as round-1 MIN006 (TO-3's whole-schema diff vs OLE DB never built; no view column in AccessLibRedColumnTypes) — G-01 (TO-3) — preventable: yes
+- **SUG007** (promoted OOS, REWRITE: hand-built reflection binding of CreateDatabase) — GAP-02 — E-45 (A-24) prescribed the hand-built expression on A-2's unchecked "TypeMapper cannot wrap" (TypeMapper maps Nullable<T> generically); code-design.md's "Provider adapters read driver members through TypeMapper wrappers" appears in no conventions: line, P-block or E-n (GAP-07 secondary); the round-1 fix introduced it — G-01 — preventable: yes
+- **SUG008** (promoted OOS, FIX: stable CLI/LINQPad docs omit prerelease LibRed) — GAP-03 — round 1 MIN010 / OOS-BETA1 flagged the same consumer docs; P7 still had no row for the prerelease statement in CLI SKILL.md, McpInfoTool, LINQPad README — G-03 — preventable: yes
+- **OOS-E47** (MEASURE → FIX: LINQPad ClearAllPools arm and 17-file signature change reverted; ClearPool is a no-op) — GAP-02 — A-24's stop rule (drop the arm if ClearPool is a no-op) was never run and no test covered the arm; the decompile was available at plan time; also GAP-08 (G-01 recorded pass without it) — G-01 — preventable: yes
+- **IGOR-DBNAME-DOC** (FIX: DatabaseName "Supported by: Access" unqualified) — GAP-03 — MAJ001's P10 line never swept per-provider "Supported by" doc lists (LinqExtensions.TableHelpers.cs:54, outside the diff); P7 had no row for them — — — preventable: yes
+
+### Aggregate
+
+11 attributed, 0 not-a-gap. GAP-02 ×4, GAP-05 ×2, GAP-08 ×2, GAP-03 ×2, GAP-01 ×1, GAP-07 ×1. Preventable yes 9, partly 1, no 0.
+
+GAP-02 dominates again, as in round 1: a plan sentence asserted a capability or premise ("TypeMapper cannot wrap", "view exception", "ClearPool measured by the test") that a one-line check or decompile would have refuted. A-24 (the round-1 fix amendment) produced 6 of the 11 (SUG007, OOS-E47, MIN013, MIN015, NIT003, NIT004).
+
+### Continuity
+
+- MIN002's round-1 fix (E-45) introduced SUG007; A-2's TypeMapper premise was retired, not re-derived.
+- A-24's own stop rule was never run; OOS-E47 is the direct result (17-file revert).
+- MIN016 repeats MIN006 (Bit nullability without a whole-schema diff vs OLE DB); SUG008 / IGOR-DBNAME-DOC repeat round 1's GAP-03 (MIN010); SUG004 repeats SUG001.
+- Landing status of round 1's recommended corpus fixes not verified.
+
+### Recommended durable fixes
+
+- GAP-02 (+GAP-08) → plan-critic.md attack vector and work-plan/SKILL.md *Mode: amend*: no E-n marked implemented, and no earlier premise ("not expressible", "no consumer", "measured by test X") retired, without a recorded probe or decompile; every amendment stop rule gets a G-01 line.
+- GAP-07 + GAP-01 → work-plan.md *conventions:*: an amendment touching `*ProviderAdapter.cs` cites code-design.md's TypeMapper rule; one adding `[ActiveIssue]` cites the tracking-issue requirement.
+- GAP-05/GAP-08 → test-diff-sweep.ps1 usage: re-run after the last test edit and record the head it covered; extend the nested-chain detector to lambdas inside Assert.Throws; every new public overload / UseXxx entry point gets a TO whose red arm is the removed line.
