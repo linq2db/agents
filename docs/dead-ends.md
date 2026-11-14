@@ -36,6 +36,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a checkout of that repo on Windows (`core.longpaths` was not tried; the 10-minute checkout alone rules it out for a rebase). Rebase it without a working tree: `.claude/scripts/rebase-baselines-branch.ps1` replays each commit with `merge-tree --write-tree -X ours --merge-base=<parent>` plus `commit-tree`. Procedure: [`pr-and-push.md`](pr-and-push.md) → *After test renames / moves / deletes*. (#6198, baselines #2240)
 
+## TESTS-LINQ: replacing `[Order]` with `[DependsOnFixture(typeof(a_CreateData))]`
+
+**Tried:** NUnit 5 deprecates `[Order]` in favour of `[DependsOnTest]` / `[DependsOnFixture]`, so the 10 `Tests.xUpdate` fixtures got `[DependsOnFixture(typeof(a_CreateData))]` in place of `[Order(10000)]`.
+
+**Failed because:** under an MTP `--filter` that includes `CreateData.CreateDatabase`, every test in a dependent fixture fails `OneTimeSetUp` with *"Test dependency a_CreateData can not be found. Please verify it was configured correctly and was not filtered out."* All 26 `DeleteTests` cases failed on SQLite.MS. Why the dependency doesn't resolve was not established; `a_CreateData` being in the global namespace is untested.
+
+**Don't re-attempt:** `DependsOn*` for database setup. Every filtered local and CI run would break. `a_CreateData` already sorts first by name. (#6330)
+
 ## PROV-DUCKDB: rounding a decimal to even with `round_even`
 
 **Tried:** `round_even(value, s)` over a `DECIMAL(18,1)` column, to replace an emulation that overflowed.

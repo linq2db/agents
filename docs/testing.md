@@ -560,6 +560,10 @@ Not this: a two-provider `[IncludeDataSources]` whose comment explains only how 
 
 **Exception: a copied list over a provider-agnostic fix.** A new test may keep a sibling's exclusion list unchanged when it reuses the sibling's query shape and the fix it covers runs before any provider code, such as an expression-tree rewrite or an unwrap. The list then describes the providers' support for that shape, which the sibling already covers. Widening it would test that support again, not the fix. Don't flag it in review, and don't ask for a run behind it. (#6074: `InlineArrayMinMax` kept `PredicateOptimization_Subquery`'s eight exclusions for the C# 14 span `Min` / `Max` unwrap.)
 
+## After bumping a provider client package
+
+Run the provider's `<Provider>TypeTests`, the classes that gate on that provider, and **`ProviderSpecificReaderValueTests`**. The last one is easy to forget. It reads values through `GetProviderSpecificValue` and formats them with the CLI's `QueryValueFormatter`, which falls back to printing the type name for any provider-specific type it doesn't know. A driver that starts returning a new native type therefore breaks CLI query output while every type test stays green. (#6329: DuckDB.NET 1.5.6.1 returned `DuckDBDecimal` for `DECIMAL`; the regression showed up only on the CI leg.)
+
 ## Test Patterns
 
 ```csharp
@@ -696,6 +700,8 @@ Review severity for a violation in added test code is `NIT`, with a `suggestion`
 
 **Asserting that a test helper's assertion fails needs NUnit's `Assert.Throws`, not `Should.Throw`.** NUnit records a failed `Assert.That` on the current test result before it throws `AssertionException`, so catching the exception does not un-fail the test. `Assert.Throws<AssertionException>(() => AssertQuery(…))` runs the delegate in `TestExecutionContext.IsolatedContext`, which uses a fresh result and discards the recorded failure; Shouldly's `Should.Throw` has no such isolation. This is the one deliberate exception to "Shouldly over `Assert`". (#6131, measured by decompiling NUnit 4.6.1 `Assert.Throws` / `CreateIsolatedContext`.)
 
+**Don't order fixtures to hide data pollution.** A DML test that leaves rows behind gets fixed to clean up after itself: `CreateLocalTable`, a transaction it rolls back, or restoring the rows it changed. It does not get `[Order]` to run after the read tests. `[Order]` is `[Obsolete]` in NUnit 5 and the suite carries none. A read test that fails on rows a DML test left behind is a bug in that DML test. (#6330, maintainer's rule.)
+
 ## Constant vs parameter arguments in test queries
 
 A captured variable passed as a method argument inside a query is a query parameter, not a constant: in `foreach (var p in …) t.Select(r => Math.Round(r.D, p))` the translator sees a `SqlParameter` and takes its runtime branch. A test meant to pin a translator's *constant* branch must put the literal in the lambda (`Math.Round(r.D, 4)`), and its SQL must show no `DECLARE` for that argument. (#5943: `Round24`'s "constant precision" section looped over `p` and exercised only the runtime path until the logged SQL showed `DECLARE $p Int32`.)
@@ -738,6 +744,8 @@ A test that compiles and goes green is not yet a regression guard — it has to 
 - **A cleanup check that re-asks a question the leaked state answers the same way.** A test that pooled or reset state is cleared after a failure (an `ObjectPool` item, a binding stack, a visitor field restored in `finally`) must follow up with an input the *leaked* state answers differently. Re-comparing the original operands usually comes out the same with or without the leak. Record the mutation that reddens it (drop the pool's cleanup callback and the `finally` restore) and run it. (#6258 MIN002: after a failed compare of `a` / `b`, `CompareBoth(a, b, true)` stayed green with the pool `Clear` and the lambda-arm `Pop` removed; a fresh same-named parameter went red.)
 
 - **A test edited to absorb a runtime or BCL behaviour change.** A new .NET can change a value the test computes client-side, as .NET 11 did with exact `double` → `decimal` conversion and `Math.Round(double, digits)` at midpoints. Then only the **expected** side moves: the query keeps its operand types, the assertion keeps its ordering, and the rows it covers stay the same. A tolerance comparer added for the purpose ships with a mutation test over each model shape it is applied to, field-mapped entities included. (#5942: Round4 / Round4Sql / Round11 moved the query side to `decimal` and left `ROUND(<float>, n)` untested; `AreEqualWithinDelta`'s property walk made every field-only `LinqDataTypes` row equal, so `Issue228Tests` checked only the count; `SumClampedValues` lost its order to a set comparison; a Sybase gate matched any Shouldly failure and skipped seven rows.)
+
+- **An unawaited NUnit 5 async assert.** `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` return a `Task` in NUnit 5, and the assertion runs only when it is awaited. The compiler catches a missing `await` only inside an `async` method (CS4014). A bare call in a sync test, or a result passed on (`exception.ShouldBeOfType<T>()`, `Assert.That(error, Is.Not.InstanceOf<T>())` on the `Task`), compiles and asserts nothing. NUnit2059 reports these, in a Release build only. (#6330: 12 of 23 sites compiled; `RemoteContextTests.SignalRContextLeavesACallerSuppliedClientAlone` checked a `Task` against `Is.Not.InstanceOf`.)
 
 Before reporting a test written, state in one line **which input makes it go red** and confirm it would have failed against the pre-fix code. If you can't name that input, it isn't a guard yet. Mutation-score tooling is out of scope; the red→green demonstration required by `acting-on-findings.md` → *Red test first for a review-finding fix* is the bar.
 
@@ -1136,6 +1144,8 @@ When a change alters *which exception* a member throws — or removes a throw en
 Two consequences. **A proximity window around the member is not a sweep** — the Shouldly delegate form splits the assertion across lines, and the attribute forms are not near the code at all. And **`Assert.Throws<`-only greps read as complete**, because they return plausible-looking hits. Sweep by *member name across the whole test tree*, then cross with all five shapes, plus `catch (T)` for tests that swallow rather than assert.
 
 (#5788: a ±5-line `Throws<…>` window over 137 changed members returned three hits and happened to be right; an idiom-complete census was needed to know that. `ExpressionTests.cs:386` is a `Throws.InstanceOf<LinqToDBException>()` six lines from a changed member and appeared in none of the three.)
+
+**NUnit 5.0.0: `Assert.Catch(Action, string message)` matches the exact type.** That one overload calls `Throws<Exception>`, so any subclass fails it with `Expected: <System.Exception> But was: <…SqlException…>`. `Catch(Action)` without a message and the generic `Catch<T>(…)` check instance-of as before, and so does `CatchAsync`. Use `Catch<Exception>(code, message)` until NUnit ships the fix; it is already on NUnit's `main`. (#6330: `CommonTests.ReplaceTableTest` failed on every SQL Server target; read in the `v5.0.0` tag's `Assert.Exceptions.System.cs`.)
 
 ### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
 
