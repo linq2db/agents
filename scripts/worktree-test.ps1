@@ -176,6 +176,10 @@ Output (stdout, single JSON object):
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
     "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than every assembly in the test output (stale run)
+    "buildErrors": [ "...: error CS0246: ..." ],
+                                     // only when the inline build failed (not with -NoBuild): `dotnet test` drops the
+                                     // compiler output, so the script re-runs `dotnet build` into buildLogPath and lists
+                                     // the first 10 errors; empty means the re-run built clean (a transient failure)
     "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
                                      // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
@@ -608,6 +612,23 @@ if (-not $hint -and $NoBuild -and -not $summary) {
     $hint = '-NoBuild found no runnable build output for this project/TFM/configuration; run once without -NoBuild.'
 }
 
+# dotnet test (MTP) reports a failed inline build as one line, "Build failed with exit code: 1", and drops the
+# compiler output (#6330). Re-run the build once to capture it, and say when the re-run found nothing.
+$buildErrors = @()
+if ($buildFailed -and -not $NoBuild) {
+    if (-not $buildLogPath) { $buildLogPath = $LogPath -replace '\.log$', '-build.log' }
+    $diagArgs = @('build', $projectFull, '-c', $Configuration, '-nologo')
+    if ($Tfm) { $diagArgs += @('-f', $Tfm) }
+    Push-Location -LiteralPath $repoFull
+    try     { & dotnet @diagArgs *> $buildLogPath }
+    finally { Pop-Location }
+    $buildErrors = @(Select-String -LiteralPath $buildLogPath -Pattern ': error [A-Z]+\d+:' | ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 10)
+    if (-not $hint) {
+        $hint = if ($buildErrors.Count) { "Build failed; the first compiler errors are in buildErrors, full output in $buildLogPath." }
+                else { "Build failed, but a re-run of dotnet build reported no compiler error: likely transient (build node, file lock). See $buildLogPath and retry." }
+    }
+}
+
 $missingTests = @($ExpectTests | Where-Object { $_ -and -not $ranTests.Contains($_) })
 
 $result = [ordered]@{
@@ -625,6 +646,7 @@ $result = [ordered]@{
     failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
+if ($buildFailed -and -not $NoBuild) { $result['buildErrors'] = $buildErrors }
 if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
 if ($staleBuild)  { $result['staleBuild']   = $staleBuild; if (-not $hint) { $hint = "-NoBuild ran an assembly older than $staleBuild; rebuild (or check the last build log) before trusting this result." } }

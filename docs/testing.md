@@ -247,6 +247,17 @@ The bundles land in `.build/wasm/<mode>/`. Publishing all four takes about 3 min
 
 Adding or removing a provider changes the matrix: [`adding-provider.md`](adding-provider.md) → *The WASM runtime matrix lists every provider name and client library*.
 
+## Probing NUnit / Shouldly behaviour in a standalone project
+
+A question about what a test-framework API does — which overload an async lambda binds, whether a constraint isolates an inner failure, which exception a cancelled task surfaces — is settled faster in a few-file project than in `Tests/Linq`, and without touching it. Inside the repo tree the project inherits config that breaks it, so set it up like this:
+
+- A directory under `.build/.agents/<probe>/`, with an empty `Directory.Build.props` (`<Project />`) and a `Directory.Packages.props` that sets `<ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>`. Otherwise the repo props and central package versions apply.
+- In the csproj: `<RunAnalyzers>false</RunAnalyzers>`, or the repo `.editorconfig` turns CA rules (CA2007 …) into errors. Also `<OutputType>Exe</OutputType>` and `<EnableNUnitRunner>true</EnableNUnitRunner>`: `global.json` requires Microsoft.Testing.Platform and rejects a VSTest project. Reference the package versions `Directory.Packages.props` pins.
+- Run with `dotnet test --project <probe>.csproj --output detailed --filter "FullyQualifiedName~<Class>"`. `--filter-class` matched nothing.
+- Name the cases that must fail `*_MUSTFAIL`, so the run's failure list *is* the control and a green control is visible at a glance.
+
+(#6330: four such probes settled six plan unknowns — sync `Assert.That` over an async lambda, constraint isolation of `AssertionException`, `.And` precedence, Shouldly `ShouldContain` case, Shouldly `ThrowAsync` on a `Canceled` task — without a `Tests/Linq` build.)
+
 ## BUGCHECK-gated tests
 
 Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that drive `#if BUGCHECK`-gated test hooks on the core library — e.g. `QueryCacheEvictionTests` driving `QueryCache.RunSweepNow` / `BucketCount`) only compile in **Debug / Testing / Azure** configurations. `BUGCHECK` is defined in `Source/LinqToDB/LinqToDB.csproj` and mirrored into `Tests/Directory.Build.props` so the test project sees the same symbol. Consequences:
