@@ -54,3 +54,28 @@ Unestablished: whether step 4 embedded *A narrowed provider set is a claim* (if 
 - GAP-02 recurs from round 2's second class (SUG001), in the same #6298 area: a cross-provider claim stated from one provider.
 - Round 1's GAP-07 fix (sibling gate inheritance) landed but does not cover a new gate's reach.
 - Round 2's recommended P8/critic rule ("sibling fixture does not coincide") was not found in `docs/work-plan.md` or `agents/plan-critic.md`; unverified whether it landed under other wording.
+
+## Round 4 — reviewed HEAD 47905b5b9
+
+- **MAJ001** (E-9 folds an inlined parameter against enum literals to `1 = 0`) — GAP-03 — P7's E-9 row counts `TryEvaluateNoParameters` callers, not the operands and partners that reach `TryEvaluateAsProviderValue`'s `result is Enum` key: no row for an unregistered enum, an inlined parameter, or an enum `SqlValue` literal kept by `SetValueToSqlConverter`; TO-27..TO-33 all use the registered `ApiGender`. Second class GAP-02: P10 recorded only the opposite direction, unmeasured. Critic round 3 (delta on A-2) existed; the partner census (`plan-critic.md:154-155`) was not applied to E-9 — — — preventable: yes
+- **MIN001** (E-3 matches `p.Gender.Equals((object)ApiGender.Female)` on the plain column) — GAP-02 — D-3 assumed its `IsDefaultMappedTo` gate selects only the projected cast and never checked that the uncast column satisfies it; TO-18's twin with `ApiGender` would have settled it. Second class GAP-05: TO-18 pins only the unrelated-enum half. The gate vector (`plan-critic.md:136`) was applied only to the unrelated-enum direction — — — preventable: yes
+- **SUG101** (TO-30 never sends a null `ApiGender?`) — GAP-05 — TO-30 names Nullable but has no null value as a discriminating input, so E-8's nullable null path had no obligation that could go red — — — preventable: yes
+- **REG001** (E-8 converts every column-less parameter; a selected `ApiGender` parameter sends `'F'` and cannot read it back; raw SQL `{gender}` goes from 1 to `'F'`) — GAP-03 — P7's E-8 row counts registrations, not consumers of the no-descriptor branch; projection, raw SQL and read-back have no row. E-8 entered through A-2 with no D-n, so no reach line existed; critic vectors `plan-critic.md:145,152,157` (substitute value per consumer, naming `Sql.AsSql`) were not applied in round 3 — — — preventable: yes
+
+### Aggregate
+
+Three of four findings (MAJ001, SUG101, REG001) sit in E-8/E-9, added by A-2 with "D-1..D-3 stand" and no new D-n, so no failure-mode or reach line existed for the critic vectors to attack; P7 filled the gap with symbol-keyed rows. Dominant class GAP-03 (2 of 4), then GAP-02 and GAP-05 (1 each). The rule "an amendment that adds an edit-point with a new predicate must add its own D-n" exists nowhere in the corpus; the #5932 ledger recommended it (`plans/issue-5932-mark-optional-row-values/gaps.md:259`).
+
+### Recommended durable fixes
+
+- GAP-03 ×2, GAP-05 ×1 → `docs/work-plan.md` P11 semantics plus `work-plan.ps1 -Action validate`: an `A-n` adding an `E-n` with a predicate outside every existing D-n's scope must carry a new D-n (chosen / failure mode / reach); "D-n stand" is rejected when the `A-n` cites a new `E-n`.
+- GAP-03 ×2 → `skills/work-plan/SKILL.md:101`: widen the per-admitted-kind trigger to any `E-n` predicate keyed on a type or an absence (`result is Enum`, no column descriptor), owing one P7 row per consumer (comparison, projection / `Sql.AsSql`, raw SQL, read-back) and per partner (column, parameter inlined and not, literal), registered and unregistered.
+- GAP-02 ×1 → `agents/plan-critic.md:136`: a gate keyed on a registration is also satisfied by the uncast form of the intended subject; demand a twin TO-n in that direction.
+
+### Continuity with rounds 1-3
+
+- GAP-03 recurs from round 1 MAJ001: P7 counted a symbol (flag name, then callers, then registrations) rather than the population reaching the branch.
+- GAP-05 recurs from round 2 SUG001: a D-n failure mode with no discriminating TO-n (D-3 now, D-2 then); `plan-critic.md:131` covers only inputs a failure-mode line names, and MIN001's input was never named.
+- GAP-02 recurs from rounds 2-3: an outcome stated in P10 or a D-n without a probe.
+- Round 3's GAP-02 fix (`docs/testing.md`, 4a02833) landed; no round-4 finding falls in its scope.
+- Correction to A-2: critic round 3 was a delta on A-2; A-2's "No critic round on this amendment" is stale.
