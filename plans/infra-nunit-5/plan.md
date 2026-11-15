@@ -112,6 +112,7 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - E-15 corpus `.claude/AGENTS.md` (*Tests*: the Shouldly rule gains the exception-assertion carve-out) and `.claude/agents/test-writer.md` (the assertion rule) — corpus commit, not on this branch.
 - E-16 corpus `.claude/docs/testing.md` (lines 5, 120, 701, 748, 1093-1104, 1134-1148, 1158-1165) and `.claude/docs/review-rubric/rubric-tests.md:68` — rewrite the prose that teaches banned forms — corpus commit, not on this branch.
 - E-17 (A-3) `Source/LinqToDB/Data/DataConnection.Configuration.cs` `Source/LinqToDB/DataContext.cs` `Source/LinqToDB/Remote/RemoteDataContextBase.cs` — the option-change exception messages only (stray "string" at `:698`; closing quote ×20).
+- E-18 (A-4) `Source/LinqToDB/Internal/Linq/Builder/AssociationHelper.cs:142,148` — the two "Association key … not found for type" messages: add the closing quote after `{parentType}` / `{objectType}`.
 
 ## P7 Impact map (M/L)
 
@@ -127,6 +128,7 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - `Assert.That(…, Throws…)` sites already in the tree (~45) — they are the target form; no change — out-of-scope
 - Existing Shouldly `Should.Throw*` (35) / `ShouldThrow*` (98) sites — allowed by D-3; no change — out-of-scope
 - Readers of the option-change message texts E-17 edits (A-3) — searched `git grep -e "cannot be changed for context dynamically" -e "cannot be changed\."` over the whole tree at the A-3 head (critic round 4): only E-17's files and `DataOptionsTests.cs`; no EF, LINQPad, CLI or in-repo doc match — covered by E-9, E-17
+- Readers of the "Association key … not found for type" texts E-18 edits (A-4). Searched with `git grep -E "Association key|not found for type" bbbaeb7e4` over the whole tree (critic round 5): only E-18's two lines and the `[ActiveIssue(4627, ErrorMessage = …)]` gate at `Tests/EntityFrameworkCore/Tests/IssueTests.cs:423`. That gate is a placeholder-free `Contains` match (`ThrowsWhenAttribute.cs:65-66`) on the unchanged prefix. Corpus records (KB indexes, `areas/EFCORE/issues.md:32`, a plan ledger) quote it, but nothing matches them at runtime (P3) — covered by E-18
 
 ## P8 Test obligations (M/L)
 
@@ -162,10 +164,10 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   - Every other hand-converted site ran locally on SQLite.MS or SqlServer.2022.
   - TO-6: the P7 prose search over `.claude/{docs,agents,skills}`, `.claude/AGENTS.md` and `.github/copilot-instructions.md` → every hit names a banned form as banned or historical.
   - `test-diff-sweep.ps1 -IncludeWorkingTree`: 51 one-line chains and 26 nested chains, mostly on converted lines (delegate kept as written, constraint chain on one line, per P3); 4 narrowed sets without a reason, all on pre-existing tests the bump commit's hunks touch, none an assertion converted here.
-- G-02: pass at `b443b47de`, CI pending for the A-3 head — baselines/pr_6330 (test-all 25691) is 24 added / 0 modified / 0 deleted; the 24 are Access.LibRed for #6316's join tests (#5956 merged after #6316's baselines run), none from this delta. A-3 changes message text and adds two non-SQL tests, so it is expected to move none; the test-all run on the pushed A-3 head confirms it
+- G-02: pass at `bbbaeb7e4` (A-3 head) — test-all [25703](https://dev.azure.com/linq2db/linq2db/_build/results?buildId=25703) green; baselines/pr_6330 is again 24 added / 0 modified / 0 deleted, the same Access.LibRed join files. A-4 (E-18) was pushed as `ac4595176`, and no completed run has seen it yet. It changes message text only, so no baseline is expected to move, and test-all on the pushed A-4 head confirms that. Earlier, at `b443b47de`: baselines/pr_6330 (test-all 25691) was 24 added / 0 modified / 0 deleted; the 24 are Access.LibRed for #6316's join tests (#5956 merged after #6316's baselines run), none from this delta. A-3 changes message text and adds two non-SQL tests, so it is expected to move none; the test-all run on the pushed A-3 head confirms it
 - G-06: pass — only converted calls change. Exceptions: the stale comment removed at `CommonTests.cs:89`; the moved comment at `CompileTests.cs:805`; the dropped label at `Issue5052Tests.cs:111` ("Projection should not throw an exception.", which restated the call); the `CreateData.cs:19-20` comment reworded in `32332b158` (A-3: it explained the removed `[Order]`)
 - G-07: pass — no `Tests/Tests.Playground` file in `git status`
-- G-09: pass — `/review-pr` 2026-11-15 at `b443b47de`: one `code-reviewer` pass, 0 findings, leads L1-L7 (chain fidelity, DoesNotThrow rewrites, async, SameAs/inner chains, ban IDs, stale `[Order]` refs, `CancelRun`) clean, plus a scripted per-file exception-type census over the diff; its one out-of-scope observation is applied as A-3. A-3's own diff was read by critic round 4, not by a review pass; CI test-all on the pushed head is its runtime check (ReplaceTableTest on the SQL Server 2008+ legs, the remote SQLite contexts, net462)
+- G-09: pass — `/review-pr` 2026-11-15 at `b443b47de`: one `code-reviewer` pass, 0 findings, leads L1-L7 (chain fidelity, DoesNotThrow rewrites, async, SameAs/inner chains, ban IDs, stale `[Order]` refs, `CancelRun`) clean, plus a scripted per-file exception-type census over the diff; its one out-of-scope observation is applied as A-3. A-3's own diff was read by critic round 4, not by a review pass; CI test-all on the pushed head is its runtime check (ReplaceTableTest on the SQL Server 2008+ legs, the remote SQLite contexts, net462). Round 2 at `bbbaeb7e4`: one `code-reviewer` pass over the whole PR, with A-3's commits marked unreviewed: 0 findings, all three leads clean. CI (Azure 25701/25703, GitHub 43748288673) green. Its one out-of-scope observation is applied as A-4. E-18 was read by critic round 5, not by a review pass, and its runtime check is CI test-all on the pushed A-4 head
 
 ## P10 Adjudicated (M/L)
 
@@ -179,7 +181,8 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - If TO-4 shows the constraint form failing an `AssertQueryTests` outer test despite U-2, that site keeps `Assert.Throws<AssertionException>` under a scoped `#pragma warning disable RS0030` with a reason line citing `testing.md:701`. That is the only sanctioned pragma for this ban.
 - The ban lists full signatures (U-3), so an overload added by a later NUnit or Shouldly version escapes it until the list is regenerated. Accepted: a parameterless ID bans nothing, and a custom analyzer is more machinery than the risk warrants.
 - A-3's `Source/` option-message fix stays on this PR instead of its own (maintainer's call, 2026-11-15): the tests A-3 strengthens assert those messages, so a separate PR would land with them pinned to the broken text or red.
-- 18 of A-3's 20 missing-quote fixes have no test of their own; only `ConnectionString` is asserted on the `DataContext` and remote paths. Accepted (critic round 4): each is the same one-character edit on the same line shape.
+- 18 of A-3's 20 missing-quote fixes have no test of their own; only `ConnectionString` is asserted on the `DataContext` and remote paths. Accepted (critic round 4): each is the same one-character edit on the same line shape. E-18's two (A-4) are in the same position: their only reader is a prefix `Contains` match that passes with or without the quote (critic round 5).
+- E-18 (A-4) is a separable fix, unlike A-3: no test on this branch pins the AssociationHelper text, so the coupling reason above does not apply to it. It stays on this PR anyway (maintainer's call, 2026-11-15), so the branch's message fix covers the whole unclosed-quote class at once. It is a two-character change with no runtime reader.
 - `ReplaceTableTest`'s exact SQL Server error-208 text ran on SqlServer.2022 only; the other 2008+ legs and the `.MS` variants are covered by CI test-all.
 
 ## P11 Amendments (M/L)
@@ -203,10 +206,24 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   re-derives: P3, P6 (E-17), P7 (message-text readers), P8 (TO-5)
   conventions: `testing.md` → *Test layout* applied to the two new tests; no `Issue<N>` names.
   class: message passed as the assert's failure-message argument, over `Tests/**/*.cs` at the A-3 head: `Throws\.\w+(<…>)?(\(\))?\s*,\s*\$?"` same-line plus the trailing-comma multi-line form → `ConstantTests.cs:301` (converted) and `AssociationTests.cs:740` (a genuine failure label, kept); Shouldly `customMessage` → `CommonTests.ReplaceTableTest` ×2 (converted). The multi-line Shouldly form was not swept.
+- A-4 (2026-11-15, review round 2 at `bbbaeb7e4`) — the round's `code-reviewer` pass (0 findings) swept all of `Source/` at the head for A-3's defect class, an interpolated `'{…}` with no closing quote, and found no option-change site left, plus two in another message family: `AssociationHelper.cs:142,148`. Both are on master too. Maintainer's call: fix them here (E-18), so the branch's message fix covers the whole class. E-18 is a new edit-point, so the approval is void until the maintainer reviews the diff.
+  - Only one reader of the text exists: `Tests/EntityFrameworkCore/Tests/IssueTests.cs:423`, `[ActiveIssue(4627, ErrorMessage = "Association key 'Issue4627ContainerId' not found for type")]`. `ThrowsWhenAttribute.MessageMatches` uses `Contains` for a placeholder-free text, and the prefix it quotes is unchanged, so that gate still matches. No other test or code matches the text. KB and ledger hits are records (P3); see P7's E-18 row.
+  - Commit `ac4595176`. Verified: `Source/LinqToDB` builds with `-c Testing` (`.build/.agents/pr6330-a4-build.log`). The runtime check is CI test-all on the pushed head, whose EF legs run `Issue4627Test`.
+  re-derives: P3 (a third `Source/` item beyond A-3's two), P6 (E-18), P7 (new E-18 reader row), P10 (own E-18 line; the A-3 untested-quotes line extended)
+  class: interpolated `'{…}` without a closing quote, over `Source/` at `bbbaeb7e4` (the review pass's PCRE sweep, validated against master's 10+10 pre-A-3 hits) → `AssociationHelper.cs:142,148` only; the DuckDB / Access hits are SQL-literal fragments closed by a later append.
 
 ## P12 Critic verdict (M/L)
 
 **Current verdict: weak**
+
+**Round 5 (fable, delta on A-4) — weak.** E-18 holds. The edit is exactly two one-character insertions. The reader claim holds: one `Contains` prefix gate, `IssueTests.cs:423`. The class sweep holds across three independent sweeps over every `Source/` project: a PCRE `'\{[^{}']*\}(?!')`, and odd-apostrophe counts on throw/message lines and on concatenation lines. Each leaves only `AssociationHelper.cs:142,148`. Not swept: multi-line verbatim or raw strings, and sibling repos. Objections and responses:
+- weak — `re-derives: P7` not carried out → P7 row for E-18's readers added.
+- weak — the P10 coupling reason for A-3 does not transfer; E-18 is separable → its own P10 line, giving the maintainer's call and class completeness as the reason.
+- weak — P3 missing from `re-derives:` → added.
+- weak — G-02 / G-09 read as if they cover E-18, which is still uncommitted → both now say E-18 is pending its pushed-head test-all.
+- minor — E-18 has no obligation that can go red → the P10 untested-quotes line is extended to E-18.
+- nit — "no … KB entry quotes the message" is literally false → reworded: the KB and ledger hits are records.
+- unverified — the `-c Testing` build had no log → the log path is cited in A-4.
 
 **Round 4 (fable, delta on A-3) — weak.** A-3's mechanism holds: every changed assert is strictly stronger; `WithDataProviderFactory` reaches only the `DataProviderFactory` comparison (`DataConnection.Configuration.cs:698-707` order); the red/green JSONs show the two new tests reach the `DataContext` and `.LinqService` branches; a tree-wide grep finds no other reader of the message texts; G-02's attribution checks out (#6316 00:07, #5956 00:43). Objections and responses:
 - weak — no `class:` line; `ConstantTests.cs:301` is an unswept sibling → converted, run on SqlServer.2022 (4/4), `class:` line added.
