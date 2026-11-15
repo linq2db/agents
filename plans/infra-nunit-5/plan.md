@@ -111,6 +111,7 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - E-14 `.github/copilot-instructions.md` — add the exception-assertion rule next to the "Use Shouldly" line (39).
 - E-15 corpus `.claude/AGENTS.md` (*Tests*: the Shouldly rule gains the exception-assertion carve-out) and `.claude/agents/test-writer.md` (the assertion rule) — corpus commit, not on this branch.
 - E-16 corpus `.claude/docs/testing.md` (lines 5, 120, 701, 748, 1093-1104, 1134-1148, 1158-1165) and `.claude/docs/review-rubric/rubric-tests.md:68` — rewrite the prose that teaches banned forms — corpus commit, not on this branch.
+- E-17 (A-3) `Source/LinqToDB/Data/DataConnection.Configuration.cs` `Source/LinqToDB/DataContext.cs` `Source/LinqToDB/Remote/RemoteDataContextBase.cs` — the option-change exception messages only (stray "string" at `:698`; closing quote ×20).
 
 ## P7 Impact map (M/L)
 
@@ -125,6 +126,7 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - `test-writer.md` — searched `Throw|Shouldly`: no hits, so it teaches no assertion form today; E-15 adds the rule there — covered by E-15
 - `Assert.That(…, Throws…)` sites already in the tree (~45) — they are the target form; no change — out-of-scope
 - Existing Shouldly `Should.Throw*` (35) / `ShouldThrow*` (98) sites — allowed by D-3; no change — out-of-scope
+- Readers of the option-change message texts E-17 edits (A-3) — searched `git grep -e "cannot be changed for context dynamically" -e "cannot be changed\."` over the whole tree at the A-3 head (critic round 4): only E-17's files and `DataOptionsTests.cs`; no EF, LINQPad, CLI or in-repo doc match — covered by E-9, E-17
 
 ## P8 Test obligations (M/L)
 
@@ -198,7 +200,7 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   - Critic round 4 found a 19th site, `ConstantTests.cs:301` (same-line layout, missed by the first sweep); it is converted the same way and passed 4/4 on SqlServer.2022 (its `[DataSources(AllSQLite)]` excludes SQLite), so its text was current.
   - `CreateData.cs:19-20`: the comment explained the removed `[Order]` (igor-tkachev's review thread). It now says the name makes a serial run execute `CreateDatabase` first, while parallel runs wait on `CustomTestContext.EnsureDatabaseReady` (`TestBase.cs:185-193`).
   - Verified: Release `Tests/Linq` net10.0 clean (pre- and post-merge); touched fixtures 71/71 on SQLite.MS and SqlServer.2022; red/green 2 → 0 failed of 5. Commits `10426318c`, `1c54ea59b`, `32332b158`, merge `bbbaeb7e4`.
-  re-derives: P3, P8 (TO-5)
+  re-derives: P3, P6 (E-17), P7 (message-text readers), P8 (TO-5)
   conventions: `testing.md` → *Test layout* applied to the two new tests; no `Issue<N>` names.
   class: message passed as the assert's failure-message argument, over `Tests/**/*.cs` at the A-3 head: `Throws\.\w+(<…>)?(\(\))?\s*,\s*\$?"` same-line plus the trailing-comma multi-line form → `ConstantTests.cs:301` (converted) and `AssociationTests.cs:740` (a genuine failure label, kept); Shouldly `customMessage` → `CommonTests.ReplaceTableTest` ×2 (converted). The multi-line Shouldly form was not swept.
 
