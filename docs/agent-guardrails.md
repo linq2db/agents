@@ -95,6 +95,8 @@ Subagent tool declarations are advisory — the harness does *not* enforce them,
 
 The `git status` check catches unauthorized *side effects*; it says nothing about whether the summary is true. A subagent can report a clean pass it never observed — `test-runner` once reported *"passed: 1, failed: 0"* for a run that had failed on two of four databases, reading a stale heartbeat instead of the run it launched. Before acting on a pass/fail summary that gates a decision, confirm it against something the agent didn't author. **Implausible metrics are the tell**: a count, duration or file count that can't match the work described (1 test in 3.066 s across four databases) means it measured something else — re-derive the whole result rather than reconciling the one number that looks off.
 
+**The same holds for a peer session's handover or cross-session message.** A "verified N/N" in a handover is the peer's claim about the state it last saw, not about the tree you are about to build on. Before a decision rests on it, reproduce it with one targeted run on your own checkout. A handover once reported a filtered set "N/N green", and the first targeted re-run showed most of that set failing on the same provider.
+
 ## Capability self-assessment
 
 Before reporting a task as infeasible ("can't bisect", "can't build", "runtime test outside my reach"), do a one-pass environment check:
