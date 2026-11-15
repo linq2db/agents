@@ -160,10 +160,10 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   - Every other hand-converted site ran locally on SQLite.MS or SqlServer.2022.
   - TO-6: the P7 prose search over `.claude/{docs,agents,skills}`, `.claude/AGENTS.md` and `.github/copilot-instructions.md` → every hit names a banned form as banned or historical.
   - `test-diff-sweep.ps1 -IncludeWorkingTree`: 51 one-line chains and 26 nested chains, mostly on converted lines (delegate kept as written, constraint chain on one line, per P3); 4 narrowed sets without a reason, all on pre-existing tests the bump commit's hunks touch, none an assertion converted here.
-- G-02: pass — baselines/pr_6330 (test-all 25691) is 24 added / 0 modified / 0 deleted; the 24 are Access.LibRed for #6316's join tests (#5956 merged after #6316's baselines run), none from this delta
-- G-06: pass — only converted calls change. Exceptions: the stale comment removed at `CommonTests.cs:89`; the moved comment at `CompileTests.cs:805`; the dropped label at `Issue5052Tests.cs:111` ("Projection should not throw an exception.", which restated the call)
+- G-02: pass at `b443b47de`, CI pending for the A-3 head — baselines/pr_6330 (test-all 25691) is 24 added / 0 modified / 0 deleted; the 24 are Access.LibRed for #6316's join tests (#5956 merged after #6316's baselines run), none from this delta. A-3 changes message text and adds two non-SQL tests, so it is expected to move none; the test-all run on the pushed A-3 head confirms it
+- G-06: pass — only converted calls change. Exceptions: the stale comment removed at `CommonTests.cs:89`; the moved comment at `CompileTests.cs:805`; the dropped label at `Issue5052Tests.cs:111` ("Projection should not throw an exception.", which restated the call); the `CreateData.cs:19-20` comment reworded in `32332b158` (A-3: it explained the removed `[Order]`)
 - G-07: pass — no `Tests/Tests.Playground` file in `git status`
-- G-09: pass — `/review-pr` 2026-11-15 at `b443b47de`: one `code-reviewer` pass, 0 findings, leads L1-L7 (chain fidelity, DoesNotThrow rewrites, async, SameAs/inner chains, ban IDs, stale `[Order]` refs, `CancelRun`) clean, plus a scripted per-file exception-type census over the diff; its one out-of-scope observation is applied as A-3
+- G-09: pass — `/review-pr` 2026-11-15 at `b443b47de`: one `code-reviewer` pass, 0 findings, leads L1-L7 (chain fidelity, DoesNotThrow rewrites, async, SameAs/inner chains, ban IDs, stale `[Order]` refs, `CancelRun`) clean, plus a scripted per-file exception-type census over the diff; its one out-of-scope observation is applied as A-3. A-3's own diff was read by critic round 4, not by a review pass; CI test-all on the pushed head is its runtime check (ReplaceTableTest on the SQL Server 2008+ legs, the remote SQLite contexts, net462)
 
 ## P10 Adjudicated (M/L)
 
@@ -176,6 +176,9 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - Shouldly's sync-over-Task overloads (`Should.Throw<T>(Func<Task>)`, `funcTask.ShouldThrow<T>()`) were not probed on a `Canceled` task. No site in the tree uses them near a cancellation exception (`git grep -E 'Should\.Throw|ShouldThrow' -- Tests`, critic round 3), and the A-2 rule names the constraint form for any cancellation test.
 - If TO-4 shows the constraint form failing an `AssertQueryTests` outer test despite U-2, that site keeps `Assert.Throws<AssertionException>` under a scoped `#pragma warning disable RS0030` with a reason line citing `testing.md:701`. That is the only sanctioned pragma for this ban.
 - The ban lists full signatures (U-3), so an overload added by a later NUnit or Shouldly version escapes it until the list is regenerated. Accepted: a parameterless ID bans nothing, and a custom analyzer is more machinery than the risk warrants.
+- A-3's `Source/` option-message fix stays on this PR instead of its own (maintainer's call, 2026-11-15): the tests A-3 strengthens assert those messages, so a separate PR would land with them pinned to the broken text or red.
+- 18 of A-3's 20 missing-quote fixes have no test of their own; only `ConnectionString` is asserted on the `DataContext` and remote paths. Accepted (critic round 4): each is the same one-character edit on the same line shape.
+- `ReplaceTableTest`'s exact SQL Server error-208 text ran on SqlServer.2022 only; the other 2008+ legs and the `.MS` variants are covered by CI test-all.
 
 ## P11 Amendments (M/L)
 
@@ -192,13 +195,24 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
 - A-3 (2026-11-15, review G-09) — P3 is relaxed for two items the review found:
   - 18 converted sites (+ `ReplaceTableTest` ×2) passed the expected exception text as the assert's failure message, so nothing compared it. They now use `.With.Message.EqualTo(…)` (`ReplaceTableTest`: `Assert.That(ex.Message, …)`). Enabling the check turned 14 red on SQLite.MS and SqlServer.2022: 4 stale fixture names (`ConvertTest+` / `Mapping+`), 9 reworded `DataOptions` messages, and `TryUseDataProviderFactoryTest`, which hit the `ConnectionString` check first (`UseSqlServer(string)`); it now uses `WithDataProviderFactory`.
   - `Source/`: the option-change messages — stray "string" at `DataConnection.Configuration.cs:698`, missing closing quote ×20 in `DataContext.cs` / `RemoteDataContextBase.cs`. New `TryUseConnectionStringDataContextTest` / `TryUseConnectionStringContextTest` fail without the fix (SQLite.MS DataContext and `.LinqService`; direct passes) and pass with it.
-  - Verified: Release `Tests/Linq` net10.0 clean; touched fixtures 71/71 on SQLite.MS and SqlServer.2022; red/green 2 → 0 failed of 5. Commits `b71babb78`, `4f348bb97`, `79c9b9d23`.
+  - Critic round 4 found a 19th site, `ConstantTests.cs:301` (same-line layout, missed by the first sweep); it is converted the same way and passed 4/4 on SqlServer.2022 (its `[DataSources(AllSQLite)]` excludes SQLite), so its text was current.
+  - `CreateData.cs:19-20`: the comment explained the removed `[Order]` (igor-tkachev's review thread). It now says the name makes a serial run execute `CreateDatabase` first, while parallel runs wait on `CustomTestContext.EnsureDatabaseReady` (`TestBase.cs:185-193`).
+  - Verified: Release `Tests/Linq` net10.0 clean (pre- and post-merge); touched fixtures 71/71 on SQLite.MS and SqlServer.2022; red/green 2 → 0 failed of 5. Commits `10426318c`, `1c54ea59b`, `32332b158`, merge `bbbaeb7e4`.
   re-derives: P3, P8 (TO-5)
   conventions: `testing.md` → *Test layout* applied to the two new tests; no `Issue<N>` names.
+  class: message passed as the assert's failure-message argument, over `Tests/**/*.cs` at the A-3 head: `Throws\.\w+(<…>)?(\(\))?\s*,\s*\$?"` same-line plus the trailing-comma multi-line form → `ConstantTests.cs:301` (converted) and `AssociationTests.cs:740` (a genuine failure label, kept); Shouldly `customMessage` → `CommonTests.ReplaceTableTest` ×2 (converted). The multi-line Shouldly form was not swept.
 
 ## P12 Critic verdict (M/L)
 
 **Current verdict: weak**
+
+**Round 4 (fable, delta on A-3) — weak.** A-3's mechanism holds: every changed assert is strictly stronger; `WithDataProviderFactory` reaches only the `DataProviderFactory` comparison (`DataConnection.Configuration.cs:698-707` order); the red/green JSONs show the two new tests reach the `DataContext` and `.LinqService` branches; a tree-wide grep finds no other reader of the message texts; G-02's attribution checks out (#6316 00:07, #5956 00:43). Objections and responses:
+- weak — no `class:` line; `ConstantTests.cs:301` is an unswept sibling → converted, run on SqlServer.2022 (4/4), `class:` line added.
+- weak — the `CreateData.cs` reword was in A-3's commit list but not its items or G-06, and its comment overclaimed under parallel runs (`TestBase.cs:185-193` readiness gate) → reworded to name the serial / parallel split; listed in A-3 and G-06.
+- weak — G-02 / G-09 measured `b443b47de`, not the A-3 head → restamped; the pushed head's test-all is the runtime check.
+- minor — `ReplaceTableTest` text measured on SqlServer.2022 only → P10, CI covers the rest.
+- minor — the `Source/` fix bundled with no P10 line → P10 line added.
+- note — 18 of 20 quote fixes untested → P10 line.
 
 **Round 3 (fable, delta on A-1, A-2) — weak.** A-2's root cause (the TO-5 red, the `run5.log` Canceled-vs-Faulted probe, a green re-run, and the mutated failure text) and A-1's narrowing hold. The critic re-read all four TO-5 / mutation JSONs, `run5.log`, `nunit5-mutate.ps1` and the TRX durations, and checked that the auto-converted cancellation sites (`AsyncTests.cs:267-286`, `CompileTestsAsync.cs:875-899`) have the measured-safe `ThatAsync` shape. Objections and responses:
 - weak — G-01 was stale against the merged tree (two banned calls arrived from master at `Issue1925Tests.cs:74,77`; no completed post-merge build) → those sites are converted; a post-merge Release build plus a restored-tree re-run of the gRPC / remote / TO-3c methods follow (G-01 updated after they report); the two sites are in the TO-5 reach list.
