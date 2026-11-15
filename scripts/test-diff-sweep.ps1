@@ -129,8 +129,10 @@ function Get-PreviousLine {
 }
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
+# An NUnit constraint (`Throws.TypeOf<T>().With.Message.Contains(...)`) is the one chain testing.md prescribes, not a chain to split.
 function Remove-Operands([string] $text) {
-	return [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
+	$text = [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
+	return [regex]::Replace($text, '\b(Throws|Is|Has|Does)\s*\.(?:\s*\w+(?:<[^()]*>)?(?:\s*\([^()]*\))?\s*\.?)+', 'x')
 }
 
 # `).Member(` after a call, also across property hops (`(await x).Succeeded.ShouldBeTrue(`, `).Name.Name.ShouldBe(`)

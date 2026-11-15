@@ -20,6 +20,30 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** the general pass-through, or patching only the `Math.Min` index in `RegisterField`: the crash needs a select column with no registered field, so an index repair can misalign columns. Gate the pass-through on `BuildFlags.ForKeys`, which is in the translation cache key and is not set by the probe. (#6272, #6277)
 
+## EXPR-TRANS: wrapping a client value in a `Convert` to check or retype it before it becomes a parameter
+
+**Tried:** guarding an `Equals(object)` argument as `Convert(arg, object, checkMethod)`, and retyping a compared value as `Convert(value, Gender)`; later, wrapping a typed `ApiGender?` in an `object`-typed check call.
+
+**Failed because:** `ExpressionBuildVisitor.VisitUnary` builds the operand alone and reuses that placeholder's SQL for the convert (`Visit(node.Operand)`, then `CreatePlaceholder(placeholder.Sql, node)`), so the method never ran and the value kept its original type: the guard silently did nothing, and the retyped value went out as `ApiGender`'s ordinal (`42883: text = integer` on PostgreSQL). Widening a typed value to `object` sent a null through `GenerateConvertFromObject` as `default(Gender)`, matching 3 rows instead of 0.
+
+**Don't re-attempt:** a `Convert` wrapper around a client value. Use one static generic call that returns the value's own type (`CheckTypedEnumEqualsArgument<TValue, TEnum>`, `CastEnum<TFrom, TTo>`), so the whole call becomes the parameter and every type-keyed branch in `ParametersContext` sees what master sees, and add the method to `ExpressionCacheManager.SuggestParameterDisplayName` so the parameter keeps its name. (#6277)
+
+## EXPR-TRANS: mapping a column-less registered-enum parameter by where it is built
+
+**Tried:** converting every column-less parameter of an enum registered onto another enum (`SetDefaultFromEnumType(ApiGender, Gender)`) to `Gender`'s mapping, then only parameters built under `BuildFlags.ForKeys`.
+
+**Failed because:** the right value depends on what the parameter is compared with, not on where it is built. A selected `Sql.AsSql(gender)` went out as `'F'` and could not be read back as `ApiGender`, a raw-SQL argument changed from the ordinal, and under `ForKeys` a `GroupBy` key still could not be read back and a selected set-operation column (`1`) compared with the parameter (`'F'`) returned no rows. Master gave `Female` and 8 rows.
+
+**Don't re-attempt:** any build-site rule for this. Rewrite the comparison instead: `(E)x op value` with `E` registered onto `x`'s enum becomes `x op CastEnum<E, M>(value)` (and the `IN` list maps its items), so every non-comparison parameter stays on master's path. (#6277, `e5ddef824`)
+
+## EXPR-TRANS: counting two enum types as a mix in the comparison evaluator
+
+**Tried:** extending `QueryHelper.TryEvaluateExpressionInternal`'s provider-value retry from "an enum beside a non-enum" to "two different enum types", mirroring the CASE fold's rule.
+
+**Failed because:** a fully client `api.Equals(gender)` (`ApiGender` and `Gender`) then evaluated to provider values of different types (`1`, `'F'`), so the evaluator declined to fold and sent `@api = @gender` to the database: PostgreSQL refused it, SQLite's direct and remote SQL diverged. Master folds it to `1 = 0`, the C# answer.
+
+**Don't re-attempt:** in the evaluator. Once registered casts are rewritten (E-14), two enum types only meet there through shapes like this `Equals`, where the client comparison is correct; keep the two-enum rule in `SqlExpressionOptimizerVisitor.ReconcileEnumValues`, where an enum literal kept by `SetValueToSqlConverter` needs it. (#6277, `36afe9926`)
+
 ## BUILD: choosing the documented target framework for docfx metadata through `docfx.json`
 
 **Tried:** (1) `metadata[].properties.TargetFramework` alone; (2) a `DocfxTargetFramework` rule in `Directory.Build.targets`; (3) the same rule via `BeforeTargetFrameworkInferenceTargets`; (4) via `BeforeMicrosoftNETSdkTargets`; (5) `TreatAsLocalProperty="TargetFramework"` alone on the netstandard2.0 analyzer projects.

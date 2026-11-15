@@ -260,7 +260,7 @@ Then rebuild the parent node. Reviewer consequence: flag any assignment to a `Sq
 
 ### `SetDefaultFromEnumType` is keyed on the exact type — unwrap `Nullable` before asking
 
-`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and the no-column conversion in `ParametersContext` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
+`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and `ExpressionBuildVisitor.TryGetRegisteredEnumCast` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
 
 ### Convert-visitor overrides run per node — no allocation on the no-op path
 

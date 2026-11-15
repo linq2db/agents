@@ -674,6 +674,19 @@ function Invoke-Validate {
             if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
 
+        # "D-1..D-3 stand" on an amendment that adds edit-points leaves the new E-n with no failure-mode or reach line
+        # for the critic to attack (#6277 A-2: three of review round 4's four findings sat in its E-8/E-9). Such an
+        # amendment needs a P5 decision that names it. Warn only: some edit-points genuinely fall under an existing D-n.
+        $p5Text = (Get-Block -Blocks $blocks -Id 'P5')
+        $p5Text = if ($null -ne $p5Text) { $p5Text.lines -join "`n" } else { '' }
+        foreach ($e in $entries) {
+            if (-not (& $addsEditPoints $e) -and $e.text -notmatch '\bE-\d+\b') { continue }
+            if ($e.text -notmatch '(?i)\bD-\d+(\s*(\.\.|-|–)\s*D-\d+)?\s+stands?\b') { continue }
+            if ($p5Text -match "\b$([regex]::Escape($e.id))\b") { continue }
+
+            $warnings += "P11 : $($e.id) adds edit-points but says the existing decisions stand, and no P5 decision names it -- give a new predicate its own D-n (chosen / failure mode / reach)"
+        }
+
         # An amendment can change a planned mechanism without P6 citing it: it carries a `re-derives:` line, names an
         # E-n in its own text, or names a P6 file by bare file name. #6157 A-9 did all three, no critic round named it,
         # and both of review round 2's majors sat in what it changed. Errors from 2026-11-03; older entries warn.

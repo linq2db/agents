@@ -280,6 +280,8 @@ Append-only. One `A-n` per change to the plan after approval.
 
 **Amendment voids approval.** A user approval is a final word on the *then-current* edit set. Adding an `E-n`, or materially changing one's scope, resets that part to unapproved and needs a `P11` entry — whoever makes the change. Never silently carry an approval across a widened edit set: that converts per-change consent into a blanket one.
 
+**An amendment that adds an `E-n` with a predicate no existing `D-n` covers carries its own `D-n`** — chosen / rejected / failure mode / reach. "D-1..D-3 stand" is not an answer when the `A-n` cites a new `E-n` that decides something (a type test, an absence, a flag): without a failure-mode and reach line, the critic's gate, partner and substitute-value vectors have nothing to attack, and `P7` falls back to counting the changed function's callers. (#6277: A-2 added E-8 and E-9 under "D-1..D-3 stand"; three of the four round-4 findings sat in them. #5932's ledger had recommended this rule.)
+
 **An amendment that replaces a `D-n` is a new plan pass, not an amendment.** When the shipped mechanism is no longer the one a `D-n` chose (a co-author's rework, a reverted approach), recording the swap in one `A-n` leaves `P4`, `P7` and `P8` describing code that is gone and the new design unattacked. In that case the plan must:
 - re-derive `P4`, `P7` and `P8` for the new mechanism;
 - re-map every `SC-n` to a test that meets its `TO-n` proof, not just its name;

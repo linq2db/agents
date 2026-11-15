@@ -135,6 +135,8 @@ A test verdict must come from something you actually observed — parsed pass/fa
 
 **A provider the test's data-source attribute leaves out runs nothing — and a per-provider sweep reports that leg as `failed: 0`.** `--provider X` does not add `X` to a test declared `[IncludeDataSources(TestProvName.AllSQLite)]` (or one whose `[DataSources(...)]` excludes it): the leg resolves zero cases and exits green, exactly like a pass. A probe written against one provider and then widened to a cross-provider comparison by adding names to `-Provider` is the usual shape. Before citing any leg of a `worktree-test.ps1 -PerProvider` comparison, check that leg's `total` against the cases you expect it to run, or pass `-ExpectTests` (checked per leg). (#6169: "PostgreSQL 18 passes" came from a probe still pinned to `AllSQLite`; the claim went into the issue body and needed a public correction once PostgreSQL was actually run — it failed like SQLite.)
 
+**Keep `worktree-test.ps1`'s result with `-OutFile <json>`, not by redirecting its stdout.** A `*>` redirect mixes the script's stderr (a failed launch, `dotnet` noise) into the JSON, and in a background chain it can leave the file empty, so `ConvertFrom-Json` fails or reads nothing while the run itself passed; the per-run logs then have to be grepped by hand. `-OutFile` writes the JSON on its own and prints one compact summary line. (#6277: one empty `*>` result file and two unparseable ones in a session.)
+
 **A pass in a suite run is not evidence until the test is run alone.** Tests share process state (linq2db
 and EF caches keyed on a model, static mapping schemas, provider-level singletons), so an earlier test can
 manufacture a later one's pass, indistinguishable in the output from a real one.
