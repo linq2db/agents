@@ -92,6 +92,13 @@ Pick the narrowest set that still covers the behavior. Provider-agnostic behavio
 
 **`IncludeDataSources` first arg defaults to `true`** (include the remote `LinqService` variant). Server-side SQL-builder behavior reproduces over the remote transport, so remote-included coverage is free and catches transport regressions. Use `false` only when the test genuinely can't work over remote — e.g. it depends on a provider-specific client object, directly pokes `DataConnection` internals, or asserts things the remote transport strips.
 
+## Exception assertions
+
+- Assert a throw with `Assert.That(() => …, Throws.TypeOf<T>())` for an exact type, `Throws.InstanceOf<T>()` when subclasses are allowed, and `await Assert.ThatAsync(() => …, Throws…)` in async code. Add one `.With.Message.<op>(…)` / `.With.Property(nameof(X.P)).<op>(…)` chain when the message or a property matters, and repeat `.Message` after `.And`.
+- Use fully qualified `Shouldly.Should.Throw<T>(…)` / `ThrowAsync<T>` only when the test needs the exception object afterwards, and follow it with `ex.ShouldBeOfType<T>()` when the type must be exact, because Shouldly's `Throw<T>` accepts subclasses. Never use `ThrowAsync` for a cancellation test: for a task in the `Canceled` state it returns a new `TaskCanceledException` instead of the original `OperationCanceledException` ([`testing.md`](../docs/testing.md), line 5).
+- For "does not throw", call or `await` the code directly.
+- `Assert.Throws` / `ThrowsAsync` / `Catch` / `CatchAsync` / `DoesNotThrow*` and Shouldly's `NotThrow*` are banned (RS0030 in a Release build): [`testing.md`](../docs/testing.md), line 5.
+
 ## Table setup in tests
 
 - **Prefer `db.CreateLocalTable<T>(...)` inside a `using`** for any integration test that needs a real table. `TempTable.Dispose()` issues an idempotent drop: no complaint if the test already dropped the table inside the `using` body. Covers both setup ("drop leftover from prior failed run + create") and teardown uniformly, so tests don't need their own try/finally.

@@ -2,7 +2,14 @@
 
 Tests use **NUnit3** with **Shouldly** assertions (not NUnit Assert), running on **Microsoft.Testing.Platform** (MTP) — selected via `global.json` — not VSTest. Test targets: `net462`, `net8.0`, `net9.0`, `net10.0`. **Always use Debug configuration and prefer `net10.0`** — Release enables Roslyn analyzers and is much slower to build. The full test suite takes ~1 hour or more; avoid running it unless necessary.
 
-**"Not NUnit Assert" covers *value* assertions only.** Use Shouldly (`.ShouldBe`, `.ShouldBeGreaterThan`, …) for value checks, but **exception assertions use NUnit `Assert.Throws<T>` / `Assert.ThrowsAsync<T>`** — Shouldly's `Should.Throw` / `Should.NotThrow` do **not** compile in this repo (`CS0117: 'Should' does not contain a definition for 'Throw'`). For a "does not throw" case, just run the call directly (an unexpected throw fails the test). Also: `Tests/Linq` has **no `InternalsVisibleTo`** for LinqToDB internals — public types under `LinqToDB.Internal.*` (e.g. `QueryCache`, `AttributeReader`) are testable directly, but a genuinely `internal` type (e.g. the `BoundedCache` storage primitive) is inaccessible from tests (`CS0122`); test it through a public API rather than widening its surface or adding IVT.
+**"Not NUnit Assert" covers *value* assertions only.** Use Shouldly (`.ShouldBe`, `.ShouldBeGreaterThan`, …) for value checks. **Exception assertions use NUnit's constraint form:**
+
+- `Assert.That(() => …, Throws.TypeOf<T>())` for an exact type; `Throws.InstanceOf<T>()` when subclasses are allowed; `Throws.Exception` for any exception.
+- In async code, `await Assert.ThatAsync(() => …, Throws…)`. Sync `Assert.That` over an async lambda also asserts, but it blocks on the task.
+- Add one check chain where needed: `.With.Message.Contains(…)`, `.With.Property(nameof(X.P)).EqualTo(…)` or `.With.InnerException.TypeOf<T>()`. A second message check repeats the property, `.And.Message.Contains(…)`: a bare `.And.Contains(…)` applies to the exception and throws `ArgumentException: Expected: IEnumerable`. NUnit's `Contains` is case-sensitive, while Shouldly's `ShouldContain` is not, so add `.IgnoreCase` when converting one.
+- When the test needs the exception object afterwards (checks that don't fit one chain, a cast, passing it on), use `Shouldly.Should.Throw<T>(…)` / `await Shouldly.Should.ThrowAsync<T>(…)`, fully qualified (see *`Should.Throw` / `Should.ThrowAsync` don't resolve inside `Tests.*`*). Shouldly's `Throw<T>` accepts subclasses, so when it replaces an exact-type check, follow it with `ex.ShouldBeOfType<T>()`. **Never use `Shouldly.Should.ThrowAsync` for a cancellation test.** For a task that ends in the `Canceled` state, it returns a new `TaskCanceledException` in place of the original `OperationCanceledException`, which loses its `InnerException` and fails an exact `OperationCanceledException` check. `await` and `Assert.ThatAsync` surface the original. Use `await Assert.ThatAsync(() => task, Throws.TypeOf<OperationCanceledException>().With.Property(nameof(OperationCanceledException.CancellationToken)).EqualTo(token))`; reach the inner exception with `.And.InnerException.TypeOf<T>()` / `.And.InnerException.Property(…)`. (#6330: measured, and three `GrpcDataContextTests` went red when converted to `ThrowAsync`.)
+
+`Assert.Throws` / `ThrowsAsync` / `Catch` / `CatchAsync` / `DoesNotThrow` / `DoesNotThrowAsync` and Shouldly's `NotThrow` / `ShouldNotThrow` forms are banned in `Tests/BannedSymbols.txt` (RS0030, in Release builds; #6330). For a "does not throw" case, just run or await the call directly: an unexpected throw fails the test with its full stack. Also: `Tests/Linq` has **no `InternalsVisibleTo`** for LinqToDB internals — public types under `LinqToDB.Internal.*` (e.g. `QueryCache`, `AttributeReader`) are testable directly, but a genuinely `internal` type (e.g. the `BoundedCache` storage primitive) is inaccessible from tests (`CS0122`); test it through a public API rather than widening its surface or adding IVT.
 
 **Don't prepend a `dotnet build`.** `dotnet test` builds the project automatically if binaries are stale; a standalone `dotnet build` right before `dotnet test` only adds waiting time. If a test run fails with compile errors, fix them and re-run `dotnet test` directly.
 
@@ -117,7 +124,7 @@ Derive any `ErrorMessage` you write from the trx's — or the log's — raw mess
 
 A test verdict must come from something you actually observed — parsed pass/fail counts, the real exception, a captured log line — never from inference that the code "should" pass. Use an honest four-way vocabulary and never collapse the last two into an implied pass:
 
-- **Pass** — a run reported non-zero matching tests and all passed (cite the counts). An `Assert.Throws<T>` / `[ThrowsForProvider]` test whose expected exception fired is a **pass**, not a failure.
+- **Pass** — a run reported non-zero matching tests and all passed (cite the counts). An `Assert.That(…, Throws…)` / `[ThrowsForProvider]` test whose expected exception fired is a **pass**, not a failure.
 - **Fail** — at least one test failed; quote the verbatim NUnit message + top stack frame, attributed to the correct fully-qualified test.
 - **Not tested** — you did not run it (or the filter matched zero tests). Say so plainly; don't imply it passed.
 - **Blocked** — a precondition prevented the run (provider not configured, container down, build error). Report the blocker and what would unblock it.
@@ -698,7 +705,7 @@ Review severity for a violation in added test code is `NIT`, with a `suggestion`
 
 **Core behaviour is tested on the common models, not on a copy of the issue's.** Build the repro on `Tests/Model` (`Parent` / `Child` / `Person` …) and its pre-populated tables, and add a fixture-local type only for the shape the shared models lack — e.g. a base class and interface mapped onto the existing `Child` table, not new `Client` / `Contract` tables via `CreateLocalTable`. The shared data also gives an in-memory `expected` and a `[DataSources]` matrix for free. (#6109)
 
-**Asserting that a test helper's assertion fails needs NUnit's `Assert.Throws`, not `Should.Throw`.** NUnit records a failed `Assert.That` on the current test result before it throws `AssertionException`, so catching the exception does not un-fail the test. `Assert.Throws<AssertionException>(() => AssertQuery(…))` runs the delegate in `TestExecutionContext.IsolatedContext`, which uses a fresh result and discards the recorded failure; Shouldly's `Should.Throw` has no such isolation. This is the one deliberate exception to "Shouldly over `Assert`". (#6131, measured by decompiling NUnit 4.6.1 `Assert.Throws` / `CreateIsolatedContext`.)
+**Asserting that a test helper's assertion fails needs NUnit's `Throws` constraint, not `Should.Throw`.** NUnit records a failed `Assert.That` on the current test result before it throws `AssertionException`, so catching the exception does not un-fail the test. `Assert.That(() => AssertQuery(…), Throws.TypeOf<AssertionException>())` runs the delegate in an isolated context, which uses a fresh result and discards the recorded failure. Shouldly's `Should.Throw` has no such isolation. (#6131, measured by decompiling NUnit 4.6.1 `Assert.Throws` / `CreateIsolatedContext`. #6330 measured on NUnit 5.0.0 that the constraint form isolates too: sync and `Assert.ThatAsync`, `Action` and value-returning delegates, and a Shouldly failure inside the delegate.)
 
 **Don't order fixtures to hide data pollution.** A DML test that leaves rows behind gets fixed to clean up after itself: `CreateLocalTable`, a transaction it rolls back, or restoring the rows it changed. It does not get `[Order]` to run after the read tests. `[Order]` is `[Obsolete]` in NUnit 5 and the suite carries none. A read test that fails on rows a DML test left behind is a bug in that DML test. (#6330, maintainer's rule.)
 
@@ -745,7 +752,7 @@ A test that compiles and goes green is not yet a regression guard — it has to 
 
 - **A test edited to absorb a runtime or BCL behaviour change.** A new .NET can change a value the test computes client-side, as .NET 11 did with exact `double` → `decimal` conversion and `Math.Round(double, digits)` at midpoints. Then only the **expected** side moves: the query keeps its operand types, the assertion keeps its ordering, and the rows it covers stay the same. A tolerance comparer added for the purpose ships with a mutation test over each model shape it is applied to, field-mapped entities included. (#5942: Round4 / Round4Sql / Round11 moved the query side to `decimal` and left `ROUND(<float>, n)` untested; `AreEqualWithinDelta`'s property walk made every field-only `LinqDataTypes` row equal, so `Issue228Tests` checked only the count; `SumClampedValues` lost its order to a set comparison; a Sybase gate matched any Shouldly failure and skipped seven rows.)
 
-- **An unawaited NUnit 5 async assert.** `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` return a `Task` in NUnit 5, and the assertion runs only when it is awaited. The compiler catches a missing `await` only inside an `async` method (CS4014). A bare call in a sync test, or a result passed on (`exception.ShouldBeOfType<T>()`, `Assert.That(error, Is.Not.InstanceOf<T>())` on the `Task`), compiles and asserts nothing. NUnit2059 reports these, in a Release build only. (#6330: 12 of 23 sites compiled; `RemoteContextTests.SignalRContextLeavesACallerSuppliedClientAlone` checked a `Task` against `Is.Not.InstanceOf`.)
+- **An unawaited NUnit 5 async assert.** `Assert.ThatAsync` returns a `Task`, and the assertion runs only when it is awaited. The compiler catches a missing `await` only inside an `async` method (CS4014). A bare call in a sync test, or a result passed on, compiles and asserts nothing. In a sync test, write sync `Assert.That(() => …, Throws…)`: it waits on the task and asserts. (#6330: before the now-banned `ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` were converted, 12 of 23 such sites compiled un-awaited; `RemoteContextTests.SignalRContextLeavesACallerSuppliedClientAlone` checked a `Task` against `Is.Not.InstanceOf`. NUnit2059 reported them, in a Release build only.)
 
 Before reporting a test written, state in one line **which input makes it go red** and confirm it would have failed against the pre-fix code. If you can't name that input, it isn't a guard yet. Mutation-score tooling is out of scope; the red→green demonstration required by `acting-on-findings.md` → *Red test first for a review-finding fix* is the bar.
 
@@ -1101,7 +1108,7 @@ await act.ShouldThrowAsync<LinqToDBException>();
 
 Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all; a fifth on #5879, `Should.NotThrow`.)
 
-**`Throw<T>` / `ThrowAsync<T>` match subclasses of `T`, so `ThrowAsync<Exception>` replaces NUnit's `Assert.CatchAsync`.** Pair it with `ShouldNotBeOfType<X>()` to exclude one type: `var error = await Shouldly.Should.ThrowAsync<Exception>(() => …); error.ShouldNotBeOfType<ObjectDisposedException>();`. Repo precedents that rely on it: `AsyncTests.cs:361`, `SqlServerTests.cs:2661`. (#6319.)
+**`Throw<T>` / `ThrowAsync<T>` match subclasses of `T`.** So a Shouldly call that stands in for an exact-type check needs `ex.ShouldBeOfType<T>()` after it, and `ThrowAsync<Exception>` is the instance-of form. Pair it with `ShouldNotBeOfType<X>()` to exclude one type: `var error = await Shouldly.Should.ThrowAsync<Exception>(() => …); error.ShouldNotBeOfType<ObjectDisposedException>();`. Repo precedents that rely on it: `AsyncTests.cs:361`, `SqlServerTests.cs:2661`. (#6319.)
 
 ### The .NET 11 tuple-returning `LeftJoin` binds to a test helper inside `Tests.*`
 
@@ -1131,12 +1138,12 @@ rows.Select(x => x.Id).Distinct().OrderBy(x => x).ToArray().ShouldBe(new[] { 1, 
 
 ### Finding the tests that depend on a thrown exception
 
-When a change alters *which exception* a member throws — or removes a throw entirely — the question is which tests assert on it. A regex sweep gets this wrong by default, because this repo expresses exception expectations in **five** unrelated shapes, and the obvious one (`Assert.Throws<T>(…)`) is only the first:
+When a change alters *which exception* a member throws — or removes a throw entirely — the question is which tests assert on it. A regex sweep gets this wrong by default, because this repo expresses exception expectations in **five** unrelated shapes, and the most familiar one, `Assert.Throws<T>(…)` (banned since #6330 but still in history and other branches), is only the first:
 
 | Shape | Example | Where it sits |
 |---|---|---|
-| NUnit generic | `Assert.Throws<T>(…)` / `Assert.ThrowsAsync<T>(…)` | at the call |
-| NUnit constraint | `Assert.That(() => …, Throws.InstanceOf<T>())`, `Throws.TypeOf<T>()`, `Assert.Catch<T>()` | at the call |
+| NUnit classic (banned since #6330; older refs only) | `Assert.Throws<T>(…)` / `Assert.ThrowsAsync<T>(…)` / `Assert.Catch<T>(…)` / `Assert.CatchAsync(…)` | at the call |
+| NUnit constraint | `Assert.That(() => …, Throws.TypeOf<T>())`, `Throws.InstanceOf<T>()`, `Throws.Exception`, `await Assert.ThatAsync(…)` | at the call |
 | Shouldly delegate | `Action act = () => …;` then `act.ShouldThrow<T>()` / `await act.ShouldThrowAsync<T>()` | **two lines apart** |
 | Shouldly static | `Should.Throw<T>(…)` — only outside the `Tests` namespace (see above) | at the call |
 | Attribute-borne | `[ThrowsForProvider(typeof(T))]`, `Tests/Linq/ExpectedExceptionAttribute.cs` | on the **test method**, arbitrarily far from anything |
@@ -1145,7 +1152,7 @@ Two consequences. **A proximity window around the member is not a sweep** — th
 
 (#5788: a ±5-line `Throws<…>` window over 137 changed members returned three hits and happened to be right; an idiom-complete census was needed to know that. `ExpressionTests.cs:386` is a `Throws.InstanceOf<LinqToDBException>()` six lines from a changed member and appeared in none of the three.)
 
-**NUnit 5.0.0: `Assert.Catch(Action, string message)` matches the exact type.** That one overload calls `Throws<Exception>`, so any subclass fails it with `Expected: <System.Exception> But was: <…SqlException…>`. `Catch(Action)` without a message and the generic `Catch<T>(…)` check instance-of as before, and so does `CatchAsync`. Use `Catch<Exception>(code, message)` until NUnit ships the fix; it is already on NUnit's `main`. (#6330: `CommonTests.ReplaceTableTest` failed on every SQL Server target; read in the `v5.0.0` tag's `Assert.Exceptions.System.cs`.)
+**The NUnit-classic rows are banned (#6330) but remain in history and other branches.** Sweep for them when reading an older ref. On a current branch, the constraint and Shouldly rows carry every exception expectation. NUnit 5.0.0's `Assert.Catch(Action, string message)` also matched the exact type (it called `Throws<Exception>`), which turned `CommonTests.ReplaceTableTest` red on every SQL Server target; that defect was one reason for the ban.
 
 ### Shouldly inside `Assert.EnterMultipleScope()` aborts at the first failure
 
@@ -1157,12 +1164,12 @@ Consequence when reading such a test's CI failure: **the reported mismatch is no
 
 ### Capturing a passing test's exception / stack
 
-The MTP runner surfaces per-test stdout only for **failed / skipped** tests — a passing test's `TestContext.Out.WriteLine` / `Console.WriteLine` is generated but never routed to the run output (also why `/test` reports succeeded tests by count only). So when a test passes via `Assert.Throws<T>` and you need the *caught* exception's full stack — e.g. to find where deep in the pipeline it's thrown — printing it from inside the test shows nothing.
+The MTP runner surfaces per-test stdout only for **failed / skipped** tests — a passing test's `TestContext.Out.WriteLine` / `Console.WriteLine` is generated but never routed to the run output (also why `/test` reports succeeded tests by count only). So when a test passes via `Assert.That(…, Throws…)` and you need the *caught* exception's full stack — e.g. to find where deep in the pipeline it's thrown — printing it from inside the test shows nothing.
 
 To get the stack, make the test **fail** so MTP prints it:
 
-- Replace `Assert.Throws<T>(() => x())` with a bare `x();` — the exception propagates and the failure carries the complete trace (the deepest `LinqToDB.*` frame is the throw site); or
-- When you've added a probe `throw` that an enclosing `Assert.Throws<T>` would catch, throw a type `T` won't match (e.g. `NotImplementedException` against an expected `InvalidOperationException`) so it escapes and fails the test.
+- Replace `Assert.That(() => x(), Throws.TypeOf<T>())` with a bare `x();` — the exception propagates and the failure carries the complete trace (the deepest `LinqToDB.*` frame is the throw site); or
+- When you've added a probe `throw` that an enclosing `Throws.TypeOf<T>()` would catch, throw a type `T` won't match (e.g. `NotImplementedException` against an expected `InvalidOperationException`) so it escapes and fails the test.
 
 Do this in a throwaway worktree or local checkout only — never commit the assertion change.
 
