@@ -36,6 +36,11 @@ letting through:
      tallied by hand.) Reported with the attribute's opening text; read each against its reason line.
      Measured: `origin/pr/5969` 68 hits, the seven sites included (the hand tally also counted shared
      exclusion constants, which are not attributes); `origin/master~300...origin/master` 200.
+  8. an added `.GetCacheMissCount(` call in a test whose attribute block and fixture both lack
+     `[QueryCacheTest]` — the counter is per entity type, so a parallel test bumps it between the two
+     captures — testing.md -> *Testing query cache HIT / MISS*. (#6277: `EqualsTypedRegisteredEnumCheckedPerExecution`,
+     off by one on five CI configs, green locally.) The enclosing member is read from the swept file itself; a
+     call in a helper is checked at each caller in the same file, and a helper with no caller there is skipped.
 
 Why this script exists
 ----------------------
@@ -72,7 +77,8 @@ Output: one JSON document — { base, path, chains: [{file, line, text}], nested
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
 lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
-unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}] }.
+unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
+cacheMissOutsideQueryCacheTest: [{file, line, test, text}] }.
 #>
 
 param(
@@ -123,6 +129,7 @@ $typeOnly    = @()
 $indents     = @()
 $unanchored  = @()
 $continued   = @()
+$cacheCalls  = @()
 $pendingGate = $null
 # the opening text of a provider attribute whose closing `)]` has not been seen yet, added or context line
 $openAttr    = $null
@@ -265,6 +272,11 @@ foreach ($l in $diff) {
 			}
 		}
 
+		# not an attribute line: a gate's `ErrorMessage` may quote the call
+		if ($text -match '\.GetCacheMissCount\s*\(' -and $text -notmatch '^\s*(//|\[)') {
+			$cacheCalls += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
 		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -notmatch 'ErrorMessage\s*=') {
 			$rec = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if ($text -match '\)\]') { $typeOnly += $rec } else { $pendingGate = $rec }
@@ -273,6 +285,58 @@ foreach ($l in $diff) {
 
 	$recent.Add($l)
 	if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
+}
+
+# check 8: read each file once, at the swept state, and look for `[QueryCacheTest]` on the test and its fixture
+$signatureRx = '^\s*(?:(?:public|private|protected|internal|static|async|override|virtual|sealed|unsafe)\s+)*(?!(?:return|await|yield|throw|new|else|var)\b)[\w<>\[\],\?\.]+\s+(\w+)\s*(?:<[^()]*>)?\s*\('
+
+# the names of the tests reaching line $idx without `[QueryCacheTest]` on the test or its fixture
+function Get-UncoveredTests($src, [int] $idx, [int] $depth) {
+	$tabs = Get-Tabs $src[$idx]
+	$sig  = -1
+	for ($i = $idx - 1; $i -ge 0; $i--) {
+		if ((Get-Tabs $src[$i]) -lt $tabs -and $src[$i] -match $signatureRx) { $sig = $i; break }
+	}
+	if ($sig -lt 0) { return @() }
+	$name = ([regex]::Match($src[$sig], $signatureRx)).Groups[1].Value
+
+	# the attribute block, wrapped attributes included: up to the blank line or `}` / `;` ending the member above
+	$attrs = @()
+	for ($i = $sig - 1; $i -ge 0 -and $src[$i].Trim() -and $src[$i] -notmatch '[;{}]\s*$'; $i--) { $attrs += $src[$i] }
+
+	if (-not ($attrs -match '^\s*\[\s*Test(Case\w*)?\b')) {
+		if ($depth -ge 2) { return @() }
+		$out = @()
+		for ($i = 0; $i -lt $src.Count; $i++) {
+			if ($i -ne $sig -and $src[$i] -match "\b$name\s*(<[^()]*>)?\s*\(" -and $src[$i] -notmatch '^\s*//') { $out += Get-UncoveredTests $src $i ($depth + 1) }
+		}
+		return $out | Select-Object -Unique
+	}
+
+	if ($attrs -match 'QueryCacheTest') { return @() }
+	for ($k = $sig; $k -ge 0; $k--) {
+		# the enclosing class, not a nested one declared above the test
+		if ($src[$k] -match '\bclass\s+\w+' -and (Get-Tabs $src[$k]) -lt (Get-Tabs $src[$sig])) {
+			for ($i = $k - 1; $i -ge 0 -and $src[$i].Trim() -and $src[$i] -notmatch '[;{}]\s*$'; $i--) { if ($src[$i] -match 'QueryCacheTest') { return @() } }
+			break
+		}
+	}
+	return @($name)
+}
+
+$cacheOutside = @()
+$fileText     = @{}
+foreach ($c in $cacheCalls) {
+	if (-not $fileText.ContainsKey($c.file)) {
+		$fileText[$c.file] = if ($IncludeWorkingTree) { @(Get-Content -LiteralPath (Join-Path $Repo $c.file)) }
+			else { @(git -C $Repo show "$(if ($Ref) { $Ref } else { 'HEAD' }):$($c.file)") }
+	}
+	$src = $fileText[$c.file]
+
+	# a call in a helper is checked at each caller in the same file; a helper called from nowhere here is skipped
+	foreach ($u in @(Get-UncoveredTests $src ($c.line - 1) 0)) {
+		$cacheOutside += [pscustomobject]@{ file = $c.file; line = $c.line; test = $u; text = $c.text }
+	}
 }
 
 [ordered]@{
@@ -287,4 +351,5 @@ foreach ($l in $diff) {
 	continuationIndents  = @($indents)
 	unanchoredAssertionGates = @($unanchored)
 	narrowedContinuations = @($continued)
+	cacheMissOutsideQueryCacheTest = @($cacheOutside)
 } | ConvertTo-Json -Depth 4
