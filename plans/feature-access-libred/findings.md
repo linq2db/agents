@@ -37,6 +37,24 @@ beta.1 sweep. The native Access flavours exclude the test, as master did (`AllNa
 so there is no ACE comparison and no committed baseline; capturing the emitted SQL with
 `LastQuery` is the next step before a report.
 
+## Measured capabilities (not defects)
+
+- **`DateAdd` takes an amount past 2^31.** `DateAdd('s', DateDiff_Big('s', a, b), a)` over 75 years (about
+  2.37 × 10^9 seconds) and `DateAdd('ms', DateDiff_Big('ms', …), …)` over 32 days and 75 years return the CLR value
+  (`IntervalTranslationTests.ALongSpanIsMeasuredWhereCountingAnswersIt`,
+  `MillisecondComponentHoldsPastTheRangeOfItsCounter`, both green on `Access.LibRed.Mdb`, #5969 review round 1).
+  Jet's `DateAdd` amount is 32-bit; LibRed's is not.
+- **`OFFSET … ROWS FETCH NEXT … ROWS ONLY` without `ORDER BY` is accepted**, also inside a derived table
+  (`TakeSkipTests.SkipTake5` / `SkipCount` LibRed baselines at #5969 `cd009d488`, green on CI). The page is in
+  engine order.
+- **Aggregate `DISTINCT`** — `COUNT(DISTINCT …)`, `COUNT(DISTINCT CASE …)` grouped and in correlated scalar
+  sub-queries, `STRING_AGG(DISTINCT …)`, windowed `COUNT(DISTINCT …)` — runs and returns the CLR answer (#5969
+  `ce8d82288`, 1213 tests green on `Access.LibRed.Mdb`).
+- **Operator precedence:** `BOR` and `BXOR` evaluate left to right at one level, so `a BOR b BXOR c` is
+  `(a BOR b) BXOR c` (`[0,3,5,1]` for rows `(1,1,1)`, `(1,2,0)`, `(4,6,3)`, `(5,3,6)`); `MOD` evaluates left to
+  right with itself, as Jet does. linq2db parenthesizes `MOD` since #5969 `d8051a1f9`; the bitwise case is on
+  #6243.
+
 ---
 
 # alpha.4 (2026-10-16)

@@ -800,6 +800,10 @@ Two details the obvious fix gets wrong:
 
 Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
 
+### Sub-second `DateTime` values: use multiples of 10 ms
+
+SQL CE and SQL Server's `datetime` store time in steps of 1/300 s, so a value such as `.345` is stored as `.34667`. The client reads it back rounded (`347`), while a server-side millisecond count truncates (`346`). A test whose expected value comes from the stored read-back then disagrees with the server by one rounding step, which is not the defect under test. When a test needs milliseconds but not sub-10 ms precision, use whole multiples of 10 ms (`new DateTime(…, 780)`), which both types store exactly. (#5969: `MillisecondComponentHoldsPastTheRangeOfItsCounter` failed on SqlCe, 347 vs 346, until its `.345` became `.340`.)
+
 ### ClickHouse and YDB don't report rows affected — assert the stored value
 
 An entity `Update` returns 0 on ClickHouse and -1 on YDB, so `.ShouldBe(1)` on the count fails there for a correct query. When the test is about *which* row changed, drop the count and assert the stored value afterwards — that is the outcome a wrong key or column set breaks anyway. Keep a count assertion only where the count is the subject, behind `context.IsAnyOf(TestProvName.AllClickHouse) ? 0 : 1` (`Issue1925Tests`). (#6145: `EntityUpdateFollowsHandleSchema`, 8 ClickHouse/YDB cases.)

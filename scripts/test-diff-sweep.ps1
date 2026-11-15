@@ -29,6 +29,13 @@ letting through:
      *Gating an assertion failure*. (#6197 TO-80: pinned DuckDB's actual order; caught by the critic.)
      AssertQuery's `<actual> <> <expected>` form carries the expected value and is not reported. Measured
      over `origin/master~300...origin/master`: 0 hits; the #6197 gate is hit.
+  7. provider tokens added on a continuation line of a multi-line provider attribute (`[DataSources(` /
+     `[IncludeDataSources(` / `[ActiveIssue(` / `[Throws…(` whose `)]` closes on a later line) — check 2 reads
+     only the attribute's opening line, so a provider set narrowed or widened inside the wrapped list never
+     reached it. (#5969 critic round 6: 92 such added lines, all seven of an amendment's sites among them,
+     tallied by hand.) Reported with the attribute's opening text; read each against its reason line.
+     Measured: `origin/pr/5969` 68 hits, the seven sites included (the hand tally also counted shared
+     exclusion constants, which are not attributes); `origin/master~300...origin/master` 200.
 
 Why this script exists
 ----------------------
@@ -65,7 +72,7 @@ Output: one JSON document — { base, path, chains: [{file, line, text}], nested
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
 lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
-unanchoredAssertionGates: [{file, line, errorMessage}] }.
+unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}] }.
 #>
 
 param(
@@ -115,7 +122,11 @@ $gates  = @()
 $typeOnly    = @()
 $indents     = @()
 $unanchored  = @()
+$continued   = @()
 $pendingGate = $null
+# the opening text of a provider attribute whose closing `)]` has not been seen yet, added or context line
+$openAttr    = $null
+$providerAttrRx = '\[(IncludeDataSources|DataSources|ActiveIssue|Throws\w*)\s*\('
 
 function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
 
@@ -166,12 +177,25 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
-	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; continue }
+	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# check 7: a provider token added inside a provider attribute opened on an earlier line
+	$body7 = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+	if ($openAttr) {
+		if ($l.StartsWith('+') -and $body7 -match '\b(TestProvName|ProviderName)\.\w+' -and $body7 -notmatch '^\s*//') {
+			$continued += [pscustomobject]@{ file = $file; line = $line; attribute = $openAttr; text = $body7.Trim() }
+		}
+		if ($body7 -match '\)\]') { $openAttr = $null }
+	}
+	elseif ($body7 -match $providerAttrRx) {
+		$opening = $body7.Substring($body7.IndexOf($Matches[0]))
+		if ($opening -notmatch '\)\]') { $openAttr = $opening.Trim() }
+	}
 
 	# a multi-line gate attribute: its `ErrorMessage` may sit on a later line, added or context
 	if ($pendingGate) {
@@ -262,4 +286,5 @@ foreach ($l in $diff) {
 	typeOnlyShouldlyGates = @($typeOnly)
 	continuationIndents  = @($indents)
 	unanchoredAssertionGates = @($unanchored)
+	narrowedContinuations = @($continued)
 } | ConvertTo-Json -Depth 4

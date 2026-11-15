@@ -507,10 +507,24 @@ function Invoke-Validate {
         }
 
         # A sweep hit on branch test code is a branch finding (definition-of-done.md), not a deferral. #6151: G-01
-        # recorded a one-line chain as "review item" and passed; review then raised it.
-        if (@($g01Lines | Where-Object { $_ -match 'test-diff-sweep' -and $_ -match '(?i)review item' }).Count -gt 0) {
-            $msg = "P9 : G-01's test-diff-sweep line leaves a hit as 'review item' -- fix it on the branch, or record why it is not a layout hit"
+        # recorded a one-line chain as "review item" and passed; review then raised it. #5969: the same deferral
+        # reworded ("open, dispositioned in the round-1 review walk") passed the literal match, and five of the
+        # round's nine findings were defects the plan had recorded and handed to the review this way.
+        $deferralRx = '(?i)\breview items?\b|\breview walk\b|\bopen for the review\b|\bcarried to (the )?(round-\d+ )?review\b|\bleft (open )?for (the )?review\b|\bdispositioned in the (round-\d+ )?review\b'
+        $deferred   = @($g01Lines | Where-Object { $_ -match $deferralRx -and $_ -notmatch '(?i)\b(fixed|cleared|resolved)\b' })
+        if ($deferred.Count -gt 0) {
+            $msg = "P9 : G-01 hands an open item to the review ('$(($deferred[0] -replace '\s+', ' ').Substring(0, [Math]::Min(80, ($deferred[0] -replace '\s+', ' ').Length)))…') -- fix it on the branch, give it a TO-n, or record why it is not a finding"
             if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
+        # The same deferral in an amendment or a critic round is warned, not refused: P12 keeps round history, and
+        # an objection recorded open there may have been answered by a later round.
+        foreach ($blockId in 'P11', 'P12') {
+            $blk = Get-Block -Blocks $blocks -Id $blockId
+            if ($null -eq $blk) { continue }
+            $hits = @($blk.lines | Where-Object { $_ -match $deferralRx -and $_ -notmatch '(?i)\b(fixed|cleared|resolved|answered)\b' })
+            if ($hits.Count -gt 0) {
+                $warnings += "$($blockId) : $($hits.Count) line(s) hand an item to the review rather than to a TO-n, a P7 deferred: row or P10 (work-plan.md) -- e.g. '$((($hits[0] -replace '\s+', ' ').Trim()).Substring(0, [Math]::Min(80, (($hits[0] -replace '\s+', ' ').Trim()).Length)))…'"
+            }
         }
 
         # An analyzer edit-point owes a per-branch fixture census with a denominator (work-plan.md). #6151: two
@@ -762,7 +776,9 @@ function Invoke-Validate {
             # markdown-heading round (`### Round 1 — <scope> — weak (note)`) after the heading's last dash. Heading
             # rounds used to fall through to the any-line scan, which read `holds` from "census holds" (#5906). The
             # highest-numbered round wins, not the last in file order: rounds are not always appended.
-            $rounds   = @($p12.lines | Where-Object { $_ -match '^(\*\*|#{2,6}\s+)Round \d+' })
+            # Verdict-first rounds (`weak — round 3 (delta A-4), …`) are the third shape (#5969: eight rounds, read as
+            # `holds` and then `refuted` from prose while the last round was `weak`).
+            $rounds   = @($p12.lines | Where-Object { $_ -match '^(\*\*|#{2,6}\s+)Round \d+' -or $_ -match '^`?(holds|weak|refuted)`?\s*[—-]+\s*round \d+' })
             $topRound = -1
             foreach ($l in $rounds) {
                 $null = $l -match 'Round (\d+)'
@@ -770,6 +786,7 @@ function Invoke-Validate {
                 $v    = $null
                 if     ($l -match '^\*\*Round \d+[^*]*[—-]\s*`?(holds|weak|refuted)\b')           { $v = $Matches[1] }
                 elseif ($l -match '^#{2,6}\s+Round \d+.*[—-]\s*`?(holds|weak|refuted)\b[^—]*$')   { $v = $Matches[1] }
+                elseif ($l -match '^`?(holds|weak|refuted)`?\s*[—-]+\s*round \d+')                  { $v = $Matches[1] }
                 if ($null -ne $v -and $n -ge $topRound) { $verdict = $v; $topRound = $n }
             }
             if ($rounds.Count -ge 2) {
