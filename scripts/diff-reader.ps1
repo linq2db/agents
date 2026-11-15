@@ -99,6 +99,8 @@ Exit codes
   1 = hard failure
 #>
 
+# CmdletBinding so an unknown argument is a hard error, not a silent full-manifest run (#6330: `-Help`).
+[CmdletBinding()]
 param([string]$ManifestFile, [string]$OutFile)
 
 $global:ScriptBaseName = 'diff-reader'
