@@ -1,11 +1,17 @@
 # Work plan: feature-access-libred-dialect — LibRed extended SQL dialect
 
-**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-23 (E-1..E-14, after critic round 1); 2026-10-16 (A-6, E-20..E-25, after critic round 4)  ·  **Branch:** feature/access-libred-dialect
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-09-23 (E-1..E-14, after critic round 1); 2026-10-16 (A-6, E-20..E-25, after critic round 4); 2026-11-15 (A-8, A-9 / E-30, after critic rounds 6–7, verdict weak)  ·  **Branch:** feature/access-libred-dialect
 **Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
 
-Base: `origin/feature/access-libred` @ `3b6b73ba7` (#5956). Child PR, draft, base `feature/access-libred`, milestone `6.x`.
+Base: `origin/master` (since 2026-11-15, A-8; originally `origin/feature/access-libred` @ `3b6b73ba7`, #5956, squash-merged as `d5f5c9378`). PR #5969, draft, base `master`, milestone `6.6.0`. Head `cd009d488` (18 linear commits).
 
-## Resuming (2026-09-24)
+## Resuming (2026-11-15)
+
+Branch rebased onto `master` after #5956 merged (A-8). No worktree. Review round 1 (`/review-pr 5969`) runs against
+`cd009d488`; CI `test-all` 25696 / GitHub `tests [all]` 43718171491 were in flight at amendment time. The section
+below is the 2026-09-24 state, kept for the record — its base, milestone and open items are superseded.
+
+## Resuming — history (2026-09-24)
 
 **Where things are.** Draft PR **#5969** (base `feature/access-libred`, milestone `6.x`), branch
 `feature/access-libred-dialect` pushed with its own upstream — two commits, `02960914f` (provider) and `60f299542`
@@ -83,7 +89,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 
 - SC-1 Every test excluded for Access by a *dialect* exclusion runs on both LibRed configs, unless LibRed does not advertise the feature (then excluded again by name, `TestProvName.AllAccessLibRed`) → TO-1
 - SC-2 For each advertised feature enabled, LibRed emits the extended form and that feature's tests pass on both LibRed configs → TO-2, TO-3, TO-4, TO-5, TO-6, TO-7, TO-8, TO-9
-- SC-3 Native Access flavours unchanged except boolean sort keys (A-1: direction flip / unary minus, OleDb and ODBC): `Access.Ace.OleDb` suite, run in chunks (P10), has the base failure set (`TestExpressionVisitorHops(10)` only) and baselines identical to a base capture outside that delta → TO-10
+- SC-3 Native Access flavours unchanged except boolean sort keys (A-1: direction flip / unary minus, OleDb and ODBC) and `MOD` operand grouping (A-9: a `+`/`-` operand of `MOD` gains parentheses, a `MOD` operand of `+`/`-` loses redundant ones): `Access.Ace.OleDb` suite, run in chunks (P10), has the base failure set (`TestExpressionVisitorHops(10)` only) and baselines identical to a base capture outside that delta → TO-10
 - SC-4 Full suite on both LibRed configs ends with 0 unexplained failures — each red fixed, re-excluded (not advertised) or `[ActiveIssue]`-gated on `AllAccessLibRed` (advertised but defective, recorded in `plans/feature-access-libred/findings.md`) → TO-11
 
 ## P3 Constraints & anti-goals (M/L)
@@ -91,6 +97,8 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - `TestProvName.AllAccess` keeps its definition (native + LibRed) — user direction. No new constants unless one is
   needed for a recurring LibRed-feature list.
 - Native flavours' SQL and flags do not change (SC-3). Every provider-side change is a LibRed-only arm.
+  Exceptions, each recorded: the boolean sort keys (A-1) and the `MOD` precedence fix (A-9, E-30, #6243 — a
+  pre-existing wrong-result defect on every Access flavour, kept on this branch by user decision 2026-11-15).
 - No change to SQL AST, `IDataProvider`, translator interfaces, `BasicSqlBuilder` or `BasicSqlOptimizer`. If a
   failure seems to need one, stop and raise it.
 - No public API outside `LinqToDB.Internal.*`.
@@ -212,6 +220,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - E-27 (A-7) `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByOuterJoinedBooleanKey` — drop #5956's E-35 gate; the expected source reads LibRed's `NULL` for unmatched rows (`t?.BoolValue`) where Jet / ACE read `False`, and the comment says which engine does what. The projection is already `bool?` (`LinqDataTypes2.BoolValue`, `Tests/Model/LinqDataTypes.cs:96`), so the query side is untouched and ACE's SQL with it
 - E-29 (A-7) `Tests/Linq/Linq/DistinctTests.cs:DistinctOrderByNullableBooleanSubQueryColumn` — the pinned flip order (`NULL` after `True`) is native-only; LibRed expects the .NET order, and the comment says so
 - E-28 (A-7) `Source/LinqToDB/PublicAPI/PublicAPI.Unshipped.txt` — the new virtual and its override
+- E-30 (A-9) `Source/LinqToDB/Internal/DataProvider/Access/AccessSqlExpressionConvertVisitor.cs:ConvertSqlBinaryExpression` — `%` → `MOD` registered at `Precedence.Subtraction + 1` (was `Precedence.Additive - 1`), all Access flavours; `Tests/Linq/Linq/MathFunctionTests.cs:ModuloOperandKeepsItsGrouping` — new bare-`[DataSources]` test
 
 ## P7 Impact map (M/L)
 
@@ -251,6 +260,8 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - (A-6) `StringMemberTranslatorBase.cs:603-673` `ConfigureConcatWs` (NULL items wrapped in `Coalesce(v,'')` when null-as-empty, `:643-645`); LibRed item form today `AccessLibRedMemberTranslator.cs:153-170` (Mid emulation); `string.Join` / `Sql.ConcatStrings` / `ConcatStringsNullable` / `string.Concat(IEnumerable)` all reach it (`:59-88`) — searched `CONCAT_WS|ConcatWithSeparator|ConcatStrings` — covered by E-22, TO-15
 - (A-6) `DateFunctionsTranslatorBase.cs:71-72,1986-2015`: `DateTime.UtcNow` and `Sql.CurrentTimestampUtc` route to `TranslateUtcNow` (base null → client-side), and `TranslateZonedUtcNow` **falls back to `TranslateUtcNow`**, so `DateTimeOffset.UtcNow` also goes server-side on LibRed (Access's `TranslateZonedNow` → `Now`, `AccessMemberTranslator.cs:196-211`, is the precedent for a DateTime-valued offset member) — searched `TranslateUtcNow|CurrentTimestampUtc|UtcNow` — covered by E-22, TO-16
 - (A-6) tests opting LibRed out of the newly advertised features: `TakeSkipTests.cs:700,715` and `CachingTests.cs:213` (inclusion lists without Access), `DateTimeFunctionsTests.cs:180` (`AllAccess` exclusion), `Issue5935Tests.cs:194-284` (already `AllNativeAccess`); `TakeSkipTests.cs:673,687` `TakeWithPercent*` already include `AllAccess` — searched `TakeHints\.|CurrentTimestampUtc|FROM-less` under `Tests` — covered by E-24
+- (A-7) `AccessSqlExpressionConvertVisitor.cs:571` (`VisitSqlOrderByItem`, the `flip` decision) is the only reader of `CanNegateSortKeyUnderDistinct`; declared `:580` (`false`), overridden only at `AccessLibRedSqlExpressionConvertVisitor.cs:33` (`true`); `VisitSqlWindowOrderItem` does not read it — searched `git grep -n CanNegateSortKeyUnderDistinct origin/pr/5969 -- Source` (2026-11-15, 5 hits incl. 2 `PublicAPI.Unshipped.txt`) — covered by E-26, E-28
+- (A-9) `AccessSqlExpressionConvertVisitor.cs:537` is the only `MOD` producer for Access, and runs for all five flavours (the shared visitor; `AccessLibRedSqlExpressionConvertVisitor.cs:50-57` overrides `ConvertSqlBinaryExpression` for `^` → `BXOR` only and delegates `%` to the base arm — corrected after critic round 7). LibRed's tick-arithmetic lowering (A-3) also emits `(a ± b) % c`: E-30 fixes `ShiftOverADateColumnMatchesClr` on LibRed *(PR body)*, a second observable, LibRed-only (native has no tick lowering). `Wrap` (`BasicSqlBuilder.cs:4709-4718`) parenthesizes an equal-precedence child only under `Subtraction` / `Multiplicative` / `LogicalNegation`, so a right-nested `a % (b % c)` still renders `a MOD b MOD c` at 71 as it did at 59 — unchanged from master, not fixed by E-30 (critic round 7, read; open for the review walk); `Precedence.cs` at the PR ref: Additive 60, Subtraction 70, Multiplicative 80, so `MOD` now sits above `+`/`-` and below `*`/`/`. Both directions move native SQL: `(a + b) MOD c` gains parentheses (the fix), `a + (b MOD c)` loses redundant ones (measured in the `Round16` baselines on all four native configs, `([p].[ID] MOD 2) + 2` → `[p].[ID] MOD 2 + 2`) — searched `git grep -n '"MOD"\|Precedence.Additive\|Precedence.Subtraction' origin/pr/5969 -- Source/LinqToDB/Internal/DataProvider/Access` (1 hit) and the native `MathFunctionTests` rows of `baselines/pr_5969` — covered by E-30, TO-19
 
 ## P8 Test obligations (M/L)
 
@@ -263,27 +274,41 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
 - TO-7 INTERSECT / EXCEPT: the base emulates them (`SetOperationBuilder.cs:55-57`) and passes, so the observable is SQL shape — LibRed baselines of the `ConcatUnionTests` Intersect/Except cases contain `INTERSECT`/`EXCEPT` where the base capture has the emulation, with equal results (duplicate rows on both sides); `*All` variants and the 5 `Union5x` exclusions (`ConcatUnionTests.cs:486-535`) decided by triage — proof: characterization (observable: baseline diff)
 - TO-8 CASE: LibRed baselines of a `Select` ternary / `switch` test contain `CASE WHEN` where the base capture has `IIF(`, rows equal; `Access.Ace.OleDb` baselines still `IIF(` (TO-10) — proof: control (observable: baseline diff)
 - TO-9 VALUES table source, STRING_AGG (`StringJoinTests`), aggregate DISTINCT (U-4) — each only if its bucket enables it; else the bucket's re-exclusion is the obligation — proof: red→green per enabled feature
-- TO-10 Symmetry guard on the unchanged path: `Access.Ace.OleDb` suite in chunks (fresh process each; union = full suite) = base failure set; its baselines identical to a base capture except the boolean sort-key delta — proof: characterization
+- TO-10 Symmetry guard on the unchanged path: `Access.Ace.OleDb` suite in chunks (fresh process each; union = full suite) = base failure set; its baselines identical to a base capture except the boolean sort-key delta and, since A-9, the `MOD` grouping delta (against `master`, which already carries the sort-key rewrite through #6203, the expected native delta is the `MOD` grouping only) — providers: `Access.Ace.OleDb` — proof: characterization
 - TO-11 Full suite on both LibRed configs after triage: 0 unexplained failures (SC-4); on CI leg `z_Access_LibRed` if U-5 is green, else locally — proof: characterization
 - TO-12 (A-6) `IsDistinctFromTests` on both LibRed configs: rows unchanged, LibRed baselines contain `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` where the pre-A-6 capture has the `IS NULL` / `<>` expansion; `Access.Ace.OleDb` baselines of the fixture unchanged — proof: characterization (observable: baseline diff)
 - TO-13 (A-6) `EnumerableSourceTests` (both partials) and the KeyedQuery eager-load tests (`EagerLoadingStrategyKeyedQueryTests`, `Issue5935Tests`) on both LibRed configs: pass, and LibRed baselines contain `(VALUES …) [alias](cols)` where the pre-A-6 capture has the FROM-less `UNION ALL`; the new E-24 test (`NULL` parameter in row 1 of a nullable column — U-10/U-12's `Object`-typed column through linq2db's reader, `ConvertFromDataReaderExpression.cs:223,265,298`) passes on both LibRed configs (native Access, DB2 and Informix excluded as for its `EnumerableSourceTests` siblings; measured on native Access: 4/4 OleDb/ODBC cases reject the FROM-less `UNION ALL` source with "Query input must contain at least one table or query"); the scalar-source alias list through `SelectQueryTests.Issue2779Test1` / `Issue2779Test4` (`SelectQueryTests.cs:256-270,310-326`, LibRed already included) — `FromSqlTests` scalar cases exclude `AllAccess` and do not reach it. The empty-source path (`BuildEmptyValues` → `BuildTypedExpression` `CAST`, `BasicSqlBuilder.cs:2170,4268-4275`) stays unreachable on LibRed: `CAST` does not parse (U-12) and `EnumerableSourceTests.EmptyValues*` / `EmptySubQuery` (`:771,791,837`) keep their `AllAccess` exclusion — proof: characterization (observable: baseline diff) + the new test
 - TO-14 (A-6) `TakeSkipTests.TakeWithTies` / `TakeWithTies2` and `CachingTests.TakeHint` with LibRed added to their inclusion: red before E-20 (`LinqToDBException: TakeHints are … not supported`, `ExpressionBuilder.SqlBuilder.cs:109-110`), green after, with `TOP … WITH TIES` in the LibRed baseline — proof: red→green
 - TO-15 (A-6) `StringJoinTests` item-form cases (separator, `null` items, and the `''`-item cell at `StringJoinTests.cs:401`) on both LibRed configs: rows unchanged, LibRed baselines contain `CONCAT_WS(` where the pre-A-6 capture has `Mid(`; the aggregate STRING_AGG cases and the `withoutSeparator` cases of `StringConcatTests` (`:217,443,461`) unchanged — proof: characterization (observable: baseline diff)
 - TO-16 (A-6) `DateTimeFunctionsTests.CurrentTimestampUtc` (narrowed by E-24) green on LibRed with `GETUTCDATE()` (its `Kind == Unspecified` assertion at `:197-200` holds, U-12); `UtcNow`, `DateTimeOffsetNowUtc` (`AllAccess` in the `Full.DateTime` branch, `:302-311`), `NullabilityCheck` stay green server-side — proof: red→green for `CurrentTimestampUtc` only if it is red with the narrowing alone, else characterization
-- TO-17 (A-6) Symmetry guard: the TO-12..TO-16 fixtures on `Access.Ace.OleDb` — results and baselines identical to the pre-A-6 capture — proof: characterization
-- TO-18 (A-7) `DistinctOrderByOuterJoinedBooleanKey` and `DistinctOrderByNullableBooleanSubQueryColumn` on `Access.LibRed.Mdb` and `.Accdb`, direct and `LinqService`: each red with E-35's gate removed and E-26 absent (NULLs on the wrong end; measured on #5956 2026-11-10 for the first, the flip for the second is master's pinned expectation), green after with `-[…]` under `SELECT DISTINCT` in the SQL; then the whole #6203 set — `DistinctTests` and `OrderByTests` — on both LibRed configs, direct and `LinqService` (the remote server re-runs the convert pass on an already-negated int key), 0 failures; control: the same two fixtures on `Access.Ace.OleDb`, unchanged — proof: red→green + control
+- TO-17 (A-6) Symmetry guard: the TO-12..TO-16 fixtures on `Access.Ace.OleDb` — results and baselines identical to the pre-A-6 capture (A-9: a `MOD` inside these fixtures may lose redundant parentheses; none is known to carry one) — providers: `Access.Ace.OleDb` — proof: characterization
+- TO-18 (A-7) `DistinctOrderByOuterJoinedBooleanKey` and `DistinctOrderByNullableBooleanSubQueryColumn` on `Access.LibRed.Mdb` and `.Accdb`, direct and `LinqService`: each red with E-35's gate removed and E-26 absent (NULLs on the wrong end; measured on #5956 2026-11-10 for the first, the flip for the second is master's pinned expectation), green after with `-[…]` under `SELECT DISTINCT` in the SQL; then the whole #6203 set — `DistinctTests` and `OrderByTests` — on both LibRed configs, direct and `LinqService` (the remote server re-runs the convert pass on an already-negated int key), 0 failures; control: the same two fixtures on `Access.Ace.OleDb`, unchanged — providers: `Access.LibRed.Mdb`, `Access.LibRed.Accdb` (direct + `.LinqService`), control `Access.Ace.OleDb` — proof: red→green + control
+- TO-19 (A-9) `MathFunctionTests.ModuloOperandKeepsItsGrouping` (`(p.ID + 5) % 3`, `(100 - p.ID) % 3`, `AssertQuery` against the in-memory result): red without E-30 on native Access and LibRed (wrong values: `p.ID + (5 MOD 3)`), green with it; the existing `Round16` baselines move only by redundant parentheses around a `MOD` operand of `+` — providers: `Access.Ace.OleDb`, `Access.Ace.Odbc`, `Access.Jet.OleDb`, `Access.Jet.Odbc`, `Access.LibRed.Mdb`, `Access.LibRed.Accdb`, every other provider through the bare `[DataSources]` — proof: red→green
 
 ## P9 Verification gates
 
-- G-01: — (pending)
-- G-02: — (pending)
-- G-03: — (pending)
-- G-04: — (pending)
-- G-05: — (pending)
-- G-06: — (pending)
-- G-07: — (pending)
-- G-08: — (pending)
-- G-09: — (pending)
+All rows recorded 2026-11-15 against head `cd009d488` (A-8). Runs marked *(PR body)* were made by the author and are
+recorded in the #5969 body; they are not re-run here.
+
+- G-01: blocked — CI `test-all` 25696 and GitHub `tests [all]` 43718171491 at `cd009d488`, in flight at amendment time. Per obligation:
+  - TO-1: characterization — the inventory is the trajectory in *Resuming — history*: 1227 → 340 → 109 → 36 → 2 → 10, each failure bucketed *(PR body / history)*.
+  - TO-2..TO-9: covered by the full sweep below; per-bucket red→green was observed during triage but is not recorded per obligation.
+  - TO-10: skipped — the `Access.Ace.OleDb` chunked symmetry run is not recorded; native coverage rests on CI's native Access legs (green at `817b052c2`, run 35991422429, *(PR body)*); SC-3 is unverified at this head until 25696 finishes.
+  - TO-11: full local sweep on `Access.LibRed.Mdb`, net11.0, `LibRed.Ado` 11.0.0-beta.1: 10 748 tests, 0 failed, 162 skipped *(PR body; pre-rebase head, `range-diff` unchanged)*; `Access.LibRed.Accdb` full suite only on CI — blocked on 25696.
+  - TO-12..TO-16: A-6 fixtures green on both LibRed configs *(PR body, at alpha.4)*; TO-14 red before the flag, 12/12 after *(PR body)*.
+  - TO-17: same 12 fixtures on `Access.Ace.OleDb` with and without A-6, identical results, SQL differing only in `DateTime.Now` literals *(PR body)*.
+  - TO-18: the two tests red 8/8 on LibRed without E-26, green with it; `DistinctTests` + `OrderByTests` green on both LibRed configs and on `Access.Ace.OleDb` after a re-run — the first `Access.Ace.OleDb` run had 7 gRPC transport failures, 14/14 on re-run *(PR body)*; the remote half's "0 failures" therefore rests on the re-run.
+  - TO-19: red without E-30 on native Access and LibRed, green with it *(PR body, `02eb16f04` section)*; at this head the native `ModuloOperandKeepsItsGrouping` baselines are added on all four native configs and `Round16` moved only by parentheses (G-02); per-provider results blocked on 25696.
+  - test-diff-sweep (`test-diff-sweep.ps1 -Repo . -Ref origin/pr/5969`, implemented tree) — the script reads only attributes whose provider token sits on the attribute's own line: 4 one-line chains (`DistinctTests.cs:361,362`; `WindowFunctionsTests.RowNumber.cs:183,213`), 3 nested chains (`MathFunctionTests.cs:469,470` — TO-19's test; `WindowFunctionsTests.RowNumber.cs:175`) — open, dispositioned in the round-1 review walk; 287 single-line narrowed sets, 262 without a reason line — E-1 `AllAccess` → `AllNativeAccess` widenings and E-24 LibRed additions (`CachingTests.cs:215`, `TakeSkipTests.cs:700,715`), except `Issue4336Tests.cs:21`, whose widening is paired with a new LibRed `[ActiveIssue]` (`:18-19`, E-3, A-8) and so adds no LibRed coverage.
+  - continuation lines (the sweep's blind half, tallied separately: added `Tests/` lines carrying a provider token outside an attribute's opening line, `git diff -U0 origin/master...origin/pr/5969 -- Tests`): 103 lines — 91 `AllNativeAccess`, 8 `AllAccessLibRed`, 4 without an Access token (re-wrapped lines of shared constants and two `ThrowsForProvider` percentile lists whose Access token was removed by A-5); the seven A-8 sites are among the 91. No new narrowing among them; the 4 re-wrapped lines are classified by reading, not by a script.
+- G-02: blocked — `baselines/pr_5969` is being rewritten by 25696; the Access legs (LibRed, Jet ODBC/OLEDB, ACE ODBC/OLEDB) committed for this head 13:38–13:47Z; reviewed in `/review-pr 5969` round 1 (Access subset). Native Access rows at this head (`baselines-pr-scan.ps1`, 2026-11-15): 2 files per native config — `Round16` modified (E-30: `([p].[ID] MOD 2) + 2` → `[p].[ID] MOD 2 + 2`, value-equal) and `ModuloOperandKeepsItsGrouping` added; no boolean sort-key delta (master's #6203 already carries it). SQL Server `Round4` / `Round4Sql` / `Round11` modifications are from the 2026-11-09 run (author date) and predate the rebase — not attributed to this branch until 25696's SQL Server legs rewrite them.
+- G-03: pass — all new types and overrides are `LinqToDB.Internal.*` with `PublicAPI.Unshipped.txt` entries (e.g. `:390,424` for E-28); Release analyzers and XML docs: GitHub `Build and pack` green at `cd009d488` (run 43718131014).
+- G-04: n/a — no shipped member removed or changed; ApiCompat runs in `Build and pack`, green at `cd009d488`.
+- G-05: blocked — GitHub `Build and pack` (all TFMs, Release) green at `cd009d488` (run 43718131014); Azure `build` 25695 pending at amendment time.
+- G-06: blocked — the round-1 review (G-09).
+- G-07: pass — `git diff --name-only origin/master...origin/pr/5969 -- Tests/Tests.Playground` is empty.
+- G-08: n/a — no SQL AST / `IDataProvider` / translator-interface / `BasicSqlBuilder` / `BasicSqlOptimizer` edit (P3); reconcile at `cd009d488`: 114 files covered, 0 unplanned — file-keyed, so it cannot see an unplanned hunk in a planned file (the E-30 hunk sat unrecorded in E-10's file until A-9); the shared hunks were enumerated by `git diff origin/master...origin/pr/5969 -- Source/LinqToDB` in critic rounds 6–7 (`Sql/*.cs`: LibRed-keyed attributes and a `DateDiffBuilderAccess` refactor passing `millisecondPart: null`), which reports the others as defaulted virtual switches; beside them, A-3's `BuildUpdateClause` position fix is a non-switch shared hunk recorded as native-equivalent (A-3: "native is at 0 either way"), so E-30 is the only shared hunk known to move native output.
+- G-09: blocked — `/review-pr 5969` round 1 (2026-11-15) is the adversarial read.
 
 ## P10 Adjudicated (M/L)
 
@@ -422,7 +447,7 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
   rewrite (the merged visitor equals this branch's) and brought `DistinctTests.DistinctOrderByOuterJoinedBooleanKey`,
   which #5956 gates on LibRed (its A-22 / E-35). **Measured on #5956:** LibRed returns `NULL` for the unmatched
   outer-join rows where Jet / ACE return `False`, and the DISTINCT flip (`AccessSqlExpressionConvertVisitor.cs:565`)
-  then orders those NULLs against .NET; LibRed **accepts** `ORDER BY -[t].[BoolValue]` under `SELECT DISTINCT` and
+  then orders those NULLs against .NET (the flip is decided at `:571` at `cd009d488`); LibRed **accepts** `ORDER BY -[t].[BoolValue]` under `SELECT DISTINCT` and
   returns `null, False, True`, where ACE rejects it (*"conflicts with DISTINCT"*) — the engine limit the A-1 residual
   note (top of file, *Open* item 1) recorded for native Jet only.
   - decision: E-26 — the flip-only rule becomes a native default behind a virtual, overridden for LibRed, in the visitor
@@ -434,10 +459,31 @@ net11.0 build ≈ 6 min. Local runs use `Access.LibRed.Mdb` only (user: both con
     .NET order; it rejects a negated alias, which linq2db never emits; ACE rejects all four. linq2db already wraps the
     expression shape (`… FROM (SELECT DISTINCT …) ORDER BY -[t1].[Value_1]`), so E-26 changes the SQL of the sub-query
     column and outer-join shapes only — hence E-29.
-  - failure mode: E-26 also reaches window `ORDER BY` items? No — `VisitSqlWindowOrderItem` (`:576-586`) has no
+  - failure mode: E-26 also reaches window `ORDER BY` items? No — `VisitSqlWindowOrderItem` (`:576-586` when written; `:582-592` at `cd009d488`) has no
     DISTINCT input and is untouched; only `VisitSqlOrderByItem` reads the flag.
-  - re-derives: A-1 (its DISTINCT residual is lifted for LibRed); TO-10 / TO-17 (native symmetry — E-26's default keeps
+  - re-derives: A-1 (its DISTINCT residual is lifted for LibRed); P7 (new A-7 row: `CanNegateSortKeyUnderDistinct` has one reader, `:571`); P4: no new row — the engine behaviour is the measured A-7 bullet above; TO-10 / TO-17 (native symmetry — E-26's default keeps
     native output byte-identical, TO-18's control measures it).
+  - conventions: (added by A-8, after the fact) `testing.md` → *Test layout*, *A narrowed provider set is a claim*; swept with `test-diff-sweep.ps1 -Repo . -Ref origin/pr/5969` at `cd009d488` — hits in E-27 / E-29 territory: `DistinctTests.cs:361,362` (one-line chains), open for the round-1 review walk; counts in G-01.
+- A-8 (2026-11-15) — commits since A-6 that changed tests without an amendment, and the rebase. Widened after critic round 6, which found the 2026-11-09 commits between A-6 and A-7 un-amended too:
+  - `3aeb1f887`: master-merge `AllAccess` exclusions narrowed to `AllNativeAccess` where LibRed passes — 24 lines in 11 files (`ConvertTests`, `DateTimeFunctionsTests`, `EagerLoadingStrategyKeyedQueryTests`, `ExpressionTests`, `FromSqlTests`, `JoinTests`, `LoadWithTests`, `ParameterTests`, `PreferClientCalculationTests`, `SelectTests`, `StringConcatTests`); E-1 instances.
+  - `12f449283` (E-3 instances): `Issue4336Tests.cs:18-19` new `[ActiveIssue(Configuration = AllAccessLibRed, ErrorMessage = "Column 'vpcc.Id' was not found")]` — a LibRed join-key limitation, `no-issue:`, its `Details` stamped alpha.4 on a beta.1 branch (open for the review walk); `InsertTests` `DistinctInsert1/2` and `FunctionTests.NewGuid1` gain `NoBaselines` on `AllAccessLibRed` (client-side Guid generation); `DateTimeFunctionsTests` drops a LibRed `[ActiveIssue]` ("Function MAX is not supported") that the dialect now passes; `QueryGenerationTests.ToSqlQuery_IUpdatable_ClientIdentiy` re-excludes LibRed (`AllNativeAccess` → `AllAccess`, AutoNumber update).
+  - `02eb16f04`: the `MOD` precedence fix — a native SQL change, recorded separately as A-9.
+  - `6a83b4f37` (pre-rebase `92e49c09d`): master's incoming `FullJoinMethodTests` exclusion narrowed `AllAccess` → `AllNativeAccess`; 4 tests pass on both LibRed configs, direct and remote, 10/10 each *(PR body)*.
+  - `cd009d488`: `FullJoinTupleOverload`, `FullJoinTupleOverloadComposed` (#6316) and `InlineArrayMinMax` (#6074) narrowed the same way; 8/8 each on both LibRed configs, direct and remote *(PR body)*. LibRed.Ado beta.1 sweep: 10 748 / 0 failed / 162 skipped on `Access.LibRed.Mdb`; no `[ActiveIssue]` gate passes, so none lifts.
+  - Both are instances of E-1 (exclusion-form `AllAccess` → `AllNativeAccess`, measured per site) — no new `E-n`, so no P12 round is owed.
+  - Rebase onto `master` after #5956 merged (`d5f5c9378`): the #5970 fix with its test-ordering follow-up and the positional-placeholder `FromSql` gate dropped as already on `master`; 11 duplicate `PublicAPI.Unshipped.txt` lines dropped (already in `Shipped`). The plan's header and *Resuming* updated (base `master`, milestone `6.6.0`); P10's "#5969 keeps its identical copy" of the #5970 fix is superseded — the branch no longer carries it.
+  - P9 recorded for the first time (G-01..G-09), from CI evidence at `cd009d488` and the author's runs in the PR body; the open rows name their dependency.
+  - re-derives: P7 (A-7 row added); P8 TO-18 (providers field); P9 (first record); P10 (the #5970 copy note).
+  - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*; the A-8 sites are exclusion rewrites, each measured on both LibRed configs; whole-branch sweep counts in G-01 (single-line attributes by the script, continuation lines tallied separately).
+- A-9 (2026-11-15, user: "a" — keep the `MOD` fix on #5969) — `02eb16f04` (2026-11-09) changed the shared `AccessSqlExpressionConvertVisitor`: `%` → `MOD` at `Precedence.Subtraction + 1`, was `Precedence.Additive - 1`. Access binds `MOD` tighter than `+`/`-`, so `(a + b) % c` rendered `a + b MOD c` and returned wrong values on every flavour. Pre-existing on `master`, recorded on #6243; whether the PR closes #6243 depends on that issue's scope, since a right-nested `a % (b % c)` stays unparenthesized (P7 A-9 row), and the body carries no `Fixes #6243` yet.
+  - new E-30; P3 and SC-3 gain the exception; P7 row (A-9); TO-19.
+  - rejected: port to its own PR off `master` (the #5970 precedent) — user chose to keep it; the fix is one line in a file this branch already edits and its test runs on every provider.
+  - failure mode: the precedence also drops redundant parentheses around a `MOD` operand of `+`/`-` on every native flavour (`Round16`); value-equal because `MOD` now sits above `+`/`-`, and still below `*` / `/` (80), so `a * b MOD c` and `a MOD b * c` keep their former grouping — reasoned from `Precedence.cs`, unprobed for `*`/`/` mixes.
+  - **The approval of record is void for E-30 and must be re-earned** (critic round 7, then the user).
+  - re-derives: P3, SC-3 (the native-unchanged clause), P7 (A-9 row), P8 TO-10 / TO-17 (their "boolean sort-key delta only" now also admits the `MOD` grouping delta) and TO-19, P9 G-01 / G-02 / G-08.
+  - conventions: `testing.md` → *Test layout*; `ModuloOperandKeepsItsGrouping` is bare `[DataSources]` and so reaches every provider; the sweep's nested-chain hits at `MathFunctionTests.cs:469,470` are its two `AssertQuery` lines — open for the review walk.
+
+## P12 Critique
 
 weak — round 1, `plan-critic` on **fable**. The stored `criticModel: opus` is the author's own family and the skill
 requires a different one, so fable was passed explicitly on the dispatch. Objections and responses:
@@ -513,3 +559,48 @@ Critic checked and found sound: E-26 leaves native output unchanged by construct
 DISTINCT state; the LibRed visitor wiring (`AccessDataProvider.cs:115`, `AccessLibRedSqlOptimizer.cs:15`); E-28 matches
 the `IsTickArithmeticSupported` PublicAPI entries. Not checked by it: engine behaviour. No round 6: every objection
 accepted and answered, none disputed.
+
+refuted — round 6 (delta A-8 and the first P9 record), `plan-critic` on **fable**, 2026-11-15. Objections and responses:
+
+- `02eb16f04` changes native SQL on every Access flavour (`MOD` precedence, shared visitor `:537`, both directions of
+  the paren change) with no `E-n` / `A-n` / P7 / `TO-n`, against P3, SC-3 and A-7's "native byte-identical" → A-9
+  (user: keep on this PR), E-30, P3 and SC-3 exceptions, P7 row, TO-19; G-02 records the native `Round16` delta.
+- A-8's class was narrower than its own finding: `3aeb1f887` and `12f449283` (2026-11-09) were also un-amended →
+  A-8 widened to both, sites listed.
+- G-08's reconcile is file-keyed and could not see the unplanned hunk → G-08 says so and cites the hunk enumeration.
+- G-01's sweep counts covered single-line attributes only, missing the seven A-8 sites → continuation lines tallied
+  separately (103: 91 `AllNativeAccess`, 8 `AllAccessLibRed`, 4 re-wrapped).
+- G-01's "every one widens" was false for `Issue4336Tests.cs:21` → excepted in G-01; its alpha.4 `Details` stamp left
+  open for the review walk.
+- TO-18 dropped the gRPC re-run qualifier → copied into G-01.
+- G-05 "pass" with Azure `build` pending → `blocked`.
+- Stale line refs in A-7 → current refs added beside them.
+
+Critic found sound: the A-7 P7 row (5 hits, one subclass, window items do not read the flag); G-03's line refs; G-07;
+A-8's account of `6a83b4f37` and `cd009d488` (7 pure token swaps). Searched: the 18 commits' `--stat`, both A-8
+commits' full diffs, the Access `Source` diff, `Precedence.cs`, plan greps for every term above, the sweep JSON, the
+continuation-line tally. Not checked by it: CI state, the author's local runs, native baselines (now read, G-02).
+Revision goes to round 7.
+
+weak — round 7 (revision of round 6: A-8 widened, A-9, E-30, TO-19, P9), `plan-critic` on **fable**, 2026-11-15. Every
+round-6 objection answered; E-30 not disproved. Objections and responses:
+
+- open — a right-nested `a % (b % c)` renders `a MOD b MOD c` at both 59 and 71 (`Wrap`, `BasicSqlBuilder.cs:4709-4718`,
+  read and confirmed by the author); pre-existing, not fixed by E-30; TO-19 has no arm for it. Carried to the round-1
+  review walk (fix here or track), and A-9's "closes #6243" scoped down. lead, unprobed: Access's left-associativity of
+  `MOD`.
+- open — the "loses redundant parentheses" direction is witnessed for `+` only (`Round16`); `a - b % c` is value-equal
+  by reasoning. Carried to the review walk as a missing TO-19 arm.
+- P7 (A-9) claimed LibRed does not override `ConvertSqlBinaryExpression` → corrected (`:50-57`, delegates `%`).
+- P7 (A-9) omitted LibRed's tick-lowering consumer (`ShiftOverADateColumnMatchesClr`) → added.
+- TO-10 / TO-17 named in `re-derives:` but unchanged → both texts updated.
+- "this PR closes #6243" not reflected in the PR and #6243's scope unread → A-9 scoped to "recorded on".
+- G-08's hunk enumeration path was Access-only → widened to `Source/LinqToDB`.
+
+Critic found sound: `*` / `/` mixes render identically at 59 and 71 (walked every position through `Wrap`), so A-9's
+unprobed claim holds by construction; at `Additive + 1` TO-19's second assert reddens, so its two asserts pin the
+`Subtraction` bound; no other `MOD` producer; native baselines differ from `master` only in `Round16` and the new
+test on all four configs; SQL Server 2017–2025 legs have landed with no `Round*` delta, supporting G-02's attribution
+of the 2005–2016 residue. A-8's widened account matches the commits (the PR body's "25 lines" vs 24 measured).
+Not checked: CI runs, the author's red→green runs, engine behaviour, #6243, TO-19's remote leg. No round 8: the cap
+is one revision round; the two open items go to the review.
