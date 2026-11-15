@@ -19,6 +19,26 @@ Packages: `LibRed.Ado` → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`, `Ant
 
 ---
 
+# beta.1 (2026-11-15)
+
+Recorded from the linq2db suite (#5969), not from a raw-ADO probe: the `Access.LibRed.Mdb` full run on
+`LibRed.Ado` 11.0.0-beta.1 (10 748 tests, 0 failed, 162 skipped) and CI `Lin zz_Access_LibRed` at #5969
+`cd009d488`. Candidate upstream report.
+
+## A join key the hash join cannot resolve: `Column 'vpcc.Id' was not found`
+
+`Tests/Linq/UserTests/Issue4336Tests.cs:Issue4336Test` builds a view-like query over six tables (products,
+categories, order headers and items, order periods, products-per-period) joined through a derived table
+aliased `vpcc`, then takes the first ten rows. On LibRed the statement fails with
+`Column 'vpcc.Id' was not found` - the hash join does not resolve a key column that the derived table does
+project. Measured on alpha.4 (#5969 `12f449283`, 2026-11-09) and still failing on beta.1: the gate
+(`[ActiveIssue(Configuration = AllAccessLibRed)]`, `Issue4336Tests.cs:18-19`) did not report a pass in the
+beta.1 sweep. The native Access flavours exclude the test, as master did (`AllNativeAccess` in its `[DataSources]`),
+so there is no ACE comparison and no committed baseline; capturing the emitted SQL with
+`LastQuery` is the next step before a report.
+
+---
+
 # alpha.4 (2026-10-16)
 
 Measured with `.build/.agents/libred-a4-probe` (net10.0, the new target) against copies of the committed
