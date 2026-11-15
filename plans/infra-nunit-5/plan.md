@@ -160,10 +160,10 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   - Every other hand-converted site ran locally on SQLite.MS or SqlServer.2022.
   - TO-6: the P7 prose search over `.claude/{docs,agents,skills}`, `.claude/AGENTS.md` and `.github/copilot-instructions.md` → every hit names a banned form as banned or historical.
   - `test-diff-sweep.ps1 -IncludeWorkingTree`: 51 one-line chains and 26 nested chains, mostly on converted lines (delegate kept as written, constraint chain on one line, per P3); 4 narrowed sets without a reason, all on pre-existing tests the bump commit's hunks touch, none an assertion converted here.
-- G-02: — (pending) assertion rewrites move no SQL; confirm the CI test-all run leaves the baselines PR with no `.sql` change from this delta
+- G-02: pass — baselines/pr_6330 (test-all 25691) is 24 added / 0 modified / 0 deleted; the 24 are Access.LibRed for #6316's join tests (#5956 merged after #6316's baselines run), none from this delta
 - G-06: pass — only converted calls change. Exceptions: the stale comment removed at `CommonTests.cs:89`; the moved comment at `CompileTests.cs:805`; the dropped label at `Issue5052Tests.cs:111` ("Projection should not throw an exception.", which restated the call)
 - G-07: pass — no `Tests/Tests.Playground` file in `git status`
-- G-09: — (pending) adversarial read of the diff before the PR leaves draft
+- G-09: pass — `/review-pr` 2026-11-15 at `b443b47de`: one `code-reviewer` pass, 0 findings, leads L1-L7 (chain fidelity, DoesNotThrow rewrites, async, SameAs/inner chains, ban IDs, stale `[Order]` refs, `CancelRun`) clean, plus a scripted per-file exception-type census over the diff; its one out-of-scope observation is applied as A-3
 
 ## P10 Adjudicated (M/L)
 
@@ -189,6 +189,12 @@ NUnit 5.0.0 made `Assert.ThrowsAsync` / `CatchAsync` / `DoesNotThrowAsync` retur
   re-derives: P5 (D-3), P8 (TO-3c, TO-5)
   conventions: `testing.md` → *Test layout* (one call per line) applied to the three rewritten gRPC chains, one constraint clause per line. The same `test-diff-sweep.ps1 -IncludeWorkingTree` sweep covered them (counts in G-01).
   class: `Should\.ThrowAsync|ShouldThrowAsync` over `Tests/` (worktree, post-change). Of the two sites this diff adds, both are faulted tasks: `GrpcDataContextTests.cs:209` (`RpcException` on timeout) and `RemoteContextTests.cs:567` (connection refused); both passed in TO-5. The one pre-existing cancellation test, `Tests/LinqToDB.CLI/QueryCommandTests.cs:626`, uses `ThrowAsync<OperationCanceledException>`, which accepts the replacing `TaskCanceledException` subclass. It is not broken and is out of scope. The other pre-existing `ThrowAsync` sites assert non-cancellation exceptions.
+- A-3 (2026-11-15, review G-09) — P3 is relaxed for two items the review found:
+  - 18 converted sites (+ `ReplaceTableTest` ×2) passed the expected exception text as the assert's failure message, so nothing compared it. They now use `.With.Message.EqualTo(…)` (`ReplaceTableTest`: `Assert.That(ex.Message, …)`). Enabling the check turned 14 red on SQLite.MS and SqlServer.2022: 4 stale fixture names (`ConvertTest+` / `Mapping+`), 9 reworded `DataOptions` messages, and `TryUseDataProviderFactoryTest`, which hit the `ConnectionString` check first (`UseSqlServer(string)`); it now uses `WithDataProviderFactory`.
+  - `Source/`: the option-change messages — stray "string" at `DataConnection.Configuration.cs:698`, missing closing quote ×20 in `DataContext.cs` / `RemoteDataContextBase.cs`. New `TryUseConnectionStringDataContextTest` / `TryUseConnectionStringContextTest` fail without the fix (SQLite.MS DataContext and `.LinqService`; direct passes) and pass with it.
+  - Verified: Release `Tests/Linq` net10.0 clean; touched fixtures 71/71 on SQLite.MS and SqlServer.2022; red/green 2 → 0 failed of 5. Commits `b71babb78`, `4f348bb97`, `79c9b9d23`.
+  re-derives: P3, P8 (TO-5)
+  conventions: `testing.md` → *Test layout* applied to the two new tests; no `Issue<N>` names.
 
 ## P12 Critic verdict (M/L)
 
