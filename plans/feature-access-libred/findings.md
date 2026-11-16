@@ -50,8 +50,10 @@ so there is no ACE comparison and no committed baseline; capturing the emitted S
 - **Aggregate `DISTINCT`** — `COUNT(DISTINCT …)`, `COUNT(DISTINCT CASE …)` grouped and in correlated scalar
   sub-queries, `STRING_AGG(DISTINCT …)`, windowed `COUNT(DISTINCT …)` — runs and returns the CLR answer (#5969
   `ce8d82288`, 1213 tests green on `Access.LibRed.Mdb`).
-- **Operator precedence:** `BOR` and `BXOR` evaluate left to right at one level, so `a BOR b BXOR c` is
-  `(a BOR b) BXOR c` (`[0,3,5,1]` for rows `(1,1,1)`, `(1,2,0)`, `(4,6,3)`, `(5,3,6)`); `MOD` evaluates left to
+- **Operator precedence:** `BOR` binds tighter than `BXOR` (grammar: `BAND` > `BOR` > `BXOR`), so `a BOR b BXOR c` is
+  `(a BOR b) BXOR c` (`[0,3,5,1]` for rows `(1,1,1)`, `(1,2,0)`, `(4,6,3)`, `(5,3,6)`) and `a BXOR b BOR c` is
+  `a BXOR (b BOR c)` (#5969 A-12: `BinaryXorOverOr` red at one level). An earlier reading, "one level, left to right",
+  came from the first shape only, which both orders answer alike. Native Jet/ACE rank them the same way; `MOD` evaluates left to
   right with itself, as Jet does. linq2db parenthesizes `MOD` since #5969 `d8051a1f9`; the bitwise case is on
   #6243.
 

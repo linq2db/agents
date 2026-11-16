@@ -44,3 +44,40 @@ GAP-03 ×1. It is the third finding on the one-line E-30 change (round 1 MIN003,
 - Round 1 MIN003 (right-nested `a % (b % c)`) was fixed by moving `MOD` to `Multiplicative` (A-10), and that move created MIN005 — the fix was again checked only against `MOD`'s known neighbours.
 - Round 1 SUG001 (missing `a - b % c` arm) is the same blind spot from the test side: TO-19's arms came from the same partial neighbour set, so no arm put `MOD` under `^`. TO-22 closes this instance only.
 - Round 1's top recommendation (deferral wording as a `-Validate` error) would not have prevented MIN005: the `^` case was never deferred, it was recorded as sound.
+
+## Round 3 — reviewed HEAD 203e2852d
+
+Plan judged at A-11 and critic round 9. Findings include Igor Tkachev's review at 2d0ac39ad (MAJ001, MIN005-igor, SUG002-igor). Attributed by `review-gap-attributor`, 2026-11-16.
+
+## Attribution
+
+- **MAJ001** — GAP-02 — A-3 (2026-09-23) put E-16's `^` → `BXOR` arm at `Precedence.Bitwise - 1` (`BOR`'s level), unprobed; `findings.md:283` grammar survey lists `MOD`/`BAND`/`BOR`/`^`, no `BXOR`; A-10's probe (`findings.md:53`) ran only `a BOR b BXOR c`, which both candidate orders answer alike, and P11 A-10 (plan.md:517) filed it "Out-of-scope" on #6243 although the defect is E-16's own (no `BXOR` on master); A-11's P7 operator table (plan.md:276) was scoped to native `^` and omitted LibRed's arm — — — preventable: yes
+- **MIN005-igor** — GAP-08 — P9 G-03 (plan.md:322) recorded "pass — all new types and overrides … with `PublicAPI.Unshipped.txt` entries" from two examples, not an enumeration; A-5's `IsOrderedSetWindowedSupported` override (`dc283da76`) never got a line; RS0016 only runs under `RunApiAnalyzersDuringBuild` — G-03 — preventable: partly
+- **SUG002-igor** — not-a-gap: reviewer-disagrees-with-P10 — P11 A-9 (plan.md:502) records the user's "keep the `MOD` fix on #5969"; it is in P11 only and belongs in P10 as an adjudicated override of AGENTS.md's separable-fix rule
+- **MIN006** — GAP-07 — `testing.md:105`'s single-assertion criterion (`0925691`, 2026-11-03) postdates the gate (`562513a85`, 2026-09-24); A-8/A-9/A-10's `conventions:` lines (plan.md:501, :508, :521) never carried it, so the gate was not re-checked; second class GAP-08: G-01 sweep records (plan.md:317, :319) list only chains / nested chains / narrowed sets while `test-diff-sweep.ps1` reported the gate under `typeOnlyShouldlyGates` — G-01 — preventable: yes
+- **NIT004** — GAP-10 — prose: `AccessSqlExpressionConvertVisitor.cs:71`/`:97` were true when written; A-3/D-5's `IsTickArithmeticSupported` left them unscoped while the new member's summary was scoped correctly — — — preventable: no
+- **OBS-XOR** — GAP-02 — A-3's E-16 comment "LibRed has the bitwise operator Jet lacks" and the E-1-narrowed `AllNativeAccess` exclusions on `WhereTests.BinaryXor`/`BinaryAnd`/`BinaryOr` were never probed on a native flavour (one `Access.Ace.OleDb` statement refutes both); A-3's own E-9 line records `^` is power in Access; P7 E-34 and critic round 9 recorded "CLR XOR is untouched" as sound; second class GAP-08: G-01 (plan.md:317) passed 262 reason-less narrowed sets as E-1 instances — — — preventable: yes
+
+## Aggregate
+
+GAP-02 ×2, GAP-07 ×1, GAP-08 ×1, GAP-10 ×1, one not-a-gap. Both GAP-02s, including the only MAJ, trace to one unprobed A-3 line, the LibRed `ConvertSqlBinaryExpression` arm, which assumed both `BXOR`'s precedence and native Jet/ACE's lack of it. This is the fourth precedence finding on the PR in three rounds (round 1 MIN003/SUG001, round 2 MIN005). Round 2's operator-table rule landed (`5ee6bd7`), but it fires only on a change to an operator's `Precedence`. A newly registered operator, and the flavours sharing the visitor, fall outside it.
+
+## Recommended durable fixes
+
+- GAP-02 ×2 (MAJ001, OBS-XOR) → `work-plan.md` P7 operator-table bullet + `skills/work-plan/SKILL.md` step 5 scout brief — trigger on any `ConvertSqlBinaryExpression` arm added, renamed or moved; one table per flavour sharing or overriding the visitor; probe each adjacent operator pair in both nestings with shapes whose readings disagree (`evidence-discipline.md:140`); an engine-has/lacks-operator claim is a P4 row with a per-flavour probe, never a code comment.
+- GAP-07 ×1 (MIN006) → `work-plan.ps1 -Action validate`: a G-01 or `conventions:` sweep record names every `test-diff-sweep.ps1` category with its count, zeros included.
+- MAJ001 second link → `work-plan.md:281` — extend the "pre-existing cites a master run" rule to "out-of-scope" and umbrella-issue hand-offs; when master cannot run the shape, the defect is the branch's.
+
+## Corpus trace
+
+- MAJ001 · rule: `docs/evidence-discipline.md:140`; `docs/work-plan.md:281` (`4f10b87`); P7 operator-table bullet `docs/work-plan.md:132` (`5ee6bd7`) · why it did not fire: E-16 predates all three; A-10's probe was a side probe into `findings.md`, not a `U-n`, so no critic checked that its one shape could disagree; "Out-of-scope" wording dodges `:281`; the operator-table trigger names `Precedence` changes only · correction: widen the P7 trigger and scout brief (above); cover out-of-scope / umbrella hand-offs at `:281`; fix `plans/feature-access-libred/findings.md:53` · recurs: this ledger round 1 MIN003, round 2 MIN005
+- MIN005-igor · rule: `docs/definition-of-done.md:14` (non-`Internal.*` only); `code-reviewer.md` drift ban · why it did not fire: RS0016 runs only with `RunApiAnalyzersDuringBuild` (`Source/Directory.Build.props:14`); G-03 recorded from examples · correction: `docs/work-plan.md` P9 semantics — a `pass` gate cites the command or full enumeration, never "e.g." · recurs: —
+- SUG002-igor · rule: AGENTS.md *Creating a new branch* · why it did not fire: it did; the user overrode it at A-9 · correction: `docs/work-plan.md` P10 semantics — a user override of an AGENTS.md rule gets a P10 line, not only P11 · recurs: —
+- MIN006 · rule: `docs/testing.md:105` (`0925691`) · why it did not fire: test predates rule; the rule's own paragraph cited `ContainsOverADifference` as the type-only example; `ActiveIssueAttribute.cs:132-134` said "pinned by type" unconditionally; work-plan and review-pr told readers to cite only chains and narrowed sets · correction: applied this session (testing.md citation, review-pr step 6, work-plan step 4 sweep counts, ActiveIssueAttribute doc on the PR); remaining: `-Validate` every-category check · recurs: `plans/issue-5843-compare-cache-constants-by-content/gaps.md:70-71`; `plans/feature-net11-support/gaps.md:12`
+- NIT004 · rule: `docs/evidence-discipline.md:214` · why it did not fire: loaded for probes and write-ups, not implementation; targets prose made false, not prose made unscoped · correction: optional — one sentence at `:214` on re-scoping parent summaries when a virtual switch lets a subclass take the base path · recurs: —
+- OBS-XOR · rule: `docs/agent-rules.md:99` → `evidence-discipline.md` *Claims you have not run*; `agents/plan-critic.md:174` · why it did not fire: the comment was triage rationale, never treated as a claim; critic round 9's "CLR XOR is untouched" checked only that the producer was unchanged · correction: `agents/plan-critic.md` near `:174` — an "X is untouched" line about a producer whose operator the dialect reads differently is checked against what each flavour renders · recurs: round 2 second class (critic "no native `^` producer")
+
+### Continuity
+
+- Round 2's recommended operator-table rule landed (`5ee6bd7`) and still missed: its trigger is a precedence change, while round 3's defect is an operator arm registered without one, on a different flavour. Fourth precedence finding on E-16/E-30-adjacent code.
+- Round 1's type-only gate class (#6185 TO-27, recorded in issue-5843's ledger) produced the rule and the sweep category; neither consumer read the category until this round.
