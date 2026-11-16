@@ -173,6 +173,8 @@ Treat a `measured:` label as a fact someone ran; treat `reasoned, unprobed:` as 
 
 **The same check applies to your own "found sound" lines.** Before you record "no X producer" or "no other caller", check the claim against the plan's own `P6` and `P11`: an edit-point or amendment naming an X producer refutes it. (#5969 round 8 cleared "no native `^` producer" while E-18 named the `Power` helper, and the review then found the defect there.)
 
+**"X is untouched" is not "X is right".** A finding that a producer is unchanged by the diff says nothing about what the dialect makes of its output. When the producer emits an operator or function the dialect reads differently from C# (Access reads `^` as a power, not XOR), check what it renders on each flavour before recording it as sound. (#5969 round 9 recorded "CLR XOR is untouched" as sound; native Access had been sending C# XOR as a power all along.)
+
 ## Output format
 
 Emit exactly this block and nothing else.

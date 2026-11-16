@@ -554,6 +554,37 @@ function Invoke-Validate {
         if ($Done -or $lateAmendment) { $errors += $msg } else { $warnings += $msg }
     }
 
+    # The latest G-01 sweep record names every category test-diff-sweep.ps1 reports, zeros included. #5969 round 3:
+    # the records listed chains and narrowed sets while the sweep flagged a type-only Shouldly gate under
+    # typeOnlyShouldlyGates, and the gate survived two review rounds. The category list is read from the sweep
+    # script's output block, so a new category is enforced without editing this check. Only records belonging to
+    # an amendment dated from 2026-11-16, when the check landed, are held to it.
+    $sweepScript = Join-Path $PSScriptRoot 'test-diff-sweep.ps1'
+    if ($g01Rows.Count -gt 0 -and (Test-Path -LiteralPath $sweepScript)) {
+        $outBlock = [regex]::Match([System.IO.File]::ReadAllText($sweepScript), '(?s)\[ordered\]@\{(.*?)\}\s*\|\s*ConvertTo-Json')
+        $sweepCats = @(if ($outBlock.Success) {
+            [regex]::Matches($outBlock.Groups[1].Value, '(?m)^\s*(\w+)\s*=\s*@\(') | ForEach-Object { $_.Groups[1].Value }
+        })
+        $sweepRecs = @()
+        foreach ($l in @($g01 -split "`r?`n")) {
+            if ($sweepRecs.Count -eq 0 -or $l -match '^\s*-\s') { $sweepRecs += $l }
+            else { $sweepRecs[$sweepRecs.Count - 1] += ' ' + $l.Trim() }
+        }
+        $sweepRecs = @($sweepRecs | Where-Object { $_ -match 'test-diff-sweep' })
+        if ($sweepCats.Count -gt 0 -and $sweepRecs.Count -gt 0) {
+            $last    = $sweepRecs[$sweepRecs.Count - 1]
+            $p11Text = (@((Get-Block -Blocks $blocks -Id 'P11').lines) -join "`n")
+            $aDate   = if ($last -match '^\s*-\s+(A-\d+)\b' -and $p11Text -match "(?m)^-\s+(?:\*\*)?$($Matches[1])\s*\((\d{4}-\d{2}-\d{2})") { $Matches[1] } else { $null }
+            if ($null -ne $aDate -and $aDate -ge '2026-11-16') {
+                $missing = @($sweepCats | Where-Object { $last -notmatch "\b$_\b" })
+                if ($missing.Count -gt 0) {
+                    $msg = "P9 : the latest G-01 test-diff-sweep record omits categories $($missing -join ', ') -- cite every category the sweep reports, zeros included"
+                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                }
+            }
+        }
+    }
+
     # P10 entries need a reason.
     $p10 = Get-Block -Blocks $blocks -Id 'P10'
     foreach ($row in (Get-BlockRows -Block $p10)) {
