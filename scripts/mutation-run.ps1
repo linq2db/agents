@@ -70,6 +70,11 @@ Output (stdout, JSON):
 Logs go to <worktree>/.build/.agents/mutation-<name>.log. Invoke from the PowerShell tool:
     .claude/scripts/mutation-run.ps1 -ManifestFile .build/.agents/<id>-mutations.json
 Runs are sequential (one build at a time); a run is long, so launch it in the background.
+
+`restored` covers sources, not binaries: the build output left in the tree is the last mutation's. The
+next run against that tree must build - never `worktree-test.ps1 -NoBuild` straight after this script,
+or the "green" result is the mutant's. (#5969 round 3: a `-NoBuild` sweep launched after a mutation run
+would have tested `BXOR` at `Bitwise - 1`.)
 #>
 [CmdletBinding()]
 param([string]$ManifestFile)
