@@ -175,6 +175,10 @@ Treat a `measured:` label as a fact someone ran; treat `reasoned, unprobed:` as 
 
 **"X is untouched" is not "X is right".** A finding that a producer is unchanged by the diff says nothing about what the dialect makes of its output. When the producer emits an operator or function the dialect reads differently from C# (Access reads `^` as a power, not XOR), check what it renders on each flavour before recording it as sound. (#5969 round 9 recorded "CLR XOR is untouched" as sound; native Access had been sending C# XOR as a power all along.)
 
+**A "found sound" about an operand's or node's shape names the pipeline stage it holds at.** Translation, the convert pass and the builder see different trees: a cast is present at translation and gone once `ConvertConversion` runs. When a later edit tests that shape at another stage, the earlier line does not cover it, so re-check it there. (#5969: round 9 recorded "casts are elided, so operands reach `^` bare", true at the builder. Round 10's edit tested the exponent's node type in the translator, and a cast-wrapped decimal exponent slipped through.)
+
+**A `conventions:` line that says "follow <sibling>'s form" is checked against the house rules.** `testing.md` → *Test layout* wins over a fixture's idiom (`testing.md:626`). A sibling written before a rule landed can teach the retired form, as `AreEqual` over a hand-copied query did against rule 3's `AssertQuery`. (#5969 A-12: the plan directed `BinaryOr`'s `AreEqual` form, and four new tests followed it.)
+
 ## Output format
 
 Emit exactly this block and nothing else.
