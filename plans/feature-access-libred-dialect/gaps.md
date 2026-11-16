@@ -98,7 +98,7 @@ Plan judged at A-12 and critic round 10 (corpus rule state `5ee6bd7`; round-3 wi
 - **NIT007** (four new `WhereTests.Binary*` tests use hand-duplicated `AreEqual`) — GAP-06 — P11 A-12's `conventions:` line (plan.md:558) embeds `testing.md` *Test layout* and in the same line directs "new tests follow `BinaryOr`'s `AreEqual` form", contradicting rule 3 (`testing.md:682`) and `testing.md:626`; the tests followed the plan — — — preventable: yes
 - **CI-SYBASE** (`WhereTests.BinaryXorUnderOr` red on Sybase, gated on #6243) — GAP-02 — P10 plan.md:346 left Sybase to CI, but the gate's own `Details` names the mechanism "T-SQL evaluates `|` and `^` left to right"; critic round 10's "gate narrower than its mechanism" was answered by widening to `AllSqlServer` only; one CI round trip, no shipped defect — — — preventable: partly
 
-Not attributed: the shared-engine unary `~` precedence defect (`ExpressionBuildVisitor.cs:2784`, `SqlExpressionFactoryExtensions.cs:170`, Oracle `-1 - x` at 0) — pre-existing, outside the diff, filed separately.
+Not attributed: the shared-engine unary `~` precedence defect (`ExpressionBuildVisitor.cs:2784`, `SqlExpressionFactoryExtensions.cs:170`, Oracle `-1 - x` at 0) — pre-existing, outside the diff, filed as #6340.
 
 ### Aggregate
 
