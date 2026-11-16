@@ -44,6 +44,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** in the evaluator. Once registered casts are rewritten (E-14), two enum types only meet there through shapes like this `Equals`, where the client comparison is correct; keep the two-enum rule in `SqlExpressionOptimizerVisitor.ReconcileEnumValues`, where an enum literal kept by `SetValueToSqlConverter` needs it. (#6277, `36afe9926`)
 
+## EXPR-TRANS: limiting the enum provider-value fold to `=` / `<>`
+
+**Tried:** making `QueryHelper.TryEvaluateExpressionInternal`'s provider-value retry and `SqlExpressionOptimizerVisitor.ReconcileEnumValues` decline an ordering operator, so that `CASE … END > @letter` over mixed-case `MapValue`s is left to the database collation instead of `string.CompareTo` (current culture).
+
+**Failed because:** a remote context only ever sees provider values, plain strings, and folds them by culture as before; the direct context now declined. Direct and remote SQL diverged and the #6061 direct-vs-remote baseline check failed on both new tests (SQLite.MS). Master already folds a string `CASE` the same way.
+
+**Don't re-attempt:** a change to what the direct path folds that the remote path cannot make too. A fold rule has to give the same answer from client values and from provider values; to defer ordering to the collation, the string-vs-string fold has to change with it. (#6277 review round 5, reverted before commit; recorded in the plan's `P10`.)
+
 ## BUILD: choosing the documented target framework for docfx metadata through `docfx.json`
 
 **Tried:** (1) `metadata[].properties.TargetFramework` alone; (2) a `DocfxTargetFramework` rule in `Directory.Build.targets`; (3) the same rule via `BeforeTargetFrameworkInferenceTargets`; (4) via `BeforeMicrosoftNETSdkTargets`; (5) `TreatAsLocalProperty="TargetFramework"` alone on the netstandard2.0 analyzer projects.

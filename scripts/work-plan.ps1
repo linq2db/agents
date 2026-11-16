@@ -500,7 +500,10 @@ function Invoke-Validate {
             if ($row -notmatch '(?i)proof:\s*control') { continue }
             $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
             $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
-            if ($joined.Length -gt 0 -and ($joined -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+            # "not run" counts only inside the clause naming this TO (up to the next ';' or sentence end): a
+            # summary line naming several TOs often says another provider was not run (#6277 A-8, TO-78).
+            $clauses = (@([regex]::Matches($joined, "$toRx[^;]*?(?=;|\.\s|$)") | ForEach-Object { $_.Value }) -join ' ')
+            if ($joined.Length -gt 0 -and ($clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
                 $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
