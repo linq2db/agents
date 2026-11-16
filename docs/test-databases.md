@@ -246,6 +246,15 @@ Canonical sequence for `/test-providers` to bring a non-SQLite provider's contai
 
 Ports are fixed per container and don't need verification — if the container is running, the port is bound. The host:guest mapping isn't listed in this doc; read the `-p <host>:<guest>` flag in the container's `Data/Setup Scripts/<script>.cmd` if you need the number (the connection strings in `UserDataProviders.json` / `DataProviders.json` already carry it).
 
+**A bound port is not a ready server.** Probe readiness without `docker exec`, which is outside the agent's container scope:
+
+| Container | Probe |
+|---|---|
+| `clickhouse` | HTTP `SELECT version()` on 8123 (see the ClickHouse section) |
+| `mysql` | open a TCP connection to 3306 and read: a ready server sends its greeting packet first |
+| `pgsql*` | TCP connect on the container's port, then a few seconds' grace |
+| `oracle23` | `docker ps --filter name=oracle23` status reads `(healthy)` (the image has a healthcheck; about a minute) |
+
 ## Session-started containers — tracked only if the hooks are wired
 
 A `docker start` is *intended* to be captured by the `track-docker-start` PostToolUse hook into `.build/.agents/docker-session-started.txt`, with `cleanup-docker-session` stopping them at session end. Both scripts live in `.claude/hooks/`, but nothing under `.claude/` registers them, so unless the *user-level* settings wire them up they never fire. If you have run `docker start` and that state file does **not** exist, or exists but does not list the container you started (an earlier session's entries can leave it present, 2026-10-22), the tracking did not happen: keep your own list and stop those containers yourself at session end, restoring their prior state. Never tell the user containers are "tracked and will be stopped automatically" without having seen the file. (2026-07-30)
