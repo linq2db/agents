@@ -395,6 +395,13 @@ function Invoke-Validate {
             $byAmendment = [regex]::Matches($row, '\bA-\d+\b') | Where-Object { $amendDates[$_.Value] -ge '2026-10-21' }
             if ($byAmendment) { $errors += $msg } else { $warnings += $msg }
         }
+        # work-plan.md -> P9 G-01: a family left to CI needs its reason; "every other provider (CI)" names none
+        # (#5969 A-13: Firebird had a stopped container and went red on the next review's CI).
+        elseif ($row -match '(?i)\bevery other provider\b[^—]*\bCI\b') {
+            $msg = "P8 : row leaves 'every other provider' to CI -- name the container providers left out and why (work-plan.md -> P9 G-01) -- $row"
+            $byAmendment = [regex]::Matches($row, '\bA-\d+\b') | Where-Object { $amendDates[$_.Value] -ge '2026-11-17' }
+            if ($byAmendment) { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # P9 gate results.

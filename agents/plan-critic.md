@@ -179,6 +179,8 @@ Treat a `measured:` label as a fact someone ran; treat `reasoned, unprobed:` as 
 
 **A `conventions:` line that says "follow <sibling>'s form" is checked against the house rules.** `testing.md` → *Test layout* wins over a fixture's idiom (`testing.md:626`). A sibling written before a rule landed can teach the retired form, as `AreEqual` over a hand-copied query did against rule 3's `AssertQuery`. (#5969 A-12: the plan directed `BinaryOr`'s `AreEqual` form, and four new tests followed it.)
 
+**"Left to CI" answers a provider-matrix lead only for a provider with no local route.** When the author closes a lead about other providers by deferring it to CI, ask whether those providers have a container or a file DB here. If one does, the deferral is `weak` until it is run or a reason is recorded (no container, x86-only driver, user declined). (#5969: critic round 10's exact-double lead on every provider was closed as "left to CI". The same test's next arm then went red on all eight Firebird contexts, where a stopped container existed.)
+
 ## Output format
 
 Emit exactly this block and nothing else.

@@ -128,3 +128,32 @@ GAP-02 ×3, GAP-05 ×2, GAP-08 ×2, GAP-03 ×1, GAP-06 ×1. Five of nine (MIN007
 - Round 1's deferral `-Validate` check (`work-plan.ps1:516-517`) is why NIT005/NIT006 got through: the hit was re-worded from "open for the review walk" to "cleared in round 1", which the `cleared` exemption accepts.
 - Critic found-sound misses: round 2 "no native `^` producer", round 3 "CLR XOR is untouched", round 4 "casts are elided, so operands reach `^` bare". Each round's critic rule targets the previous wording, so the class (a found-sound claim reused outside the scope it was checked in) recurs.
 - Precedence findings: round 1 ×2, round 2 ×1, round 3 ×2, round 4 ×4 (plus MIN008 withdrawn), all on the E-16/E-30/E-34/E-36/E-40 chain.
+
+## Round 5 — reviewed HEAD 61e72e4a0
+
+Plan judged at A-13 and critic round 11 (corpus rule state: `work-plan.md:164`/`:242` from `7b0373b`, 2026-10-20; round-4 widenings `work-plan.md:132`, `testing.md:101`). Attributed by `review-gap-attributor`, 2026-11-16. The round-4 delta code pass returned no findings; the `negativeExponent` exact-double observation was dropped after measurement (green on every provider incl. Firebird 5) and is not attributed. Fixed by A-14 (`d12a6fd60`).
+
+### Attribution
+
+- **BLK001** (`PowerOperandKeepsItsGrouping` `negativeBase` arm red on all 8 Firebird contexts, CI 43955007949; Firebird `evlPower` refuses a negative base with an inexact exponent; pre-existing, #6341) — GAP-08 — TO-30's `providers:` "those four, every other provider through the bare `[DataSources]` (CI)"; A-13's G-01 run was Access ×4, SqlCe, SQLite.Classic, SQLite.MS, DuckDB — exactly `work-plan.md:242`'s no-container parenthetical plus one embedded DB; Firebird was locally runnable (master repro and the fix both verified on Firebird.5 direct+remote this round), but no container provider was run and no skip reason recorded, unlike P10's A-12 line ("no local route" for Jet/YDB/Sybase); G-01 was honestly `pending`, so this is a partly-run gate, not a false pass; second class GAP-02: the arm pins P10's Access-scoped claim ("on any Access flavour"), but bare `[DataSources]` makes it an unexamined claim that every engine evaluates `POWER(-2, <computed, cast-to-double exponent>)`; critic round 11's minor read that SQL on Access and master only — G-01 — preventable: yes
+
+### Aggregate
+
+GAP-08 ×1. The plan named every provider the new arms reach (TO-30, the A-13 G-02 expectation) and deferred all non-Access ones to CI in one clause, so the review's CI run was the arms' first run on Firebird. One change prevents it: for a new bare-`[DataSources]` arm, "runnable locally" means every provider with an existing container, each recorded as run or left to CI with a reason. Nothing more systemic this round.
+
+### Recommended durable fixes
+
+- GAP-08 ×1 → `docs/work-plan.md:242` (P9 G-01 semantics): the parenthetical lists only no-container providers, and "started containers cost one docker start" reads as optional; make a new `[DataSources]` test's G-01 cover every provider with a container in `docker ps -a` (asked as one named batch), and list every omitted family with a reason (no container, x86-only driver) — P10's A-12 line is the model.
+- GAP-08 ×1 → `scripts/work-plan.ps1 -Action validate` (matches only a header `G-01: pass` row): a `blocked`/pending G-01 sub-bullet for a TO-n whose `providers:` says "every other provider … (CI)" must name the provider families left to CI; `plans/issue-6272-fix-projected-enum-compare/gaps.md:50` already recommended folding G-01 sub-bullets into this check and it did not land.
+- GAP-02 second class → `agents/plan-critic.md`: a "left to CI" answer to a provider-matrix lead is accepted only for a provider with no local route; critic round 10's lead (exact-double equality on every provider) was closed by "left to CI in A-11", and the same test's next arm went red on a locally-runnable provider.
+
+### Corpus trace
+
+- BLK001 · rule: `docs/work-plan.md:242` (run what is runnable locally before marking G-01 blocked on CI), `:164` (an amendment's TO-n names `providers:`; "an amendment's obligation is the one a review round finds red on a provider nobody ran"), both `7b0373b` · why it did not fire: the plan met the letter of both — TO-30 has a `providers:` field (filled with a CI deferral), G-01 is `blocked` with A-13 marked pending, and the run matched the parenthetical's no-container examples exactly; `-Validate` checks only `G-01: pass` rows; the user's per-container `docker start` go-ahead adds an ask the plan never made; the arm's Access-scoped purpose (P10) hid that it asserts on every provider · correction: the first two durable fixes above · recurs: `plans/issue-5955-clickhouse-datetime64-coercion/gaps.md:177` BLK003, `:179` BLK005, `:236` BLK006 (left-to-CI list incl. Firebird 5); `plans/issue-5951-enforce-source-mapping-schema/gaps.md:38` BLK001; `plans/issue-5777-support-sqlserver2014-elapsed-time/gaps.md:15` MAJ005; this ledger round 4 CI-SYBASE
+
+### Continuity
+
+- Round 4 CI-SYBASE is the direct precedent: a new bare-`[DataSources]` test from round N's walk first ran on a provider in the pushed head's CI and came back as round N+1's blocker. Round 4's correction (`testing.md:101`, gate configuration covers every provider its `Details` mechanism names) landed but cannot apply — there was no gate and no known mechanism. This round is the weaker case: Sybase had a recorded "no local route"; Firebird had a local route and no recorded reason.
+- On this same test the plan flagged a cross-provider risk twice and answered "left to CI" both times: A-11 (small-integer powers beyond the three providers run) and critic round 10 (exact-double equality). The flagged risk passed this round (the dropped observation); the red came from an arm nobody flagged, so per-risk flagging does not substitute for running the local matrix.
+- Round 4's top recommendation landed (`work-plan.md:132`, keep a TO-n per adjacent operator pair): A-13 kept TO-28..TO-30 under it, and the round-5 code pass found zero precedence findings — the first round without one (round 1 ×2, round 2 ×1, round 3 ×2, round 4 ×4). Round 4's `handDuplicatedAreEqual` sweep category also landed (0 at A-13 and A-14).
+- The "deferred to CI" G-01 class across plans (#5955 ×4, #5951, #5777, now #5969 ×2) has had a rule since `7b0373b`; it recurs because the rule's enforcement and its example list both cover only the `pass`-row form and no-container providers.
