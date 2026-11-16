@@ -276,6 +276,8 @@ Constructors and `Modify` methods on types under `LinqToDB.Internal.SqlQuery.*` 
 
 Reviewer consequence: do **not** flag missing constructor / `Modify` null-or-empty guards on a new AST type as a defect — `SqlConcatExpression`, `SqlCoalesceExpression`, and the rest of the peers follow this convention by design. Exception: when a caller path is genuinely unverified (data off the wire with no schema validation, etc.), surface the concern at the *caller*, not the AST type itself.
 
+**Translators build nodes through the factory, never with a bare AST constructor.** A member translator creates its SQL through the `ISqlExpressionFactory` extensions (`SqlExpressionFactoryExtensions.Binary`, `Add`, `Mod`, peers), not with `new SqlBinaryExpression(…)`. When no overload takes the parameter you need, such as a precedence, add the overload to the extensions class and have the existing one delegate to it; don't bypass the factory at the call site. (#5969: `Binary(…, int precedence)` for native Access `^`.)
+
 ### Version-aware translators: derive a subclass, don't parameterize
 
 When provider behavior depends on the database version, the repo's convention is to **create a version-specific translator subclass** and dispatch on `Version` in the data provider's `CreateMemberTranslator()`. Do **not** parameterize the base translator constructor with a feature flag — that's not how the codebase is structured.

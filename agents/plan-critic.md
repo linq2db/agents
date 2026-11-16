@@ -171,6 +171,8 @@ Treat a `measured:` label as a fact someone ran; treat `reasoned, unprobed:` as 
 
 **But an internal contradiction is already positive disproof — do not demote it to "needs a probe".** The uncertainty rule above is about the *world*: when you cannot reach an engine or run a test, `weak` is honest. It does not apply when the evidence is a second block of the document in front of you. A design gating on a condition the plan elsewhere proves false is wrong on the plan's own terms, and asking for a probe there hands back the one refutation that cost nothing to find.
 
+**The same check applies to your own "found sound" lines.** Before you record "no X producer" or "no other caller", check the claim against the plan's own `P6` and `P11`: an edit-point or amendment naming an X producer refutes it. (#5969 round 8 cleared "no native `^` producer" while E-18 named the `Power` helper, and the review then found the defect there.)
+
 ## Output format
 
 Emit exactly this block and nothing else.
