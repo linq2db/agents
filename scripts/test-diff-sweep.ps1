@@ -41,6 +41,12 @@ letting through:
      captures — testing.md -> *Testing query cache HIT / MISS*. (#6277: `EqualsTypedRegisteredEnumCheckedPerExecution`,
      off by one on five CI configs, green locally.) The enclosing member is read from the swept file itself; a
      call in a helper is checked at each caller in the same file, and a helper with no caller there is skipped.
+  9. an added `AreEqual(` whose first argument is a hand-written LINQ-to-objects copy of the query (an
+     added argument line that does not read `db.` / `await`, followed by one that does) — testing.md ->
+     *Test layout*, rule 3 asks new tests for `AssertQuery`. Rule 3's exceptions (scalars, object-typed
+     rows, aggregates over a navigation) still use `AreEqual`, so read each hit. (#5969 round 4 NIT007:
+     four new `WhereTests.Binary*` tests followed the fixture's `AreEqual` form.) Measured: `bcefe37bb` 4 hits,
+     the four; `origin/master~300...origin/master` 10, whole-table `AreEqual(T, db.T)` compares among them.
 
 Why this script exists
 ----------------------
@@ -78,7 +84,7 @@ narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutRe
 lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
-cacheMissOutsideQueryCacheTest: [{file, line, test, text}] }.
+cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}] }.
 #>
 
 param(
@@ -130,6 +136,9 @@ $indents     = @()
 $unanchored  = @()
 $continued   = @()
 $cacheCalls  = @()
+$areEquals   = @()
+# check 9: an added `AreEqual(` opening line and the argument lines added after it
+$pendingAreEqual = $null
 $pendingGate = $null
 # the opening text of a provider attribute whose closing `)]` has not been seen yet, added or context line
 $openAttr    = $null
@@ -213,6 +222,23 @@ foreach ($l in $diff) {
 
 	if ($l.StartsWith('+')) {
 		$text = $l.Substring(1)
+
+		# check 9: the expected argument reads no `db.`, the actual argument after it does
+		if ($pendingAreEqual -and $text.Trim()) {
+			$pendingAreEqual.args += $text.Trim()
+			if ($pendingAreEqual.args.Count -eq 2) {
+				if ($pendingAreEqual.args[0] -notmatch '\b(db|await)\b' -and $pendingAreEqual.args[1] -match '\bdb\.\w') {
+					$areEquals += [pscustomobject]@{ file = $pendingAreEqual.file; line = $pendingAreEqual.line; text = $pendingAreEqual.args[0] }
+				}
+				$pendingAreEqual = $null
+			}
+		}
+		elseif ($text -match '^\s*AreEqual\s*\(\s*$') {
+			$pendingAreEqual = [pscustomobject]@{ file = $file; line = $line; args = @() }
+		}
+		elseif ($text -match '^\s*AreEqual\s*\((?<a>[^,]+),\s*(?<b>.+)\)\s*;' -and $Matches['a'] -notmatch '\b(db|await)\b' -and $Matches['b'] -match '\bdb\.\w') {
+			$areEquals += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
 		if ((Remove-Operands $text) -match $chainPattern -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
@@ -352,4 +378,5 @@ foreach ($c in $cacheCalls) {
 	unanchoredAssertionGates = @($unanchored)
 	narrowedContinuations = @($continued)
 	cacheMissOutsideQueryCacheTest = @($cacheOutside)
+	handDuplicatedAreEqual = @($areEquals)
 } | ConvertTo-Json -Depth 4

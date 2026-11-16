@@ -514,7 +514,16 @@ function Invoke-Validate {
         # reworded ("open, dispositioned in the round-1 review walk") passed the literal match, and five of the
         # round's nine findings were defects the plan had recorded and handed to the review this way.
         $deferralRx = '(?i)\breview items?\b|\breview walk\b|\bopen for the review\b|\bcarried to (the )?(round-\d+ )?review\b|\bleft (open )?for (the )?review\b|\bdispositioned in the (round-\d+ )?review\b'
-        $deferred   = @($g01Lines | Where-Object { $_ -match $deferralRx -and $_ -notmatch '(?i)\b(fixed|cleared|resolved)\b' })
+        # "cleared" passes only with the disposition it cites (a review finding id or the user's call), and never on
+        # a "re-indent" reason: a re-indented line is PR-modified (review-conventions.md). #5969 round 4: "cleared in
+        # round 1 (re-indents / no chain)" carried two real chains through three amendments.
+        $citedRx    = '\b(BLK|MAJ|MIN|SUG|NIT)\d{3}\b|(?i)\buser\b'
+        $deferred   = @($g01Lines | Where-Object {
+            $_ -match $deferralRx -and (
+                $_ -notmatch '(?i)\b(fixed|cleared|resolved)\b' -or
+                $_ -match '(?i)\bre-?indent' -or
+                ($_ -match '(?i)\bcleared\b' -and $_ -notmatch '(?i)\b(fixed|resolved)\b' -and $_ -notmatch $citedRx))
+        })
         if ($deferred.Count -gt 0) {
             $msg = "P9 : G-01 hands an open item to the review ('$(($deferred[0] -replace '\s+', ' ').Substring(0, [Math]::Min(80, ($deferred[0] -replace '\s+', ' ').Length)))…') -- fix it on the branch, give it a TO-n, or record why it is not a finding"
             if ($Done) { $errors += $msg } else { $warnings += $msg }
