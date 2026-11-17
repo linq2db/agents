@@ -104,6 +104,11 @@ PRs merged by the user (not the agent) have no draft file and no wiki entry. Thi
 
 1. `release-notes-draft.ps1 -Action harvest -Milestone <ver> [-PlanFile ...]` → `.build/.agents/release-<ver>-notes-harvest.json` (`items[]` with per-PR `omit` / `includeBrief` / `fullText` / `briefText`).
 2. From items where `includeBrief && !omit`, assemble the GitHub release highlights, bucketed like the existing release body (LinqToDB highlights, provider-specific, linq2db.cli — same component mapping as the wiki inserter). Present the assembled brief for the user to drop into the GitHub release body (`/release-postpublish` step 3, above the `--generate-notes` `## What's Changed`).
+3. **Draft the release overview** — a short free-format paragraph that **opens** the GitHub release body, above the highlights. Its job is a quick picture of the release for users who won't read the notes, so it names themes, not PRs or small details. Shape:
+   - **Main driver(s):** what the release exists for (6.6.0: .NET 11 support).
+   - **Major works:** a short numbered list of the large efforts that landed — multi-PR themes, a new provider, a finished migration, a new platform (6.6.0 examples: Identity as the final step of the move to a mono-repo, third-party dependency attribution, the LibRed provider opening Access to non-Windows platforms with richer SQL, first steps of WebAssembly support).
+
+   Derive candidates from the harvest items, PR clusters on one theme and the milestone's large PRs. **Propose more candidates than will be used — each with a one-line rationale — and let the user choose**; then draft the paragraph from the chosen ones and review the final text with the user. Never ship the overview without that choice and review. Store the approved text in `.build/.agents/release-<ver>-overview.md`, which `/release-postpublish` step 3 reads. (Maintainer request, 6.6.0.)
 
 ## Format conventions (wiki)
 
