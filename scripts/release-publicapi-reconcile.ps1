@@ -301,6 +301,23 @@ function Read-ApiLines {
     return @(Read-PublicApiLines $Path | Where-Object { $_ -and $_ -ne '#nullable enable' })
 }
 
+# Evaluated TargetFramework(s) of a project, cached per csproj. Empty when evaluation fails,
+# which makes the flat-placement check fall back to the overlay-directory comparison alone.
+$script:ProjectTfmCache = @{}
+function Get-ProjectTfms {
+    param([string]$Csproj)
+    if ($script:ProjectTfmCache.ContainsKey($Csproj)) { return $script:ProjectTfmCache[$Csproj] }
+    $tfms = @()
+    try {
+        $json = & dotnet msbuild $Csproj -getProperty:TargetFrameworks -getProperty:TargetFramework 2>$null | Out-String
+        $p    = ($json | ConvertFrom-Json).Properties
+        $raw  = if ($p.TargetFrameworks) { $p.TargetFrameworks } else { $p.TargetFramework }
+        $tfms = @("$raw" -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+    } catch { $tfms = @() }
+    $script:ProjectTfmCache[$Csproj] = $tfms
+    return $tfms
+}
+
 function Do-FixDrift {
     if (-not $Version) { Exit-WithError "fix-drift: -Version required" }
     $raw = Get-RawFilePath -Ver $Version -Override $RawFile
@@ -365,28 +382,37 @@ function Do-FixDrift {
             $d       = $g.Group[0]
             $projDir = Split-Path -Parent $d.csproj
             $apiRoot = Join-Path $projDir 'PublicAPI'
-            # Two layouts exist in this repo and plan/apply handle both: a PublicAPI/ subdirectory
-            # (LinqToDB, Scaffold, EntityFrameworkCore, Compat) and a flat one where the files sit
+            # Three layouts exist in this repo: a PublicAPI/ subdirectory holding the shared pair
+            # (LinqToDB, Scaffold, EntityFrameworkCore, Compat); a flat one where the files sit
             # directly in the project directory (Extensions, the five Remote.* clients/servers,
-            # Tools). Without this fallback fix-drift refused every flat-layout project.
-            $isFlat = $false
+            # Tools); and a hybrid with the shared pair at the project root plus per-TFM overlays
+            # under PublicAPI/<tfm>/ (Identity). $flatDir is wherever the shared pair lives.
+            $isFlat  = $false
+            $flatDir = $apiRoot
             if (-not (Test-Path -LiteralPath $apiRoot)) {
                 if (Test-Path -LiteralPath (Join-Path $projDir 'PublicAPI.Shipped.txt')) {
                     $apiRoot = $projDir
+                    $flatDir = $projDir
                     $isFlat  = $true
                 } else {
                     $failures += "$code '$($d.symbol)': no PublicAPI directory or flat PublicAPI.Shipped.txt under $projDir"
                     continue
                 }
+            } elseif (-not (Test-Path -LiteralPath (Join-Path $apiRoot 'PublicAPI.Shipped.txt')) -and
+                      (Test-Path -LiteralPath (Join-Path $projDir 'PublicAPI.Shipped.txt'))) {
+                $flatDir = $projDir
             }
             $line = if ($code -eq 'RS0017') { "*REMOVED*$($d.symbol)" } else { $d.symbol }
 
-            $declared = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-            # Not -Recurse when flat: $apiRoot is then the project directory, and recursing would
-            # walk bin/ and obj/ as well.
-            $shippedFiles = if ($isFlat) { @(Get-ChildItem -LiteralPath $apiRoot -File -Filter 'PublicAPI.Shipped.txt') }
-                            else         { @(Get-ChildItem -LiteralPath $apiRoot -Recurse -File -Filter 'PublicAPI.Shipped.txt') }
-            foreach ($f in $shippedFiles) {
+            $declared     = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $declaredFlat = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            # Not -Recurse at the project root: recursing would walk bin/ and obj/ as well.
+            $flatFiles    = @(Get-ChildItem -LiteralPath $flatDir -File -Filter 'PublicAPI.*.txt')
+            $overlayFiles = if ($isFlat) { @() } else { @(Get-ChildItem -LiteralPath $apiRoot -Directory | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -File -Filter 'PublicAPI.*.txt' }) }
+            foreach ($f in $flatFiles) {
+                foreach ($l in (Read-ApiLines $f.FullName)) { [void]$declared.Add($l); [void]$declaredFlat.Add($l) }
+            }
+            foreach ($f in $overlayFiles) {
                 foreach ($l in (Read-ApiLines $f.FullName)) { [void]$declared.Add($l) }
             }
             if ($code -eq 'RS0016' -and $declared.Contains($d.symbol)) {
@@ -400,14 +426,25 @@ function Do-FixDrift {
 
             $presentDirs = if ($isFlat) { @() } else { @(Get-ChildItem -LiteralPath $apiRoot -Directory | ForEach-Object Name | Sort-Object) }
             $flagged     = @($g.Group | ForEach-Object { $_.tfm } | Where-Object { $_ } | Sort-Object -Unique)
+            $projTfms    = @(Get-ProjectTfms $d.csproj)
+            # Flat placement is only right when the symbol is flagged on every TFM the shared pair
+            # serves: every overlay directory (sibling projects sharing one pair, the EF family) AND
+            # every TFM of this project — a hybrid project (Identity) has TFMs with no overlay, and
+            # an overlay-only comparison would declare a net10+-only symbol for net462 too.
+            $coversDirs  = $presentDirs.Count -eq 0 -or @($presentDirs | Where-Object { $flagged -notcontains $_ }).Count -eq 0
+            $coversProj  = $projTfms.Count    -eq 0 -or @($projTfms    | Where-Object { $flagged -notcontains $_ }).Count -eq 0
+
+            if ($code -eq 'RS0017' -and $declaredFlat.Contains($d.symbol) -and $flagged.Count -gt 0 -and -not $coversProj) {
+                # Declared in the shared pair but gone on only some TFMs: the symbol still exists
+                # on the others, so a per-TFM tombstone is the wrong shape — the declaration has to
+                # move from the shared pair into the overlays of the TFMs that still have it.
+                $failures += "RS0017 '$($d.symbol)': declared in the shared pair but stale only on $($flagged -join ',') of $($projTfms -join ','); move it from $flatDir into PublicAPI/<tfm>/ overlays for the remaining TFMs — fix-drift does not perform moves"
+                continue
+            }
 
             # A flat-layout project has exactly one pair, so there is no per-TFM placement to decide.
-            if ($isFlat -or
-                ($presentDirs.Count -gt 0 -and $flagged.Count -gt 0 -and
-                 @(Compare-Object $presentDirs $flagged -SyncWindow 0).Count -eq 0)) {
-                Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
-            } elseif ($flagged.Count -eq 0) {
-                Add-Edit -Path (Join-Path $apiRoot 'PublicAPI.Unshipped.txt') -Line $line
+            if ($isFlat -or $flagged.Count -eq 0 -or ($coversDirs -and $coversProj)) {
+                Add-Edit -Path (Join-Path $flatDir 'PublicAPI.Unshipped.txt') -Line $line
             } else {
                 foreach ($t in $flagged) {
                     $dir = Join-Path $apiRoot $t
@@ -432,7 +469,7 @@ function Do-FixDrift {
             error             = 'assertion-failures'
             assertionFailures = $failures
             edits             = $editSummary
-            message           = 'Log and tree disagree — no files were modified. Re-run -Action build to refresh the log.'
+            message           = 'No files were modified — read assertionFailures: a stale log (re-run -Action build) or a declaration that has to move between files, which fix-drift does not do.'
         }
         return
     }
