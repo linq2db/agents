@@ -804,6 +804,10 @@ Two details the obvious fix gets wrong:
 
 Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
 
+### Access ODBC hangs reading back a long computed string
+
+Over ODBC (Jet and ACE), reading back a computed string of about 5000 characters (`db.Select(() => Sql.ToSql(longText))`) does not fail: `System.Data.Odbc`'s `OdbcDataReader.internalGetString` spins at full CPU and the test never ends. OleDb and LibRed return the value. Exclude `TestProvName.AllAccessOdbc` from such a test with that reason on the line above. A run that stops advancing while its host still burns CPU is this shape; a mini dump shows the stack (`dotnet-dump collect -p <pid> --type Mini`, then `dotnet-dump analyze <file> -c "clrstack -all" -c exit`). (2026-11-17: a 5000-character literal round-trip test; ODBC hung, OleDb passed.)
+
 ### Sub-second `DateTime` values: use multiples of 10 ms
 
 SQL CE and SQL Server's `datetime` store time in steps of 1/300 s, so a value such as `.345` is stored as `.34667`. The client reads it back rounded (`347`), while a server-side millisecond count truncates (`346`). A test whose expected value comes from the stored read-back then disagrees with the server by one rounding step, which is not the defect under test. When a test needs milliseconds but not sub-10 ms precision, use whole multiples of 10 ms (`new DateTime(…, 780)`), which both types store exactly. (#5969: `MillisecondComponentHoldsPastTheRangeOfItsCounter` failed on SqlCe, 347 vs 346, until its `.345` became `.340`.)

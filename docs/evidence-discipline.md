@@ -201,6 +201,8 @@ Use the comparison to locate candidate changes. Prove equivalence through emitte
 
 **Many mutation controls need not cost a build each — put them behind one temporary switch.** At each candidate site, add a guard that returns or skips when `Environment.GetEnvironmentVariable("X_MUT")` names that site. When the sites share one helper, key it with `[CallerMemberName]` on the helper rather than editing every caller. Build once, then run each control with the variable set to its site, in a script that clears it in a `finally`. Afterwards, `Grep` `X_MUT|MUTATION` over `Source/` and require zero hits in the diff. (#6201: eight per-slot controls from one build. Seven went red; the eighth, GROUP BY, stayed green, which showed that the builder never puts a predicate in that slot.)
 
+**A BCL behaviour on .NET Framework can be probed without a test project: `powershell.exe` runs on .NET Framework 4.x, `pwsh` on modern .NET.** The same one-liner in both measures a cost or a result per runtime, and the two can disagree. `Add-Type -AssemblyName <name>` loads an assembly `powershell.exe` does not load by default. Report which runtime each number came from (`[Environment]::Version` in `powershell.exe`, `[System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription` in `pwsh`). (2026-11-17: `BigInteger.Parse` timed on both; .NET Framework 20k / 40k / 80k digits 199 / 498 / 2538 ms, .NET 10 flat in comparison.)
+
 **A probe log a plan cites is append-only until the plan's verdict.** Write each run under its own name, or append to the log; never delete it between runs. (#5843: clearing the log before each run left the critic six measurements short of what the plan cited.)
 
 ## Claims you have not run
