@@ -351,6 +351,10 @@ Delivery path (stacked PR, user-approved 2026-10-22): B-1 local rename to `featu
   - Tests: TO-63 gains `ContextField` and `CompiledContextField` arms, over a `TestDataConnection` subclass with a `Task<int>` field.
   - Verified. Red before the fix on SQLite.MS: `ContextField` with `Error_QueryBatch_TaskPart`, the other 11 arms green, `CompiledContextField` among them. After: QueryBatchTests + SelectScalarTests on SQLite.MS (with remote) 277 total, 275 passed, 0 failed, 2 skipped (`NestedSelectWithEagerLoadedCollectionsUnderCteUnion`, `MarkerSurvivesCteUnion`). Release `Tests/Linq` `-f net11.0`, which builds `Source/LinqToDB` with analyzers: 0 warnings, 0 errors.
   - re-derives: E-23 (`IsHeldTask`), TO-63.
+- A-11 (2026-11-17) — igor-tkachev's agentic review 5886353080 on c019679985 (COMMENTED; his approval on that commit was dismissed by the a3d97b1732 push), dispositions by the user. Docs only, no engine change.
+  - MAJ003 (the user's call: docs and title): a batch with a collection runs in the load transaction (SC-10), whose BEGIN and COMMIT are round trips of their own, so "one round trip" was false for count + page (reviewer's measure on PostgreSQL 17: 2 round trips, as the two queries alone; SQL Server expected 3, not measured). The 16 summaries now say "as one command"; a remarks paragraph states the transaction and its cost, one round trip only for a selector of scalars. The PR is retitled to match. Rejected: BEGIN … COMMIT as statements of the combined command (a cross-provider change: isolation level, rollback after a failure mid-command, the connection's transaction state); dropping the transaction (loses the consistent read SC-10 exists for).
+  - MIN012 (the user's call: one sentence): a remote context reads each part with a call of its own and opens no transaction (P10, U-10), so a write between two calls is seen by one part only (reviewer's test: Total 11, All 10 over LinqService; 10 / 10 direct). The same remarks paragraph says so. Rejected: remote combining or a server-side transaction (out of scope, as the description says).
+  - re-derives: E-1 (the summaries and remarks), the PR title.
 
 ## P12 Critic verdict (M/L)
 
