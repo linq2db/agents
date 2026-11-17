@@ -395,6 +395,13 @@ function Invoke-Validate {
             $byAmendment = [regex]::Matches($row, '\bA-\d+\b') | Where-Object { $amendDates[$_.Value] -ge '2026-10-21' }
             if ($byAmendment) { $errors += $msg } else { $warnings += $msg }
         }
+        # work-plan.md -> P9 G-01: a family left to CI needs its reason; "every other provider (CI)" names none
+        # (#5969 A-13: Firebird had a stopped container and went red on the next review's CI).
+        elseif ($row -match '(?i)\bevery other provider\b[^—]*\bCI\b') {
+            $msg = "P8 : row leaves 'every other provider' to CI -- name the container providers left out and why (work-plan.md -> P9 G-01) -- $row"
+            $byAmendment = [regex]::Matches($row, '\bA-\d+\b') | Where-Object { $amendDates[$_.Value] -ge '2026-11-17' }
+            if ($byAmendment) { $errors += $msg } else { $warnings += $msg }
+        }
     }
 
     # P9 gate results.
@@ -500,17 +507,43 @@ function Invoke-Validate {
             if ($row -notmatch '(?i)proof:\s*control') { continue }
             $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
             $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
-            if ($joined.Length -gt 0 -and ($joined -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+            # "not run" counts only inside the clause naming this TO (up to the next ';' or sentence end): a
+            # summary line naming several TOs often says another provider was not run (#6277 A-8, TO-78).
+            $clauses = (@([regex]::Matches($joined, "$toRx[^;]*?(?=;|\.\s|$)") | ForEach-Object { $_.Value }) -join ' ')
+            if ($joined.Length -gt 0 -and ($clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
                 $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
         }
 
         # A sweep hit on branch test code is a branch finding (definition-of-done.md), not a deferral. #6151: G-01
-        # recorded a one-line chain as "review item" and passed; review then raised it.
-        if (@($g01Lines | Where-Object { $_ -match 'test-diff-sweep' -and $_ -match '(?i)review item' }).Count -gt 0) {
-            $msg = "P9 : G-01's test-diff-sweep line leaves a hit as 'review item' -- fix it on the branch, or record why it is not a layout hit"
+        # recorded a one-line chain as "review item" and passed; review then raised it. #5969: the same deferral
+        # reworded ("open, dispositioned in the round-1 review walk") passed the literal match, and five of the
+        # round's nine findings were defects the plan had recorded and handed to the review this way.
+        $deferralRx = '(?i)\breview items?\b|\breview walk\b|\bopen for the review\b|\bcarried to (the )?(round-\d+ )?review\b|\bleft (open )?for (the )?review\b|\bdispositioned in the (round-\d+ )?review\b'
+        # "cleared" passes only with the disposition it cites (a review finding id or the user's call), and never on
+        # a "re-indent" reason: a re-indented line is PR-modified (review-conventions.md). #5969 round 4: "cleared in
+        # round 1 (re-indents / no chain)" carried two real chains through three amendments.
+        $citedRx    = '\b(BLK|MAJ|MIN|SUG|NIT)\d{3}\b|(?i)\buser\b'
+        $deferred   = @($g01Lines | Where-Object {
+            $_ -match $deferralRx -and (
+                $_ -notmatch '(?i)\b(fixed|cleared|resolved)\b' -or
+                $_ -match '(?i)\bre-?indent' -or
+                ($_ -match '(?i)\bcleared\b' -and $_ -notmatch '(?i)\b(fixed|resolved)\b' -and $_ -notmatch $citedRx))
+        })
+        if ($deferred.Count -gt 0) {
+            $msg = "P9 : G-01 hands an open item to the review ('$(($deferred[0] -replace '\s+', ' ').Substring(0, [Math]::Min(80, ($deferred[0] -replace '\s+', ' ').Length)))…') -- fix it on the branch, give it a TO-n, or record why it is not a finding"
             if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
+        # The same deferral in an amendment or a critic round is warned, not refused: P12 keeps round history, and
+        # an objection recorded open there may have been answered by a later round.
+        foreach ($blockId in 'P11', 'P12') {
+            $blk = Get-Block -Blocks $blocks -Id $blockId
+            if ($null -eq $blk) { continue }
+            $hits = @($blk.lines | Where-Object { $_ -match $deferralRx -and $_ -notmatch '(?i)\b(fixed|cleared|resolved|answered)\b' })
+            if ($hits.Count -gt 0) {
+                $warnings += "$($blockId) : $($hits.Count) line(s) hand an item to the review rather than to a TO-n, a P7 deferred: row or P10 (work-plan.md) -- e.g. '$((($hits[0] -replace '\s+', ' ').Trim()).Substring(0, [Math]::Min(80, (($hits[0] -replace '\s+', ' ').Trim()).Length)))…'"
+            }
         }
 
         # An analyzer edit-point owes a per-branch fixture census with a denominator (work-plan.md). #6151: two
@@ -535,6 +568,37 @@ function Invoke-Validate {
             [regex]::Matches(($p11Block.lines -join "`n"), '(?m)^-\s+(?:\*\*)?A-\d+\s*\((\d{4}-\d{2}-\d{2})') |
                 Where-Object { $_.Groups[1].Value -gt '2026-10-28' }).Count -gt 0
         if ($Done -or $lateAmendment) { $errors += $msg } else { $warnings += $msg }
+    }
+
+    # The latest G-01 sweep record names every category test-diff-sweep.ps1 reports, zeros included. #5969 round 3:
+    # the records listed chains and narrowed sets while the sweep flagged a type-only Shouldly gate under
+    # typeOnlyShouldlyGates, and the gate survived two review rounds. The category list is read from the sweep
+    # script's output block, so a new category is enforced without editing this check. Only records belonging to
+    # an amendment dated from 2026-11-16, when the check landed, are held to it.
+    $sweepScript = Join-Path $PSScriptRoot 'test-diff-sweep.ps1'
+    if ($g01Rows.Count -gt 0 -and (Test-Path -LiteralPath $sweepScript)) {
+        $outBlock = [regex]::Match([System.IO.File]::ReadAllText($sweepScript), '(?s)\[ordered\]@\{(.*?)\}\s*\|\s*ConvertTo-Json')
+        $sweepCats = @(if ($outBlock.Success) {
+            [regex]::Matches($outBlock.Groups[1].Value, '(?m)^\s*(\w+)\s*=\s*@\(') | ForEach-Object { $_.Groups[1].Value }
+        })
+        $sweepRecs = @()
+        foreach ($l in @($g01 -split "`r?`n")) {
+            if ($sweepRecs.Count -eq 0 -or $l -match '^\s*-\s') { $sweepRecs += $l }
+            else { $sweepRecs[$sweepRecs.Count - 1] += ' ' + $l.Trim() }
+        }
+        $sweepRecs = @($sweepRecs | Where-Object { $_ -match 'test-diff-sweep' })
+        if ($sweepCats.Count -gt 0 -and $sweepRecs.Count -gt 0) {
+            $last    = $sweepRecs[$sweepRecs.Count - 1]
+            $p11Text = (@((Get-Block -Blocks $blocks -Id 'P11').lines) -join "`n")
+            $aDate   = if ($last -match '^\s*-\s+(A-\d+)\b' -and $p11Text -match "(?m)^-\s+(?:\*\*)?$($Matches[1])\s*\((\d{4}-\d{2}-\d{2})") { $Matches[1] } else { $null }
+            if ($null -ne $aDate -and $aDate -ge '2026-11-16') {
+                $missing = @($sweepCats | Where-Object { $last -notmatch "\b$_\b" })
+                if ($missing.Count -gt 0) {
+                    $msg = "P9 : the latest G-01 test-diff-sweep record omits categories $($missing -join ', ') -- cite every category the sweep reports, zeros included"
+                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                }
+            }
+        }
     }
 
     # P10 entries need a reason.
@@ -577,8 +641,11 @@ function Invoke-Validate {
         $entries = @()
         $current = $null
         foreach ($l in $p11.lines) {
-            # bold optional: most plans write `- A-n (date, note) —`, which a bold-only match skipped entirely
-            if ($l -match '^-\s+(?:\*\*)?(A-\d+)') {
+            # bold optional: most plans write `- A-n (date, note) —`, which a bold-only match skipped entirely.
+            # Long plans write `### A-n — <title> (date, …)`, which the bullet-only match skipped: every P11 check
+            # below was blind to #5956's A-24..A-27, and A-26 reached review with no re-derives: line and no critic
+            # round; round 3's three findings all came from it.
+            if ($l -match '^(?:-\s+(?:\*\*)?|#{3,6}\s+)(A-\d+)\b') {
                 if ($null -ne $current) { $entries += $current }
                 $current = [ordered]@{ id = $Matches[1]; text = $l }
             }
@@ -671,6 +738,19 @@ function Invoke-Validate {
             if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
         }
 
+        # "D-1..D-3 stand" on an amendment that adds edit-points leaves the new E-n with no failure-mode or reach line
+        # for the critic to attack (#6277 A-2: three of review round 4's four findings sat in its E-8/E-9). Such an
+        # amendment needs a P5 decision that names it. Warn only: some edit-points genuinely fall under an existing D-n.
+        $p5Text = (Get-Block -Blocks $blocks -Id 'P5')
+        $p5Text = if ($null -ne $p5Text) { $p5Text.lines -join "`n" } else { '' }
+        foreach ($e in $entries) {
+            if (-not (& $addsEditPoints $e) -and $e.text -notmatch '\bE-\d+\b') { continue }
+            if ($e.text -notmatch '(?i)\bD-\d+(\s*(\.\.|-|–)\s*D-\d+)?\s+stands?\b') { continue }
+            if ($p5Text -match "\b$([regex]::Escape($e.id))\b") { continue }
+
+            $warnings += "P11 : $($e.id) adds edit-points but says the existing decisions stand, and no P5 decision names it -- give a new predicate its own D-n (chosen / failure mode / reach)"
+        }
+
         # An amendment can change a planned mechanism without P6 citing it: it carries a `re-derives:` line, names an
         # E-n in its own text, or names a P6 file by bare file name. #6157 A-9 did all three, no critic round named it,
         # and both of review round 2's majors sat in what it changed. Errors from 2026-11-03; older entries warn.
@@ -746,7 +826,9 @@ function Invoke-Validate {
             # markdown-heading round (`### Round 1 — <scope> — weak (note)`) after the heading's last dash. Heading
             # rounds used to fall through to the any-line scan, which read `holds` from "census holds" (#5906). The
             # highest-numbered round wins, not the last in file order: rounds are not always appended.
-            $rounds   = @($p12.lines | Where-Object { $_ -match '^(\*\*|#{2,6}\s+)Round \d+' })
+            # Verdict-first rounds (`weak — round 3 (delta A-4), …`) are the third shape (#5969: eight rounds, read as
+            # `holds` and then `refuted` from prose while the last round was `weak`).
+            $rounds   = @($p12.lines | Where-Object { $_ -match '^(\*\*|#{2,6}\s+)Round \d+' -or $_ -match '^`?(holds|weak|refuted)`?\s*[—-]+\s*round \d+' })
             $topRound = -1
             foreach ($l in $rounds) {
                 $null = $l -match 'Round (\d+)'
@@ -754,6 +836,7 @@ function Invoke-Validate {
                 $v    = $null
                 if     ($l -match '^\*\*Round \d+[^*]*[—-]\s*`?(holds|weak|refuted)\b')           { $v = $Matches[1] }
                 elseif ($l -match '^#{2,6}\s+Round \d+.*[—-]\s*`?(holds|weak|refuted)\b[^—]*$')   { $v = $Matches[1] }
+                elseif ($l -match '^`?(holds|weak|refuted)`?\s*[—-]+\s*round \d+')                  { $v = $Matches[1] }
                 if ($null -ne $v -and $n -ge $topRound) { $verdict = $v; $topRound = $n }
             }
             if ($rounds.Count -ge 2) {

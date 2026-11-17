@@ -17,6 +17,10 @@ The shapes, after stripping the leading ISO timestamp and ANSI escapes:
     skipped <Test>("<provider>"[,<args>]) (<duration>)
       <message line>
 
+A test without a provider argument (`failed Foo (5ms)`, `failed Foo(1,True) (5ms)`) is parsed too, with
+provider `-`. A quoted first argument that is not a provider name (`Foo("Header")`) lands in the provider
+column as it is. Before this, such cases were silently dropped from the table.
+
 and, for a case the ActiveIssue attribute rewrote, the message line is one of:
 
     [ActiveIssue] Test passed but is marked with [ActiveIssue] (<details>).      -> gate-too-wide
@@ -150,7 +154,10 @@ function Clear-Decoration {
 }
 
 $testFilter = if ($Test) { '(?:' + (($Test | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')' } else { '[A-Za-z_]\w*' }
-$caseRx     = "^(failed|skipped)\s+($testFilter)\(""([^""]*)""([^)]*)\)\s+\(\d"
+# The argument list is optional, and so is its quoted first string: a unit test without a provider argument
+# (Foo, Foo(1, True)) reports provider '-', and a quoted first argument that is not a provider name lands in the
+# provider column as it is.
+$caseRx     = "^(failed|skipped)\s+($testFilter)(?:\((?:""([^""]*)"")?([^)]*)\))?\s+\(\d"
 
 $rows = [System.Collections.Generic.List[object]]::new()
 
@@ -207,8 +214,8 @@ foreach ($d in $Dir) {
 
             $outcome  = $Matches[1]
             $testName = $Matches[2]
-            $provider = $Matches[3]
-            $args_    = $Matches[4].TrimStart(',')
+            $provider = if ($Matches[3]) { $Matches[3] } else { '-' }
+            $args_    = "$($Matches[4])".TrimStart(',')
 
             $message = Clear-Decoration $lines[[Math]::Min($i + 1, $lines.Length - 1)]
 

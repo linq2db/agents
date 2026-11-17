@@ -39,6 +39,10 @@ A **preprocessor symbol** is such a concept. Before removing, renaming or moving
 
 When an in-flight task surfaces an *unrelated* master breakage (usually a CI failure from a merge race), finish the in-flight branch first: resolve the conflict → force-push → `git switch -c <recovery-branch> origin/master` → open the recovery PR, which can run CI in parallel. Switching mid-rebase strands the in-flight branch rebased-but-unpushed and costs context.
 
+### A conflict resolved to upstream's side can still leave a duplicate
+
+When a rebase conflicts on a file upstream also added or rewrote (an add/add conflict, or a file a stacked parent adopted) and you take upstream's side, diff that file against upstream once the rebase finishes: `git diff <upstream> HEAD -- <file>`. A later commit whose hunk applies cleanly can re-insert code upstream's copy already carries, with no conflict reported. (2026-11-13: a block was in a shared analyzer file twice after a stacked rebase; restoring upstream's blob fixed it.)
+
 ### After every successful push: PR body check
 
 Check for a PR on the branch (`gh pr list --head <branch> --json number,title,body,url`):
@@ -160,6 +164,8 @@ git commit -m "Merge origin/master (#<parent> squash <sha>) into <branch>"
 ```
 
 Verify that `git diff --stat origin/master HEAD` equals `git diff --stat <old-base> <child-head>`, and push — no force needed. (#6111, 2026-11-06: 15 merge commits from #5673; the rebase conflicted on its first commit, the `-s ours` merge reproduced the 19-file, +2413/−51 diff exactly. A stacked parent merges via `merge-async`: [`merge-milestone`](../skills/merge-milestone/SKILL.md) step 2c.)
+
+**When a linear rebase is wanted anyway, build the expected tree first and check the result against it.** Merge the parent's final head into the child, then compute the expected result without touching the tree: `git merge-tree --write-tree --merge-base <parent-final-head> origin/master <child>`. Then `git rebase --onto origin/master <parent-final-head>`. At each stop, keep the HEAD side and re-apply only the commit's own intent. Take `--ours` / `--theirs` only where master already carries the change: it takes the whole file, and the other side's clean hunks go with it. Finish with `git diff HEAD <expected-tree>`. Fold each residual into the commit it belongs to with `git commit --fixup=<sha>` and `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash origin/master`. Expect commits whose change master already has to drop out. Drop `PublicAPI.Unshipped.txt` lines that master already lists in `PublicAPI.Shipped.txt` rather than restoring them. A script that resolves conflicts as a line union must keep the file's BOM and CRLF. (#5969, 2026-11-15: 20 commits through 14 merges, 7 stops. 3 commits dropped out, and the final tree equalled the expected one except for 11 `Unshipped` lines already in `Shipped`.)
 
 **Orphaned baselines in an otherwise-valid baselines PR are not an action item — stale *keys* are.** The two read alike and pull opposite ways. A branch carries files for an old test name as orphans; `baselines-reviewer` misclassifies them as `new_correct`, so cross-check against the head's `DisableBaseline` usage yourself. **Over-baselining is not a problem and needs no cleanup** — the release flow resets `linq2db.baselines` to the documented anchor commit so CI regenerates clean baselines on the release PR. Never propose closing a baselines PR or deleting its branch *to tidy orphans*, and never make orphans a review finding. (#5732) The close+delete-branch action above is for a PR whose keys no longer describe the branch; reaching for `close-stale-baselines.ps1` is the documented route — don't hand-roll `gh pr comment` + `gh pr close --delete-branch`. (#5708)
 

@@ -222,7 +222,7 @@ A change that removes or raises a modern TFM in `<TargetFrameworks>`, or narrows
 
 #### Adding a .NET major TFM: re-check the ban lists
 
-RS0030 bans by documentation ID, so **per overload**. A new .NET major adds overloads and C# overload resolution often prefers them: .NET 9's `params ReadOnlySpan<object?>` twins moved every 4+-argument `string.Format` off the banned `object[]` overload, silently. A change that adds a .NET major to `<TargetFrameworks>` (net10 → net11) must, before it merges:
+RS0030 bans by documentation ID, so **per overload**. An ID without a parameter list (`M:N.T.Method`) matches nothing and raises no error, so list each overload's full signature, with generic methods spelled ``` M:N.T.Method``1(System.Action) ```. (#6330: measured on BannedApiAnalyzers 5.6.0; eleven parameterless IDs flagged none of 19 banned calls.) A new .NET major adds overloads and C# overload resolution often prefers them: .NET 9's `params ReadOnlySpan<object?>` twins moved every 4+-argument `string.Format` off the banned `object[]` overload, silently. A change that adds a .NET major to `<TargetFrameworks>` (net10 → net11) must, before it merges:
 
 1. **List** the gaps: `.claude/scripts/banned-api-overloads.ps1 -RefDir <new ref pack> -BaselineRefDir <previous ref pack>` (`<dotnet>\packs\Microsoft.NETCore.App.Ref\<ver>\ref\net<N>.0`) prints, for every banned member in every tracked `BannedSymbols.txt`, the same-name overloads no entry covers; `newInTarget` marks the ones the new TFM added.
 2. **Classify** each `newInTarget` gap: the same hazard as its banned twin (culture-sensitive formatting or parsing, current-culture comparison, a reflection invoke that skips `TargetInvocationException` unwrapping) → ban it beside the twin with the same message; the sanctioned alternative the message names (`IFormatProvider`, `StringComparison`, `char` / `Rune`) → leave it. Older gaps of the same hazard count too: the check first ran on the .NET 11 PR ([#5942](https://github.com/linq2db/linq2db/pull/5942)), which is what found the .NET 9 span twins.
@@ -260,7 +260,7 @@ Then rebuild the parent node. Reviewer consequence: flag any assignment to a `Sq
 
 ### `SetDefaultFromEnumType` is keyed on the exact type — unwrap `Nullable` before asking
 
-`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and the no-column conversion in `ParametersContext` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
+`Converter.GetDefaultMappingFromEnumType(schema, typeof(T?))` passes the nullable type on to `GetDefaultFromEnumType`, so a registration for `T` is missed and the answer falls back to the underlying type (`int?`). A caller that needs the registration unwraps first, as `ExpressionBuildVisitor.VisitUnary` and `ExpressionBuildVisitor.TryGetRegisteredEnumCast` do. (#6277: an `ApiGender?` parameter reached the database as its ordinal while `ApiGender` was mapped.)
 
 ### Convert-visitor overrides run per node — no allocation on the no-op path
 
@@ -275,6 +275,8 @@ Projection finalization (`ExpressionBuilder.QueryBuilder.cs`) loops `Visit` + `T
 Constructors and `Modify` methods on types under `LinqToDB.Internal.SqlQuery.*` (and peer internal AST namespaces) do **not** carry null / empty argument guards. Validation is the job of the factory extensions (`SqlExpressionFactoryExtensions.Concat`, peers) that provide the validated entry point for broader use; bare AST ctors trust callers to respect `<Nullable>enable</Nullable>` and pass sane parameters. Adding the same guard on the ctor duplicates the check at no benefit and adds noise NRT analysis would have already surfaced.
 
 Reviewer consequence: do **not** flag missing constructor / `Modify` null-or-empty guards on a new AST type as a defect — `SqlConcatExpression`, `SqlCoalesceExpression`, and the rest of the peers follow this convention by design. Exception: when a caller path is genuinely unverified (data off the wire with no schema validation, etc.), surface the concern at the *caller*, not the AST type itself.
+
+**Translators build nodes through the factory, never with a bare AST constructor.** A member translator creates its SQL through the `ISqlExpressionFactory` extensions (`SqlExpressionFactoryExtensions.Binary`, `Add`, `Mod`, peers), not with `new SqlBinaryExpression(…)`. When no overload takes the parameter you need, such as a precedence, add the overload to the extensions class and have the existing one delegate to it; don't bypass the factory at the call site. (#5969: `Binary(…, int precedence)` for native Access `^`.)
 
 ### Version-aware translators: derive a subclass, don't parameterize
 

@@ -166,12 +166,20 @@ Output (stdout, single JSON object):
     "linqToDBAsset": "netstandard2.0", // only with -LinqToDBAsset; the asset the tests ran against
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
+    "failedFullNames": [ "Tests.UserTests.Issue1347Tests.Test2(\"SQLite.MS\")", ... ],
+                                     // from the run's TRX report, with the class; failedTests carries the method
+                                     // only, which is ambiguous for common names (Test2). Empty when no TRX was
+                                     // written (bare-NUnit hosts, where --test-progress is skipped too)
     "failures":  [ { "test": "SomeTest(\"SQLite.MS\")", "message": [ "Shouldly...", ... ] } ],
                                      // first -MaxFailures (20) distinct failures, each with up to
                                      // -FailureLines (8) message lines - stack frames and the
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
     "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than every assembly in the test output (stale run)
+    "buildErrors": [ "...: error CS0246: ..." ],
+                                     // only when the inline build failed (not with -NoBuild): `dotnet test` drops the
+                                     // compiler output, so the script re-runs `dotnet build` into buildLogPath and lists
+                                     // the first 10 errors; empty means the re-run built clean (a transient failure)
     "failureGroups": [ { "test": "TrimLeft", "count": 2, "message": "LinqToDB.LinqToDBException : ..." } ],
                                      // only with -GroupFailures; one entry per failed method
     "hint":      "..."               // only for a recognised environment failure (NuGet cache lock), or
@@ -450,6 +458,11 @@ if ($Filter)   { $dotnetArgs += @('--filter', $Filter) }
 if ($Provider.Count -gt 0) { $dotnetArgs += @('--provider', ($Provider -join ',')) }
 if ($OutputDetailed -or $ExpectTests) { $dotnetArgs += @('--output', 'Detailed') }
 if ($useTestProgress) { $dotnetArgs += '--test-progress' }
+
+# The console names a failed test by method only; the TRX report carries its class. Gated like --test-progress:
+# a bare-NUnit host rejects MTP options.
+$trxDir = Join-Path (Split-Path -Parent $LogPath) ([System.IO.Path]::GetFileNameWithoutExtension($LogPath) + '-trx')
+if ($useTestProgress) { $dotnetArgs += @('--report-trx', '--report-trx-filename', 'run.trx', '--results-directory', $trxDir) }
 if ($NoBuild) { $dotnetArgs += '--no-build' }
 
 # -NoBuild after a failed build runs the previous assembly without saying so (#5673: a failed master-control build
@@ -579,12 +592,41 @@ if (Test-Path -LiteralPath $LogPath) {
     }
 }
 
+$failedFullNames = @()
+$trxFile         = Join-Path $trxDir 'run.trx'
+if (Test-Path -LiteralPath $trxFile) {
+    $trxNs   = @{ t = 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010' }
+    $trxXml  = [xml][System.IO.File]::ReadAllText($trxFile)
+    $classes = @{}
+    foreach ($u in (Select-Xml -Xml $trxXml -XPath '//t:UnitTest' -Namespace $trxNs)) { $classes[$u.Node.id] = $u.Node.TestMethod.className }
+    foreach ($r in (Select-Xml -Xml $trxXml -XPath "//t:UnitTestResult[@outcome='Failed']" -Namespace $trxNs)) {
+        $failedFullNames += ($classes[$r.Node.testId] + '.' + $r.Node.testName)
+    }
+}
+
 if (-not $hint -and $failedTests.Count -gt 0 -and $Project -match 'Tests[\\/]Linq[\\/]' -and $Filter -notmatch 'CreateData\.CreateDatabase') {
     $hint = 'Filter has no CreateData.CreateDatabase: a data-dependent failure may be a stale or unseeded test database. Rerun with it before reading the failure as a defect.'
 }
 
 if (-not $hint -and $NoBuild -and -not $summary) {
     $hint = '-NoBuild found no runnable build output for this project/TFM/configuration; run once without -NoBuild.'
+}
+
+# dotnet test (MTP) reports a failed inline build as one line, "Build failed with exit code: 1", and drops the
+# compiler output (#6330). Re-run the build once to capture it, and say when the re-run found nothing.
+$buildErrors = @()
+if ($buildFailed -and -not $NoBuild) {
+    if (-not $buildLogPath) { $buildLogPath = $LogPath -replace '\.log$', '-build.log' }
+    $diagArgs = @('build', $projectFull, '-c', $Configuration, '-nologo')
+    if ($Tfm) { $diagArgs += @('-f', $Tfm) }
+    Push-Location -LiteralPath $repoFull
+    try     { & dotnet @diagArgs *> $buildLogPath }
+    finally { Pop-Location }
+    $buildErrors = @(Select-String -LiteralPath $buildLogPath -Pattern ': error [A-Z]+\d+:' | ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 10)
+    if (-not $hint) {
+        $hint = if ($buildErrors.Count) { "Build failed; the first compiler errors are in buildErrors, full output in $buildLogPath." }
+                else { "Build failed, but a re-run of dotnet build reported no compiler error: likely transient (build node, file lock). See $buildLogPath and retry." }
+    }
 }
 
 $missingTests = @($ExpectTests | Where-Object { $_ -and -not $ranTests.Contains($_) })
@@ -600,9 +642,11 @@ $result = [ordered]@{
     testProgress = $useTestProgress
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
+    failedFullNames = @($failedFullNames | Select-Object -Unique)
     failures     = @($failures)
 }
 if ($ExpectTests) { $result['missingTests'] = $missingTests }
+if ($buildFailed -and -not $NoBuild) { $result['buildErrors'] = $buildErrors }
 if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
 if ($staleBuild)  { $result['staleBuild']   = $staleBuild; if (-not $hint) { $hint = "-NoBuild ran an assembly older than $staleBuild; rebuild (or check the last build log) before trusting this result." } }

@@ -27,7 +27,7 @@ Solution files: `linq2db.slnx` (full), `linq2db.playground.slnf` (individual tes
 
 ## Tests
 
-Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude/docs/testing.md). Read it before writing, modifying, or running tests. Use **Shouldly** for assertions, not NUnit `Assert`.
+Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude/docs/testing.md). Read it before writing, modifying, or running tests. Use **Shouldly** for value assertions, not NUnit `Assert`. Exception assertions are the exception: `Assert.That(() => …, Throws.TypeOf<T>())` / `await Assert.ThatAsync(…)`, falling back to `Shouldly.Should.Throw<T>` only when the exception object is needed. `Assert.Throws` / `Catch` / `DoesNotThrow*` and Shouldly's `NotThrow*` are banned (testing.md, line 5).
 
 > **Claude Code:** invoke the `/test` skill — it injects the `CreateDatabase` filter, selects the right project, and runs the baselines diff. Don't hand-run `dotnet test` or pre-build first.
 > **Codex / Copilot:** `dotnet test --project Tests/Linq/Tests.csproj -f net10.0 --settings .runsettings --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~<name>" --provider <provider> --test-progress` — without `--provider`, provider-backed tests resolve zero data sources. Connection strings come from `UserDataProviders.json`; full recipe in [testing.md](.claude/docs/testing.md).

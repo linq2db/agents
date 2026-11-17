@@ -149,3 +149,14 @@ these counts — an unmeasured "ACE evaluates it", a stored query probed without
 
 The register is also what keeps the workarounds honest: every entry names the code that exists only
 because the driver misbehaves, so when upstream fixes it there is a list of things to delete.
+
+## A prerelease driver bump reads every release in between
+
+A prerelease driver changes behaviour between drops, and a bump that jumps several versions skips the notes nobody
+read. Before bumping, list the upstream releases between the last version the gates were measured on and the new
+one, and read each one's notes for SQL-engine, typing and refusal changes. Then re-run the gated tests on the new
+version, on every branch that carries gates for that driver, not only the one doing the bump. LibRed's releases are
+GitHub releases on `CirrusRedOrg/EntityFrameworkCore.Jet` (tags `v11.0.0-*`; `gh api
+repos/CirrusRedOrg/EntityFrameworkCore.Jet/releases`). (#5956 bumped alpha.4 to beta.1 and skipped alpha.5, the
+release with the SQL-engine changes: ACE typing, refusal of ungrouped columns, no decorrelation under `OFFSET`.
+#5969's gates were re-measured only after its rebase.)

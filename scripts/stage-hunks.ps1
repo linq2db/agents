@@ -29,7 +29,10 @@ findings' changes usually splits by itself once the first commit lands.
 
 `-Split <n>:<k>` handles the case where it does not, keeping only the first k content lines of
 hunk n (for an addition-only hunk whose two halves are contiguous in the file). The trailing
-context line is preserved and the ranges are recomputed.
+context line is preserved and the ranges are recomputed. **k counts the hunk's body from the top,
+its leading context line included**: with the usual one line of context, `-Split n:k` stages k-1
+added lines, so to stage m added lines pass m+1 (#6277: an off-by-one here dropped a test's
+trailing blank line twice). Check the staged tail with `git diff --cached` before committing.
 
 `-CutFile <path> -Cut '<start>|||<end>', ...` is the exact fallback when hunks will not separate -
 typically an insertion directly beside an edited line, which git always reports as one hunk.
@@ -262,8 +265,9 @@ if ($ListOnly) {
 $splitHunk = -1; $splitKeep = 0
 if ($Split) { $parts = $Split -split ':'; $splitHunk = [int]$parts[0]; $splitKeep = [int]$parts[1] }
 
-$out          = [System.Text.StringBuilder]::new()
-$emittedFiles = @{}
+$out            = [System.Text.StringBuilder]::new()
+$emittedFiles   = @{}
+$stagedRemovals = @{}
 
 foreach ($n in ($Hunks | Sort-Object)) {
     if ($n -lt 1 -or $n -gt $hunkList.Count) { throw "hunk $n out of range (1..$($hunkList.Count))" }
@@ -296,6 +300,9 @@ foreach ($n in ($Hunks | Sort-Object)) {
     }
 
     foreach ($b in $body) { [void]$out.Append($b) }
+
+    $bodyPath = ($key -replace '^diff --git a/', '' -replace ' b/.*', '').TrimEnd()
+    $stagedRemovals[$bodyPath] = [int]$stagedRemovals[$bodyPath] + @($body | Where-Object { $_ -like '-*' }).Count
 }
 
 $stepPath = Join-Path $scratchDir 'stage-hunks-step.patch'
@@ -303,7 +310,10 @@ $stepPath = Join-Path $scratchDir 'stage-hunks-step.patch'
 
 # With one line of context, an addition hunk whose context line repeats (`/// <summary>`, a blank line) can
 # apply cleanly at the wrong occurrence. Staged where the working tree has it, a hunk only removes lines from
-# the index -> worktree diff; staged elsewhere, it adds removals there. So count them before and after.
+# the index -> worktree diff; staged elsewhere, it adds removals there. So count them before and after - and
+# subtract the staged hunks' own removals from the expectation, or a misplaced block that moves lines (as many
+# removed as added) hides behind the removals its own staging dropped (#6277: a moved 12-line block applied
+# between `}` and `else if`, and the commit did not compile).
 function Get-RemovalCount([string]$path) {
     @(& git -C $Worktree diff -U0 -- $path | Where-Object { $_ -match '^-' -and $_ -notmatch '^---' }).Count
 }
@@ -319,7 +329,7 @@ foreach ($n in $Hunks) {
 & git -C $Worktree apply --cached --whitespace=nowarn $stepPath
 if ($LASTEXITCODE -ne 0) { throw "git apply --cached failed ($LASTEXITCODE); patch left at $stepPath" }
 
-$misplaced = @($touched.Keys | Where-Object { (Get-RemovalCount $_) -gt $touched[$_].Removals })
+$misplaced = @($touched.Keys | Where-Object { (Get-RemovalCount $_) -gt $touched[$_].Removals - [int]$stagedRemovals[$_] })
 if ($misplaced.Count -gt 0) {
     foreach ($path in $misplaced) {
         $entry = $touched[$path].Entry

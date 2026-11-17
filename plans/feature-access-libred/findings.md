@@ -19,6 +19,46 @@ Packages: `LibRed.Ado` → `LibRed.Engine` → `LibRed.Core`, `LibRed.Sql`, `Ant
 
 ---
 
+# beta.1 (2026-11-15)
+
+Recorded from the linq2db suite (#5969), not from a raw-ADO probe: the `Access.LibRed.Mdb` full run on
+`LibRed.Ado` 11.0.0-beta.1 (10 748 tests, 0 failed, 162 skipped) and CI `Lin zz_Access_LibRed` at #5969
+`cd009d488`. Candidate upstream report.
+
+## A join key the hash join cannot resolve: `Column 'vpcc.Id' was not found`
+
+`Tests/Linq/UserTests/Issue4336Tests.cs:Issue4336Test` builds a view-like query over six tables (products,
+categories, order headers and items, order periods, products-per-period) joined through a derived table
+aliased `vpcc`, then takes the first ten rows. On LibRed the statement fails with
+`Column 'vpcc.Id' was not found` - the hash join does not resolve a key column that the derived table does
+project. Measured on alpha.4 (#5969 `12f449283`, 2026-11-09) and still failing on beta.1: the gate
+(`[ActiveIssue(Configuration = AllAccessLibRed)]`, `Issue4336Tests.cs:18-19`) did not report a pass in the
+beta.1 sweep. The native Access flavours exclude the test, as master did (`AllNativeAccess` in its `[DataSources]`),
+so there is no ACE comparison and no committed baseline; capturing the emitted SQL with
+`LastQuery` is the next step before a report.
+
+## Measured capabilities (not defects)
+
+- **`DateAdd` takes an amount past 2^31.** `DateAdd('s', DateDiff_Big('s', a, b), a)` over 75 years (about
+  2.37 × 10^9 seconds) and `DateAdd('ms', DateDiff_Big('ms', …), …)` over 32 days and 75 years return the CLR value
+  (`IntervalTranslationTests.ALongSpanIsMeasuredWhereCountingAnswersIt`,
+  `MillisecondComponentHoldsPastTheRangeOfItsCounter`, both green on `Access.LibRed.Mdb`, #5969 review round 1).
+  Jet's `DateAdd` amount is 32-bit; LibRed's is not.
+- **`OFFSET … ROWS FETCH NEXT … ROWS ONLY` without `ORDER BY` is accepted**, also inside a derived table
+  (`TakeSkipTests.SkipTake5` / `SkipCount` LibRed baselines at #5969 `cd009d488`, green on CI). The page is in
+  engine order.
+- **Aggregate `DISTINCT`** — `COUNT(DISTINCT …)`, `COUNT(DISTINCT CASE …)` grouped and in correlated scalar
+  sub-queries, `STRING_AGG(DISTINCT …)`, windowed `COUNT(DISTINCT …)` — runs and returns the CLR answer (#5969
+  `ce8d82288`, 1213 tests green on `Access.LibRed.Mdb`).
+- **Operator precedence:** `BOR` binds tighter than `BXOR` (grammar: `BAND` > `BOR` > `BXOR`), so `a BOR b BXOR c` is
+  `(a BOR b) BXOR c` (`[0,3,5,1]` for rows `(1,1,1)`, `(1,2,0)`, `(4,6,3)`, `(5,3,6)`) and `a BXOR b BOR c` is
+  `a BXOR (b BOR c)` (#5969 A-12: `BinaryXorOverOr` red at one level). An earlier reading, "one level, left to right",
+  came from the first shape only, which both orders answer alike. Native Jet/ACE rank them the same way; `MOD` evaluates left to
+  right with itself, as Jet does. linq2db parenthesizes `MOD` since #5969 `d8051a1f9`; the bitwise case is on
+  #6243.
+
+---
+
 # alpha.4 (2026-10-16)
 
 Measured with `.build/.agents/libred-a4-probe` (net10.0, the new target) against copies of the committed

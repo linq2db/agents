@@ -38,6 +38,8 @@ If that final build fails on something none of our predictive audits caught, the
 
 ### 1. Discover
 
+**Run it in a worktree fresh from `origin/master` (`git fetch origin master` first), never in the primary clone.** The script reads the checked-out `Directory.Packages.props`, so a primary clone a few merges behind proposes against the wrong pin set — on 2026-11-12 it predated the .NET 11 switch (#5942) and the whole analysis assumed net8/net9 rows that no longer existed.
+
 ```
 pwsh -NoProfile -File .claude/scripts/release-deps-discover.ps1 -Action discover -Version <ver>
 ```
@@ -213,7 +215,9 @@ Show the full diff as a single proposal. Gate on user confirmation before any ed
 
    A `[new]` entry needs a license decision, not just a version: read its license from the harvest line, add the body under `Build/licenses/texts/` if it is a license we do not already carry, and set `redistribution` to `permitted` or `unresolved`. `Build/licenses/README.md` documents the schema and the field traps (`versions` is a per-TFM map, `files` matches exact-then-glob, an absent license text is not automatically a defect).
 
-4. Leave the result uncommitted like every other change this skill makes; `/release-verify` stages it with the rest and its step 4a re-runs `check` + `verify` against the packed output.
+4. **Verify the lpx locally:** build `Source/LinqToDB.LINQPad` (it packs `.build/lpx/linq2db.LINQPad.lpx`), then run `third-party-notices.ps1 -Action verify -LpxDir .build/lpx`. The harvest's *"ship in no artifact"* note for the net462/net472 graphs can be wrong for the lpx, which bundles its net472 dependencies — on #6318 MySqlConnector 3.0 put `Microsoft.Bcl.Memory.dll` into the lpx while the harvest listed it as unshipped, and only CI's `Build and pack` caught it.
+
+5. Leave the result uncommitted like every other change this skill makes; `/release-verify` stages it with the rest and its step 4a re-runs `check` + `verify` against the packed output.
 
 ### 6. Mark deps task done — do **not** commit, do **not** push
 

@@ -47,6 +47,16 @@ Report them as themselves; do not force them into a class.
 - **`not-a-gap: reviewer-disagrees-with-P10`** — the finding contests an entry in `P10 Adjudicated`. Quote the `P10` entry and the finding side by side; the user decides which stands.
 - **`not-a-gap: out-of-plan-scope`** — the finding concerns code `P7` deliberately marked `deferred:` or `out-of-scope`, **with a reason**. Cite the row. If the deferral had no reason, that *is* a gap (`GAP-03`).
 
+## Corpus trace: why the implementing agent wrote it
+
+The attribution asks what the *plan* lacked. Also ask, for each finding, why the agent that wrote the code got it wrong, because the same classes keep coming back. Search the corpus (`docs/`, `agents/`, `skills/`, `scripts/`, other plans' `gaps.md`) and the doc comments next to the code that was edited:
+
+- **A rule exists:** cite it, then name why it did not stop the author. Typical reasons: the code predates the rule; another text contradicts it (often a code-level doc comment, or an example that cites the wrong pattern); a detector reported the hit but the skill dropped that category; the rule is in a doc that path never loads.
+- **No rule exists:** say which rule should exist and where it goes.
+- **A recurrence:** if an earlier `gaps.md` names the same class, cite it. A recurrence means the earlier fix missed, so the correction targets why it missed.
+
+Prose findings get a trace too: they are where recurring habits show up. (#5969 round 3: a type-only Shouldly gate survived although `testing.md` had the rule, because the rule's own example and `ActiveIssueAttribute`'s doc comment both endorsed the type-only form, and the sweep's detector output was never briefed.)
+
 ## Output format
 
 Emit exactly this and nothing else. The row shape is parsed by `work-plan.ps1 -Action gap-report`, so keep it exact: finding id **bolded**, then an em dash, then the class. **The gate and `preventable:` stay on the row line** even when the detail runs long: put the extra detail in indented sub-bullets *under* the row, never the verdict. (Round 8 of #5959 moved every verdict into a `- Gate: …` sub-bullet, and the report read all nine as `preventable: null`.)
@@ -64,7 +74,13 @@ Emit exactly this and nothing else. The row shape is parsed by `work-plan.ps1 -A
 ## Recommended durable fixes
 
 - <GAP-nn × N> → <destination: the scout brief in `work-plan/SKILL.md` step 5 · an attack vector in `plan-critic.md` · a P-block's semantics in `work-plan.md` · a `definition-of-done.md` gate · a `code-reviewer.md` rubric rule · an instruction doc> — <one line on what to write there>
+
+## Corpus trace
+
+- <FINDING-ID> · rule: <path:line | none> · why it did not fire: <reason> · correction: <path — what to change> · recurs: <prior gaps.md row | —>
 ```
+
+Corpus-trace rows must not start with a **bolded** id: `gap-report` parses every `- **<ID>** —` line in `gaps.md` as an attribution row.
 
 ## Rules
 

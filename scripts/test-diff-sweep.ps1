@@ -29,6 +29,24 @@ letting through:
      *Gating an assertion failure*. (#6197 TO-80: pinned DuckDB's actual order; caught by the critic.)
      AssertQuery's `<actual> <> <expected>` form carries the expected value and is not reported. Measured
      over `origin/master~300...origin/master`: 0 hits; the #6197 gate is hit.
+  7. provider tokens added on a continuation line of a multi-line provider attribute (`[DataSources(` /
+     `[IncludeDataSources(` / `[ActiveIssue(` / `[Throws…(` whose `)]` closes on a later line) — check 2 reads
+     only the attribute's opening line, so a provider set narrowed or widened inside the wrapped list never
+     reached it. (#5969 critic round 6: 92 such added lines, all seven of an amendment's sites among them,
+     tallied by hand.) Reported with the attribute's opening text; read each against its reason line.
+     Measured: `origin/pr/5969` 68 hits, the seven sites included (the hand tally also counted shared
+     exclusion constants, which are not attributes); `origin/master~300...origin/master` 200.
+  8. an added `.GetCacheMissCount(` call in a test whose attribute block and fixture both lack
+     `[QueryCacheTest]` — the counter is per entity type, so a parallel test bumps it between the two
+     captures — testing.md -> *Testing query cache HIT / MISS*. (#6277: `EqualsTypedRegisteredEnumCheckedPerExecution`,
+     off by one on five CI configs, green locally.) The enclosing member is read from the swept file itself; a
+     call in a helper is checked at each caller in the same file, and a helper with no caller there is skipped.
+  9. an added `AreEqual(` whose first argument is a hand-written LINQ-to-objects copy of the query (an
+     added argument line that does not read `db.` / `await`, followed by one that does) — testing.md ->
+     *Test layout*, rule 3 asks new tests for `AssertQuery`. Rule 3's exceptions (scalars, object-typed
+     rows, aggregates over a navigation) still use `AreEqual`, so read each hit. (#5969 round 4 NIT007:
+     four new `WhereTests.Binary*` tests followed the fixture's `AreEqual` form.) Measured: `bcefe37bb` 4 hits,
+     the four; `origin/master~300...origin/master` 10, whole-table `AreEqual(T, db.T)` compares among them.
 
 Why this script exists
 ----------------------
@@ -55,6 +73,8 @@ Contract
   -IncludeWorkingTree  also sweep uncommitted changes (`git diff <Base>` instead of `<Base>...`) and untracked
                        files under -Path, every line counted as added; not with -Ref
 
+Fixer for `chains` hits: `split-test-chains.ps1 -File <path> -Lines '<n,n,...>'` (read each hit first).
+
 `chains` holds statement-level chains. A chain nested inside parentheses or braces - a call argument,
 `new X(new DataOptions().UseConfiguration(...))`, an object initializer - goes to `nestedChains`:
 on #5640 those were 35 of 148 hits and none was a layout defect.
@@ -63,7 +83,8 @@ Output: one JSON document — { base, path, chains: [{file, line, text}], nested
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
 lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
-unanchoredAssertionGates: [{file, line, errorMessage}] }.
+unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
+cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}] }.
 #>
 
 param(
@@ -113,7 +134,15 @@ $gates  = @()
 $typeOnly    = @()
 $indents     = @()
 $unanchored  = @()
+$continued   = @()
+$cacheCalls  = @()
+$areEquals   = @()
+# check 9: an added `AreEqual(` opening line and the argument lines added after it
+$pendingAreEqual = $null
 $pendingGate = $null
+# the opening text of a provider attribute whose closing `)]` has not been seen yet, added or context line
+$openAttr    = $null
+$providerAttrRx = '\[(IncludeDataSources|DataSources|ActiveIssue|Throws\w*)\s*\('
 
 function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
 
@@ -127,8 +156,10 @@ function Get-PreviousLine {
 }
 
 # `typeof(X)` / `nameof(X)` / `default(X)` / `sizeof(X)` are operands, not calls: `typeof(X).GetMethod(...)` is one call
+# An NUnit constraint (`Throws.TypeOf<T>().With.Message.Contains(...)`) is the one chain testing.md prescribes, not a chain to split.
 function Remove-Operands([string] $text) {
-	return [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
+	$text = [regex]::Replace($text, '\b(typeof|nameof|default|sizeof)\s*\([^()]*\)', 'x')
+	return [regex]::Replace($text, '\b(Throws|Is|Has|Does)\s*\.(?:\s*\w+(?:<[^()]*>)?(?:\s*\([^()]*\))?\s*\.?)+', 'x')
 }
 
 # `).Member(` after a call, also across property hops (`(await x).Succeeded.ShouldBeTrue(`, `).Name.Name.ShouldBe(`)
@@ -162,12 +193,25 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
-	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; continue }
+	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# check 7: a provider token added inside a provider attribute opened on an earlier line
+	$body7 = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+	if ($openAttr) {
+		if ($l.StartsWith('+') -and $body7 -match '\b(TestProvName|ProviderName)\.\w+' -and $body7 -notmatch '^\s*//') {
+			$continued += [pscustomobject]@{ file = $file; line = $line; attribute = $openAttr; text = $body7.Trim() }
+		}
+		if ($body7 -match '\)\]') { $openAttr = $null }
+	}
+	elseif ($body7 -match $providerAttrRx) {
+		$opening = $body7.Substring($body7.IndexOf($Matches[0]))
+		if ($opening -notmatch '\)\]') { $openAttr = $opening.Trim() }
+	}
 
 	# a multi-line gate attribute: its `ErrorMessage` may sit on a later line, added or context
 	if ($pendingGate) {
@@ -178,6 +222,23 @@ foreach ($l in $diff) {
 
 	if ($l.StartsWith('+')) {
 		$text = $l.Substring(1)
+
+		# check 9: the expected argument reads no `db.`, the actual argument after it does
+		if ($pendingAreEqual -and $text.Trim()) {
+			$pendingAreEqual.args += $text.Trim()
+			if ($pendingAreEqual.args.Count -eq 2) {
+				if ($pendingAreEqual.args[0] -notmatch '\b(db|await)\b' -and $pendingAreEqual.args[1] -match '\bdb\.\w') {
+					$areEquals += [pscustomobject]@{ file = $pendingAreEqual.file; line = $pendingAreEqual.line; text = $pendingAreEqual.args[0] }
+				}
+				$pendingAreEqual = $null
+			}
+		}
+		elseif ($text -match '^\s*AreEqual\s*\(\s*$') {
+			$pendingAreEqual = [pscustomobject]@{ file = $file; line = $line; args = @() }
+		}
+		elseif ($text -match '^\s*AreEqual\s*\((?<a>[^,]+),\s*(?<b>.+)\)\s*;' -and $Matches['a'] -notmatch '\b(db|await)\b' -and $Matches['b'] -match '\bdb\.\w') {
+			$areEquals += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
 
 		# a call followed by `.Member(` on the same line, not a continuation line and not a comment
 		if ((Remove-Operands $text) -match $chainPattern -and $text -notmatch '^\s*\.' -and $text -notmatch '^\s*//') {
@@ -237,6 +298,11 @@ foreach ($l in $diff) {
 			}
 		}
 
+		# not an attribute line: a gate's `ErrorMessage` may quote the call
+		if ($text -match '\.GetCacheMissCount\s*\(' -and $text -notmatch '^\s*(//|\[)') {
+			$cacheCalls += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
 		if ($text -match '\[(ActiveIssue|ThrowsForProvider)\b' -and $text -match 'Shouldly' -and $text -notmatch 'ErrorMessage\s*=') {
 			$rec = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 			if ($text -match '\)\]') { $typeOnly += $rec } else { $pendingGate = $rec }
@@ -245,6 +311,58 @@ foreach ($l in $diff) {
 
 	$recent.Add($l)
 	if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
+}
+
+# check 8: read each file once, at the swept state, and look for `[QueryCacheTest]` on the test and its fixture
+$signatureRx = '^\s*(?:(?:public|private|protected|internal|static|async|override|virtual|sealed|unsafe)\s+)*(?!(?:return|await|yield|throw|new|else|var)\b)[\w<>\[\],\?\.]+\s+(\w+)\s*(?:<[^()]*>)?\s*\('
+
+# the names of the tests reaching line $idx without `[QueryCacheTest]` on the test or its fixture
+function Get-UncoveredTests($src, [int] $idx, [int] $depth) {
+	$tabs = Get-Tabs $src[$idx]
+	$sig  = -1
+	for ($i = $idx - 1; $i -ge 0; $i--) {
+		if ((Get-Tabs $src[$i]) -lt $tabs -and $src[$i] -match $signatureRx) { $sig = $i; break }
+	}
+	if ($sig -lt 0) { return @() }
+	$name = ([regex]::Match($src[$sig], $signatureRx)).Groups[1].Value
+
+	# the attribute block, wrapped attributes included: up to the blank line or `}` / `;` ending the member above
+	$attrs = @()
+	for ($i = $sig - 1; $i -ge 0 -and $src[$i].Trim() -and $src[$i] -notmatch '[;{}]\s*$'; $i--) { $attrs += $src[$i] }
+
+	if (-not ($attrs -match '^\s*\[\s*Test(Case\w*)?\b')) {
+		if ($depth -ge 2) { return @() }
+		$out = @()
+		for ($i = 0; $i -lt $src.Count; $i++) {
+			if ($i -ne $sig -and $src[$i] -match "\b$name\s*(<[^()]*>)?\s*\(" -and $src[$i] -notmatch '^\s*//') { $out += Get-UncoveredTests $src $i ($depth + 1) }
+		}
+		return $out | Select-Object -Unique
+	}
+
+	if ($attrs -match 'QueryCacheTest') { return @() }
+	for ($k = $sig; $k -ge 0; $k--) {
+		# the enclosing class, not a nested one declared above the test
+		if ($src[$k] -match '\bclass\s+\w+' -and (Get-Tabs $src[$k]) -lt (Get-Tabs $src[$sig])) {
+			for ($i = $k - 1; $i -ge 0 -and $src[$i].Trim() -and $src[$i] -notmatch '[;{}]\s*$'; $i--) { if ($src[$i] -match 'QueryCacheTest') { return @() } }
+			break
+		}
+	}
+	return @($name)
+}
+
+$cacheOutside = @()
+$fileText     = @{}
+foreach ($c in $cacheCalls) {
+	if (-not $fileText.ContainsKey($c.file)) {
+		$fileText[$c.file] = if ($IncludeWorkingTree) { @(Get-Content -LiteralPath (Join-Path $Repo $c.file)) }
+			else { @(git -C $Repo show "$(if ($Ref) { $Ref } else { 'HEAD' }):$($c.file)") }
+	}
+	$src = $fileText[$c.file]
+
+	# a call in a helper is checked at each caller in the same file; a helper called from nowhere here is skipped
+	foreach ($u in @(Get-UncoveredTests $src ($c.line - 1) 0)) {
+		$cacheOutside += [pscustomobject]@{ file = $c.file; line = $c.line; test = $u; text = $c.text }
+	}
 }
 
 [ordered]@{
@@ -258,4 +376,7 @@ foreach ($l in $diff) {
 	typeOnlyShouldlyGates = @($typeOnly)
 	continuationIndents  = @($indents)
 	unanchoredAssertionGates = @($unanchored)
+	narrowedContinuations = @($continued)
+	cacheMissOutsideQueryCacheTest = @($cacheOutside)
+	handDuplicatedAreEqual = @($areEquals)
 } | ConvertTo-Json -Depth 4
