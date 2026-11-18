@@ -41,6 +41,12 @@ When enforcing the above across the corpus (a genericization or stale-reference 
 
 **A hook on matcher `Bash|PowerShell` runs before every shell call — write it in node, not pwsh.** pwsh startup measured 0.6–1.2 s per call against ~0.1 s for node (2026-10-21, when `require-test-progress` was ported). pwsh is fine for hooks on rare events (`SessionStart`, `Stop`) or for a detached worker a node hook launches.
 
+## Designing a new skill or agent
+
+**Have a fable critic read the plan before asking for approval.** `/work-plan`'s different-model critic covers linq2db code changes only. A corpus design drafted in plan mode gets no critic unless you dispatch one. Send fable the plan and the files it touches, but not your conclusions, and fold its objections into the plan before asking for approval. (2026-11-18, `/goal-check`: the user rejected the first approval request with *"ask fable to review plan"*. Fable raised 10 objections, three high, about the step's placement, the prior-review detection, and an agent too weakly equipped to verify claims. All ten were folded into the plan.)
+
+**A new `.claude/agents/<name>.md` can't be dispatched by name straight away.** The registry refreshes some minutes after the file is written, and until then `Agent(subagent_type: <name>)` fails with *"Agent type not found"*. To exercise the agent sooner, dispatch `general-purpose` on the target model and tell it to `Read` the agent file and follow it exactly. Tools are not restricted on that path, so put any read-only limit in the prompt.
+
 ## Proposed: evals for the agent tooling
 
 There is no automated check that the `.claude/` tooling itself behaves as intended — regressions surface only when a human notices a skill misbehaving. A design spec for a component-level eval harness (script-schema checks, a refuse-to-fabricate test, tool-selection sanity, structured-output validation, a model-swap probe) is parked in [`agent-evals.md`](agent-evals.md). It is **not built** — it's a proposal to scope or reject, recorded so the idea isn't lost.
