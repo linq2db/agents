@@ -29,7 +29,7 @@ Read these once at start (not on every re-entry):
 
 - [`.claude/docs/release/overview.md`](../../docs/release/overview.md) — high-level layout + cross-links.
 - [`.claude/docs/release/branch-and-pr.md`](../../docs/release/branch-and-pr.md) — branch name + PR body conventions.
-- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — sibling clone paths (linq2db.docs, linq2db.baselines), wiki page names, GitHub release template anchor.
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — sibling clone paths (linq2db.baselines, the docfx fork), wiki page names, GitHub release template anchor.
 - [`.claude/docs/agent-rules.md`](../../docs/agent-rules.md) → **Creating a new branch**, **Git commit rules**, **Push to remote rules**, **Pull request rules**.
 
 ## Procedure

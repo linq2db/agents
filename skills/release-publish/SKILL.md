@@ -11,7 +11,7 @@ description: After the prep PR merges — open the release PR, reset linq2db.bas
 
 **Isn't:**
 
-- Not the post-tag work (nuget publish verify, docs PR, GitHub release, next-version bump). That's [`/release-postpublish`](../release-postpublish/SKILL.md).
+- Not the post-tag work (nuget publish verify, GitHub release, docs publish, next-version bump). That's [`/release-postpublish`](../release-postpublish/SKILL.md).
 - Not for cherry-picking late fixes onto `release`. If a regression surfaces in step 5 (team-test gate), the skill records the pause and stops — re-opening the prep flow for fixes is the user's call.
 - Doesn't run docker / build / test commands. CI does that on the release PR.
 
@@ -40,7 +40,7 @@ The publish phase has 7 ordered steps with no implicit transitions. Each step re
 | 6. Merge CI-generated baselines PR | `baselines-pr-merged` | open → done |
 | 7. Copy + tag baselines on releases branch | `baselines-releases-tagged` | open → done |
 
-**Note on ordering.** Steps 6 + 7 (baselines flow) run **after** step 5 (release PR merge) so the baselines work proceeds in parallel with `/release-postpublish` (nuget publish, docs PR, GitHub release). Earlier versions of this skill put baselines merge + tag between the master reset and the team-test gate, which serialized the publish unnecessarily — the CI-generated baselines PR doesn't gate prerelease nugets or the release merge.
+**Note on ordering.** Steps 6 + 7 (baselines flow) run **after** step 5 (release PR merge) so the baselines work proceeds in parallel with `/release-postpublish` (nuget publish, GitHub release, docs publish). Earlier versions of this skill put baselines merge + tag between the master reset and the team-test gate, which serialized the publish unnecessarily — the CI-generated baselines PR doesn't gate prerelease nugets or the release merge.
 
 **Every step closes in two places — the state file *and* the release PR's checklist.** The block between `<!-- release-state:checklist:start -->` and `:end` on the release PR is the only view of this phase anyone but you has, and **nothing syncs it**: `release-state.ps1 -Action sync-to-pr` renders `state.tasks`, which is the *prep* checklist, and has no publish-phase equivalent. So a step that updates only the JSON leaves the PR advertising work as outstanding that finished hours earlier. Tick the box in the **same turn** you record the status, with [`pr-body-edit.ps1`](../../scripts/pr-body-edit.ps1) and one `replacements` entry per line (pass `-ManifestFile <path>` — piping the manifest on stdin does not bind from the PowerShell tool, see [`script-authoring.md`](../../docs/script-authoring.md)). Carry the evidence into the tick the way [#5742](https://github.com/linq2db/linq2db/pull/5742) did — anchor sha, counts, what was verified — since that annotation is what a reviewer reads *instead of* the state file they cannot see. (6.5.0: steps 2 and 3 were recorded in state and the PR still showed them unchecked until the maintainer asked.)
 
@@ -224,7 +224,7 @@ Action:
 4. On `state == "MERGED"`:
    - Update step status `done`.
    - Update `state.currentPhase = 'postpublish'`.
-   - Dispatch to `Skill('release-postpublish')` to start the publish flow (official nuget upload, docs PR, GitHub release).
+   - Dispatch to `Skill('release-postpublish')` to start the publish flow (official nuget upload, GitHub release, docs publish).
    - Steps 6 + 7 (baselines) remain `open` in the publish-phase state; the orchestrator tracks them as parallel work alongside postpublish. They don't block postpublish progress — expect them to be the release's last step, since the release PR's `default` run is still going.
 
 ### 6. Merge CI-generated baselines PR

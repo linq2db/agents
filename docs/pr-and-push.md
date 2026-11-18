@@ -247,7 +247,7 @@ GitHub's branch rename (UI, or `POST repos/<o>/<r>/branches/<b>/rename`) updates
 
 ### Committing into another repo with `git -C`
 
-Two traps when committing into the corpus submodule, `../linq2db.docs` or `../linq2db.baselines`: under `git -C <repo>`, `-F <path>` is resolved **against that repo**, so an absolute path to a file in your own tree dies with `fatal: '<path>' is outside repository` — use `-F -` with a stdin heredoc instead. And `-F -` must come **before** the `-- <pathspec>`: written as `commit --only -- docfx -F -`, the `--` swallows the flag and git reports `pathspec '-F' did not match any file(s)`. (6.5.0, hit consecutively.)
+Two traps when committing into the corpus submodule or `../linq2db.baselines`: under `git -C <repo>`, `-F <path>` is resolved **against that repo**, so an absolute path to a file in your own tree dies with `fatal: '<path>' is outside repository` — use `-F -` with a stdin heredoc instead. And `-F -` must come **before** the `-- <pathspec>`: written as `commit --only -- <pathspec> -F -`, the `--` swallows the flag and git reports `pathspec '-F' did not match any file(s)`. (6.5.0, hit consecutively.)
 
 ### Amending a commit on a non-checked-out branch with a dirty current tree
 

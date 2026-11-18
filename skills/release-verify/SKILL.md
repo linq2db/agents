@@ -7,12 +7,13 @@ description: Release-prep task 6 — one Release build over the cumulative prep 
 
 ## What this skill is (and isn't)
 
-**Is:** the single verification gate at the end of release prep. Owns the **only** Release build of the release-prep cycle (every prior sub-skill is forbidden from running its own verification build). Combines four things into one pass so the build+fix loop happens once, not per-task:
+**Is:** the single verification gate at the end of release prep. Owns the **only** Release build of the release-prep cycle (every prior sub-skill is forbidden from running its own verification build). Combines five things into one pass so the build+fix loop happens once, not per-task:
 
 1. Release build of `linq2db.slnx`.
 2. Reactive analyzer-rule catch-up — for any new analyzer error the build surfaces, ask user fix-or-disable per rule (the equivalent of step 4a in the new `/release-deps` for analyzer rules that escaped the predictive audit).
 3. (Conditional) `/profile-analyzers` perf check if analyzer packages were bumped this release — **run only once the build from step 2 is clean**, so the measurement reflects the shipping rule set rather than a half-fixed tree.
 4. `/api-baselines` refresh — regenerate `CompatibilitySuppressions.xml` files.
+5. Docs build — `docs/build.ps1 -WarningsAsErrors` over the same tree, so the site the release will deploy is known to build.
 
 All consequent edits (`.editorconfig` rule disables, `CompatibilitySuppressions.xml` regenerations, code fixes) batch into a single follow-up commit on the prep PR.
 
@@ -42,7 +43,7 @@ The verification build is **always** plain `dotnet build linq2db.slnx -c Release
 
 Read the deps state (`release-state.ps1 -Action load`). If `state.deps.applied[]` includes any analyzer package — id matches `*Analyzer`, `*Analyzers`, `BannedApi*`, `PublicApi*`, `AsyncFixer`, `Lindhart.Analyser.*`, or sits in the `Build: Analyzers and Tools` `<ItemGroup>` of `Directory.Packages.props` — then a **profiling pass is owed** and runs at step 3, after step 2's fix loop reaches clean. Record the bumped analyzer ids so step 3 can't be silently skipped; if `state.deps.applied[]` is unavailable, fall back to `git diff origin/master -- Directory.Packages.props` and read the analyzer rows.
 
-Tell the user the plan and the total wall-clock estimate: 3-8 min for the verification build, plus 10-25 min for the profiling pass if one is owed. Wait for explicit go-ahead — never auto-launch a build inside `/release-verify`.
+Tell the user the plan and the total wall-clock estimate: 3-8 min for the verification build, plus 10-25 min for the profiling pass if one is owed, plus step 4b's docs build. Wait for explicit go-ahead — never auto-launch a build inside `/release-verify`.
 
 ### 2. Run the build (loop until clean)
 
@@ -77,7 +78,7 @@ Stop and surface to user. Do not improvise — disk-full / locked-file failures 
 
 **Precondition: step 2's build is clean.** A profiling run over a failing tree measures only the projects that compiled, so its rankings under-report and its deltas against the previous release are meaningless. Never run this before step 2 closes.
 
-Invoke `Skill('profile-analyzers')` in **`solution`** mode (it gates on its own user confirmation for the 10-25 min rebuild). Not `rules` mode — that one measures linq2db's own analyzers against a single project and keeps its own baseline; it answers an authoring question, not a release one. This is a *second*, instrumented rebuild on top of step 2's verification build — the one sanctioned exception to the one-build rule, because the two builds answer different questions ("does it compile" vs "what does the shipping rule set cost").
+Invoke `Skill('profile-analyzers')` in **`solution`** mode (it gates on its own user confirmation for the 10-25 min rebuild). Not `rules` mode — that one measures linq2db's own analyzers against a single project and keeps its own baseline; it answers an authoring question, not a release one. This is a *second*, instrumented rebuild on top of step 2's verification build — the one sanctioned extra solution build (step 4b's docs build is the other extra build), because the two builds answer different questions ("does it compile" vs "what does the shipping rule set cost").
 
 The pass must answer three things, not just render rankings:
 
@@ -128,6 +129,19 @@ Exit 0 on both, or surface the violations and stop — a failure here is release
 
 Worth the ~10 seconds: on 6.4.0 `verify-analyzer-delivery` would have caught [#5743](https://github.com/linq2db/linq2db/pull/5743) (`linq2db.FSharp` packing `exclude="Build,Analyzers"`, suppressing the analyzer subtree for its consumers) two days before it actually surfaced — as a *failed release build* that skipped the nuget.org publish entirely.
 
+### 4b. Build the documentation site
+
+Publishing the GitHub release deploys the site from the tag ([`/release-postpublish`](../release-postpublish/SKILL.md) step 3), and that run builds with `-WarningsAsErrors`. A docs warning that first appears there blocks the release's site, and because a re-deploy reads `docs.yml` and `docs/build.ps1` from the tag's tree, only a new tag or a manual push gets it out. `docs.yml` builds the site on a PR only when the PR touches `docs/`, `README.md`, `CONTRIBUTING.md` or the build settings docfx depends on, so a `Source/**` doc-comment regression, a `Source/**/*.csproj` reference change that breaks docfx's metadata load, or this release's Roslyn bump against the pinned docfx is first built here or at publish. Run it over the prep tree:
+
+```
+pwsh -NoProfile -File <repoRoot>/docs/build.ps1 -WarningsAsErrors
+```
+
+The script sets its own working directory to the repo root, so `global.json` resolves from the worktree. ~9 min on CI; local runs have taken 29–61 min on a loaded box. It is a docs build, not a second solution build.
+
+- **`CS8795` on `ExpressionBuilder.FindBuilderImpl` / `No .NET API detected`** — docfx's Roslyn is older than linq2db's pin; run [`/release-deps`](../release-deps/SKILL.md) step 1c.
+- **Any other warning** — fix it on the prep branch (article, toc, root `README.md` / `CONTRIBUTING.md`, or the `Source/**` doc comment it names) and re-run. Exit 0 or stop: like 4a, a failure here is release-blocking.
+
 ### 5. Consolidated release-prep commit
 
 This is the **single** commit of the release-prep cycle. Earlier tasks (deps / PublicAPI / milestone-check / test-matrix / release-notes / ad-hoc) leave their changes uncommitted on the worktree; this step stages all of them plus anything produced in steps 2-4 of this skill, and commits them together.
@@ -160,6 +174,7 @@ Final verification (per /release-verify):
 - API baselines regenerated: <count> files
 - profile-analyzers report: <link to .build/.agents/...>  (only if step 3 ran)
 - iSeries drift check: <verdict, link to .build/.agents/...>
+- docs build (docs/build.ps1 -WarningsAsErrors): <clean | fixes: list>
 ```
 
 Per `agent-rules.md` → **Git commit rules**, only commit on explicit user request. The user reviews the full message + the proposed staged file list before the commit lands.
@@ -202,7 +217,7 @@ The orchestrator marks task 6 `[x]` and proceeds to step 5 (prep-merge gate). Th
 
 ## Don'ts
 
-- Do **not** run multiple verification builds. The whole point of this skill is one build per release prep — if step 2 needs to re-build after fixes, that's expected; step 3's instrumented profiling rebuild is the one sanctioned extra build (and only when an analyzer package was bumped); otherwise no extra builds.
+- Do **not** run multiple verification builds. The whole point of this skill is one build per release prep — if step 2 needs to re-build after fixes, that's expected; step 3's instrumented profiling rebuild is the one sanctioned extra solution build (and only when an analyzer package was bumped), and step 4b's docs build always runs; otherwise no extra builds.
 - Do **not** use the profiling rebuild as the verification build, and do **not** profile before step 2 is clean. Projects that fail `CoreCompile` emit no analyzer rows, so the report silently under-reports and the baseline delta becomes garbage.
 - Do **not** skip step 3 when an analyzer package was bumped, and do **not** reduce it to "here are three tables". It owes new-rule costs, existing-rule regression deltas, and an explicit disable-candidate list.
 - Do **not** disable analyzer rules without explicit user approval per rule.
