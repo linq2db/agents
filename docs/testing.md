@@ -675,6 +675,8 @@ These are the maintainer's house rules for **new** test code, and they win over 
        .ShouldBeTrue();
    ```
 
+   **Fixing a branch's hits is mechanical:** `.claude/scripts/test-diff-sweep.ps1` finds the one-line chains a branch added, and [`.claude/tools/chain-split`](../tools/chain-split/Program.cs) (a small Roslyn rewriter) splits them in place from the sweep's JSON — usage in its header. It leaves chains nested in an argument on the call's line; pull those into a local by hand, as above. (2026-11: 158 chains split by the tool, 26 nested ones by hand.)
+
 2. **Query syntax, multi-line, one clause per line.** Use query syntax whenever the query has a `join` or `SelectMany`. A plain `Where`/`Select` chain can stay method syntax, laid out per rule 1.
    - Put `var query =` on its own line, then `from`, `where`, `orderby`, `group … into` and `select` each on their own line.
    - Break a non-trivial `select new` into `{ … }` lines.

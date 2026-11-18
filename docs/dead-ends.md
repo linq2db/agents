@@ -489,3 +489,11 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** an untracked `CreateSyntaxProvider` (no `.WithTrackingName`) records no step. Measured by adding one on purpose: the tracked steps were `AnalyzerConfigOptions, Compilation, ImplementationSourceOutput, SourceOutput`, and the assertion stayed green.
 
 **Don't re-attempt:** use an instrument that can go red — a source guard that parses the generator file for `.SyntaxProvider` access, or an internal hook (set by reflection) invoked where the walk starts — and prove each by its mutation.
+
+## CODEGEN: enumerating the readers of an AST member with a text regex
+
+**Tried:** listing every non-visitor reader of a few SQL AST members (`SqlCteField.Column`, `SqlCteTableField.CteField`, `SqlCteTable.Cte`, `SelectQuery.SetOperators`) by a regex over `Source/LinqToDB/Internal` (`\.CteField\b`, `\.Cte\??\.Body\b`, `Parent\??\.SetOperators`, …), as the completeness evidence for a design that had to charge or guard each one.
+
+**Failed because:** a member read has spellings a text pattern cannot see: implicit `this` inside the owning type (`Cte?.Body` in `SqlCteTable.GetKeys`), property and extended property patterns (`is SqlCteTable { Cte: { Body: … } }`, `{ CteField.Column: { } x }`), and receivers held in locals (`var p = column.Parent; … p.SetOperators`). Each critic round found another site the last sweep missed.
+
+**Don't re-attempt:** a regex census for member reads. Write a temporary `DiagnosticAnalyzer` in `Source/CodeGenerators` over `IPropertyReferenceOperation` / `IFieldReferenceOperation` filtered by the member symbols, reporting the containing member, and run one Release build of `Source/LinqToDB`: the diagnostics are the census (137 reads in 68 members for those four links). Keep the analyzer as the standing guard, with a per-member disposition attribute. (2026-11)
