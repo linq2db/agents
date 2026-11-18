@@ -244,6 +244,7 @@ Resolve the primary clone from anywhere with `git rev-parse --path-format=absolu
   "pr": { "number": 5791, "title": "…", "url": "…", "headRefName": "…", "baseRefName": "…", "milestone": "…" },
   "reviewedHeadSha": "<the sha the findings were derived from>",
   "scope": "<confirmed scope from the pre-review gate>",
+  "goalCheck": { "verdict", "goal", "rejectCategory", "rescopeTo", "model" },  // review-pr step 3a; null when not run
   "idFloor": { "BLK": 1, "MAJ": 1, "MIN": 5, "SUG": 2, "NIT": 1 },
   "body": "<the assembled review body, verbatim>",
   "findings": [ { "id", "severity", "file", "line", "line_end", "why", "fix", "suggestion", "disposition" } ],

@@ -31,11 +31,13 @@ The workflow relies on five PowerShell Core helper scripts to keep the permissio
 
 Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.claude/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
 
+`/review-pr <ref> goals` forces the step-3a goal analysis even where step 3a would not offer it.
+
 `/review-pr resume <n>` picks up a review a previous session saved with the mode-choice gate's `save-for-later` option — it re-enters at the preview instead of reviewing again. Contract, state-file location and the HEAD-staleness validation: [`review-orchestration.md`](../../docs/review-orchestration.md) → **Resuming a saved review**.
 
 ## Steps
 
-Permission-prompt discipline, PR resolution, context loading, subagent spawning, API classification, posting, and the command-usage audit closing step are defined once in [`review-orchestration.md`](../../docs/review-orchestration.md). This skill layers `initial`-mode specifics on top: a **scope confirmation gate** (step 4 below), a **target-branch warning** (step 3), and the **review-body assembly** (step 8).
+Permission-prompt discipline, PR resolution, context loading, subagent spawning, API classification, posting, and the command-usage audit closing step are defined once in [`review-orchestration.md`](../../docs/review-orchestration.md). This skill layers `initial`-mode specifics on top: a **scope confirmation gate** (step 4 below), a **target-branch warning** (step 3), an opt-in **goal analysis** (step 3a), and the **review-body assembly** (step 8).
 
 ### 1. Resolve the target PR
 
@@ -182,7 +184,29 @@ Wait for an explicit `y`. No other guards (no draft-PR guard, no size guard).
 
 Two mechanical consequences for the steps below. **Step 4's question 2 is moot** — CI prunes `baselines/pr_<n>` once the tracking baselines PR is merged/closed, so report *"baselines branch pruned on merge — pass unavailable"* rather than offering the opt-out, and skip the presence/age probes. **Step 4 gains a delivery question**, because a PENDING draft review is usually the wrong vehicle on a merged PR — nobody reopens its Files tab. Ask it alongside the scope question: **report-only** (no GitHub write; the sensible default for a retrospective pass), **issue comments** on the PR thread (where the conversation already is, and what a maintainer will actually see), or **a draft review** when the user wants findings line-anchored anyway. Frame anything posted as a *post-merge note*, not a change request. (Surfaced on #5754, reviewed a day after merge: the delivery question had to be improvised, and the walk then posted four thread comments.)
 
+### 3a. Offer goal analysis (opt-in)
+
+Step 4's scope gate confirms *what* the PR does. It never asks whether linq2db should take it. A PR can fail on its premise: the task is out of scope, the "bug" does not exist, or a point fix stands in for a design-level one. On such a PR, the review passes measure the code against the wrong goal. [`/goal-check`](../goal-check/SKILL.md) tests the premise before any pass runs. This step sits after step 3 because the goal check relies on step 3's results: the PR's real state, the merged-PR branch and the stacked-PR own-delta.
+
+**Don't offer it when any of the following holds.** Print one line naming the reason, e.g. *"Goal check not offered — you reviewed this PR on <date>; say `goals` to force it."*
+- `currentUser` has a submitted or PENDING **review** in `reviews[]`. A plain reply comment doesn't count. Neither does an unposted `pr<n>-review-state.json`, per [`review-orchestration.md`](../../docs/review-orchestration.md) → *Only a review posted on the PR…*.
+- `<primary-clone>/.build/.agents/pr<n>-goal-check.json` exists. Quote its verdict and date. If its `headSha` differs from the current head, say so.
+- `currentUser` is the PR author.
+- `pr.state` is `MERGED`. That is a retrospective pass, so the premise question is moot.
+- The goal-check config sets the host's `analystModel` to `never`.
+
+**`goals` on the invocation, or an explicit request, forces the check past every rule above.**
+
+**Otherwise ask in one prompt:** *"Analyze the PR's goals before reviewing (scope, does the problem exist, point fix vs. design fix)? [y / n]"*. When the goal-check config has no model for this host, fold the goal-check model question (its step 3) into the **same** prompt.
+
+On `y`, invoke `Skill(goal-check)` with the PR number and pass it the context already loaded. A `sound` verdict continues to 3b. Any other verdict stops at goal-check's disposition. Only **continue** re-enters this skill, at 3b, and the verdict then travels with the review:
+- into the step-6 `code-reviewer` briefing, as a `goalCheck` lead routed into its *Architectural decisions* flag-and-defer channel;
+- into step 8, as a design-level `BLK` that cites the verdict's evidence. If the user downgrades it at the gate, it becomes a `## Review notes` line;
+- into a saved review state, as a `goalCheck` field (see [`review-orchestration.md`](../../docs/review-orchestration.md) → *save-for-later mode*).
+
 ### 3b. Verify 3rd-party behavior claims in the linked issue
+
+**Skip this step when step 3a ran and every entry in the verdict's `thirdPartyClaims[]` is labelled `measured`**, because the analyst already fetched the upstream evidence. Otherwise run it as below.
 
 If the PR scope summary or linked issue body rests on an external-system claim — a DB version feature, SQL-standard requirement, driver behavior — verify it per [`create-issue.md`](../create-issue/SKILL.md) → step 1 sub-point 3 (**Verify any 3rd-party behavior claim against upstream docs**) before spawning the reviewers.
 
@@ -197,6 +221,8 @@ Before spawning the reviewers, orient via the knowledge base (skip silently if `
 - `areas/<AREA>/patterns.md` — the area's idioms, to judge whether the diff conforms
 
 Reserve `/kb-ask` for cross-area synthesis. Orientation only — the diff + current source win. See [`agent-rules.md`](../../docs/agent-rules.md) → *Consult the knowledge base*.
+
+When step 3a ran, it has already read these anchors and the plan's `P1`–`P3` (step 3e). Reuse those reads; don't read the files again.
 
 ### 3d. Review the rule's documentation page (analyzer / rule PRs)
 
@@ -265,6 +291,8 @@ After the target-branch check passes and the change summary is in hand, ask the 
 > 2. Include baselines review (test/SQL baseline diff analysis)? [y / n, default y]
 
 **When step 3e found a plan, question 1's summary is the plan's `P1`/`P2`, not a fresh re-derivation** — quote it and render the header line `Work plan: <key> — Tier <T>, critic <verdict>, <n> edit-points, <n> adjudicated, <n> amendments`. The user is then confirming the *recorded* scope, which is the whole point of having one. A correction at this gate means the plan is out of date: offer `/work-plan amend` rather than silently reviewing against a scope the plan doesn't carry.
+
+**When step 3a ran, show its verdict as a header line**: `Goal check: <verdict> (<model>) — <goal>`. With no plan, the analyst's `goal` becomes question 1's summary. With a plan, the plan's `P1`/`P2` stays the scope text, and a conflict between the two is worth pointing out at this gate.
 
 **Question 1 — scope.** Answers:
 - `y` — proceed with the stated scope as the confirmed scope.
@@ -515,7 +543,7 @@ When **count ≤ 5**, spawn a single `code-reviewer` with `focus: "all"` and the
 
 **Reframe Pass B when the PR has no SQL surface.** Pass B's `sql-and-provider` charter is empty for a PR touching none of `Source/LinqToDB/DataProvider/*`, `SqlProvider/*`, or `SqlQuery/*` (pure infra: cache, GC, threading, options plumbing). Rather than waste the pass, brief it against the PR's actual cross-cutting axis — platform / cross-TFM behavior (feature-flag macros, per-TFM BCL API availability, finalizer / `#if NETFRAMEWORK` guards), threading / concurrency, or GC — keeping the same ID window `[floor+100, floor+199]`. (Surfaced on PR #5681, a QueryCache memory-pressure feature with zero SQL.) For an analyzer / Roslyn-package PR (no `Source/LinqToDB` SQL surface), reframe Pass B to the analyzer axis — semantic-model usage (`IOperation` / `IArgumentOperation.Parameter` mapping, `GetConstantValue`, speculative binding), syntax + trivia rewriting, the Fix-All provider, `.editorconfig` option handling, and Roslyn-version compat (the package's Roslyn pin vs the APIs it calls). (Surfaced on PR #5703, the `linq2db.Analyzers` package.)
 
-All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); the **work plan** from step 3e when one exists; and **`rubricModules`**.
+All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); the **work plan** from step 3e when one exists; the **goal-check verdict** from step 3a when the user continued past a non-`sound` verdict, briefed as a lead for the *Architectural decisions* channel with its `rescopeTo` / `rejectCategory` and evidence; and **`rubricModules`**.
 
 **Compute `rubricModules` from the changed paths, not by judgement.** Take the step-2 `nameStatus` paths from `.build/.agents/pr<n>-rubric-paths.txt` (written by step 5b's `-DiffPrep`; on a single-pass run, run `-DiffPrep` for it anyway), run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>-rubric-paths.txt`, and brief a single pass with `modules`, each multi-pass pass with `byFocus[<its focus>]`. Pass the list even when it is empty: `[]` means no module applies, while an absent field makes the pass read every module.
 
