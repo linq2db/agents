@@ -12,6 +12,7 @@ to the user for the confirmation the skill requires.
 
     pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version 6.4.0
     pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version 6.4.0 -Apply
+    pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version 6.4.0 -Apply -NoComment
 
 Output (stdout, single JSON object):
     { action, version, repo, total, keep[], close[], results[], ok }
@@ -19,6 +20,7 @@ Output (stdout, single JSON object):
 `keep[]` are PRs whose parent is on the release milestone — CI must be re-run on
 those parents after the reset to regenerate them. `close[]` is everything else.
 `results[]` is populated only under -Apply, one row per PR with per-call status.
+-NoComment closes without posting the stale-PR comment (`comment` reads `skipped`).
 #>
 param(
     [Parameter(Mandatory)][string] $Version,
@@ -28,7 +30,8 @@ param(
     [string] $CommentFile,
     [int]    $Limit       = 100,
     [int]    $Throttle    = 4,
-    [switch] $Apply
+    [switch] $Apply,
+    [switch] $NoComment
 )
 
 $global:ScriptBaseName = 'baselines-triage'
@@ -165,7 +168,11 @@ if (-not $Apply -or $close.Count -eq 0)
 # The comment text contains backticks, so it must travel as a file: `gh --body`
 # is banned repo-wide and a backtick inside a shell argument would be command
 # substitution.
-if ($CommentFile)
+if ($NoComment)
+{
+    $commentPath = $null
+}
+elseif ($CommentFile)
 {
     $commentPath = (Resolve-Path -LiteralPath $CommentFile).Path
 }
@@ -194,13 +201,16 @@ $rows = $targets | ForEach-Object -Parallel {
 
     $row = [ordered]@{ number = $n; comment = 'skipped'; close = 'skipped' }
 
-    $out = & gh pr comment $n --repo $repo --body-file $body 2>&1
-    if ($LASTEXITCODE -ne 0)
+    if ($body)
     {
-        $row.comment = "FAIL: $($out -join ' ')"
-        return [pscustomobject]$row
+        $out = & gh pr comment $n --repo $repo --body-file $body 2>&1
+        if ($LASTEXITCODE -ne 0)
+        {
+            $row.comment = "FAIL: $($out -join ' ')"
+            return [pscustomobject]$row
+        }
+        $row.comment = 'ok'
     }
-    $row.comment = 'ok'
 
     $out = & gh pr close $n --repo $repo --delete-branch 2>&1
     $row.close = if ($LASTEXITCODE -eq 0) { 'ok' } else { "FAIL: $($out -join ' ')" }
@@ -211,6 +221,7 @@ $rows = $targets | ForEach-Object -Parallel {
 $rows = @($rows | Sort-Object number)
 
 $result.results = $rows
-$result.ok      = -not ($rows | Where-Object { $_.comment -ne 'ok' -or $_.close -ne 'ok' })
+$expectedComment = if ($NoComment) { 'skipped' } else { 'ok' }
+$result.ok      = -not ($rows | Where-Object { $_.comment -ne $expectedComment -or $_.close -ne 'ok' })
 
 Write-JsonOutput $result

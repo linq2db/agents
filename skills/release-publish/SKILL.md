@@ -53,7 +53,9 @@ Skill never auto-advances. Each step prints the next action + waits.
 Runs once when the orchestrator transitions `state.currentPhase` from `prep` to `publish` (i.e. after the prep PR merges). Reclaims disk + removes the prep worktree before the publish work starts.
 
 Action:
-1. Remove the prep worktree (the branch is now squash-merged to master, the worktree is no longer needed):
+1. **Merge the prep PR's own baselines PR** (`baselines/pr_<prep-pr>` on `linq2db.baselines`), the same way as step 6: `gh pr ready <n>` then `gh pr merge <n> --squash --delete-branch` (`--repo linq2db/linq2db.baselines`). Do it now: step 2's triage would close it as stale, and the maintainer expects it merged together with the prep PR, even though step 3's reset discards it. (6.6.0: #6344 merged, its baselines PR linq2db.baselines#2305 left open until the maintainer asked.)
+2. **Copy the release state out of the prep worktree first.** The prep tasks run in the worktree, so the state file and the files later steps read live in *its* `.build/.agents/`, not the main checkout's. Removing the worktree deletes them. Copy at least `release-<ver>.json`, `release-<ver>-overview.md` (needed by `/release-postpublish` step 2) and `release-<ver>-notes-harvest.json` to `<main-checkout>/.build/.agents/`. (6.6.0: both were copied by hand just before removal; the harvest file was already gone, so the GitHub-release highlights had to be written from the wiki section.)
+3. Remove the prep worktree (the branch is now squash-merged to master, the worktree is no longer needed):
    ```
    git -C <main-checkout> worktree remove --force <prep-worktree-path>
    ```
@@ -66,13 +68,13 @@ Action:
    ```
 
    The message says nothing about submodules being *dirty* — it fires on a pristine tree too, so don't go hunting for uncommitted changes. Still check `git -C <prep-worktree-path> status --short` first (and `git -C <prep-worktree-path>/.claude status`) so `--force` isn't masking real work; confirm the removal with `git worktree list`.
-2. (Optional) Clean the main checkout's build artifacts to reclaim space — Release pack of all family scaffold packages typically leaves 1 GB+ in `.build/bin` + `.build/obj`:
+4. (Optional) Clean the main checkout's build artifacts to reclaim space — Release pack of all family scaffold packages typically leaves 1 GB+ in `.build/bin` + `.build/obj`:
    ```
    Remove-Item -Recurse -Force <main-checkout>/.build/bin
    Remove-Item -Recurse -Force <main-checkout>/.build/obj
    ```
    If a file is locked, retry once the build that held it has finished — never stop the build server to free it (machine-global, shared with other sessions).
-3. Leave `<main-checkout>/.build/.agents/` intact — it holds the release state file, the cli-scaffold-run logs, and any scratch the orchestrator needs to resume.
+5. Leave `<main-checkout>/.build/.agents/` intact — it now holds the release state file (copied in action 2), the cli-scaffold-run logs, and any scratch the orchestrator needs to resume.
 
 Update phase status to mark this complete before step 1 starts. Worktree-still-present is the common signal that cleanup was skipped; surface a "prep worktree at <path> wasn't removed — remove now? [y/N]" prompt before opening the release PR.
 
@@ -116,7 +118,7 @@ Action:
    ```
    pwsh -NoProfile -File .claude/scripts/baselines-triage.ps1 -Version <ver> -Apply
    ```
-   Per-PR rows come back in `results[]` with independent `comment` / `close` status, so a partial failure is visible per item rather than collapsing into one exit code.
+   Add `-NoComment` when the user doesn't want the stale-PR comment posted (6.6.0: "comment not necessary"). Per-PR rows come back in `results[]` with independent `comment` / `close` status, so a partial failure is visible per item rather than collapsing into one exit code.
 4. **Verify against the repo, not the script's own summary** (`agent-rules.md` → *A subagent's reported result is a claim, not evidence*): `gh pr list --repo linq2db/linq2db.baselines --state open` should be empty of the closed set, and `gh api repos/linq2db/linq2db.baselines/git/matching-refs/heads/baselines --jq 'length'` should drop by the number closed.
 5. Surface counts: "N closed, M for current-milestone (told user to re-run CI on parent PRs)." Update step status `done`.
 
@@ -237,7 +239,7 @@ Action:
    ```
    gh pr list --repo linq2db/linq2db.baselines --state open --search "baselines/pr_<n>"
    ```
-3. **Wait for the run to finish, then map leg commits to legs before asking.** A leg whose tests go red skips its *Commit test baselines* task, so that leg's providers are simply absent from the release baselines — the PR looks complete, nothing in its diff says a leg is missing. Count `git -C <baselines-path> log --format=%s origin/master..origin/baselines/pr_<n>` (one `[<Platform> / <Leg>] baselines` commit per leg) against the run's `Win …` / `Lin …` jobs, and list which red legs pushed nothing and whether the other platform's leg covers the same providers. Re-running the failed jobs only fills a gap whose failure was flaky; a deterministic red stays red and pushes nothing until fixed. The user chooses: re-run, fix first, or accept the gap. (6.5.1: 25 commits for 30 legs — ClickHouse had no baselines at all; gaps accepted.)
+3. **Wait for the run to finish, then map leg commits to legs before asking.** A leg whose tests go red skips its *Commit test baselines* task, so that leg's providers are simply absent from the release baselines — the PR looks complete, nothing in its diff says a leg is missing. Count `git -C <baselines-path> log --format=%s origin/master..origin/baselines/pr_<n>` (one `[<Platform> / <Leg>] baselines` commit per leg) against the `tests / Win …` / `tests / Lin …` jobs of the release PR's **GitHub `tests` run** — the provider legs run on GitHub Actions since #6128, and the Azure `default` run carries only `Build` and `Nugets Generation` (`gh run view <id> --repo linq2db/linq2db --json jobs`) — and list which red legs pushed nothing and whether the other platform's leg covers the same providers. Re-running the failed jobs only fills a gap whose failure was flaky; a deterministic red stays red and pushes nothing until fixed. The user chooses: re-run, fix first, or accept the gap. (6.5.1: 25 commits for 30 legs — ClickHouse had no baselines at all; gaps accepted. 6.6.0: 31 commits for 31 legs, the one red leg having passed on re-run.)
 4. When PR exists, surface its number + URL + diff stats and the step-3 gap list. Ask the user:
    > _"Merge the baselines PR? (review the diff first — if it has unexpected non-test-change drift, pause and investigate.)"_
 5. The baselines PR is opened as **draft** by CI. Mark ready first, then squash-merge with branch delete:
@@ -355,9 +357,20 @@ Symptom: the release PR is `MERGED` and its `default` run ended without pushing 
 4. Step 6 then targets `baselines/pr_<trigger-pr>` instead of `baselines/pr_<release-pr>` — record the trigger PR in `state.publish.steps.baselines-pr-merged.note`, and say so in the release PR's step-6 tick.
 5. **Keep the trigger PR open until every leg has pushed its baselines** — the `default` run finished, not merely the baselines PR appearing (legs push one commit each as they finish). Then close it unmerged and delete the branch: `gh pr close <n> --repo linq2db/linq2db --delete-branch`. Continue with step 6.
 
+### nuget.org push fails with `403 … API key has expired`
+
+Symptom: `Nugets Generation` → `Publish to Nuget.org` stops at the **first** push (`linq2db.<ver>.nupkg`) with `Response status code does not indicate success: 403 (The specified API key has expired…)`. Nothing reaches nuget.org; `Build` is green and the `nugets` artifact exists.
+
+- **Where the key lives:** the Azure DevOps service connection **`linq2db nuget.org feed`** — `NuGetCommand@2` in `Build/Azure/pipelines/templates/nuget-job.yml` reads it through `publishFeedCredentials`. Not a pipeline variable.
+- **Create a new key; don't regenerate.** On nuget.org, *Regenerate* on an expired key issues a new value but keeps the old expiry date, so the "new" key is still expired, and the expiry can't be edited. Use *Create* instead: scope *Push new packages and package versions* (a release may ship a never-published id), glob `linq2db*` (every pushed id starts with it, `linq2db.cli.<rid>` included), the longest expiry. Paste it into the service connection, save, then delete the expired key.
+- **Then retry only the failed `Nugets Generation` job** on the same build. That is safe: the artifacts are published by the `Build` job, which the retry doesn't re-run (contrast the next section). A fresh run works too, but its *Create Release Draft* step makes a second `v<ver>` GitHub release draft to delete.
+- An unchanged `403 … expired` on the retry means the service connection still holds an expired key — not a caching problem.
+
+(6.6.0: builds 25759 ×3 and 25762 ×1 failed this way — the first fixes regenerated the key; the retry after creating a new key pushed 40/40. Moving the publish to nuget.org trusted publishing is planned for the next release, which retires this key.)
+
 ### A failed release build must be re-queued, not retried
 
-When the `default` build on `refs/heads/release` fails, **queue a brand-new run** (AzDO → Run pipeline → branch `release`). Do **not** use "retry failed jobs" on the existing build.
+When the `default` build on `refs/heads/release` fails **in the `Build` job**, **queue a brand-new run** (AzDO → Run pipeline → branch `release`). Do **not** use "retry failed jobs" there. A failure confined to `Nugets Generation` (the previous section) is the exception: retrying that job alone doesn't re-publish the artifacts.
 
 Artifact publication is not idempotent within a build id. `build_job` publishes the `nugets` and `linq2db_linqpad_lpx` pipeline artifacts *before* the later steps run, so a retry re-executes `Publish linq2db nugets` against a build that already has them and dies with:
 
