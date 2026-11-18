@@ -94,6 +94,7 @@ Runner, config, patterns, and debugging are in [.claude/docs/testing.md](.claude
 - **Link every identifier the reader will want to open, rather than naming it bare.** A bare token costs a manual search per occurrence, and these appear in lists where that repeats:
   - issue / PR numbers → `[#5617](https://github.com/linq2db/linq2db/issues/5617)`; `/issues/<n>` redirects for PRs too, so use it when the kind is unknown and `/pull/<n>` when known. Applies to prose *and* table columns that are just numbers.
   - GitHub Actions run ids → `[38051672609](https://github.com/linq2db/linq2db/actions/runs/38051672609)`; a specific leg → its `/actions/runs/<run>/job/<job>` URL. Same for an Azure build id → its build-results page.
+  - security advisory ids → `[GHSA-xxxx-xxxx-xxxx](https://github.com/linq2db/linq2db/security/advisories/GHSA-xxxx-xxxx-xxxx)`; in a list of advisories, follow each link with its severity and title.
   - Meziantou.Analyzer rule ids → `[MA0201](https://github.com/meziantou/Meziantou.Analyzer/blob/main/docs/Rules/MA0201.md)`, since severity decisions are made by reading each rule's page. Meziantou only — NUnit.Analyzers and `Microsoft.CodeAnalysis.*` use different doc layouts.
 
 ### Definition of done
