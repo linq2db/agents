@@ -34,6 +34,10 @@ dotnet build Tests\Linq\Tests.csproj -c Debug -f net462
 
 (Hit on 6.4.0: `.build/bin` was cleared for disk space after 4.7 on the assumption 4.5 was nuget-only.)
 
+## DB2 iSeries toggle
+
+`WITH_ISERIES` in `<DefineConstants>`, set unconditionally in **both** `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj` (lpx + driver build) and `Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj` (NuGet driver package). It gates the `linq2db4iSeries` `PackageReference` and every `#if WITH_ISERIES` block (`DB2Provider`, `ConnectionSettings`). "Disabled" means removing it from both files; "enabled" needs no edit. The pin cannot run ahead of nuget.org: on 6.6.0 the latest `linq2db4iSeries` was 6.5.1 (built against linq2db 6.5.1), so 6.6.0's `LinqToDB.Internal.*` removals are exactly what the DB2 iSeries smoke row has to catch. Recorded on 6.6.0.
+
 ## Tests.T4.Nugets version property
 
 `Tests/Tests.T4.Nugets/Directory.Packages.props` has a single `<Version>` property at the top of its `<PropertyGroup>`. Every `<PackageVersion>` for the linq2db family (`linq2db`, `linq2db.SqlServer`, `linq2db.t4models`, etc.) references it as `Version="$(Version)"`. Update that one property to the just-built local nuget version before `dotnet restore` of `Tests.T4.Nugets.slnx`.
@@ -186,6 +190,15 @@ Filled in per release when changes touch the LINQPad driver, scaffold library, o
 ### Release <version>
 
 <!-- entries appended by /release-test-matrix 4.8 on a per-release basis -->
+
+### Release 6.6.0
+
+| Row | Change | Surface |
+|---|---|---|
+| Access connection shows the OLE DB / ODBC / LibRed provider selector; a LibRed connection to `TestData.mdb` browses schema and runs a query. LINQPad 5 lists only OLE DB / ODBC — LibRed is hidden on netfx by design (`AccessProvider.cs`, `#if !NETFRAMEWORK`: `LibRed.Ado` has no netfx build) | #5956 | LINQPad 9 (selector check on 5) |
+| SAP HANA native on LINQPad 8+: driver provisions `Sap.Data.Hana.Net.v10.0` from NuGet and connects to `hana2` | #6162 / #5942 | LINQPad 9 |
+| DB2 iSeries: "DB2 for i (iSeries)" entry is listed and the driver loads without a type-load error (no iSeries server locally — load-only) | `linq2db4iSeries` 6.5.1 vs 6.6.0 `LinqToDB.Internal.*` removals | LINQPad 5 + 9 |
+| DuckDB: connect and query a table with `TIME` / `INTERVAL` columns | #6329 | LINQPad 9 |
 
 ### Release 6.4.0
 
