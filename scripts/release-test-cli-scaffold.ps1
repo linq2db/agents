@@ -31,7 +31,8 @@ Default behaviour:
   1. RepoRoot defaults to the script's `..\..` (two levels up from
      `.claude/scripts/`), i.e. the repo containing this `.claude` folder.
      Override with `-RepoRoot` when running from a different worktree.
-  2. CliDll defaults to `<RepoRoot>/.build/publish/LinqToDB.CLI/Debug/net9.0/win-x64/dotnet-linq2db.dll`.
+  2. CliDll defaults to the newest `<RepoRoot>/.build/publish/LinqToDB.CLI/Debug/<tfm>/win-x64/dotnet-linq2db.dll`,
+     else the newest `<RepoRoot>/.build/bin/LinqToDB.CLI/Debug/<tfm>/dotnet-linq2db.dll` (what track 4.0's build leaves).
      The script does NOT build the CLI — caller must have a successful
      `dotnet build linq2db.slnx -c Debug` first (release-test-matrix 4.0).
   3. Connection strings for docker-backed providers are merged from
@@ -100,8 +101,15 @@ if (-not $CliDll) {
     $published   = @(Get-ChildItem -Path $publishRoot -Directory -Filter 'net*' -ErrorAction SilentlyContinue |
         Where-Object { Test-Path (Join-Path $_.FullName 'win-x64\dotnet-linq2db.dll') } |
         Sort-Object { [version]($_.Name -replace '^net', '') } -Descending)
-    $CliDll = if ($published.Count -gt 0) { Join-Path $published[0].FullName 'win-x64\dotnet-linq2db.dll' }
-              else { Join-Path $publishRoot 'net10.0\win-x64\dotnet-linq2db.dll' }
+    # a plain `dotnet build -c Debug` (track 4.0) builds the framework-dependent dll but publishes nothing,
+    # so fall back to the newest-TFM build output, which `dotnet <dll>` runs the same way
+    $buildRoot = Join-Path $RepoRoot '.build\bin\LinqToDB.CLI\Debug'
+    $built     = @(Get-ChildItem -Path $buildRoot -Directory -Filter 'net*' -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path (Join-Path $_.FullName 'dotnet-linq2db.dll') } |
+        Sort-Object { [version]($_.Name -replace '^net', '') } -Descending)
+    $CliDll = if     ($published.Count -gt 0) { Join-Path $published[0].FullName 'win-x64\dotnet-linq2db.dll' }
+              elseif ($built.Count -gt 0)     { Join-Path $built[0].FullName 'dotnet-linq2db.dll' }
+              else                            { Join-Path $publishRoot 'net10.0\win-x64\dotnet-linq2db.dll' }
 }
 
 if (-not (Test-Path $CliDll)) {

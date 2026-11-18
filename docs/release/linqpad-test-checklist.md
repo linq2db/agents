@@ -230,3 +230,14 @@ needed two additions:
 Each is discoverable **only** by connecting with the provider that trips it, so a release that bumps
 dependencies should build a model against several providers, not just one. CI cannot catch these at
 all: it never loads the driver into LINQPad.
+
+**The resolvers cannot help the Add Connection dialog.** LINQPad 5 lists drivers by calling
+`GetExportedTypes()` on `linq2db.LINQPad.dll` *before* `DriverHelper.Init()` registers anything, so an
+exported type whose base type or interface lives in a linq2db assembly forces linq2db's exact
+`Microsoft.Bcl.AsyncInterfaces` reference — a version the driver never ships — and the driver silently
+vanishes from the dialog while existing connections keep working. Rule: **no exported type of
+`linq2db.LINQPad` may derive from or implement a linq2db type.** Check it by scanning the built dll's public
+`TypeDefinitions` (base type + interface implementations) with `System.Reflection.Metadata`; the failure
+itself is in `%LOCALAPPDATA%\LINQPad\Logs\log.txt` as `Error reading driver assembly` under
+`ThirdPartyDriverProber`. (6.5.1 shipped broken — public `LINQPadDataConnection : DataConnection`; fixed for
+6.6.0 by making it internal and building generated-context options through `LINQPadContextOptions.Create`.)
