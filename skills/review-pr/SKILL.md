@@ -197,6 +197,12 @@ Step 4's scope gate confirms *what* the PR does. It never asks whether linq2db s
 
 **`goals` on the invocation, or an explicit request, forces the check past every rule above.**
 
+**A prior review does not suppress the offer when the premise has moved since.** Offer it anyway, and say why, when either holds:
+- the diff has grown a mechanism the title does not name, since your last review or the last goal check;
+- your prior round's findings asked to extend a list-based mechanism, such as a per-client table, a skip list or a census of loads.
+
+Each such round makes the mechanism more complete without asking whether it is needed. (#5995: three rounds extended `ImpersonationPreload`'s lists, and its premise was never tested. The goal check first ran in round 4, forced, and returned `rescope`.)
+
 **Otherwise ask in one prompt:** *"Analyze the PR's goals before reviewing (scope, does the problem exist, point fix vs. design fix)? [y / n]"*. When the goal-check config has no model for this host, fold the goal-check model question (its step 3) into the **same** prompt.
 
 On `y`, invoke `Skill(goal-check)` with the PR number and pass it the context already loaded. A `sound` verdict continues to 3b. Any other verdict stops at goal-check's disposition. Only **continue** re-enters this skill, at 3b, and the verdict then travels with the review:

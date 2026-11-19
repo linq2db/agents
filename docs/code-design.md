@@ -135,6 +135,8 @@ linq2db deliberately carries **no** `[assembly: InternalsVisibleTo(...)]`, and n
 
 When a test needs an `internal` cache or primitive, either widen the type to `public` inside its `Internal.*` use-at-your-own-risk namespace (`QueryCache` is a `public sealed class` in `LinqToDB.Internal.Linq` for exactly this reason — add the `PublicAPI.Unshipped.txt` entries), or expose a purpose-built public diagnostic such as `Tools.GetCacheEntryCounts()`. This is the same reasoning as **Provider-called core methods are public, not internal** above, arriving from the test side.
 
+The rule covers every project in the repo, tools included, and both spellings: an `<InternalsVisibleTo Include="…" />` item in a `.csproj` and an `[assembly: InternalsVisibleTo(...)]` attribute. A project with no `Internal.*` namespace and no PublicAPI analyzer, such as `linq2db.CLI`, which removes `PublicApiAnalyzers`, makes the member `public` with nothing else to update. The CLI already does this for `QueryExecutionExecutor` and `ICliEnvironment`. (#5995: an IVT for `linq2db.CLI.Tests` passed three review rounds.)
+
 ### Propose the minimal API surface first
 
 When adding public API, propose the **minimal viable surface** — the one or two methods that satisfy the cited issue — then list the *possible* further overloads and ask which to keep before writing them. Do not build out full symmetric overload sets (sync × async × `IDataContext` × `IQueryable` × projected × non-projected × update × delete) up front.
