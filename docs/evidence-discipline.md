@@ -37,6 +37,13 @@ a single paragraph.
 
 ## Probes, instrumentation and controls
 
+**Running a master mutation: build the throwaway worktree with `-p:TreatWarningsAsErrors=false`.**
+- `if (false && …)` raises CS0429 (unreachable expression), which `TreatWarningsAsErrors` makes an error.
+- One build can carry several mutations, provided each reaches a different test. Read each red against only its own mutation.
+- Copy `UserDataProviders.json` into the worktree without `BaselinesPath`, so the master run cannot overwrite the branch's baselines.
+
+(#6427 TO-5: five workaround removals were proven in one build, one red per covering test.)
+
 **A master control that returns no rows on SQLite.MS is not yet "the C# answer" — read its SQL and parameter types first.** Microsoft.Data.Sqlite binds a `System.Char` parameter as its integer code, so a `DECLARE @x Char` holding `'F'` never equals a stored `'F'`, and a wrong compare reads as a correct empty result. Check one more provider before characterising master. (#6277: master's typed `p.Gender.Equals(apiLocal)` returned 0 rows on SQLite.MS, threw `InvalidCastException` on PostgreSQL.18 and matched a row on ClickHouse.Driver — the same `@api = 'F'` in all three.)
 
 **On a branch with several stacked fixes to one mechanism, a master control can fail for a reason unrelated to the change under test.** When master lacks an earlier fix the probe's shape also needs, its red says nothing about the change you are measuring. Run the control on the commit just before that change, and read master only for the "pre-existing?" question. (#5969 round 4: master failed every `~x`-under-`BOR` probe because it has no `BOR` arm at all; the parent of the `~x` fix, `bcefe37bb`, was the control that measured the fix.)

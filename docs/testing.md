@@ -795,6 +795,10 @@ Framework note: there is **no property-testing dependency in the repo today**. O
 
 ## Cross-provider gotchas for new tests
 
+### Integer division is not truncating everywhere
+
+Access renders a C# `int / int` as its floating `/`: `TruncateDivide` (`AccessSqlExpressionConvertVisitor.cs`) is used only by internal lowerings, so `7 / 5 * 3` reads 4.2 there. A raw `"{0} / {1}"` template on DuckDB returns `DOUBLE`, which then fails as a bitwise operand. When division semantics are not what the test is about, give it operands that divide exactly, or skip the inexact case in the generator (#6427: the precedence matrix's `ExactDivisionVisitor`).
+
 ### YDB requires a primary key on every table
 
 YDB rejects `CREATE TABLE` without a primary key, so `db.CreateLocalTable<T>()` of a keyless type fails at setup with `Primary key is required for ydb tables` (wrapped in a `Pre type annotation` error). It's a test-data fix, not a provider change.
@@ -1264,6 +1268,11 @@ The stack names the translator, the visitor entry point, and — through the fra
 Many tests compare emitted SQL against a stored baseline file. Baselines live **outside the main repo** under the path configured by `BaselinesPath` in `UserDataProviders.json` → `MyConnectionStrings`. With `BaselinesPath` set, a mismatched test overwrites the baseline with the new SQL; subsequent runs compare against the updated file. With `BaselinesPath` unset, baselines are neither written nor compared.
 
 Baseline capture is **not** gated on `AssertQuery` / `GetSql`. Emitted SQL is captured at the harness level (`Tests/Base/BaselinesWriter.cs`) for any query a test executes through `GetDataContext`, so a plain `GetDataContext` + `ToList()` + `ShouldBe` test with no `AssertQuery` call still writes `.sql` baselines. Never infer "no baselines" from the assertion style — check the baselines output.
+
+**A failed test writes no baseline.** `BaselinesManager.Dump` returns early when the test failed (`Tests/Base/BaselinesManager.cs:40-41`), and CI pushes baselines only for a leg that succeeded (`Build/Azure/pipelines/templates/test-workflow-linux.yml`, `push-baselines.ps1` under `succeeded()`). To record a per-case verdict through the baselines channel and compare two commits with it:
+- **The test must pass while it records.** Use a fixture-local `const bool RecordVerdicts` that logs `-- cell <id>: green|red|error|skipped` through `BaselinesManager.LogQuery` instead of asserting.
+- **The verdict lines must be message-free.** Direct and remote baselines are compared, and an error text that differs between them fails the case.
+- **A leg with no baselines commit is "no data", not "no regression".** (#6427: `OperatorPrecedenceTests.Matrix`.)
 
 ### When a substring assertion is vacuous — prefer baselines for shape-changing fixes
 
