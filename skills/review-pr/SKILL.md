@@ -133,7 +133,7 @@ The reply+resolve / reply+unresolve happens regardless of whether the skill ends
 
 Author-pushed CR commits commonly trigger a second Copilot review; treat its claims with the same rigor (classify, reply, resolve) rather than ignoring or batch-dismissing. The same `post-pr-thread-replies.ps1` call handles both passes. (#5451, 2026-05-09: 5 of 7 stale Copilot claims were addressed at HEAD, 2 had been inaccurate even when posted. #5503, 2026-05-10: a second pass after the author's CR commit added 6 threads — 2 Fixed, 3 Inaccurate, 1 dismissed as contrived.)
 
-**`currentUser` already has a *submitted* review on this PR and HEAD advanced since — recommend `/verify-review` before a fresh initial pass.** When `reviews[]` shows an entry by `currentUser` whose `state` is submitted (`CHANGES_REQUESTED` / `COMMENTED` / `APPROVED`, `submitted_at` populated) and `pr.headRefOid` differs from that review's `commit_id`, the author has almost certainly pushed fixes against your findings. Surface this and offer `/verify-review` (re-verify prior findings + audit the fixes + post a follow-up only for what's still actual) as the better-fit tool — a fresh initial `/review-pr` re-derives everything and ignores the fix replies. The user may still choose the fresh pass; if so, set the ID-continuation floor above your prior review's IDs (step 5) so the new findings don't collide. (Surfaced on #5678: prior review submitted with 5 findings, all fixed across six commits; a stale memory note had said it was still "PENDING".) **But when the advance also carries commits that answer none of your findings** — another reviewer's fixes, or new engine changes — offer the fresh pass as an equal option. `/verify-review` reads only your own findings, so it never looks at that code. (#5673 round 3: six fold commits answering igor's review sat in the delta; the user picked the fresh pass.)
+**`currentUser` already has a *submitted* review on this PR and HEAD advanced since — recommend `/verify-review` before a fresh initial pass.** When `reviews[]` shows an entry by `currentUser` whose `state` is submitted (`CHANGES_REQUESTED` / `COMMENTED` / `APPROVED`, `submitted_at` populated) and `pr.headRefOid` differs from that review's `commit_id`, the author has almost certainly pushed fixes against your findings. Surface this and offer `/verify-review` (re-verify prior findings + audit the fixes + post a follow-up only for what's still actual) as the better-fit tool — a fresh initial `/review-pr` re-derives everything and ignores the fix replies. The user may still choose the fresh pass; if so, set the ID-continuation floor above your prior review's IDs (step 5) so the new findings don't collide. (Surfaced on #5678: prior review submitted with 5 findings, all fixed across six commits; a stale memory note had said it was still "PENDING".) **But when the advance also carries commits that answer none of your findings** — another reviewer's fixes, or new engine changes — offer the fresh pass as an equal option. `/verify-review` reads only your own findings, so it never looks at that code. (#5673 round 3: six fold commits answering igor's review sat in the delta; the user picked the fresh pass.) **Recommend the fresh pass when the world moved even though the PR's own code barely did.** That covers a release shipped since your last round, master merges that landed in the branch, or a user asking for goals or a scenario check. A version label, a CI leg or a convention can go stale while the PR's own code stays unchanged, and `/verify-review` never re-reads code your findings didn't name. (#5991 round 4: the only new commits answered round 3, but 6.6.0 had shipped and two master merges had landed. The fresh pass found 15 new items, including "Breaking changes in 6.6" for a PR now milestoned 6.7.0.)
 
 **`currentUser` is the PR author — fix-here is the default disposition, and a posted review is the exception.** GitHub refuses `APPROVE` and `REQUEST_CHANGES` on your own PR, and a draft review there only holds notes to yourself. So in the walk, recommend fixing on the branch, offering `post` only when the user wants a finding left on the PR for a co-reviewer. An empty `accept-for-post` set is then the expected end state. (#6140: self-review, one `SUG` fixed and pushed, nothing posted.)
 
@@ -196,6 +196,12 @@ Step 4's scope gate confirms *what* the PR does. It never asks whether linq2db s
 - The goal-check config sets the host's `analystModel` to `never`.
 
 **`goals` on the invocation, or an explicit request, forces the check past every rule above.**
+
+**A prior review does not suppress the offer when the premise has moved since.** Offer it anyway, and say why, when either holds:
+- the diff has grown a mechanism the title does not name, since your last review or the last goal check;
+- your prior round's findings asked to extend a list-based mechanism, such as a per-client table, a skip list or a census of loads.
+
+Each such round makes the mechanism more complete without asking whether it is needed. (#5995: three rounds extended `ImpersonationPreload`'s lists, and its premise was never tested. The goal check first ran in round 4, forced, and returned `rescope`.)
 
 **Otherwise ask in one prompt:** *"Analyze the PR's goals before reviewing (scope, does the problem exist, point fix vs. design fix)? [y / n]"*. When the goal-check config has no model for this host, fold the goal-check model question (its step 3) into the **same** prompt.
 
@@ -384,6 +390,13 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 - `Source/LinqToDB.CLI/CommandLine/Commands/QueryExecution/ExternalProviderLoader.cs` (`--provider-location` loading);
 - `Commands/Mcp/McpCommand.cs` and `McpInfoTool.cs` (which MCP paths reach the database);
 - `Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj`, `.github/workflows/build.yml` and `Build/Azure/pipelines/templates/test-cli.yml` (which CLI legs run, and which env-gated cases they set).
+
+The fourth review needed three more, each guessed wrong by two passes, which then went 6–12 calls over budget:
+- `Build/TargetFrameworks.props`, which defines `ToolTargetFrameworks`. The near-miss is `Directory.Build.props`.
+- `Commands/Connection/ConnectionSettings.cs`, the record the tests construct.
+- `Source/LinqToDB/Internal/DataProvider/LibRedProviderAdapter.cs`. The near-miss is `…/Access/LibRedProviderAdapter.cs`.
+
+When master has bundled a new client in the CLI since the branch point, the passes ask how the PR's per-client tables treat it. Cache its adapter from the merged tree (`git merge-tree --write-tree origin/master origin/pr/<n>`), and give the tree sha in the briefing so the passes read it with `git show <tree>:<path>`.
 
 **For a PR that touches `[SqlQueryDependent]`, compiled queries or cache comparison, the companions are the cache-key machinery.** Every pass asks the same questions: which tree reaches the comparer, before or after expose? What does the compiled table key on? Does an evaluated argument compile? Cache these with `include.content: true`:
 - `Source/LinqToDB/CompiledQuery.cs`

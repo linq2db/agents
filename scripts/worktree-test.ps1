@@ -144,12 +144,13 @@ a long run is unobservable, and - worse - the ABSENCE of a heartbeat is the corp
 own evidence that a run never started, so a flagless run is indistinguishable from a
 dead one.
 
-The exception is the DB-free analyzer-fixture projects (`Tests/Tests.Analyzers`,
-`Tests/Tests.Analyzers.Internal`, and any future sibling): they host a bare NUnit MTP
+The exception is the bare-NUnit hosts: the DB-free analyzer-fixture projects (`Tests/Tests.Analyzers`,
+`Tests/Tests.Analyzers.Internal`, and any future sibling) and the CLI tests (`Tests/LinqToDB.CLI`,
+#5991). They host a bare NUnit MTP
 runner that does not register the extension, so the option reaches the test
 application, which prints its help and exits 5 - surfaced as `Zero tests ran`, which
 is byte-identical to the symptom of a bad `--filter`. This script skips the flag
-automatically when `-Project` matches `Tests.Analyzers`; `-NoTestProgress` forces it
+automatically when `-Project` matches `Tests.Analyzers` or `Tests.LinqToDB.CLI`; `-NoTestProgress` forces it
 off for anything else. The `testProgress` field in the JSON output reports what was
 actually decided, so a `Zero tests ran` result can be checked against it rather than
 guessed at.
@@ -330,7 +331,7 @@ if ($LinqToDBAsset -and $LinqToDBAsset -ne 'netstandard2.0') {
 
 # On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
 # runner does not register the extension and answers the flag with its help text + exit 5.
-$useTestProgress = (-not $NoTestProgress) -and ($Project -notmatch 'Tests\.Analyzers')
+$useTestProgress = (-not $NoTestProgress) -and ($Project -notmatch 'Tests\.Analyzers|Tests\.LinqToDB\.CLI')
 
 if ($SerialBuild) {
     $buildLogPath = $LogPath -replace '\.log$', '-build.log'

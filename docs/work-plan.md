@@ -61,6 +61,8 @@ Blocks marked (M/L) are omitted entirely on a Tier S plan — delete the heading
 
 The observed failure or absent capability, stated **falsifiably**: a reproduction, a stack trace, the wrong SQL beside the right SQL. "It's broken" and "improve robustness" are not `P1` statements because they cannot be shown to be fixed.
 
+**A red→green run against a test double proves a stand-in invariant, not the fault.** When the double replaces the very thing the failure needs (an identity, a permission, a network), `P1` cites one observed run of the real failure, or marks the problem `reasoned, unprobed` and makes that run the first `P4` question. (#5995: every test ran through a recording session that never changed identity, so "nothing loads while impersonating" was proven green while the access-denied load it guards against was never observed.)
+
 ### P2 Success criteria
 
 One `SC-n` per criterion. Each must be **failable** — you can state the observation that would show it unmet — and each maps to a `TO-n` in `P8`.
