@@ -391,6 +391,13 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 - `Commands/Mcp/McpCommand.cs` and `McpInfoTool.cs` (which MCP paths reach the database);
 - `Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj`, `.github/workflows/build.yml` and `Build/Azure/pipelines/templates/test-cli.yml` (which CLI legs run, and which env-gated cases they set).
 
+The fourth review needed three more, each guessed wrong by two passes, which then went 6–12 calls over budget:
+- `Build/TargetFrameworks.props`, which defines `ToolTargetFrameworks`. The near-miss is `Directory.Build.props`.
+- `Commands/Connection/ConnectionSettings.cs`, the record the tests construct.
+- `Source/LinqToDB/Internal/DataProvider/LibRedProviderAdapter.cs`. The near-miss is `…/Access/LibRedProviderAdapter.cs`.
+
+When master has bundled a new client in the CLI since the branch point, the passes ask how the PR's per-client tables treat it. Cache its adapter from the merged tree (`git merge-tree --write-tree origin/master origin/pr/<n>`), and give the tree sha in the briefing so the passes read it with `git show <tree>:<path>`.
+
 **For a PR that touches `[SqlQueryDependent]`, compiled queries or cache comparison, the companions are the cache-key machinery.** Every pass asks the same questions: which tree reaches the comparer, before or after expose? What does the compiled table key on? Does an evaluated argument compile? Cache these with `include.content: true`:
 - `Source/LinqToDB/CompiledQuery.cs`
 - `Internal/Linq/CompiledTable{T}.cs`

@@ -68,7 +68,10 @@ first comment's id on every reply). `issueComments[]` carry `id`.
 
 Audit projection (reads a prior -OutFile result; no gh, no git):
 
-      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -AuditSummary
+      pwsh -NoProfile -File .claude/scripts/pr-context.ps1 -From .build/.agents/pr5503-context.json -AuditSummary [-OutFile <path>]
+
+    With -OutFile the object goes to the file and stdout carries one summary line
+    (before #5995 round 4 the flag was silently ignored here).
 
     One JSON object: { ok, action, pr, headSha, currentUser, ownPendingReviewId,
     idFloor, openOwnBodyItems[], auditScope, reviews[], replyOnlyReviews, threads[],
@@ -321,6 +324,12 @@ if ($From -or $AuditSummary) {
         otherReviewBodies  = @($otherBodies)
         issueCommentAuthors = $authors
         ownIssueComments   = @($ownIssue | ForEach-Object { [ordered]@{ id = $_.id; findingIds = @(Get-FindingIds $_.body); excerpt = Get-Excerpt $_.body } })
+    }) -OutFile $OutFile -Summary ([ordered]@{
+        action             = 'audit-summary'
+        ownPendingReviewId = if ($pending.Count -gt 0) { $pending[0].id } else { $null }
+        threads            = $threads.Count
+        otherOpenThreads   = @($threads | Where-Object { -not $_.own -and -not $_.isResolved }).Count
+        otherReviewBodies  = @($otherBodies).Count
     })
     return
 }
