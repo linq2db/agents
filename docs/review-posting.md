@@ -156,6 +156,10 @@ The skills post a PENDING draft and never submit it on their own (each skill's *
 - **Verify anchors through `pulls/<n>/comments`, not the review's own endpoint.** Filter it on `pull_request_review_id`. `reviews/<id>/comments` returns `line: null` for every comment, which reads as lost anchors.
 - **Page the review list.** `pulls/<n>/reviews` returns 30 entries per page, so a long-lived PR needs `?per_page=100` with `--paginate`. Without it, a `select(.user.login == …)` comes back empty.
 
+### GitHub rewrites a `\u00XX` control-character escape in comment text
+
+GitHub stores the text `\u0001` as `\^A`, in a code span, in a `suggestion` block, and through a GraphQL `updatePullRequestReviewComment`. `\uFFFD` and `\uFEFF` survive, and so does `\x01`. So write a C0 control escape as `\xNN` (in C#, `\x01` followed by a non-hex character), or describe it in words. The wrapper's `verify` block reports it as `no matching stored comment`; read the stored body before retrying. (#5991 round 4, NIT009: `"L2DBLCS\u0001"u8` posted as `"L2DBLCS\^A"u8`; `\x01` stored intact.)
+
 ### Heredoc escaping caveat
 
 PowerShell single-quoted here-strings (`@'…'@`) end on the **first line** whose only content is `'@` (with the `'@` at column 0). If a comment body ever needs to contain that literal sequence, use a double-quoted here-string (`@"…"@`) instead — but then escape any literal `$` with a backtick (`` `$ ``) and double-quote marks with `` `" ``. Single-quoted here-strings are almost always the right choice because markdown content is nearly always safe inside them.
