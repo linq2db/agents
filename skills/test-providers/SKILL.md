@@ -72,6 +72,8 @@ Run one shell command per invocation; no chaining, no shell control flow. (Claud
 - One Bash call per command. No `&&` / `||` / `;` chaining; no shell control flow. (Also enforced by the rules in `.claude/docs/agent-rules.md`.)
 - Batch independent inspects in a single assistant turn (multiple parallel Bash tool calls), not one chained string.
 - Setup scripts under `Data/Setup Scripts/<name>.cmd` must be run from that directory — issue `cd "Data/Setup Scripts" && <script>.cmd` is **not** allowed; use the script's documented invocation form via a single command (e.g. invoke through `pwsh -NoProfile -File ...` if a sequence is required, or just `Data/Setup\ Scripts/<script>.cmd` from the repo root if the script supports it). When the script truly requires a `cd` first, wrap the two-step sequence in a small pwsh under `.build/.agents/` rather than chaining.
+  - **From the PowerShell tool, `Set-Location "<repo>\Data\Setup Scripts"; cmd /c ".\<script>.cmd"` starts the script, but its nested `call wait` / `call pgsql-createdb` (and similar helpers) fail with `'wait' is not recognized`.** This shell doesn't search the current directory, and a bare `cmd /c <script>.cmd` fails the same way. After the container is up, run each helper by absolute path, e.g. `cmd /c "<repo>\Data\Setup Scripts\pgsql-createdb.cmd" pgsql19`, then confirm with `docker exec <container> psql -U postgres -tAc "select version()"`. The durable fix is `call "%~dp0wait"` inside the scripts (a linq2db change). (2026-11-20, `pgsql19.cmd`.)
+  - **Run a script that pulls a new image with `run_in_background: true`.** The first pull of `postgres:19` took over the tool's 600 s limit, and the call was moved to the background with no output yet.
 
 ## Steps
 
