@@ -303,7 +303,7 @@ Measure the criterion against a census of the real sites before implementing: li
 
 ## Registration
 
-Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-ups: add the package to `/release-postpublish`'s expected-nuget list, and add a docs/wiki page for the rule (the descriptor's `helpLinkUri`).
+Both projects under `/Source/` and the test project under `/Tests/` in `linq2db.slnx` (hand-add the `<Project Path="…">` entries). New central package versions in `Directory.Packages.props`. Post-merge follow-up: add the package to `/release-postpublish`'s expected-nuget list. The rule's docs/wiki page (the descriptor's `helpLinkUri`) is created before merge, not after: a link that 404s at merge is a review finding (#6430 MIN008). Analyzer docs are planned to move from the wiki into the repo's docs during the 6.7 release.
 
 ## How the rules reach a consumer, and how a consumer turns them off
 
