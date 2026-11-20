@@ -182,7 +182,7 @@ until #6189; captured values and delegates of one lambda still collide.)
 
 ## Running the analyzer tests (`Tests/Tests.Analyzers`)
 
-The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:
+The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. The Shouldly rule holds here too: the existing fixtures assert through the Roslyn Verify harness, which is no precedent for NUnit value assertions, so the first test that checks a value adds `<PackageReference Include="Shouldly" />` (#6430 MIN007). They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:
 
 ```bash
 dotnet test Tests/Tests.Analyzers/Tests.Analyzers.csproj -c Release
