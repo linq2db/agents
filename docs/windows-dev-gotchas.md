@@ -470,7 +470,7 @@ Don't try to outwait a transient disk-space failure or ignore it as "the build m
 
 ## TFM API availability (net462 / netstandard2.0)
 
-The `Testing` configuration builds **net10.0 only**, so a local `dotnet build -c Testing` (and any single-`net10.0` fast iteration) will **not** catch APIs missing on the older TFMs in `<TargetFrameworks>` (`net462`, `netstandard2.0`). Before pushing source that calls a BCL API / extension method newer than .NET Standard 2.0 (e.g. `Enumerable.ToHashSet`, span overloads, `string.Contains(char)`), build one portable TFM locally first:
+The `Testing` configuration builds **only the latest TFM** (`$(LatestTargetFramework)`, net11.0 at the time of writing), so a local `dotnet build -c Testing` (and any single-TFM fast iteration) will **not** catch APIs missing on the older TFMs in `<TargetFrameworks>` (`net462`, `netstandard2.0`). Before pushing source that calls a BCL API / extension method newer than .NET Standard 2.0 (e.g. `Enumerable.ToHashSet`, span overloads, `string.Contains(char)`), build one portable TFM locally first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0
@@ -545,6 +545,10 @@ dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunApiAnalyzersDur
 That matches what PR CI passes — analyzers on, API analyzers off — so the same build also catches the analyzer findings that leg would fail on.
 
 (#5750: a `<see cref="TranslationProviderFlags.CanLowerIntervalShift"/>` added to `IntervalTranslationTests.Arithmetic.cs`, a file with no `using LinqToDB.Linq.Translation;`, passed a full green `test-all` and failed the `build` check with `CS1574` on all four TFMs.)
+
+## Swapping in an old version of one file
+
+To run a test against an older version of a single file (a red check against `master`'s copy), use `git restore --source=<rev> -- <path>`, then `git restore -- <path>` to put the current version back. Don't pipe `git show <rev>:<path>` into `Set-Content`: PowerShell receives the output as an array of lines, and `-NoNewline` joins them into one line, so the file no longer compiles (a red run that fails with `CS1513` at column 6000 of line 1 is this). A `>` redirect re-encodes the file instead.
 
 ## Bisecting across SDK upgrades
 

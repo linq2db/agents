@@ -66,7 +66,7 @@ demanding `System.Threading.Lock` over `lock (object)`). **Counts are not config
 of contorting throwaway code:
 `dotnet build <project> -c Release -f net10.0 -p:RunAnalyzers=false -p:TreatWarningsAsErrors=false`.
 Conversely
-`-c Testing` is net10.0-only and hides API gaps on `net462`/`netstandard2.0` (`Environment.ProcessId`
+`-c Testing` is latest-TFM-only and hides API gaps on `net462`/`netstandard2.0` (`Environment.ProcessId`
 is the classic — use `Process.GetCurrentProcess().Id`); see [`../AGENTS.md`](../AGENTS.md) → *Build
 gotchas that fast-iteration hides*.
 

@@ -63,7 +63,7 @@ Force `InProcessEmit` in the benchmark's `[Config]` (`Job.Default.WithToolchain(
 **Targeted repro in a worktree — run the MTP exe directly.** `dotnet test --project <path>` can fall back to the legacy VSTest MSBuild target (error: `MSB1001: Unknown switch … --project … --target:VSTest`) when the new-`dotnet test` opt-in isn't resolved for that invocation — e.g. a relative `--project` pointing into a `git worktree` from another checkout's cwd. For a focused run, skip `dotnet test` and invoke the built test executable directly with MTP options:
 
 ```bash
-.build/bin/Tests/Testing/net10.0/linq2db.Tests.exe --provider Firebird.5 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
+.build/bin/Tests/Testing/net11.0/linq2db.Tests.exe --provider Firebird.5 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
 ```
 
 For a broad run, add `--report-trx --report-trx-filename <f>.trx --results-directory .build/.agents/<dir>` and read the result through [`../scripts/trx-failures.ps1`](../scripts/trx-failures.ps1) (`-GroupBy message|reason`, `-Like`, `-DirectOnly`): it turns hundreds of failures into a ranked list of causes, which is what triaging a newly enabled provider needs.
@@ -270,7 +270,7 @@ A question about what a test-framework API does — which overload an async lamb
 
 Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that drive `#if BUGCHECK`-gated test hooks on the core library — e.g. `QueryCacheEvictionTests` driving `QueryCache.RunSweepNow` / `BucketCount`) only compile in **Debug / Testing / Azure** configurations. `BUGCHECK` is defined in `Source/LinqToDB/LinqToDB.csproj` and mirrored into `Tests/Directory.Build.props` so the test project sees the same symbol. Consequences:
 
-- Run them with `-c Testing` (net10.0-only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
+- Run them with `-c Testing` (latest TFM only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
 - **`QueryUtils.GetStatement()` returns the statement after `SqlOptimizer.Finalize`** (`ExpressionBuilder.cs:312`), so `SelectQueryOptimizerVisitor` re-run on its clone sees an already-flattened tree. A counter test for merge-time behaviour (`MoveSubQueryUp`, correction walks) builds the AST by hand: `SelectQueryOptimizationTests.BuildJoinChain`, `NullabilityContextTests`. (#6158)
 
@@ -511,7 +511,7 @@ If your test modifies data, revert changes to avoid side effects in downstream t
 
 When CI shows a test failing on the `Tests (NETFX x64)` jobs while the same test passes on the .NET 8/9/10 tasks of the same provider, suspect a **runtime driver divergence**, not a TFM-agnostic code bug. ADO.NET providers can behave differently across runtimes — e.g. `SqlDataReader.GetName` returns duplicate empty names for unnamed result columns (`select 1, 1`) on .NET Framework but distinct names on modern .NET (#5659).
 
-The `Testing` config is net10.0-only and a net10.0 run **won't reproduce** such a failure. Reproduce on net462 directly:
+The `Testing` config builds only the latest TFM, and a run there **won't reproduce** such a failure. Reproduce on net462 directly:
 
 ```bash
 dotnet build Tests/Linq/Tests.csproj -c Debug -f net462

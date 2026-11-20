@@ -265,7 +265,7 @@ Record each as `G-nn: pass | fail | n/a | skipped | blocked — <the command run
 
 **A `pass` that claims completeness ("all new types have `PublicAPI.Unshipped.txt` entries", "every caller covered") cites the command or the full enumeration that proves it, never "e.g." examples.** Two examples prove two entries. For `Internal.*` surface the Unshipped claim is either checked with `dotnet build -c Release -p:RunApiAnalyzersDuringBuild=true` (RS0016 runs only then) or recorded as reconciled at release. (#5969 round 3: G-03 read "pass — all new types and overrides … (e.g. `:390,424`)"; an override added two amendments later never got its line.)
 
-Analyzers are Release-only and `Testing` builds `net10.0` only, so `G-05` is not satisfied by a green `Testing` build ([`agent-rules.md`](agent-rules.md) → *Build & push gotchas*). `G-05` is about compiling. Runtime behaviour of the netstandard2.0 asset is a separate question: a plan that adds or moves a TFM gate, or drops a TFM, lists it in `P7` per [`code-design.md`](code-design.md) → *A TFM gate may withhold a feature, never recognition of unchanged source*.
+Analyzers are Release-only and `Testing` builds only the latest TFM, so `G-05` is not satisfied by a green `Testing` build ([`agent-rules.md`](agent-rules.md) → *Build & push gotchas*). `G-05` is about compiling. Runtime behaviour of the netstandard2.0 asset is a separate question: a plan that adds or moves a TFM gate, or drops a TFM, lists it in `P7` per [`code-design.md`](code-design.md) → *A TFM gate may withhold a feature, never recognition of unchanged source*.
 
 ### P10 Adjudicated (M/L)
 

@@ -10,7 +10,7 @@ Adding a version is two layers of work:
 
 1. **Core anchor wiring** — necessary, and easy to remember because it won't compile without it. For PostgreSQL that was: `PostgreSQLVersion.v19`, `ProviderName.PostgreSQL19`, `PostgreSQLDataProvider19`, `PostgreSQLMappingSchema.PostgreSQL19MappingSchema`, the version detector (`>= 19`, config-name, factory `"19"`), the `ProviderDetector` / `GetConfigurationName` / mapping-schema switches, and `PublicAPI.Unshipped.txt`.
 
-2. **Additive `ProviderName`-keyed lists** — the trap. These are scattered allowlists that enumerate the specific versions a behaviour applies to. They are **not cumulative chains**: the new anchor's `ConfigurationList` does not contain older anchors, so an un-extended list *silently excludes* the new version. There is no compile error — the fast `Testing` / single-`net10.0` build is green, and the gap only shows up at runtime / full CI.
+2. **Additive `ProviderName`-keyed lists** — the trap. These are scattered allowlists that enumerate the specific versions a behaviour applies to. They are **not cumulative chains**: the new anchor's `ConfigurationList` does not contain older anchors, so an un-extended list *silently excludes* the new version. There is no compile error — the fast `Testing` / single-TFM build is green, and the gap only shows up at runtime / full CI.
 
 ## The lists to extend (PostgreSQL worked example)
 
