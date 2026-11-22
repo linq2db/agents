@@ -570,6 +570,40 @@ function Invoke-Validate {
         if ($Done -or $lateAmendment) { $errors += $msg } else { $warnings += $msg }
     }
 
+    # A sweep scoped to one amendment's delta never sees an earlier amendment's tests, and a hit handed to the
+    # review instead of fixed is a known defect shipped. #6111: every sweep ran with -Base <amendment sha> or
+    # -Base HEAD, so A-4's chain sat unswept until A-12, which recorded it as a review item (round 3 NIT002/NIT003).
+    if ($g01Rows.Count -gt 0 -and $p6TestRows.Count -gt 0 -and $g01 -match 'test-diff-sweep') {
+        $p11ForSweep = Get-Block -Blocks $blocks -Id 'P11'
+        $sweepTexts  = @($g01) + @(if ($null -ne $p11ForSweep) { $p11ForSweep.lines | Where-Object { $_ -match '(?i)\bconventions:' } })
+        $narrowBase  = @($sweepTexts | Where-Object { $_ -match '(?i)test-diff-sweep[^\n]*-Base\s+(?!origin/master\b)[^\s`]+' })
+        if ($narrowBase.Count -gt 0) {
+            $warnings += "P9 : a test-diff-sweep record uses a -Base other than the merge base -- on a planned branch sweep origin/master...HEAD so earlier amendments' tests are covered"
+        }
+        $deferred = @($sweepTexts | Where-Object { $_ -match '(?i)(named|carried|deferred|left) as (?:a )?review items?' })
+        if ($deferred.Count -gt 0) {
+            $msg = "P9 : a test-diff-sweep hit is recorded as a review item instead of fixed -- fix it on the branch or record why it is not a violation"
+            if ($Done) { $errors += $msg } else { $warnings += $msg }
+        }
+    }
+
+    # A doc edit-point restates D-n contract points; G-03 recorded as "docs present" checks none of them.
+    # #6111: G-03 was recorded once at approval and never re-derived through eleven amendments, so D-5's
+    # "beyond seven, use the anonymous form" never reached the docs (round 3 SUG008). Warn only.
+    $p6DocRows = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' -and $_ -match '(?i)XML doc|<summary>|<remarks>|\bremarks\b|<exception>' } })
+    if ($p6DocRows.Count -gt 0) {
+        $g03Rows = @()
+        $inG03   = $false
+        foreach ($row in (Get-BlockRows -Block $p9)) {
+            if ($row -match '^-\s*[*_]{0,2}G-(\d+)') { $inG03 = ($Matches[1] -eq '03') }
+            if ($inG03) { $g03Rows += $row }
+        }
+        $g03 = $g03Rows -join "`n"
+        if ($g03Rows.Count -gt 0 -and $g03 -notmatch '\b(?:D|A)-\d+\b') {
+            $warnings += "P9 : P6 has doc edit-points but G-03 names no D-n / A-n contract point -- record which documented contracts the docs were checked against"
+        }
+    }
+
     # The latest G-01 sweep record names every category test-diff-sweep.ps1 reports, zeros included. #5969 round 3:
     # the records listed chains and narrowed sets while the sweep flagged a type-only Shouldly gate under
     # typeOnlyShouldlyGates, and the gate survived two review rounds. The category list is read from the sweep
@@ -786,10 +820,31 @@ function Invoke-Validate {
                 $trigger = 'tests'
             }
             if (-not $trigger) { continue }
-            if ($e.text -match '(?i)\bconventions:') { continue }
+            if ($e.text -match '(?i)\bconventions:') {
+                # A conventions: line that cites no sweep ("held by hand") is not the record. #6111 A-7 added two
+                # one-line chains under such a line; the review found them (round 3 NIT002). Errors from 2026-11-22.
+                $convLine = [regex]::Match($e.text, '(?im)\bconventions:[^\n]*').Value
+                if ($convLine -notmatch 'test-diff-sweep') {
+                    $msg = "P11 : $($e.id) has a conventions: line that cites no test-diff-sweep.ps1 run -- run the sweep and cite its counts per category"
+                    if (& $isError $e $trigger '2026-11-22') { $errors += $msg } else { $warnings += $msg }
+                }
+                continue
+            }
 
             $msg = "P11 : $($e.id) adds test edit-points ($(& $because $trigger)) but has no conventions: line -- record the Test layout embed and the sweep of the branch's test diff"
             if (& $isError $e $trigger '2026-10-19') { $errors += $msg } else { $warnings += $msg }
+        }
+
+        # An amendment that fixes a master bug here changes behaviour outside the feature, so P3's user-visible
+        # deltas list must change with it. #6111: A-3 … A-6 each took "fix it here" without re-deriving P3, which stayed
+        # false until A-12 (round 3 SUG011). Warn only, from 2026-11-22.
+        foreach ($e in $entries) {
+            if ($e.text -notmatch '(?i)master bug|fix it here|fixes? (?:it )?here\b') { continue }
+            $dated = [regex]::Match($e.text, '\((\d{4}-\d{2}-\d{2})[,)]')
+            if (-not ($dated.Success -and $dated.Groups[1].Value -ge '2026-11-22')) { continue }
+            $reLine = [regex]::Match($e.text, '(?im)re-derives:[^\n]*').Value
+            if ($reLine -match '\bP3\b') { continue }
+            $warnings += "P11 : $($e.id) fixes a master bug here but its re-derives: line does not name P3 -- add the behaviour change to P3's user-visible deltas"
         }
 
         # An amendment answering a review finding fixes the instance it was shown unless it enumerates the class
