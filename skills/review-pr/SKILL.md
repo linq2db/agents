@@ -31,11 +31,13 @@ The workflow relies on five PowerShell Core helper scripts to keep the permissio
 
 Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.claude/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
 
+`/review-pr <ref> goals` (also `goal-check`, or "with goal check") forces the step-3a goal analysis even where step 3a would not offer it.
+
 `/review-pr resume <n>` picks up a review a previous session saved with the mode-choice gate's `save-for-later` option — it re-enters at the preview instead of reviewing again. Contract, state-file location and the HEAD-staleness validation: [`review-orchestration.md`](../../docs/review-orchestration.md) → **Resuming a saved review**.
 
 ## Steps
 
-Permission-prompt discipline, PR resolution, context loading, subagent spawning, API classification, posting, and the command-usage audit closing step are defined once in [`review-orchestration.md`](../../docs/review-orchestration.md). This skill layers `initial`-mode specifics on top: a **scope confirmation gate** (step 4 below), a **target-branch warning** (step 3), and the **review-body assembly** (step 8).
+Permission-prompt discipline, PR resolution, context loading, subagent spawning, API classification, posting, and the command-usage audit closing step are defined once in [`review-orchestration.md`](../../docs/review-orchestration.md). This skill layers `initial`-mode specifics on top: a **scope confirmation gate** (step 4 below), a **target-branch warning** (step 3), an opt-in **goal analysis** (step 3a), and the **review-body assembly** (step 8).
 
 ### 1. Resolve the target PR
 
@@ -131,7 +133,7 @@ The reply+resolve / reply+unresolve happens regardless of whether the skill ends
 
 Author-pushed CR commits commonly trigger a second Copilot review; treat its claims with the same rigor (classify, reply, resolve) rather than ignoring or batch-dismissing. The same `post-pr-thread-replies.ps1` call handles both passes. (#5451, 2026-05-09: 5 of 7 stale Copilot claims were addressed at HEAD, 2 had been inaccurate even when posted. #5503, 2026-05-10: a second pass after the author's CR commit added 6 threads — 2 Fixed, 3 Inaccurate, 1 dismissed as contrived.)
 
-**`currentUser` already has a *submitted* review on this PR and HEAD advanced since — recommend `/verify-review` before a fresh initial pass.** When `reviews[]` shows an entry by `currentUser` whose `state` is submitted (`CHANGES_REQUESTED` / `COMMENTED` / `APPROVED`, `submitted_at` populated) and `pr.headRefOid` differs from that review's `commit_id`, the author has almost certainly pushed fixes against your findings. Surface this and offer `/verify-review` (re-verify prior findings + audit the fixes + post a follow-up only for what's still actual) as the better-fit tool — a fresh initial `/review-pr` re-derives everything and ignores the fix replies. The user may still choose the fresh pass; if so, set the ID-continuation floor above your prior review's IDs (step 5) so the new findings don't collide. (Surfaced on #5678: prior review submitted with 5 findings, all fixed across six commits; a stale memory note had said it was still "PENDING".) **But when the advance also carries commits that answer none of your findings** — another reviewer's fixes, or new engine changes — offer the fresh pass as an equal option. `/verify-review` reads only your own findings, so it never looks at that code. (#5673 round 3: six fold commits answering igor's review sat in the delta; the user picked the fresh pass.)
+**`currentUser` already has a *submitted* review on this PR and HEAD advanced since — recommend `/verify-review` before a fresh initial pass.** When `reviews[]` shows an entry by `currentUser` whose `state` is submitted (`CHANGES_REQUESTED` / `COMMENTED` / `APPROVED`, `submitted_at` populated) and `pr.headRefOid` differs from that review's `commit_id`, the author has almost certainly pushed fixes against your findings. Surface this and offer `/verify-review` (re-verify prior findings + audit the fixes + post a follow-up only for what's still actual) as the better-fit tool — a fresh initial `/review-pr` re-derives everything and ignores the fix replies. The user may still choose the fresh pass; if so, set the ID-continuation floor above your prior review's IDs (step 5) so the new findings don't collide. (Surfaced on #5678: prior review submitted with 5 findings, all fixed across six commits; a stale memory note had said it was still "PENDING".) **But when the advance also carries commits that answer none of your findings** — another reviewer's fixes, or new engine changes — offer the fresh pass as an equal option. `/verify-review` reads only your own findings, so it never looks at that code. (#5673 round 3: six fold commits answering igor's review sat in the delta; the user picked the fresh pass.) **Recommend the fresh pass when the world moved even though the PR's own code barely did.** That covers a release shipped since your last round, master merges that landed in the branch, or a user asking for goals or a scenario check. A version label, a CI leg or a convention can go stale while the PR's own code stays unchanged, and `/verify-review` never re-reads code your findings didn't name. (#5991 round 4: the only new commits answered round 3, but 6.6.0 had shipped and two master merges had landed. The fresh pass found 15 new items, including "Breaking changes in 6.6" for a PR now milestoned 6.7.0.)
 
 **`currentUser` is the PR author — fix-here is the default disposition, and a posted review is the exception.** GitHub refuses `APPROVE` and `REQUEST_CHANGES` on your own PR, and a draft review there only holds notes to yourself. So in the walk, recommend fixing on the branch, offering `post` only when the user wants a finding left on the PR for a co-reviewer. An empty `accept-for-post` set is then the expected end state. (#6140: self-review, one `SUG` fixed and pushed, nothing posted.)
 
@@ -182,7 +184,35 @@ Wait for an explicit `y`. No other guards (no draft-PR guard, no size guard).
 
 Two mechanical consequences for the steps below. **Step 4's question 2 is moot** — CI prunes `baselines/pr_<n>` once the tracking baselines PR is merged/closed, so report *"baselines branch pruned on merge — pass unavailable"* rather than offering the opt-out, and skip the presence/age probes. **Step 4 gains a delivery question**, because a PENDING draft review is usually the wrong vehicle on a merged PR — nobody reopens its Files tab. Ask it alongside the scope question: **report-only** (no GitHub write; the sensible default for a retrospective pass), **issue comments** on the PR thread (where the conversation already is, and what a maintainer will actually see), or **a draft review** when the user wants findings line-anchored anyway. Frame anything posted as a *post-merge note*, not a change request. (Surfaced on #5754, reviewed a day after merge: the delivery question had to be improvised, and the walk then posted four thread comments.)
 
+### 3a. Offer goal analysis (opt-in)
+
+Step 4's scope gate confirms *what* the PR does. It never asks whether linq2db should take it. A PR can fail on its premise: the task is out of scope, the "bug" does not exist, or a point fix stands in for a design-level one. On such a PR, the review passes measure the code against the wrong goal. [`/goal-check`](../goal-check/SKILL.md) tests the premise before any pass runs. This step sits after step 3 because the goal check relies on step 3's results: the PR's real state, the merged-PR branch and the stacked-PR own-delta.
+
+**Don't offer it when any of the following holds.** Print one line naming the reason, e.g. *"Goal check not offered — you reviewed this PR on <date>; say `goals` to force it."*
+- `currentUser` has a submitted or PENDING **review** in `reviews[]`. A plain reply comment doesn't count. Neither does an unposted `pr<n>-review-state.json`, per [`review-orchestration.md`](../../docs/review-orchestration.md) → *Only a review posted on the PR…*.
+- `<primary-clone>/.build/.agents/pr<n>-goal-check.json` exists. Quote its verdict and date. If its `headSha` differs from the current head, say so.
+- `currentUser` is the PR author.
+- `pr.state` is `MERGED`. That is a retrospective pass, so the premise question is moot.
+- The goal-check config sets the host's `analystModel` to `never`.
+
+**`goals` on the invocation, or an explicit request, forces the check past every rule above.**
+
+**A prior review does not suppress the offer when the premise has moved since.** Offer it anyway, and say why, when either holds:
+- the diff has grown a mechanism the title does not name, since your last review or the last goal check;
+- your prior round's findings asked to extend a list-based mechanism, such as a per-client table, a skip list or a census of loads.
+
+Each such round makes the mechanism more complete without asking whether it is needed. (#5995: three rounds extended `ImpersonationPreload`'s lists, and its premise was never tested. The goal check first ran in round 4, forced, and returned `rescope`.)
+
+**Otherwise ask in one prompt:** *"Analyze the PR's goals before reviewing (scope, does the problem exist, point fix vs. design fix)? [y / n]"*. When the goal-check config has no model for this host, fold the goal-check model question (its step 3) into the **same** prompt.
+
+On `y`, invoke `Skill(goal-check)` with the PR number and pass it the context already loaded. A `sound` verdict continues to 3b. Any other verdict stops at goal-check's disposition. Only **continue** re-enters this skill, at 3b, and the verdict then travels with the review:
+- into the step-6 `code-reviewer` briefing, as a `goalCheck` lead routed into its *Architectural decisions* flag-and-defer channel;
+- into step 8, as a design-level `BLK` that cites the verdict's evidence. If the user downgrades it at the gate, it becomes a `## Review notes` line;
+- into a saved review state, as a `goalCheck` field (see [`review-orchestration.md`](../../docs/review-orchestration.md) → *save-for-later mode*).
+
 ### 3b. Verify 3rd-party behavior claims in the linked issue
+
+**Skip this step when step 3a ran and every entry in the verdict's `thirdPartyClaims[]` is labelled `measured`**, because the analyst already fetched the upstream evidence. Otherwise run it as below.
 
 If the PR scope summary or linked issue body rests on an external-system claim — a DB version feature, SQL-standard requirement, driver behavior — verify it per [`create-issue.md`](../create-issue/SKILL.md) → step 1 sub-point 3 (**Verify any 3rd-party behavior claim against upstream docs**) before spawning the reviewers.
 
@@ -197,6 +227,8 @@ Before spawning the reviewers, orient via the knowledge base (skip silently if `
 - `areas/<AREA>/patterns.md` — the area's idioms, to judge whether the diff conforms
 
 Reserve `/kb-ask` for cross-area synthesis. Orientation only — the diff + current source win. See [`agent-rules.md`](../../docs/agent-rules.md) → *Consult the knowledge base*.
+
+When step 3a ran, it has already read these anchors and the plan's `P1`–`P3` (step 3e). Reuse those reads; don't read the files again.
 
 ### 3d. Review the rule's documentation page (analyzer / rule PRs)
 
@@ -256,6 +288,12 @@ Three rules govern how the plan is used, and all three go into the briefing:
 
 **No plan is a first-class valid state.** External-contributor PRs and branches predating the mechanism have none: say so in one line and proceed exactly as before. Do not report it as a defect and do not ask the author for one.
 
+### 3f. Cross-check repository advisories (security-adjacent PRs)
+
+When the PR touches identifier quoting, literal escaping, the remote / serializer path or raw-SQL rendering, list the repository's advisories (`gh api repos/linq2db/linq2db/security-advisories --paginate --jq '.[] | {ghsa_id, state, severity, summary}'`) and match them against the PR's area by summary. For each match, tell the user whether the PR covers it and whether other in-flight work rewrites the same code.
+
+**Report this to the user only.** An undisclosed advisory never appears in the review body, a comment, a commit or the corpus; a public finding stands on its own merits. Record anything that must carry across sessions in auto-memory.
+
 ### 4. Pre-review confirmation
 
 After the target-branch check passes and the change summary is in hand, ask the user two bundled questions in a single prompt so both answers land in one reply (per `agent-rules.md` → **Batching and user interaction**):
@@ -265,6 +303,8 @@ After the target-branch check passes and the change summary is in hand, ask the 
 > 2. Include baselines review (test/SQL baseline diff analysis)? [y / n, default y]
 
 **When step 3e found a plan, question 1's summary is the plan's `P1`/`P2`, not a fresh re-derivation** — quote it and render the header line `Work plan: <key> — Tier <T>, critic <verdict>, <n> edit-points, <n> adjudicated, <n> amendments`. The user is then confirming the *recorded* scope, which is the whole point of having one. A correction at this gate means the plan is out of date: offer `/work-plan amend` rather than silently reviewing against a scope the plan doesn't carry.
+
+**When step 3a ran, show its verdict as a header line**: `Goal check: <verdict> (<model>) — <goal>`. With no plan, the analyst's `goal` becomes question 1's summary. With a plan, the plan's `P1`/`P2` stays the scope text, and a conflict between the two is worth pointing out at this gate.
 
 **Question 1 — scope.** Answers:
 - `y` — proceed with the stated scope as the confirmed scope.
@@ -357,6 +397,13 @@ The pre-pop manifest sets `include.styleScan: true`, so the call's stdout alread
 - `Commands/Mcp/McpCommand.cs` and `McpInfoTool.cs` (which MCP paths reach the database);
 - `Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj`, `.github/workflows/build.yml` and `Build/Azure/pipelines/templates/test-cli.yml` (which CLI legs run, and which env-gated cases they set).
 
+The fourth review needed three more, each guessed wrong by two passes, which then went 6–12 calls over budget:
+- `Build/TargetFrameworks.props`, which defines `ToolTargetFrameworks`. The near-miss is `Directory.Build.props`.
+- `Commands/Connection/ConnectionSettings.cs`, the record the tests construct.
+- `Source/LinqToDB/Internal/DataProvider/LibRedProviderAdapter.cs`. The near-miss is `…/Access/LibRedProviderAdapter.cs`.
+
+When master has bundled a new client in the CLI since the branch point, the passes ask how the PR's per-client tables treat it. Cache its adapter from the merged tree (`git merge-tree --write-tree origin/master origin/pr/<n>`), and give the tree sha in the briefing so the passes read it with `git show <tree>:<path>`.
+
 **For a PR that touches `[SqlQueryDependent]`, compiled queries or cache comparison, the companions are the cache-key machinery.** Every pass asks the same questions: which tree reaches the comparer, before or after expose? What does the compiled table key on? Does an evaluated argument compile? Cache these with `include.content: true`:
 - `Source/LinqToDB/CompiledQuery.cs`
 - `Internal/Linq/CompiledTable{T}.cs`
@@ -430,6 +477,8 @@ When the PR changes the validator's own state tracking or a provider flag it rea
 (#6197: the three passes went 6, 9 and 16 calls over budget. One pass filed a false Minor, a kept GroupBy key "lost behind a wrapper", because it read `VisitSqlPlaceholderExpression` without `BuildSqlExpression`'s `UpdateNesting`. One read of `ExpressionBuilder.Expressions.cs` settled the contradiction between passes, and a DuckDB probe confirmed it.)
 
 **For a PR touching `HandleSubquery` / `GetSubQuery` / aggregate building, cache the fallback machinery.** Every pass asks "what happens if the build fails here — does a fallback produce a working result?", and only files the PR does not touch answer it: `Internal/Linq/Builder/OrderByBuilder.cs` (constant-key skip), `Internal/Linq/Builder/AggregateExecuteBuilder.cs`, `Internal/Linq/Builder/ExpressionBuilder.cs` (`BuildSequence`'s error construction), `Linq/Translation/AggregateFunctionBuilder.cs`, and `Source/LinqToDB/LinqExtensions/LinqExtensions.cs` (`AggregateExecute`'s runtime body). `IsSameGenericMethod` is declared in a C# 14 extension block — see [`code-design.md`](../../docs/code-design.md). (Surfaced on #5901: a single pass spent 17 calls against its 0–3 budget on exactly these.)
+
+**When a briefing asks the pass to check the PR against master commits that landed after its branch point, cache those commits too.** A merged-tree axis lists master shas: "does #6211 change the guard's reach?". The pass can answer that only from their diffs, which no PR-keyed cache holds. For each listed sha, write `git show <sha> -- <the PR's changed paths and the companions above>` to `<writeDir>/_master/<sha>.diff` with the PowerShell tool (`*> <path>`), and name the files in the briefing. Add the master-side definitions of any constant or provider set the merge resolution relied on, e.g. a test fixture's `TestProvName` group fields. (#5901 round 2: with the companions cached, the single pass still went 12 calls over budget on #6211 / #5983 diffs and master's `UnsupportedDifferenceProviders`.)
 
 **For a PR that changes which calls a `[BuildsMethodCall]` builder accepts** (`CanBuildMethod`, an argument-count or overload-shape check), the passes ask *which methods reach this builder* and *what else shares the shape*. Builders are dispatched by method **name**, so a user `[IsQueryable]` method of that name gets there too. Cache with `include.content: true`, single-pass included (name them in the briefing so the pass's first manifest fetches them): `Internal/Expressions/InternalExtensions.cs` (`IsQueryable` / `IsBuiltInQueryable`, `Unwrap` / `UnwrapLambda`), `Internal/Common/MemberCache.cs` (the `[IsQueryable]` marker), `Internal/Linq/Builder/Attributes.cs`, and any test-only lookalike of the method: `Tests/Linq/Linq/ExpressionsTests.cs` has `ExpressionTestExtensions.LeftJoin`, which is `[ExpressionMethod]` and so is expanded before any builder runs. (#6316: the single pass went 4 calls over budget on these, and its finding was an `[IsQueryable]` lookalike misread by a generic-arity check.)
 
@@ -515,7 +564,7 @@ When **count ≤ 5**, spawn a single `code-reviewer` with `focus: "all"` and the
 
 **Reframe Pass B when the PR has no SQL surface.** Pass B's `sql-and-provider` charter is empty for a PR touching none of `Source/LinqToDB/DataProvider/*`, `SqlProvider/*`, or `SqlQuery/*` (pure infra: cache, GC, threading, options plumbing). Rather than waste the pass, brief it against the PR's actual cross-cutting axis — platform / cross-TFM behavior (feature-flag macros, per-TFM BCL API availability, finalizer / `#if NETFRAMEWORK` guards), threading / concurrency, or GC — keeping the same ID window `[floor+100, floor+199]`. (Surfaced on PR #5681, a QueryCache memory-pressure feature with zero SQL.) For an analyzer / Roslyn-package PR (no `Source/LinqToDB` SQL surface), reframe Pass B to the analyzer axis — semantic-model usage (`IOperation` / `IArgumentOperation.Parameter` mapping, `GetConstantValue`, speculative binding), syntax + trivia rewriting, the Fix-All provider, `.editorconfig` option handling, and Roslyn-version compat (the package's Roslyn pin vs the APIs it calls). (Surfaced on PR #5703, the `linq2db.Analyzers` package.)
 
-All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); the **work plan** from step 3e when one exists; and **`rubricModules`**.
+All passes share the same `writeDir: .build/.agents/pr<n>` so the on-disk diff cache is populated once. Each `code-reviewer` briefing carries: `mode: initial`; **confirmed scope** from step 4 (absent only when the user explicitly opted out via `skip`); the assigned `focus`; the per-severity ID window (or the floor for single-pass); the **work plan** from step 3e when one exists; the **goal-check verdict** from step 3a when the user continued past a non-`sound` verdict, briefed as a lead for the *Architectural decisions* channel with its `rescopeTo` / `rejectCategory` and evidence; and **`rubricModules`**.
 
 **Compute `rubricModules` from the changed paths, not by judgement.** Take the step-2 `nameStatus` paths from `.build/.agents/pr<n>-rubric-paths.txt` (written by step 5b's `-DiffPrep`; on a single-pass run, run `-DiffPrep` for it anyway), run `pwsh -NoProfile -File .claude/scripts/review-rubric-modules.ps1 -PathsFile .build/.agents/pr<n>-rubric-paths.txt`, and brief a single pass with `modules`, each multi-pass pass with `byFocus[<its focus>]`. Pass the list even when it is empty: `[]` means no module applies, while an absent field makes the pass read every module.
 
@@ -605,7 +654,7 @@ Two failure modes to watch for in its output, both of which make the ledger wors
 
 The recommended durable fixes route to `/session-reflect`'s `plan-rule` bucket. Do not apply them from inside the review — surface them and let the user decide.
 
-**Bring the corpus trace to the user, not just to the ledger.** The attributor's `## Corpus trace` explains why the implementing agent made each mistake: a rule that was missing, contradicted or never surfaced. Include confirmed findings from other reviewers too. Put each proposed correction in the closing turn's **Next actions**, and say plainly when the class recurs. Without that, the same mistakes keep coming back review after review. Same go-ahead rule as the ledger: a corpus correction is applied only when the user picks it. (#5969 round 3: the user asked for this after a type-only Shouldly gate the corpus already forbade had survived two rounds.)
+**Bring the corpus trace to the user, not just to the ledger.** The attributor's `## Corpus trace` explains why the implementing agent made each mistake: a rule that was missing, contradicted or never surfaced. Include confirmed findings from other reviewers too. Put each proposed correction in the closing turn's **Next actions**, and say plainly when the class recurs. Without that, the same mistakes keep coming back review after review. Same go-ahead rule as the ledger: a corpus correction is applied only when the user picks it. (#5969 round 3: the user asked for this after a type-only Shouldly gate the corpus already forbade had survived two rounds.) **Ask for that pick as one item in the closing turn's Questions section** ("save the ledger and apply corrections 1–N? all / pick"), not as a bare Next-actions list: a list with no question reads as a stall. Worktree removal is not a review follow-up; it belongs to `finalize-session`. (#5772: the closing turn listed the ledger save, three corrections and a worktree removal; the reply was *"continue maybe? or why we stopped?"*)
 
 ### 8. Assemble the review body
 

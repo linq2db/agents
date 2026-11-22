@@ -1,6 +1,6 @@
 ---
 name: release-postpublish
-description: After the release PR merges — verify nuget.org publication, open the docs PR, create the GitHub release, open the next-version bump PR. Each step user-confirmed. Invoked by /release.
+description: After the release PR merges — verify nuget.org publication, create the GitHub release, confirm the docs site deployed, open the next-version bump PR. Each step user-confirmed. Invoked by /release.
 ---
 
 # /release-postpublish
@@ -22,8 +22,8 @@ description: After the release PR merges — verify nuget.org publication, open 
 
 ## Required reading
 
-- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — linq2db.docs path + GitHub release template anchor (`v6.0.0`).
-- [`.claude/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) — exact `gh release create` invocation, exact docs PR submodule sync command (first-run-confirmable).
+- [`.claude/docs/release/external-repos.md`](../../docs/release/external-repos.md) — docs-site deploy target + GitHub release template anchor (`v6.0.0`).
+- [`.claude/docs/release/first-run-todos.md`](../../docs/release/first-run-todos.md) — exact `gh release create` invocation (first-run-confirmable).
 
 ## Phase state
 
@@ -32,8 +32,8 @@ Five ordered steps, recorded in `state.postpublish.steps.<key>` by **direct edit
 | Step | Key | Status flow |
 |------|-----|-------------|
 | 1. NuGet publish verify | `nuget-verify` | open → done / partial |
-| 2. Docs PR | `docs-pr` | open → opened → merged → done |
-| 3. GitHub release | `gh-release` | open → done |
+| 2. GitHub release | `gh-release` | open → done |
+| 3. Docs publish | `docs-publish` | open → done / no-run |
 | 4. Next-version bump PR | `next-bump` | open → done |
 | 5. Close release milestone | `milestone-close` | open → done / parked |
 
@@ -80,76 +80,7 @@ Action:
 
 **If the discovery list looks wrong** (a package the user expects is missing from the table, or an unpackable project is included): the script's heuristic (csproj `<IsPackable>` + `<PackageId>` element) can be off for niche cases. Add the missing id via `-ExtraIds linq2db.foo` and re-run; or fix the csproj heuristic detection in the script if the case is general.
 
-### 2. Docs PR (linq2db.docs)
-
-The docs site is built from a separate repo (not `linq2db.github.io` — that's the published site, CI-updated from this one).
-
-**The GitHub repo is `linq2db/docs`, even though the local clone is conventionally `../linq2db.docs`.** Every `gh` call needs `--repo linq2db/docs`; `linq2db/linq2db.docs` does not exist and fails with *"Could not resolve to a Repository"*. Confirm with `git -C <docs-path> remote -v` rather than inferring the slug from the directory name.
-
-Action:
-1. Verify clone exists at the path recorded in `external-repos.md` (default `../linq2db.docs`). If missing, ask user for the correct path; record + session-reload.
-2. **Sync only the linq2db submodule.** The repo has two (`git -C <docs-path> submodule status`): `submodules/linq2db`, which tracks branch **`release`** (so `--remote` lands exactly on the release-branch head), and `submodules/LinqToDB.Identity`, which tracks `master` and must **not** be bumped by a release sync. Name the path explicitly:
-   ```
-   git -C <docs-path> submodule update --remote submodules/linq2db
-   ```
-   A bare `--remote` moves both.
-3. Create branch + sync + commit:
-   ```
-   git -C <docs-path> fetch origin
-   git -C <docs-path> switch -c docs/release-<ver> origin/master
-   git -C <docs-path> submodule update --remote submodules/linq2db
-   git -C <docs-path> diff --submodule=short        # expect exactly one pointer change
-   git -C <docs-path> add submodules/linq2db        # explicit pathspec, not `add .`
-   git -C <docs-path> commit -m "Sync to linq2db <ver>"
-   git -C <docs-path> push -u origin docs/release-<ver>
-   ```
-   Each git mutation is confirmed before run (per `agent-rules.md` → Git commit rules / Push to remote rules). The expected diff is one line — `-Subproject commit <old>` / `+Subproject commit <new>` — matching the release merge commit on `release`.
-4. Create the PR (target: `master` on the docs repo). Title: `Docs: linq2db <ver>`. Body: bullet list of new public-API doc URLs that should be live post-merge.
-5. Wait for CI to pass. Ask user to merge (or do `gh pr merge --squash --delete-branch` themselves — all three merge modes are enabled but the history is linear `(#NN)` squashes, and `delete_branch_on_merge` is **false**, so pass `--delete-branch` explicitly).
-
-#### The vendored `docfx/` must track linq2db's Roslyn version
-
-The docs repo vendors a **custom docfx build** (`<docs-path>/docfx/`, from `MaceWindu/docfx` branch `custom/linq2db`) rather than using the published tool. Its bundled `Microsoft.CodeAnalysis` has to be **>= the `Microsoft.CodeAnalysis.CSharp` version in linq2db's `Directory.Packages.props`**, because linq2db's `CodeGenerators` source generator is built against it. When docfx's Roslyn is older, the generator refuses to load and the build fails in a way that does not name the real cause:
-
-```
-warning: FailedToLoadAnalyzer: ... AnalyzerName: CodeGenerators,
-         ErrorCode: ReferencesNewerCompiler, ReferencedCompilerVersion: <x>
-error: ExpressionBuilder.cs(38,44): error CS8795: Partial method
-       'ExpressionBuilder.FindBuilderImpl' must have an implementation part
-```
-
-The generated half of the partial never exists, so metadata extraction yields nothing and the run ends with `warning: No .NET API detected for .`. **This recurs on every linq2db Roslyn bump** — 6.3.0 needed 5.0 → 5.3, 6.4.0 needed 5.3 → 5.6, 6.5.0 needed 5.6 → 5.9. Check it up front: compare `Microsoft.CodeAnalysis.CSharp` in linq2db's `Directory.Packages.props` against `(Get-Item <docs-path>/docfx/Microsoft.CodeAnalysis.CSharp.dll).VersionInfo.ProductVersion`.
-
-> **Read the pin that applies to `CodeGenerators`' TFM, not the first one you find.** Since 6.5.0 the `Microsoft.CodeAnalysis.CSharp` pin is **conditional** — one version for `net8.0`/`net9.0`, another for everything else. `Source/CodeGenerators/CodeGenerators.csproj` is `netstandard2.0`, so it takes the *else* branch: on 6.5.0 that is **5.9.0**, while the net8/9 pin still reads 5.6.0. Grepping for the first `Microsoft.CodeAnalysis.CSharp` line gives the wrong answer and the refresh then lands a docfx that is still too old.
-
-**Establish which docfx branch the docs repo is currently built from before you build anything.** The refresh normally starts from `custom/linq2db`, but that is an assumption, not a fact — the docs repo may be mid-work on a feature branch whose vendored docfx came from a *different* docfx line. On 6.5.0 `linq2db.docs` was on `docs/assembly-qualified-uids`, whose HEAD commit was itself a docfx refresh built from `custom/linq2db-uidprefix` (6 UID-prefix commits ahead of `custom/linq2db`). Overlaying a `custom/linq2db` build there silently reverted that work — and **the zero-deletions guard does not catch it**, because every affected file is a modification, not a deletion. Check `git -C <docs-path> status --short --branch` and `git -C <docs-path> log --oneline -3` first, and if the branch is not master, ask which docfx line to build from.
-
-To refresh (needs the `MaceWindu/docfx` clone, default `c:/GitHub/docfx`):
-
-1. Confirm the branch per the note above, then bump all eight `Microsoft.CodeAnalysis*` pins in its `Directory.Packages.props` to linq2db's version.
-2. `dotnet publish src/docfx/docfx.csproj -c Release -f <tfm> -o <staging>` — take `<tfm>` from the vendored `docfx/docfx.runtimeconfig.json` (**`net10.0`** as of 6.5.0; was `net9.0` for 6.4.0 — read it, don't assume), not from the csproj's `TargetFrameworks`.
-3. **Overlay** the staging output onto `<docs-path>/docfx/`; do **not** delete the directory first.
-4. Rebuild the docs locally to verify *before* committing either repo.
-5. **Commit the pin bump somewhere before the binaries ship.** The refreshed `docfx/` gets committed into `linq2db/docs`, so if the pins it was built from stay uncommitted, the shipped binaries correspond to **no commit anywhere** and nobody — including you, next release — can reproduce or bisect them. When the base branch is one you must not touch (an in-flight upstream PR branch, say), the resolution is a **sub-branch off it** carrying just the pin commit, named into the existing `custom/linq2db*` family that marks docfx builds used for these docs. Record in the commit message which docs commit it was published from. (6.5.0: `custom/linq2db-assembly-uids` off `fix/8966-assembly-uid-prefixes`, after the pins were first left uncommitted.)
-
-> **Overlay, never replace.** Wiping and copying silently destroys vendored-only files; docs PR **#62 ("Restore docfx/templates…")** exists because that already happened once. After copying, assert: `templates/` must still hold 388 files, and `git status` should show **zero deletions**.
->
-> The *reason* the counts differ has changed, so don't use it as the test. Publish used to emit ~487 files and no `templates/` at all (docfx packed templates in its `PackTool` target). As of 6.5.0 publish emits **863 files including all 388 templates and `.playwright/`**, against 881 vendored. The 18 vendored-only files are stale-by-rename leftovers — `README.md`, `Spectre.Console.Ansi.dll`, two `BuildHost-*/System.Collections.Immutable.dll`, and 14 content-hashed `.playwright` bundle assets whose hashes changed between versions. Overlay keeps them, which is what zero-deletions means here. The assertion is the test; the file-count arithmetic is not.
-
-The refresh may add files as well as modify them (Roslyn 5.6 brought 15 new `Microsoft.Extensions.*` / `System.*` dependencies; 5.9 added none). 66–79 changed files with 0 deletions is the healthy shape.
-
-**A Roslyn bump can expose latent bugs in the custom patch.** The custom `VisitorHelper.GetGlobalId` had a null-dereference on symbols whose `ContainingAssembly` is null (reached via `XmlComment.ResolveCrefLink`) that had never fired, because the build always died at CS8795 first. Fixed in `MaceWindu/docfx` `591d070e7`. If the refreshed build fails somewhere inside `Docfx.Dotnet`, check the custom patch (`git show <custom-commit>`) before assuming an upstream docfx bug.
-6. **Merge → deploy → verify published.** These are three distinct waits; the PR going green is *not* the site going live.
-
-   1. **The PR's Azure Pipelines checks (`build`, `deploy`) may start as `ACTION_REQUIRED`.** Then they do not run until someone clicks *Approve and run* on the PR — an agent cannot do it. When `gh pr checks <n> --repo linq2db/docs` reports `ACTION_REQUIRED`, that is not a queued run and not a failure; say so and ask the user to approve, rather than waiting on a run that will never start. `build` reporting `QUEUED` is the other case: it needs no approval and is waiting for a free agent, which it shares with the release PR's still-running provider matrix — so expect a wait. (6.5.1: `QUEUED` behind build 24621.)
-   2. Once approved and green, squash-merge: `gh pr merge <n> --repo linq2db/docs --squash --delete-branch` (`delete_branch_on_merge` is false there, so pass `--delete-branch` explicitly).
-   3. **Then wait for the `deploy` run on `master`.** Merging only starts it. `build.ps1 -deploy $true` clones `linq2db.github.io`, copies `_site` over it and pushes — so the published site lags the merge by the length of that run.
-   4. **Then verify the live site**, by fetching a page for a type *introduced in this release* (an existing page proves nothing — it was already deployed). Pick one from the locally generated `source/api/linq2db/` output before merging, so you have a known-good target.
-
-   **URL pattern** (confirmed 6.5.0): `https://linq2db.github.io/api/<assembly>/<assembly>--<FullTypeName>.html` — e.g. `https://linq2db.github.io/api/linq2db/linq2db--LinqToDB.Mapping.DurationAttribute.html`. The assembly segment is the docfx assembly id (`linq2db`, `linq2db.efcore.10`, …), and the filename repeats it before a `--` separator. It is **not** the flat `api/LinqToDB.<Type>.html` shape this step used to suggest.
-7. Mark step `done`.
-
-### 3. GitHub release
+### 2. GitHub release
 
 Use the v6.0.0 template anchor (from `external-repos.md`). The `--generate-notes` flag is critical for the "New Contributors" auto-section — releases without it are missing that section.
 
@@ -191,7 +122,7 @@ Action:
    - Registry publication is **not** a release blocker. If it stays broken, park it, note it, and
      carry on — the nugets are already live.
 6. Mark step `done`. Record release URL in `state.postpublish.steps.gh-release.url`.
-7. **→ Go check step 5 (close the milestone) now.** Publishing the release satisfies both of its preconditions — packages live, release published — and nothing later in this skill gates it. Step 5's own "don't let it slip" warning has now failed **twice** (6.4.0 and 6.5.0, both times the maintainer had to ask), so treat this line as the trigger rather than relying on remembering at the end: the numbering puts milestone-close last because that is usually when it comes up clean, not because steps 2 and 4 block it.
+7. **→ Go check step 5 (close the milestone) now.** Publishing the release satisfies both of its preconditions — packages live, release published — and nothing later in this skill gates it. Step 5's own "don't let it slip" warning has now failed **twice** (6.4.0 and 6.5.0, both times the maintainer had to ask), so treat this line as the trigger rather than relying on remembering at the end: the numbering puts milestone-close last because that is usually when it comes up clean, not because steps 3 and 4 block it.
 
 **The pipeline already created a draft — fill it, don't create a second one.** The release build's *Create Release Draft* step (`build-job.yml`) opens the draft as soon as the release branch builds, with only a one-line body (`[Release notes](…) [Nugets](…)`) plus `--generate-notes` output. This step's job is to replace that body with the authored one, so the flow is a **PATCH of the existing draft**, not a `gh release create`.
 
@@ -228,6 +159,28 @@ Action:
 
 **Optional early draft:** During release prep (`/release-deps`/`/release-test-matrix` phase), the user may draft the GH release body early — and it's a strict win to do so, since `gh release create --draft` is cheap and lets the user iterate on body text incrementally without skill round-trips. If they did the early draft, this step (1) re-targets the draft via `gh release edit <tag> --target <sha>` to the **`master`-side parent of the release merge** — *not* the release-branch HEAD, per the warning above — (2) attaches the `.lpx` (early draft has no artifact), (3) surfaces the URL again with the "you can tune text on GitHub" reminder, (4) waits for user `publish`.
 
+### 3. Docs publish
+
+The site at `linq2db.github.io` is built from this repo's `docs/` and published by `.github/workflows/docs.yml` — there is no docs PR any more (#6265; the `linq2db/docs` repo and its Azure pipeline are retired). **Publishing the GitHub release in step 2 is what deploys it**: on `release: published` the `Build docs` job runs `docs/build.ps1 -WarningsAsErrors` on the tag, and `Deploy to linq2db.github.io` (environment `docs`, secret `DOCS_DEPLOY_KEY`) rsyncs the site over `linq2db/linq2db.github.io` `master` and commits `Docs: linq2db <tag>`. A prerelease — GitHub's flag **or** a `-` in the tag, since rc/preview releases are published without the flag — gets no build and no deploy, so it never replaces the stable site. (6.6.0, the first live deploy: run [44359379359](https://github.com/linq2db/linq2db/actions/runs/44359379359), both jobs green in ~9 min, site commit `ffc55ba5f`.)
+
+Action:
+1. Find the run for the tag and report its id:
+   ```
+   gh run list --repo linq2db/linq2db --workflow docs.yml --event release --limit 3 --json databaseId,headBranch,status,conclusion,createdAt
+   ```
+   `headBranch` is the tag (`v<ver>`). Don't poll-wait on it; re-check.
+   - **No run for the tag is expected only when the tag predates `docs/`** — a `release`-triggered workflow is read from the tag's tree, the same rule as `publish-mcp.yml` in step 2. Mark the step `no-run`; such a release cannot publish docs. Any other missing run (the release is still a draft, say) is a failure to investigate.
+2. Check the jobs: `gh run view <id> --repo linq2db/linq2db --json jobs --jq '.jobs[] | {name, conclusion}'`. Expect `Build docs` and `Deploy to linq2db.github.io` `success`; `Detect docs changes` is `skipped` outside pull requests.
+3. **Verify the live site** by fetching a page that carries API *new in this release* — an existing page proves nothing, it was already deployed. Take the type or member from the release's `PublicAPI.Shipped.txt` delta. (6.6.0: `https://linq2db.github.io/api/linq2db/linq2db--LinqToDB.DataProvider.Access.AccessProvider.html` showed the 6.6.0-only `LibRed` member.)
+
+   **URL pattern** (confirmed 6.5.0): `https://linq2db.github.io/api/<assembly>/<assembly>--<FullTypeName>.html` — e.g. `https://linq2db.github.io/api/linq2db/linq2db--LinqToDB.Mapping.DurationAttribute.html`. The assembly segment is the docfx assembly id (`linq2db`, `linq2db.efcore.10`, …), and the filename repeats it before a `--` separator. It is **not** the flat `api/LinqToDB.<Type>.html` shape.
+4. **On failure, re-deploy from the tag** once the cause is understood — user-confirmed, it overwrites the public site:
+   ```
+   gh workflow run docs.yml --repo linq2db/linq2db --ref <tag> -f deploy=true
+   ```
+   The `docs` environment accepts only `v*` tags, so a `deploy=true` dispatch from `master` is refused. The dispatch reads `docs.yml` and `docs/build.ps1` from the tag's tree, and `-WarningsAsErrors` gates the deploying run too: a docs warning that first appears at publish time cannot be fixed by re-running — the way out is a new tag or a manual push, so stop and ask. (`/release-verify` step 4b builds the site during prep to keep this from happening.)
+5. Mark step `done`. Record the run id in `state.postpublish.steps.docs-publish.run`.
+
 ### 4. Next-version bump PR (+ new milestone + `linq2db.t4models` re-pin) [R2-H]
 
 Bootstrap the next development cycle.
@@ -242,8 +195,13 @@ Action:
    - **Check `git branch --list 'infra/bump-versions*'` first.** Earlier cycles' bump branches are squash-merged, so they linger locally and `git worktree add -b infra/bump-versions` fails with `a branch named … already exists`. They are not this session's to delete; use a release-specific name instead (6.5.1: `infra/bump-versions` and `infra/bump-versions-6.6.0` both existed from 6.5.0, so `infra/bump-after-6.5.1`). Substitute that name in step 5's commands.
 4. **Additionally re-pin `linq2db.t4models`.** Open `Directory.Packages.props`, find the `<PackageVersion Include="linq2db.t4models">` entry, update its `Version=` to the **just-released** version (the `<ver>` we just published, e.g. `6.3.0` — not the new `<next-ver>`). Show diff. This goes on the same `infra/bump-versions` branch as the version edits.
    - Grep for any other linq2db-published self-references (`<PackageVersion Include="linq2db..." />`) and flag for the user — there should only be `linq2db.t4models` today, but surface anything else found.
+   - **Turn on package validation for every library package that just shipped its first version.** A package first published after the repo-wide `BaselineVersion` has no baseline to inherit, so its `.csproj` ships with `<EnablePackageValidation>false`; validate it from its first release on, not from the next major. `Grep` `Source/**/*.csproj` for `<EnablePackageValidation>false` and take each hit whose package was published in `<ver>` (step 1's nuget rows). Skip the packages with no API to validate — the `NuGet/*` provider meta-packages, `t4models`, the CLI, the LINQPad driver and `LinqToDB.Analyzers.CodeFixes`. For each one taken: add `<XBaselineVersion>` = its **first** published version next to the other `*BaselineVersion` lines in `Directory.Build.props`, delete the `EnablePackageValidation` line and its comment from the `.csproj`, and add `<PackageValidationBaselineVersion>$(XBaselineVersion)</PackageValidationBaselineVersion>` in its `Nuget` property group. Verify with `dotnet pack <csproj> -c Release -v:d` before pushing, grepping the log for `Building target "RunPackageValidation"` and the baseline value — a clean pack alone does not prove validation ran. Two failures to expect:
+     - `PKV006 Target framework <tfm> is no longer supported` — a TFM dropped since the baseline. Keep the first-release baseline and list the dropped TFMs in `<PackageValidationBaselineFrameworkToIgnore Include="<tfm>;…" />`.
+     - `CP0007` / `CP0002` between two TFMs of the **current** package (`Left`/`Right` both `lib/…` of the new build) — a per-TFM API difference the disabled validation was hiding. Not a baseline problem; ask the user whether it is intentional, and if so generate the suppressions with `/api-baselines` scoped to that project.
+
+     (6.6.0 shipped EF11 `11.0.0` and the monorepo `linq2db.Identity` first, and `linq2db.Remote.HttpClient.Server` had been off since 6.2.0; bump PR #6351 missed all three. Identity hit the `CP0007` case, HttpClient.Server the `PKV006` one.)
 5. **User-driven commit + push + PR.** Per `/version-bump`'s contract, the skill does not commit / push / open PR automatically. Surface the full diff for confirmation. **Push only once `linq2db.t4models <ver>` is listed on nuget.org** (step 1's verifier) — the re-pin otherwise fails restore with NU1102 and the PR's first CI run is wasted; committing locally earlier is fine. On user `go`:
-   - `git add Directory.Build.props Directory.Packages.props`
+   - `git add Directory.Build.props Directory.Packages.props` (plus any `.csproj` the validation sub-step touched)
    - `git commit -m "Bump versions for <next-ver>; pin linq2db.t4models to <ver>"`
    - `git push -u origin infra/bump-versions`
    - `gh pr create --base master --head infra/bump-versions --title "Bump versions for <next-ver>" --body-file <body> --milestone <next-ver> --assignee @me --draft`
@@ -259,7 +217,7 @@ Don't auto-retrigger CI repeatedly while parked; one retrigger after the deferre
 
 Closes the milestone tracking issues + PRs that landed in this release.
 
-**Preconditions are only these two:** the release has shipped (packages live on nuget.org, GitHub release published) **and** the milestone has no open issues or PRs. It does **not** wait on the docs PR merging or the bump PR existing — neither is tracked by the release milestone, so gating on them just leaves a finished, empty milestone open for no reason. Numbered last because that is usually when it becomes clean, not because the other steps block it: close it the moment both preconditions hold, which is often right after step 3. (Closed this way on 6.4.0 — 175 closed / 0 open, with the docs PR still open and no bump PR yet.)
+**Preconditions are only these two:** the release has shipped (packages live on nuget.org, GitHub release published) **and** the milestone has no open issues or PRs. It does **not** wait on the docs deploy or the bump PR existing — neither is tracked by the release milestone, so gating on them just leaves a finished, empty milestone open for no reason. Numbered last because that is usually when it becomes clean, not because the other steps block it: close it the moment both preconditions hold, which is often right after step 2. (Closed this way on 6.4.0 — 175 closed / 0 open, with the docs PR still open and no bump PR yet.)
 
 **Don't let it slip.** This is the step most easily dropped, because by now the visible work is done and attention has moved to the next cycle. When reporting remaining postpublish work, list it explicitly rather than summarising the tail as "docs + bump" — an empty milestone left open is invisible until someone goes looking for it. (On 6.4.0 the user had to ask.)
 
@@ -291,16 +249,16 @@ Action:
 
 ### Wrap-up
 
-After all 5 steps `done` (step 5 may be `parked` if deferred items keep the milestone open):
+After all 5 steps `done` (step 3 may be `no-run` for a tag without `docs/`; step 5 may be `parked` if deferred items keep the milestone open):
 1. Print a summary: "Release `<ver>` complete. Bump PR `#<n>` is open for `<next-ver>`. Milestone <closed | parked: <reason>>."
 2. Suggest the user runs `/session-reflect` to capture any first-run learnings into the long-term docs.
 3. Suggest archiving the release state file (`.build/.agents/release-<ver>.json`) — gitignored; can stay as historical record.
 
 ## Don'ts
 
-- Do **not** auto-merge the docs PR or auto-publish the GH release. Both are user-driven mutations on shared / public surface.
+- Do **not** auto-publish the GH release or dispatch a `deploy=true` docs run. Both are user-driven mutations on shared / public surface.
 - Do **not** skip `--generate-notes` on `gh release create`. The "New Contributors" auto-section is the user-visible artefact that gets missed when the flag is absent.
 - Do **not** attach `.lpx6` or `.nupkg` to the GitHub release. Per user rule — those aren't useful and the practice is being dropped.
 - Do **not** tick step 1 (nuget verify) with missing rows. Re-run after waiting; if persistently missing, treat as a CI publish failure and escalate.
 - Do **not** bump `linq2db.t4models` to anything other than the **just-released** version. The point of this re-pin is to have the next release cycle's T4 tests consume the freshly-published nuget; bumping to the next-version-being-prepped would re-introduce the chicken-and-egg cycle the re-pin was designed to break.
-- Do **not** include unrelated changes in the next-version bump PR. It's a single-purpose commit: Version + EFxVersion + `linq2db.t4models` re-pin.
+- Do **not** include unrelated changes in the next-version bump PR. It's a single-purpose commit: Version + EFxVersion + `linq2db.t4models` re-pin + first-release package-validation enablement.

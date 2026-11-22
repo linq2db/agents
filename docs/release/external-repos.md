@@ -9,8 +9,8 @@ Paths and references used by the release skills. Pre-seeded with known defaults;
 | `linq2db` | `../linq2db` | primary product repo (a separate sibling clone from the one the agent runs in) | conventional |
 | `agents` | mounted at `.claude/` | the agent-instruction corpus, as a submodule of this clone; corpus commits go here, never to a linq2db branch | fixed |
 | `linq2db.baselines` | `../linq2db.baselines` | test result baselines; read by `/review-pr`, reset by `/release-publish` step 3 | conventional |
-| `linq2db/docs` | `../linq2db.docs` | documentation source repo; docs PR opened here by `/release-postpublish` step 2. **The GitHub slug is `linq2db/docs`** even though the clone directory is `linq2db.docs` — `gh --repo linq2db/linq2db.docs` fails with *"Could not resolve to a Repository"*. **Not** `linq2db.github.io` — that's the published site, updated by CI from this repo. Vendors a custom docfx build under `docfx/` whose Roslyn must track linq2db's; see `/release-postpublish` step 2 | verified 6.4.0 |
-| `MaceWindu/docfx` | `c:/GitHub/docfx` | fork providing the custom docfx build vendored into `linq2db/docs`; branch **`custom/linq2db`** carries the patch set on top of upstream. Rebuilt + re-vendored whenever linq2db's `Microsoft.CodeAnalysis.CSharp` version moves | verified 6.4.0 |
+| `linq2db/docs` | `../linq2db.docs` | **retired** documentation source repo — no release step uses it. The docs moved into linq2db under `docs/` (#6265); `.github/workflows/docs.yml` deploys them to the published site, `linq2db/linq2db.github.io` (no local clone needed), when the GitHub release is published — `/release-postpublish` step 3 | retired 6.6.0 |
+| `MaceWindu/docfx` | `c:/GitHub/docfx` | fork providing the custom docfx build pinned by URL + SHA-256 in linq2db's `docs/docfx-version.json`; branch **`custom/linq2db-assembly-uids`** carries the dotnet/docfx#11090 patch merged with upstream `main`, linq2db's Roslyn pin and `linq2db-build.yml`. A `linq2db-<yyyymmdd>-<sha7>` tag publishes `docfx.zip` + `docfx.zip.sha256` as a release asset of that tag. Re-synced by `/release-deps` step 1c | verified 6.6.0 |
 | `linq2db.wiki` | `../linq2db.wiki` | hosts the release-notes page (`Releases-and-Roadmap.md`). **Read** via `https://raw.githubusercontent.com/wiki/linq2db/linq2db/<page>.md` on demand (not exposed under the REST `/contents/` endpoint). **Write** needs the local clone (`git clone https://github.com/linq2db/linq2db.wiki.git`); `/release-notes apply` regenerates the version section there, shows the diff, and pushes on confirm. | — |
 
 ### The raw wiki URL is CDN-cached — don't re-audit straight after a push
@@ -63,7 +63,7 @@ Use `v6.0.0` as the canonical template for GitHub release creation:
 
 - URL: `https://github.com/linq2db/linq2db/releases/tag/v6.0.0`
 - Why: preserves the auto-generated **New Contributors** section. That section is produced by `gh release create --generate-notes`; releases created without the flag are missing it.
-- When creating a release in `/release-postpublish` step 3, pass `--generate-notes` to ensure the contributors section appears.
+- When creating a release in `/release-postpublish` step 2, pass `--generate-notes` to ensure the contributors section appears.
 
 ## User-specific paths
 

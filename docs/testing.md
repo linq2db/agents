@@ -63,7 +63,7 @@ Force `InProcessEmit` in the benchmark's `[Config]` (`Job.Default.WithToolchain(
 **Targeted repro in a worktree — run the MTP exe directly.** `dotnet test --project <path>` can fall back to the legacy VSTest MSBuild target (error: `MSB1001: Unknown switch … --project … --target:VSTest`) when the new-`dotnet test` opt-in isn't resolved for that invocation — e.g. a relative `--project` pointing into a `git worktree` from another checkout's cwd. For a focused run, skip `dotnet test` and invoke the built test executable directly with MTP options:
 
 ```bash
-.build/bin/Tests/Testing/net10.0/linq2db.Tests.exe --provider Firebird.5 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
+.build/bin/Tests/Testing/net11.0/linq2db.Tests.exe --provider Firebird.5 --test-progress --filter "FullyQualifiedName~CreateData.CreateDatabase|FullyQualifiedName~UpdateFromSubqueryRowFlattened"
 ```
 
 For a broad run, add `--report-trx --report-trx-filename <f>.trx --results-directory .build/.agents/<dir>` and read the result through [`../scripts/trx-failures.ps1`](../scripts/trx-failures.ps1) (`-GroupBy message|reason`, `-Like`, `-DirectOnly`): it turns hundreds of failures into a ranked list of causes, which is what triaging a newly enabled provider needs.
@@ -137,6 +137,8 @@ A test verdict must come from something you actually observed — parsed pass/fa
 
 **A *skipped* test is "not tested" — and it hides inside a green summary.** `none_matched` covers a filter that resolved nothing, which is visible. The commoner miss is a filter that resolved plenty while the one test you actually changed was excluded at runtime by a provider gate — `Assert.Ignore`, a capability check, `[ActiveIssue]`, a `SkipIf…` helper. The run then reports `0 failed` with a healthy pass count and nothing names the omission, so a change verified this way was never exercised at all. After any run you are citing as verification, cross-check the `skipped` list against the tests you touched: MTP prints skipped tests per-test with their reason (`Grep` the log for `^skipped `), and `worktree-test.ps1` returns the count in `summary.skipped`. When your test is in there, pick a provider on the branch it exercises and re-run. (Surfaced on #5643: a rewritten assertion in `UpdateThroughUnsupportedSourceShapeThrows` was "verified" by a SQLite.MS run reporting 44 total / 0 failed / 28 passed — the test is gated to the `SELECT`-fallback read-back path and SQLite takes the `RETURNING` branch, so it sat in the 16 skips. MySQL ran it.)
 
+**A test that `Assert.Ignore`s when a tool is missing must `Assert.Fail` on every CI OS that provisions the tool.** Guard on CI with `GITHUB_ACTIONS` / `TF_BUILD`, not on the OS that prompted the guard. Otherwise a runner image that drops the tool turns the row into a silent skip on the remaining legs, and the summary stays green. Check which images provision the tool before narrowing the guard. GitHub's ubuntu and macOS runners ship `pwsh`, and the Azure CLI legs run their tests through a `pwsh` task. (#5991 round 4 SUG019: `PowerShellScriptRoundTripsNonAsciiPassword` failed only on Windows CI when `pwsh` was missing, although it runs on all three CLI legs.)
+
 **A provider the test's data-source attribute leaves out runs nothing — and a per-provider sweep reports that leg as `failed: 0`.** `--provider X` does not add `X` to a test declared `[IncludeDataSources(TestProvName.AllSQLite)]` (or one whose `[DataSources(...)]` excludes it): the leg resolves zero cases and exits green, exactly like a pass. A probe written against one provider and then widened to a cross-provider comparison by adding names to `-Provider` is the usual shape. Before citing any leg of a `worktree-test.ps1 -PerProvider` comparison, check that leg's `total` against the cases you expect it to run, or pass `-ExpectTests` (checked per leg). (#6169: "PostgreSQL 18 passes" came from a probe still pinned to `AllSQLite`; the claim went into the issue body and needed a public correction once PostgreSQL was actually run — it failed like SQLite.)
 
 **Keep `worktree-test.ps1`'s result with `-OutFile <json>`, not by redirecting its stdout.** A `*>` redirect mixes the script's stderr (a failed launch, `dotnet` noise) into the JSON, and in a background chain it can leave the file empty, so `ConvertFrom-Json` fails or reads nothing while the run itself passed; the per-run logs then have to be grepped by hand. `-OutFile` writes the JSON on its own and prints one compact summary line. (#6277: one empty `*>` result file and two unparseable ones in a session.)
@@ -180,7 +182,7 @@ until #6189; captured values and delegates of one lambda still collide.)
 
 ## Running the analyzer tests (`Tests/Tests.Analyzers`)
 
-The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:
+The `linq2db.Analyzers` package tests are a **standalone** project — DB-free, provider-independent, single-TFM `net8.0` (to match the Roslyn testing SDK's Net80 reference pack; a higher pack trips CS1705), MTP host with the NUnit runner. The Shouldly rule holds here too: the existing fixtures assert through the Roslyn Verify harness, which is no precedent for NUnit value assertions, so the first test that checks a value adds `<PackageReference Include="Shouldly" />` (#6430 MIN007). They are **not** covered by the `/test` skill, which selects the Playground / `Tests/Linq` provider projects and injects the `CreateData.CreateDatabase` filter. Run them directly:
 
 ```bash
 dotnet test Tests/Tests.Analyzers/Tests.Analyzers.csproj -c Release
@@ -268,7 +270,7 @@ A question about what a test-framework API does — which overload an async lamb
 
 Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that drive `#if BUGCHECK`-gated test hooks on the core library — e.g. `QueryCacheEvictionTests` driving `QueryCache.RunSweepNow` / `BucketCount`) only compile in **Debug / Testing / Azure** configurations. `BUGCHECK` is defined in `Source/LinqToDB/LinqToDB.csproj` and mirrored into `Tests/Directory.Build.props` so the test project sees the same symbol. Consequences:
 
-- Run them with `-c Testing` (net10.0-only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
+- Run them with `-c Testing` (latest TFM only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
 - **`QueryUtils.GetStatement()` returns the statement after `SqlOptimizer.Finalize`** (`ExpressionBuilder.cs:312`), so `SelectQueryOptimizerVisitor` re-run on its clone sees an already-flattened tree. A counter test for merge-time behaviour (`MoveSubQueryUp`, correction walks) builds the AST by hand: `SelectQueryOptimizationTests.BuildJoinChain`, `NullabilityContextTests`. (#6158)
 
@@ -509,7 +511,7 @@ If your test modifies data, revert changes to avoid side effects in downstream t
 
 When CI shows a test failing on the `Tests (NETFX x64)` jobs while the same test passes on the .NET 8/9/10 tasks of the same provider, suspect a **runtime driver divergence**, not a TFM-agnostic code bug. ADO.NET providers can behave differently across runtimes — e.g. `SqlDataReader.GetName` returns duplicate empty names for unnamed result columns (`select 1, 1`) on .NET Framework but distinct names on modern .NET (#5659).
 
-The `Testing` config is net10.0-only and a net10.0 run **won't reproduce** such a failure. Reproduce on net462 directly:
+The `Testing` config builds only the latest TFM, and a run there **won't reproduce** such a failure. Reproduce on net462 directly:
 
 ```bash
 dotnet build Tests/Linq/Tests.csproj -c Debug -f net462
@@ -569,6 +571,8 @@ any of them. *"as we moved from native to translated sql - those should execute 
 **An exclusion taken from a CI failure is per transport — read why the direct leg failed before excluding the provider.** When the verdicts show `X` red and `X.LinqService` green (`ci-test-verdicts.ps1` prints `(1 provider configs)`), the cause is usually seeding, not the query: `CreateLocalTable` seeds a `DataConnection` through `MultipleRows` bulk copy with literal values, and any other context through per-row parameterized `Insert` (`Tests/Base/TestUtils.cs` `CreateLocalTable`). A literal `NULL` into a column linq2db creates NOT NULL — Sybase `bit` (`SybaseSqlBuilder`: "BIT cannot be nullable in ASE") — fails on the direct leg only, while the remote leg's driver may coerce the NULL and pass on a fixture that no longer holds it. Excluding the whole provider then drops green remote cases; fix the fixture's mapping for that provider, or exclude with the measured reason. (#5673 A-7: `AllSybase` excluded from 12 `NullableFlagTable` tests on "Sybase cannot hold NULL", while `Sybase.Managed.LinqService` had passed all 15 cases; critic round 12 caught it.)
 
 **State the reason at the attribute.** A narrowed set — an exclusion in `[DataSources(...)]`, or an `[IncludeDataSources(...)]` that is not a single-provider translator test — carries a `//` line directly above the test (or in its leading comment) naming why each provider is in or out: the measured failure, or the provider-conditional mechanism the test exists for. A mechanism given as the reason must have failed on at least one excluded provider; an unrun one is a guess, so widen to `[DataSources]` and let a real red justify each exclusion (#6186: "Cyrillic literals run on these two only" had no run behind it). A test comment that implies a wider set than the attribute runs is the same defect in reverse — a reader widens it and gets a red leg. A cross-reference ("see above") carries a sibling's reason only when the cell has the same provider-conditional mechanism; a cell with different raw SQL states its own — a FROM-less two-column `SELECT` is not covered by an identifier-case-folding reason (#6145: SQL Server error 8158 on every config). A cell taken from a review snippet owes the reason too: the snippet only ran where the reviewer ran it (#6145 round 4: three SQLite-only cells over models whose siblings ran on `[DataSources]`).
+
+**A fixture that declares one provider's refusal declares the others too.** When a fixture pins a provider's refusal of a shape with `[ThrowsForProvider]` and its error constant, another provider excluded for the same kind of refusal is declared the same way, or its reason line says why it can't be (a driver error with no stable message, for example). An exclusion leaves no test of what that provider's users get. (#6111 round 3 SUG007: the Sybase and YDB refusals were declared, while Access's refusal of a FROM-less SELECT holding a subquery stayed an exclusion const.)
 
 ```csharp
 // Sybase: https://stackoverflow.com/questions/25281843
@@ -675,6 +679,8 @@ These are the maintainer's house rules for **new** test code, and they win over 
        .ShouldBeTrue();
    ```
 
+   **Fixing a branch's hits is mechanical:** `.claude/scripts/test-diff-sweep.ps1` finds the one-line chains a branch added, and [`.claude/tools/chain-split`](../tools/chain-split/Program.cs) (a small Roslyn rewriter) splits them in place from the sweep's JSON — usage in its header. It leaves chains nested in an argument on the call's line; pull those into a local by hand, as above. (2026-11: 158 chains split by the tool, 26 nested ones by hand.)
+
 2. **Query syntax, multi-line, one clause per line.** Use query syntax whenever the query has a `join` or `SelectMany`. A plain `Where`/`Select` chain can stay method syntax, laid out per rule 1.
    - Put `var query =` on its own line, then `from`, `where`, `orderby`, `group … into` and `select` each on their own line.
    - Break a non-trivial `select new` into `{ … }` lines.
@@ -724,6 +730,8 @@ Review severity for a violation in added test code is `NIT`, with a `suggestion`
 
 **Asserting that a test helper's assertion fails needs NUnit's `Throws` constraint, not `Should.Throw`.** NUnit records a failed `Assert.That` on the current test result before it throws `AssertionException`, so catching the exception does not un-fail the test. `Assert.That(() => AssertQuery(…), Throws.TypeOf<AssertionException>())` runs the delegate in an isolated context, which uses a fresh result and discards the recorded failure. Shouldly's `Should.Throw` has no such isolation. (#6131, measured by decompiling NUnit 4.6.1 `Assert.Throws` / `CreateIsolatedContext`. #6330 measured on NUnit 5.0.0 that the constraint form isolates too: sync and `Assert.ThatAsync`, `Action` and value-returning delegates, and a Shouldly failure inside the delegate.)
 
+**An invariant every provider must hold gets one test over every provider, not a DB-less test in one provider's fixture.** A test with no data source runs in every CI job anyway, so putting it in `<Provider>Tests` with that provider's versions hard-coded buys no scoping, and it misses the next provider with the same defect. Enumerate the providers instead. The precedent is `MappingSchemaTests.ProviderNameScopedMappingApplies`, which walks every `<Provider>Tools.GetDataProvider` enum combination, so a new version or client value gets a case with no test edit. Skip a case whose driver can't load: `Cannot load assembly …`, `BadImageFormatException`, `DllNotFoundException`, `FileNotFoundException`. The set varies by runtime and machine. Measured locally, net10.0 lacked Oracle native, IBM Informix and Sybase native, and net462 lacked LibRed, Octonica and DuckDB, with IBM Informix failing on native bitness. (#6435, maintainer: *"single universal test is better than pseudo-pgsql tests that run on all test jobs"*.)
+
 **Don't order fixtures to hide data pollution.** A DML test that leaves rows behind gets fixed to clean up after itself: `CreateLocalTable`, a transaction it rolls back, or restoring the rows it changed. It does not get `[Order]` to run after the read tests. `[Order]` is `[Obsolete]` in NUnit 5 and the suite carries none. A read test that fails on rows a DML test left behind is a bug in that DML test. (#6330, maintainer's rule.)
 
 ## Constant vs parameter arguments in test queries
@@ -758,6 +766,8 @@ A test that compiles and goes green is not yet a regression guard — it has to 
 - **A parameter NUnit cannot supply values for, which produces no test cases at all.** The worst version of "catches nothing": the method never runs anywhere, on any provider, and is absent from discovery entirely rather than showing up skipped. A `[Test]` whose parameters include a plain `bool` (or an enum) with no `[Values]` / `[ValueSource]` alongside a data-source parameter is the shape — NUnit does **not** auto-fill it here, and nothing reports the method as unrunnable. Any `[ActiveIssue]` gate on such a method is dead with it, so the gate also never reports. The cheap check is `--list-tests --provider <name>`: a method absent from that listing while its siblings in the same fixture appear is not covered, whatever the suite's pass count says. (Surfaced on #5882: `CteTests.SelectQueryTest` had `bool inlineParams` with no source and had never run; adding `[Values]` cost nothing — 24 of 28 cases passed — and exposed a real Oracle 11 failure the dead gate had been "covering". Verified by probe *after* the attribute cutover, so it is NUnit's behaviour and not an artefact of the old attribute acting as the `ITestBuilder`.)
 
 - **A scope invariant tested on a hand-picked subset.** "Nothing X happens while Y" (nothing loads while impersonating, nothing allocates inside the lock, no query runs before validation) is a claim over a *set*, and a test matrix built from the cases the author was thinking about passes while the claim fails on the rest. Expand the set into its axes and give each element a case: for a provider-facing invariant, that is every bundled client × each phase (connect fails, connect succeeds, a typed-value read, which needs a reachable server) × each provider origin (bundled, `--provider-location`). Beside each control, record the mutation that reddens it (remove the mechanism, move the work inside the scope) and run that mutation in the fixture's real order. (#5995: the CLI's `NothingIsLoadedWhileImpersonating` covered 3 of 15 bundled clients, all against refused TCP connections. Oracle's failure path, a `geography` read and a DB2 `--provider-location` client each loaded a native library inside the session, and three in-process controls stayed green under the mutation that should have reddened them.)
+  - **The set includes every route on which the mechanism declines to act** — a skip list, a "pools by unknown means" check, an excluded client. Each gets a case that takes that route, with the mutation that sends it down the acting path instead. (#5995 round 4: the `_poolMethods` no-warm-up branch carried the "no pooled process-account connection" claim, and every test provider took the pooling-keyword path.)
+  - **A responsibility moved into a type that every test replaces with a double gets one test on the real type.** (#5995 round 4: token release moved into `WindowsImpersonationSession.Dispose`, while callers' disposal was tested only through `RecordingImpersonationSession`.)
 
 - **Shared fixture data that never reaches the path.** The shared tables (`Types` / `LinqDataTypes`, `Person`, `Parent`/`Child`) have fixed column types and fixed values — `MoneyValue` is two-decimal on every row. A test whose path depends on how an argument relates to the *data* (rounding precision vs scale, a length vs the stored string, a range boundary) must state which rows reach the path, or seed its own rows with `CreateLocalTable` and declared `Precision`/`Scale`. (#5943: `Round16` rounded `MoneyValue` to `p.ID % 2 + 2` digits — always ≥ the scale of 2 — so every row was a no-op and the runtime scaling path never ran; `Round17`/`Round18` on the same PR seed their own `Decimal(p,s)` tables and do reach theirs.)
 
@@ -789,6 +799,10 @@ Framework note: there is **no property-testing dependency in the repo today**. O
 
 ## Cross-provider gotchas for new tests
 
+### Integer division is not truncating everywhere
+
+Access renders a C# `int / int` as its floating `/`: `TruncateDivide` (`AccessSqlExpressionConvertVisitor.cs`) is used only by internal lowerings, so `7 / 5 * 3` reads 4.2 there. A raw `"{0} / {1}"` template on DuckDB returns `DOUBLE`, which then fails as a bitwise operand. When division semantics are not what the test is about, give it operands that divide exactly, or skip the inexact case in the generator (#6427: the precedence matrix's `ExactDivisionVisitor`).
+
 ### YDB requires a primary key on every table
 
 YDB rejects `CREATE TABLE` without a primary key, so `db.CreateLocalTable<T>()` of a keyless type fails at setup with `Primary key is required for ydb tables` (wrapped in a `Pre type annotation` error). It's a test-data fix, not a provider change.
@@ -803,6 +817,10 @@ Two details the obvious fix gets wrong:
 ### Access has no 64-bit integer column
 
 Access (Jet and ACE, OleDb and ODBC) has no 64-bit integer type, so a `CreateLocalTable` whose class has a `long` / `ulong` column fails with `Syntax error in field definition` on all four Access legs, direct and remote. Keep `Int64` cells in a sibling test with `[DataSources(TestProvName.AllAccess)]` and that measured failure on the line above, so the rest of the test still runs on Access (the repo's existing `Int64` tests exclude `AllAccess` the same way). (#5943: 16 Access cases on GitHub run 39446372309.)
+
+### Access ODBC hangs reading back a long computed string
+
+Over ODBC (Jet and ACE), reading back a computed string of about 5000 characters (`db.Select(() => Sql.ToSql(longText))`) does not fail: `System.Data.Odbc`'s `OdbcDataReader.internalGetString` spins at full CPU and the test never ends. OleDb and LibRed return the value. Exclude `TestProvName.AllAccessOdbc` from such a test with that reason on the line above. A run that stops advancing while its host still burns CPU is this shape; a mini dump shows the stack (`dotnet-dump collect -p <pid> --type Mini`, then `dotnet-dump analyze <file> -c "clrstack -all" -c exit`). (2026-11-17: a 5000-character literal round-trip test; ODBC hung, OleDb passed.)
 
 ### Sub-second `DateTime` values: use multiples of 10 ms
 
@@ -1254,6 +1272,14 @@ The stack names the translator, the visitor entry point, and — through the fra
 Many tests compare emitted SQL against a stored baseline file. Baselines live **outside the main repo** under the path configured by `BaselinesPath` in `UserDataProviders.json` → `MyConnectionStrings`. With `BaselinesPath` set, a mismatched test overwrites the baseline with the new SQL; subsequent runs compare against the updated file. With `BaselinesPath` unset, baselines are neither written nor compared.
 
 Baseline capture is **not** gated on `AssertQuery` / `GetSql`. Emitted SQL is captured at the harness level (`Tests/Base/BaselinesWriter.cs`) for any query a test executes through `GetDataContext`, so a plain `GetDataContext` + `ToList()` + `ShouldBe` test with no `AssertQuery` call still writes `.sql` baselines. Never infer "no baselines" from the assertion style — check the baselines output.
+
+**A failed test writes no baseline.** `BaselinesManager.Dump` returns early when the test failed (`Tests/Base/BaselinesManager.cs:40-41`), and CI pushes baselines only for a leg that succeeded (`Build/Azure/pipelines/templates/test-workflow-linux.yml`, `push-baselines.ps1` under `succeeded()`). To record a per-case verdict through the baselines channel and compare two commits with it:
+- **The test must pass while it records.** Use a fixture-local `const bool RecordVerdicts` that logs `-- cell <id>: green|red|error|skipped` through `BaselinesManager.LogQuery` instead of asserting.
+- **The verdict lines must be message-free.** Direct and remote baselines are compared, and an error text that differs between them fails the case.
+- **A leg with no baselines commit is "no data", not "no regression".** (#6427: `OperatorPrecedenceTests.Matrix`.)
+- **A recording test passes by design, so its pass count proves nothing.** Count the verdict lines it wrote (`^-- cell \S+: (red|error)$` in the provider's baselines folder) and check the files are fresh from this run: zero red also comes from no file at all. Across two baselines refs, [`matrix-verdicts-diff.ps1`](../scripts/matrix-verdicts-diff.ps1) compares every cell. (#6427: DuckDB reported 428/428 while 27 cells were red.)
+
+**Line 1 of every baseline is `-- <context> <BasicSqlBuilder.Name>`, and `Name` defaults to the builder's type name minus `SqlBuilder`.** Moving a provider version onto a new builder type therefore rewrites the header of every baseline for that provider; override `Name` to keep it, as `SqlServer2014SqlBuilder` and later do. (#6427: `PostgreSQL92SqlBuilder` keeps `PostgreSQL`.)
 
 ### When a substring assertion is vacuous — prefer baselines for shape-changing fixes
 

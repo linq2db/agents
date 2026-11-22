@@ -37,31 +37,26 @@ Do **not** create the branch yet — wait for user confirmation of the proposed 
 Read current values from `Directory.Build.props` on `origin/master`:
 
 - `<Version>` → the next milestone's version (from step 1.4)
-- `<EF3Version>` → increment minor by 1, reset patch to 0 (e.g. `3.31.0` → `3.32.0`)
-- `<EF8Version>` → same rule
-- `<EF9Version>` → same rule
-- `<EF10Version>` → same rule
+- every `<EF<n>Version>` present in the file (today `EF3`, `EF10`, `EF11`; the set changes as bands are added and dropped, so read it, don't assume it) → increment minor by 1, reset patch to 0 (e.g. `3.31.0` → `3.32.0`)
 
-Present the proposal in this exact format:
+Present the proposal in this format, one row per property found:
 
 ```
 Version       <old>  -> <new>
 EF3Version    <old>  -> <new>
-EF8Version    <old>  -> <new>
-EF9Version    <old>  -> <new>
-EF10Version   <old>  -> <new>
+…
 ```
 
 Wait for explicit user confirmation (e.g. "yes", "go", "apply") before editing.
 
 ### 4. Apply
 
-**All-or-nothing precondition:** every one of the four `<EFxVersion>` values must end up different from its previous value. If any would remain unchanged, refuse the bump, explain which one didn't move, and stop. No partial updates.
+**All-or-nothing precondition:** every `<EFxVersion>` value must end up different from its previous value. If any would remain unchanged, refuse the bump, explain which one didn't move, and stop. No partial updates.
 
 Only after user confirmation of the diff in step 3:
 
 1. Create branch `infra/bump-versions` from `origin/master`.
-2. Edit `Directory.Build.props` in a **single** `Edit` call that covers all five `<Version>` / `<EFxVersion>` lines as one `old_string` / `new_string` block. Do **not** issue a separate Edit per property — that produces five individual diffs and five permission prompts. The five lines are contiguous in the file, so one Edit replaces them all at once. Preserve existing formatting (tabs, column alignment, comments).
+2. Edit `Directory.Build.props` in a **single** `Edit` call that covers all the `<Version>` / `<EFxVersion>` lines as one `old_string` / `new_string` block. Do **not** issue a separate Edit per property — that produces one diff and one permission prompt per line. The lines are contiguous in the file, so one Edit replaces them all at once. Preserve existing formatting (tabs, column alignment, comments).
 3. Do **not** commit, push, or open a PR automatically. Per `.claude/docs/agent-rules.md` → **Git commit rules** / **Push to remote rules** / **Pull request rules**, each of those actions needs its own explicit user request.
 
 ## Don'ts

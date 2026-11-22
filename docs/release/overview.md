@@ -9,15 +9,16 @@ prep                publish              postpublish
 ─────               ───────              ───────────
 0 Branch +          1 Open release PR    1 Verify nuget publish
   version bump        (master → release)
-1 Deps              2 Triage stale       2 Docs PR (linq2db.docs)
-                      baselines PRs
-2 PublicAPI         3 Reset baselines    3 GitHub release + tag
-                      master               (.lpx artifact)
+1 Deps              2 Triage stale       2 GitHub release + tag
+                      baselines PRs        (.lpx artifact)
+2 PublicAPI         3 Reset baselines    3 Docs publish
+                      master               (docs.yml deploy)
 3 Milestone         4 Prerelease nuget   4 Next-version bump PR
   check               team-test gate       + new milestone
                                            + linq2db.t4models
                                              re-pin
-4 Test matrix       5 Merge release PR
+4 Test matrix       5 Merge release PR   5 Close release
+                                           milestone
 5 Release notes     6 Merge baselines
                       PR (CI-generated)
 6 Final verify      7 Copy + tag
@@ -36,9 +37,9 @@ prep                publish              postpublish
 - [`release-milestone-check`](../../skills/release-milestone-check/SKILL.md) — open issues/PRs/baselines audit.
 - [`release-test-matrix`](../../skills/release-test-matrix/SKILL.md) — LINQPad / T4 / NuGet-T4 / CLI testing guide.
 - [`release-notes-validate`](../../skills/release-notes-validate/SKILL.md) — release-notes coverage diff.
-- [`release-verify`](../../skills/release-verify/SKILL.md) — final verification (build + analyzer catch-up + profile-analyzers + api-baselines refresh).
+- [`release-verify`](../../skills/release-verify/SKILL.md) — final verification (build + analyzer catch-up + profile-analyzers + docs build + api-baselines refresh).
 - [`release-publish`](../../skills/release-publish/SKILL.md) — post-prep-merge publish flow.
-- [`release-postpublish`](../../skills/release-postpublish/SKILL.md) — post-tag verification + next-version bump.
+- [`release-postpublish`](../../skills/release-postpublish/SKILL.md) — post-tag verification, GitHub release, docs-site check, next-version bump, milestone close.
 
 Reused as-is from outside this set:
 

@@ -9,8 +9,9 @@ How to add a new version anchor to a versioned provider (PostgreSQL, SQL Server,
 Adding a version is two layers of work:
 
 1. **Core anchor wiring** — necessary, and easy to remember because it won't compile without it. For PostgreSQL that was: `PostgreSQLVersion.v19`, `ProviderName.PostgreSQL19`, `PostgreSQLDataProvider19`, `PostgreSQLMappingSchema.PostgreSQL19MappingSchema`, the version detector (`>= 19`, config-name, factory `"19"`), the `ProviderDetector` / `GetConfigurationName` / mapping-schema switches, and `PublicAPI.Unshipped.txt`.
+   - **The mapping-schema switch is the exception: a missing arm compiles.** Every version gets its own arm and its own `<Provider><ver>MappingSchema`, even when the dialect has no mapping of its own, and a `_` arm may catch only `AutoDetect`. A version that falls through gets the previous version's schema, so its own name is missing from `ConfigurationList`. Mapping scoped to that version is then ignored, and the previous version's scoped mapping applies instead. `MappingSchemaTests.ProviderNameScopedMappingApplies` ([#6435](https://github.com/linq2db/linq2db/pull/6435)) pins it. The test enumerates every `*Version` and client enum value, so a new version is covered with no test edit, and needs no per-provider copy. (#6137: PG 11/12/13 fell to the 9.5 schema from 6.0.0/6.4.0 on; `PostgreSQL13MappingSchema` existed and was never constructed.)
 
-2. **Additive `ProviderName`-keyed lists** — the trap. These are scattered allowlists that enumerate the specific versions a behaviour applies to. They are **not cumulative chains**: the new anchor's `ConfigurationList` does not contain older anchors, so an un-extended list *silently excludes* the new version. There is no compile error — the fast `Testing` / single-`net10.0` build is green, and the gap only shows up at runtime / full CI.
+2. **Additive `ProviderName`-keyed lists** — the trap. These are scattered allowlists that enumerate the specific versions a behaviour applies to. They are **not cumulative chains**: the new anchor's `ConfigurationList` does not contain older anchors, so an un-extended list *silently excludes* the new version. There is no compile error — the fast `Testing` / single-TFM build is green, and the gap only shows up at runtime / full CI.
 
 ## The lists to extend (PostgreSQL worked example)
 
@@ -18,7 +19,7 @@ When adding `PostgreSQL.<nn>`, grep-and-extend every site below. The general cat
 
 | Category | PG19 site | Symptom if missed |
 |---|---|---|
-| SQL-builder / hint version whitelist (`ConfigurationList.Contains(ProviderName.X)`) | `Source/LinqToDB/DataProvider/PostgreSQL/PostgreSQLHints.cs` → `SubQueryTableHintExtensionBuilder` `SKIP LOCKED` whitelist | `SubQueryTableHint` drops `SKIP LOCKED` (`TableHintTest2` red) |
+| SQL-builder / hint version whitelist (`ConfigurationList.Contains(ProviderName.X)`) | `Source/LinqToDB/DataProvider/PostgreSQL/PostgreSQLHints.cs` → `SubQueryTableHintExtensionBuilder` `SKIP LOCKED` gate — [#6435](https://github.com/linq2db/linq2db/pull/6435) turns it into a 9.2/9.3 denylist that needs no edit for a new version; check which form master has, and extend any remaining allowlist | `SubQueryTableHint` drops `SKIP LOCKED` (`TableHintTest2` red) |
 | EF Core provider mapping switch | `Source/LinqToDB.EntityFrameworkCore/LinqToDBForEFToolsImplDefault.cs` → `CreateLinqToDBDataProvider` `ProviderName.X => CreatePostgreSqlProvider(v..)` | new provider name falls through to the default arm |
 | LINQPad dialect dropdown | `Source/LinqToDB.LINQPad/DatabaseProviders/PostgreSQLProvider.cs` → `_providers` list | version absent from the LINQPad dialect picker |
 | Per-version test column / feature mapping | `Tests/Linq/DataProvider/PostgreSQLTests.cs` → `AllTypes.macaddr8DataType` `[Column(DbType="macaddr8", Configuration=…)]` stack | column unmapped → `BulkCopyTest` / `BulkCopyTestAsync` round-trip mismatch |
@@ -67,4 +68,5 @@ Neither the primary clone nor the sibling clone's `UserDataProviders.json` will 
 ## After the merge / GA
 
 - Update [`test-databases.md`](test-databases.md)'s provider table with the new version row.
-- For a beta image (PG19 shipped as `postgres:19beta1`), move to the GA tag once the stable image ships: in `Data/Setup Scripts/pgsql<nn>.cmd`, and by dropping the per-version `image=` override in `Build/Azure/scripts/pgsql2.sh` (CI starts every version from `pgsql1.sh` / `pgsql2.sh`).
+- For a beta image, move to the GA tag once the stable image ships: in `Data/Setup Scripts/pgsql<nn>.cmd`, and by dropping the per-version `image=` override in `Build/Azure/scripts/pgsql2.sh` (CI starts every version from `pgsql1.sh` / `pgsql2.sh`). PG19 ran on `postgres:19beta1` until GA (2026-11-19), then moved to `postgres:19`.
+- Re-check the GA release notes against what the beta-phase PR implemented; features committed after the beta can land in GA. File the ones that need new API as backlog tasks.

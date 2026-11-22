@@ -130,8 +130,8 @@ LINQPad 5 is the .NET Framework version; ships a `.lpx` plugin bundle.
 **Steps:**
 
 1. Build the lpx: ask user for the exact command. Typical shape is `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.Pack.csproj -c Release` or a separate Pack csproj invocation — record on first run in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) under **LINQPad 5 lpx build**.
-2. Print the artefact path (expected: `.build/lpx/linq2db.LINQPad.lpx`).
-3. Ask user to install in LINQPad 5 (LINQPad → Help → Install Driver → "Browse" → point at the .lpx).
+2. Print the artefact path (expected: `.build/lpx/linq2db.LINQPad.lpx`). **Check it is a Release build:** track 4.0's Debug solution build rewrites `.build/lpx` with a Debug `.lpx`, so rebuild with `dotnet build Source/LinqToDB.LINQPad/LinqToDB.LINQPad.csproj -c Release -f net472` after 4.0 and before installing (6.6.0).
+3. **Install it yourself — do not hand this step to the user.** Check LINQPad 5 is not running (it locks the driver DLLs; if it is, ask the user to close it), rename the existing `linq2db.LINQPad (no-strong-name)` driver folder to a `.bak-<yyyyMMdd-HHmm>` sibling, and extract the `.lpx` into it — recipe in [`linqpad-test-checklist.md`](../../docs/release/linqpad-test-checklist.md) → *LINQPad driver install automation*. Verify by listing the extracted folder (`linq2db.LINQPad.dll` present, timestamp = this build). Only the smoke clicks need the user. (Maintainer correction on 6.6.0: "you should install driver for linqpad5 without my help".)
 4. Smoke-test via the checklist in `linqpad-test-checklist.md` → **LINQPad 5 (.lpx) smoke**. Default rows:
    - LINQPad starts with no error dialog.
    - linq2db connection wizard appears under Add Connection.

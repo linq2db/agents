@@ -10,3 +10,11 @@ CLAUDE.local.md
 # are the shared artifact and stay tracked. Recreated by /work-plan's first-run
 # prompt in any clone that lacks it.
 plans/config.json
+
+# goal-check settings: which model runs the goal-checker agent. Per-user, like
+# plans/config.json. Recreated by /goal-check's first-run prompt.
+skills/goal-check/config.json
+
+# Build output of the corpus's small .NET tools.
+tools/*/bin/
+tools/*/obj/

@@ -106,6 +106,9 @@ $rows = [ordered]@{
 		'^Source/LinqToDB\.(CLI|Scaffold|Templates|LINQPad)/'
 		'^NuGet/.*\.tt[^/]*$'
 	)
+	'skills' = @(
+		'^Source/Skills/'
+	)
 }
 $none = "^(?!Source/|Tests/).*\.(md|txt)$|$noneSet"
 

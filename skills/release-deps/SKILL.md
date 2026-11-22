@@ -74,6 +74,33 @@ Two things this does *not* need, unlike the NuGet walk above: no policy engine (
 
 Rows join the step-2 table and the step-3 walk as their own small block; the edits land in step 5's batch.
 
+### 1c. Sync the docfx fork
+
+The docs site (`docs/`, built by `docs/build.ps1`) needs a custom docfx: upstream lacks the `assemblyUids` / `assemblyUidOverride` options `docs/source/docfx.json` uses (dotnet/docfx#8966; the fix, dotnet/docfx#11090, is unreleased). `docs/docfx-version.json` pins a `docfx.zip` released from `MaceWindu/docfx` branch `custom/linq2db-assembly-uids` by URL + SHA-256 — how it is produced: `docs/README.md` → *How the docfx build is produced*. This step keeps that build synced with upstream `main` and its Roslyn at or above linq2db's. Drop the step once a released docfx ships `assemblyUids` (`docs/README.md` → *When can this go away*). Needs the `MaceWindu/docfx` clone ([`external-repos.md`](../../docs/release/external-repos.md)).
+
+**docfx's Roslyn must be >= the `Microsoft.CodeAnalysis.CSharp` version `Source/CodeGenerators` is built against**, because docfx loads linq2db's projects and runs that source generator. When docfx's Roslyn is older, the generator refuses to load and the build fails in a way that does not name the real cause:
+
+```
+warning: FailedToLoadAnalyzer: ... AnalyzerName: CodeGenerators,
+         ErrorCode: ReferencesNewerCompiler, ReferencedCompilerVersion: <x>
+error: ExpressionBuilder.cs(38,44): error CS8795: Partial method
+       'ExpressionBuilder.FindBuilderImpl' must have an implementation part
+```
+
+The generated half of the partial never exists, so metadata extraction yields nothing and the run ends with `warning: No .NET API detected for .`. **This recurs on every linq2db Roslyn bump** — 6.3.0 needed 5.0 → 5.3, 6.4.0 needed 5.3 → 5.6, 6.5.0 needed 5.6 → 5.9. Check it up front, against the version step 3 decides: the fork sets docfx's Roslyn through the `RoslynVersion` property of its `Directory.Packages.props`, per TFM — read the one for the TFM `linq2db-build.yml` publishes (`dotnet publish … -f net11.0` as of 6.6.0) at the pinned `sourceCommit`.
+
+> **Read the pin `CodeGenerators` actually uses, not the first one you find.** linq2db's `Directory.Packages.props` carries two Roslyn pins: `Microsoft.CodeAnalysis.CSharp.Workspaces` (*Build: Analyzers and Tools*, the shipped analyzer's IDE floor, 5.0.0 as of 6.6.0) and `Microsoft.CodeAnalysis.CSharp` (*Released Dependencies*, 5.9.0 as of 6.6.0), which `Source/CodeGenerators/CodeGenerators.csproj` (`netstandard2.0`) references. On 6.5.0 the `Microsoft.CodeAnalysis.CSharp` pin was itself **conditional** — 5.6.0 for `net8.0`/`net9.0`, 5.9.0 for everything else, which the netstandard2.0 generator took. Grepping for the first `Microsoft.CodeAnalysis.CSharp` line gives the wrong answer and the sync then lands a docfx that is still too old.
+
+Action (every push and tag is to an external repo, user-confirmed):
+
+1. In the fork clone, `git fetch upstream` and merge `upstream/main` into `custom/linq2db-assembly-uids`. If upstream has nothing new and the Roslyn check passes, the step is done — record that and move on.
+2. After the merge, re-apply / bump the `RoslynVersion` of the published TFM: upstream pins its own Roslyn, so a merge can take docfx below linq2db's pin.
+3. Push the branch, then tag the head `linq2db-<yyyymmdd>-<sha7>` and push the tag. The tag runs the fork's `linq2db-build.yml`, which attaches `docfx.zip` and `docfx.zip.sha256` to a fork release of that tag. Record the fork run id.
+4. Queue the `docs/docfx-version.json` edit for step 5's batch: `tag`, `url` (`https://github.com/MaceWindu/docfx/releases/download/<tag>/docfx.zip`), `sha256`, `sourceCommit`. Transcribe `sha256` from the release's `docfx.zip.sha256` asset — never compute it from the zip you downloaded, or the pin only checks itself.
+5. After step 5's apply, run `./docs/build.ps1 -WarningsAsErrors` once with the new pin — a docs build, not the solution verification build this skill never runs; `/release-verify` step 4b repeats it over the cumulative prep state. A new warning from the upstream merge fails `docs.yml` on the next docs-touching PR and blocks the deploy at publish, so own it now.
+
+**A Roslyn bump can expose latent bugs in the custom patch.** The custom `VisitorHelper.GetGlobalId` had a null-dereference on symbols whose `ContainingAssembly` is null (reached via `XmlComment.ResolveCrefLink`) that had never fired, because the build always died at CS8795 first. Fixed in `MaceWindu/docfx` `591d070e7`. If the synced build fails somewhere inside `Docfx.Dotnet`, check the custom patch (`git show <custom-commit>`) before assuming an upstream docfx bug.
+
 ### 2. Render the table
 
 The agent reads the plan and renders one numbered row per package. The table includes packages with available updates blocked by policy — visible so the user can override.
@@ -181,6 +208,7 @@ Apply all queued edits in one batched pass, grouped by file:
 - Each `VersionOverride` csproj: one edit per file.
 - `.editorconfig`: one edit covering every new rule severity line from step 4a (numerically ordered inserts).
 - Each workflow file with an outdated action pin from step 1b: one edit per file, replacing every site of that action — the script reports them all, and a partial replacement leaves two SHAs for one action in the same workflow.
+- `docs/docfx-version.json`: the new docfx pin from step 1c, if the fork was re-tagged.
 - Any code edits queued from step 4b (polyfill dedups) or other audits.
 
 Show the full diff as a single proposal. Gate on user confirmation before any edits land.
@@ -248,5 +276,5 @@ If a build regression escapes the predictive audits in step 4, `/release-verify`
 - Do **not** auto-include prerelease versions in shipping packages. Always warn + require explicit re-confirmation.
 - Do **not** edit `linq2db.t4models` from this skill outside the override case where the user explicitly asks. The default ownership of that bump is `/release-postpublish` step 4.
 - Do **not** batch multiple unrelated package updates into one review — they're unrelated work and each has its own release-notes / risk profile. Per `agent-rules.md` → **Do not batch code-change reviews**. Step 3's per-package walk and step 5's batched apply are the same logical change (one cohesive deps update), so the per-edit-confirmation rule does not split this single apply.
-- Do **not** commit, push, or trigger CI from this skill. All of those are owned by `/release-verify` after the build proves the consolidated release-prep state is sound.
+- Do **not** commit, push, or trigger CI from this skill. All of those are owned by `/release-verify` after the build proves the consolidated release-prep state is sound. The one exception is step 1c's docfx fork sync, which commits and tags in the external `MaceWindu/docfx` repo, never on the prep branch.
 - Do **not** run a verification build inside this skill. Trust the predictive audits; the orchestrator's `/release-verify` step runs the only build of the release-prep cycle.

@@ -115,6 +115,8 @@ No setup needed. Runs against `Microsoft.Data.Sqlite` (provider ID `SQLite.MS`) 
 - **Temp tables follow the database collation only in the contained DB.** On `SqlServer.CS`, tempdb keeps the server's CI collation, so joining a temp table to a CS column fails with `Cannot resolve the collation conflict`. On `SqlServer.Contained` the same join works.
 - **Type names stay case-insensitive under a CS catalog.** `JSON`, `VECTOR(n)`, `SYSNAME`, `NVarChar`, `Sql_Variant`, `GEOGRAPHY` and `HIERARCHYID` all resolve in any casing, so a type-name casing difference is not a CS-catalog bug.
 
+**Orphan temporal history tables accumulate in a long-lived local database.** Temporal-table tests leave `MSSQL_TemporalHistoryFor_<objectid>` history tables behind, and `CreateDatabase` does not drop them, so anything that scaffolds the local `TestData` database (the F# `Tests/FSharp.Scaffold/generate.ps1`, the C# CLI baselines) picks them up as extra entities. Before regenerating, list and drop only the orphans — history tables no live table references (`sys.tables` rows named `MSSQL[_]TemporalHistoryFor[_]%` with no `sys.tables.history_table_id` pointing at them) — with a file-based C# app over `Microsoft.Data.SqlClient` (see [`script-authoring.md`](script-authoring.md) → *Scratch files*). (#5707: four such tables in `sql2022` `TestData`, hit in A-7 and again in review round 2.)
+
 ## PostgreSQL
 
 Postgres images are slim (~150MB) and fast to start, so running multiple dialect versions in parallel is cheap. The recommended default set covers every SQL dialect linq2db emits, with latest on top.

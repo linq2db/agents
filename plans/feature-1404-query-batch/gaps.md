@@ -68,3 +68,51 @@ The 9 findings split GAP-03 ×3, GAP-05 ×2, and one each of GAP-02, GAP-06, GAP
 - Round-1 recommendation 2 (overload × position × entry-point grid at `SKILL.md:122`, now :137): not landed. :137 is still the #5708 paragraph, with no position or compiled axis. It recurs as SUG005 and SUG003, and is re-proposed above with the context axis added.
 - Round-1 recommendation 3 (G-09 must read `pass` or `waived-by-user`): not landed. The G-09 item in `definition-of-done.md` has no such clause, and plan P9 (:223) still reads `G-09: skipped` at bd7a7e3dc. No round-2 finding is attributed to it.
 - Round-1 MIN004 (GAP-06, narrowed TO scopes without a reason) recurs as MIN007 in A-4's new rows. A-3 fixed the three cited rows and not the rule's application. The do/don't example already exists (`testing.md:544-546`), so this round's fix is mechanical (first fix above), not more prose.
+
+## Round 3 — reviewed HEAD 486e01cd1
+
+Review: https://github.com/linq2db/linq2db/pull/6111#pullrequestreview-6013591158 (2026-11-22, submitted COMMENT). Goal check (fable): sound. Plan amended at the gate (A-12, critic rounds 11 refuted / 12 weak).
+
+## Attribution
+
+- **MAJ004** (count + page round trips) — GAP-02 — P1 states the problem in round trips but SC-2 and every count obligation measure commands; U-15 settled "can the harness count round trips?" by counting ExecuteReader, so the BEGIN/COMMIT SC-10 requires were never counted; A-11 wrote "SQL Server expected 3, not measured" and chose docs only; second class GAP-05 (no test asserts total round trips) — — — preventable: yes
+- **MAJ005** (MySql.Data combining removed vs 6.6.0) — not-a-gap: reviewer-disagrees-with-P10 — P10 "MySql.Data runs sequentially on every connection"; if the finding stands it is GAP-02: A-5's rejected list never weighed the gate-only option, and A-12 voided E-16's approval on learning #5673 shipped in 6.6.0 but rounds 11–12 re-earned it without reopening A-5's alternatives; third round on this unknown (round-1 OOS-13, round-2 MIN005) — — — preventable: partly
+- **MAJ006** (nested entity First/Single drops rows in a batch) — GAP-05 — SC-16 promises a throw for any query nested in a part, but TO-50, its only nested obligation, reads a scalar; the marker is keyed on IsScalarType, so no TO-n covers the entity side; A-4's own probe had recorded the entity First as a CROSS JOIN that empties its row; A-7 MIN009 wrote the nested promise into the remarks against A-5's "promise only what is pinned"; second class GAP-02 — — — preventable: yes
+- **MIN013** (compiled batch under CteUnion pushes Default) — GAP-02 — A-3's D-3 rewrite treats CanCombineCommands at build time as proof the run combines, while P10 says a compiled QueryBatch never takes the combined path; A-3 measured on a SQLite DataContext and DuckDB only; the compiled-column grid landed after A-3 and D-3 was never re-walked; repeats round-1 MAJ004's shape; second class GAP-05 — — — preventable: yes
+- **MIN014** (hints message too broad) — GAP-01 — A-4, SC-4 and TO-9 cover only the context's pending hints; no block names what a part's own QueryHint/TagQuery does; the message copies the user's quoted call rather than SC-4's "pending" scope — — — preventable: partly
+- **MIN015** ("one command" unconditional) — GAP-02 — SC-2 promises exactly one command with no condition; no U-n asks about the executor's statement / command-length / parameter caps, all of which predate the plan; A-11 replaced "one round trip" with "one command" but its class search grepped only the old phrase; round-1 OOS-14 named the same missing question — — — preventable: yes
+- **MIN016** (part-level hints land on the shared statement, duplicated; pre-existing on v6.6.0) — GAP-01 — no SC-n names where a part's per-query modifiers land once parts merge; A-4 rejected per-statement rendering for the context's pending hints only — — — preventable: partly
+- **SUG006** (nested QueryBatch reads as db.Select) — GAP-03 — D-6's failure mode was written when combining was the batch's only semantic; A-4 (strict First/Single) and A-8 (task refusal on every node, nested included) changed that and neither re-derives line names D-6; repeats round-2 MIN006/SUG002 — — — preventable: yes
+- **SUG007** (Access refusal excluded, not declared) — GAP-03 — A-3 excluded Access via NoFromlessSubquery; A-6 made "declare the refusal" the fixture convention for Sybase/YDB but its re-derives line did not re-weigh A-3's Access exclusion — — — preventable: partly
+- **SUG008** (arity-7 docs don't point past 7) — GAP-08 — D-5's failure mode ("an eighth result forces a switch of form") is a contract point; G-03 was recorded once at approval as presence only and never re-derived through eleven amendments; E-1's restate list omits D-5 — G-03 — preventable: yes
+- **SUG009** (no >7 parts / >2 collections / chunk-split test) — GAP-05 — D-5 names the anonymous form for the overflow but SC-6 and TO-25…TO-30 stop at arity 7 and TO-23 at two collections; the chunk split has no obligation because the plan never asked about it (second class GAP-02); repeats round-1 MAJ005 — — — preventable: yes
+- **SUG010** (two public batch families) — GAP-10 — unknowable at approval: #6299's explicit-batch design first appears at A-8 (2026-11-11) and the shape preference was off-GitHub; A-12 carried it to review as a lead — — — preventable: no
+- **SUG011** (out-of-batch deltas bundled) — GAP-03 — work-plan.md requires a P3 user-visible-deltas line per A-n change against master; A-3, A-4, A-5 and A-6 each recorded "fix it here" and none re-derived P3; second class GAP-09: DataContext.cs and LinqExtensions.cs had no E-n until A-12's reconcile — — — preventable: partly
+- **NIT002** (CompileTests.cs:71-72 call + assert on one line) — GAP-08 — A-7 added the lines with a "held by hand" conventions line and no sweep; validate accepts any conventions line and its G-01 check matches the bare string test-diff-sweep from A-6's earlier record; A-12's branch-wide sweep reported the hit and deferred it — G-01 — preventable: yes
+- **NIT003** (QueryBatchTests.cs:2576 nested chain) — GAP-08 — A-4 added it with no conventions line; A-5's hand regex covered rule 1 only and every later sweep covered only its own amendment's delta, so the first sweep over A-4's lines was A-12's, which deferred it — G-01 — preventable: yes
+
+## Aggregate
+
+15 findings, 14 attributed: GAP-02 ×3, GAP-03 ×3, GAP-08 ×3, GAP-01 ×2, GAP-05 ×2, GAP-10 ×1; MAJ005 contests P10. Flat in three clusters: GAP-02, a stand-in quantity took the place of the promised one (reader count for round trips, "one command" for a splittable send, CanCombineCommands for "this run combines"); GAP-03, amendments changed a semantic or convention without re-deriving the blocks that stated the old one (D-6, A-3's Access call, P3); GAP-08, the sweep validator is satisfied by a stale record. Nine of the 14 trace to amendment-time artifacts (A-3…A-11), not the approved design.
+
+## Recommended durable fixes
+
+1. GAP-02 → work-plan.md P2 semantics + plan-critic.md vector 3: an SC-n that asserts a proxy for the quantity P1 names must name the proxy and owe a P4 row showing they agree on every divergence axis (per-provider transaction round trips; executor split limits; entry points whose run-time path differs from a build-time predicate, e.g. compiled). Supersedes round-1 recommendation 1 (never landed).
+2. GAP-03 → work-plan.md `re-derives:` list: also each D-n whose failure-mode line covers the changed path, each earlier A-n taken under a replaced convention, and P3 whenever an A-n changes behaviour outside the feature; plus a work-plan.ps1 warning when an A-n says "master bug" / "fix it here" and its re-derives line lacks P3.
+3. GAP-08 → work-plan.ps1 validate: accept a G-01 sweep record only if it postdates the last test-adding A-n and uses the merge base; reject a conventions line with no sweep counts; at -Done, treat a sweep hit deferred to review as an error.
+
+## Corpus trace (corrections proposed)
+
+- MAJ004: extend plan-critic.md's measured-run vector (provider predictions) from P10 to P11 entries; recurs round-1 MAJ001.
+- MAJ006: work-plan/SKILL.md grid — a check keyed on a type predicate (IsScalarType) gets one row per value kind (scalar, entity); recurs round-2 MIN006.
+- MIN013: plan-critic.md vector 4 — a build-time decision keyed on a run-time gate predicate needs one probe per entry point whose run-time path differs; recurs round-1 MAJ004 / OOS-11.
+- MIN015: work-plan.md — an A-n that rewrites a falsified claim puts the replacement claim on its class search too, probed at the executor's limits; recurs round-1 OOS-14.
+- MIN016: plan-critic.md vector 6 — a design merging several user queries into one statement: where does each per-query modifier (QueryHint, TagQuery, InlineParameters, table hints) land?
+- SUG007: testing.md → A narrowed provider set is a claim — when a fixture declares one provider's refusal by its ErrorHelper constant, another provider excluded for the same kind of refusal is declared too or says why it cannot be.
+- SUG008: work-plan.ps1 validate — warn when P6 has a doc E-n and G-03 names no D-n / A-n contract points, or predates the last A-n re-deriving that E-n; recurs round-1 MIN002, round-2 MIN006.
+- SUG009: work-plan/SKILL.md grid — a D-n naming a fallback form past a limit gets a grid row for that form; recurs round-1 MAJ005.
+
+## Continuity with rounds 1 and 2
+
+Recurring: round-1 MAJ004 and OOS-11 → MIN013; round-1 OOS-14 → MIN015, SUG009; round-1 MAJ001 → MAJ004; round-1 OOS-13 and round-2 MIN005 → MAJ005; round-1 MAJ005 → SUG009; round-1 MIN002 and round-2 MIN006 → SUG008; round-2 MIN006/SUG002 → SUG006; round-2 NIT001 → NIT002, NIT003.
+Earlier recommendations: round-1 #1 (forced opt-in scout brief) not landed, superseded by fix 1; round-1 #2 (grid) landed, missed MIN013 because D-3 predates it; round-1 #3 (G-09 must be pass or waived) not landed, P9 still reads G-09 skipped; round-2 #1 landed in all three parts, but the sweep check only tests string presence (fix 3); round-2 #2 landed; round-2 #3 (validator check for missed doc E-n) not landed as a check.

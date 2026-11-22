@@ -460,6 +460,8 @@ Don't try to outwait a transient disk-space failure or ignore it as "the build m
 
 **`MSBUILD : error MSB4223: A node of the required type OutOfProc could not be created` — skip the plain retry, build serially.** It fails at once, before any project builds, so the log holds that one line. A plain retry failed the same way twice; `worktree-test.ps1 -SerialBuild` (`-m:1 -p:UseSharedCompilation=false`, an in-proc build) succeeded first time. Never touch the node pool. (#5956 round 3, a probe build in a warm worktree.)
 
+**`error MSB4242: SDK Resolver Failure: "…because the worker node was shut down"` — a plain retry is enough.** Like `MSB4223`, it fails before anything compiles, so the log holds one error line. Unlike `MSB4223`, rerunning the same `dotnet build` succeeded first time (2026-11-20, a cold `Tests/Linq` build in a fresh worktree). If the retry fails the same way, continue up the ladder. Never touch the node pool.
+
 **A build killed for *memory* inverts the `UseSharedCompilation` advice — reach for `=true`, not `=false`.** Every other rule in this doc and in the `MSB4166` / `CS8032` recovery ladder points at `-p:UseSharedCompilation=false`, because there the enemy is a stale or report-swallowing VBCSCompiler. Under memory pressure that is exactly backwards: `=false` makes MSBuild spawn a **fresh `csc.exe`** which must page in its own multi-GB working set, while the resident VBCSCompiler already has one. On a starved box the fresh process is what gets killed. Discriminator from the other cases: the harness/OS reports *low memory* — this can also surface as an `MSB4166` child-node death (see the `MSB4166` table above), and an `MSB4166` that comes with low-memory signals belongs here, so skip the ladder's `=false` step and go straight to `-m:1` with `=true` — rather than a stale-compiler `CS8032` or `Access denied`, and the kill lands at the **largest** compilation in the graph — for this repo, `Tests/Linq` itself. Fix: `-p:UseSharedCompilation=true`, plus `--no-restore` when the tree has already restored. (Surfaced reviewing #5833 on a box down to 1.7 GB free: roughly fifteen consecutive kills under `-SerialBuild` — which hardcodes `=false` — then success on the first attempt with `=true`.)
 
 **Before treating repeated kills as a futile loop, read the build log — MSBuild is incremental, so they may be *converging*.** A kill leaves every project it already finished built and cached, so successive attempts get further. The tell is a build log whose tail advances between attempts. In the #5833 case the log reached 17 of 18 projects and died only on the last one every time, which is what identified `Tests/Linq`'s own compilation as the memory hog and pointed at the fix above. A retry loop that never advances is a different problem; one that advances is worth continuing.
@@ -468,7 +470,7 @@ Don't try to outwait a transient disk-space failure or ignore it as "the build m
 
 ## TFM API availability (net462 / netstandard2.0)
 
-The `Testing` configuration builds **net10.0 only**, so a local `dotnet build -c Testing` (and any single-`net10.0` fast iteration) will **not** catch APIs missing on the older TFMs in `<TargetFrameworks>` (`net462`, `netstandard2.0`). Before pushing source that calls a BCL API / extension method newer than .NET Standard 2.0 (e.g. `Enumerable.ToHashSet`, span overloads, `string.Contains(char)`), build one portable TFM locally first:
+The `Testing` configuration builds **only the latest TFM** (`$(LatestTargetFramework)`, net11.0 at the time of writing), so a local `dotnet build -c Testing` (and any single-TFM fast iteration) will **not** catch APIs missing on the older TFMs in `<TargetFrameworks>` (`net462`, `netstandard2.0`). Before pushing source that calls a BCL API / extension method newer than .NET Standard 2.0 (e.g. `Enumerable.ToHashSet`, span overloads, `string.Contains(char)`), build one portable TFM locally first:
 
 ```
 dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f netstandard2.0
@@ -543,6 +545,10 @@ dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0 -p:RunApiAnalyzersDur
 That matches what PR CI passes — analyzers on, API analyzers off — so the same build also catches the analyzer findings that leg would fail on.
 
 (#5750: a `<see cref="TranslationProviderFlags.CanLowerIntervalShift"/>` added to `IntervalTranslationTests.Arithmetic.cs`, a file with no `using LinqToDB.Linq.Translation;`, passed a full green `test-all` and failed the `build` check with `CS1574` on all four TFMs.)
+
+## Swapping in an old version of one file
+
+To run a test against an older version of a single file (a red check against `master`'s copy), use `git restore --source=<rev> -- <path>`, then `git restore -- <path>` to put the current version back. Don't pipe `git show <rev>:<path>` into `Set-Content`: PowerShell receives the output as an array of lines, and `-NoNewline` joins them into one line, so the file no longer compiles (a red run that fails with `CS1513` at column 6000 of line 1 is this). A `>` redirect re-encodes the file instead.
 
 ## Bisecting across SDK upgrades
 

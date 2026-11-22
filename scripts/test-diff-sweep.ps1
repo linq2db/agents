@@ -84,7 +84,9 @@ narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutRe
 lineAbove is not a comment; a single-provider translator test is exempt, so read them], shouldlySubjectGates: [{file, line, errorMessage}],
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
-cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}] }.
+cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
+invisibleChars: [{file, line, codepoint}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
 param(
@@ -137,6 +139,7 @@ $unanchored  = @()
 $continued   = @()
 $cacheCalls  = @()
 $areEquals   = @()
+$invisible   = @()
 # check 9: an added `AreEqual(` opening line and the argument lines added after it
 $pendingAreEqual = $null
 $pendingGate = $null
@@ -222,6 +225,19 @@ foreach ($l in $diff) {
 
 	if ($l.StartsWith('+')) {
 		$text = $l.Substring(1)
+
+		# check 10: an invisible character typed raw (control, NBSP, format such as U+FEFF / U+200B, U+FFFD); MA0243 is off repo-wide
+		$chars = $text.TrimEnd("`r").ToCharArray()
+		for ($ci = 0; $ci -lt $chars.Length; $ci++) {
+			$ch = $chars[$ci]
+			$n  = [int]$ch
+			# the file's own byte-order mark (sources carry one by convention) is not a literal
+			if ($n -eq 0xFEFF -and $ci -eq 0 -and $line -eq 1) { continue }
+			if (($n -lt 32 -and $n -ne 9) -or ($n -ge 0x7F -and $n -le 0xA0) -or $n -eq 0xFFFD -or [char]::GetUnicodeCategory($ch) -eq [Globalization.UnicodeCategory]::Format) {
+				$invisible += [pscustomobject]@{ file = $file; line = $line; codepoint = ('U+{0:X4}' -f $n) }
+				break
+			}
+		}
 
 		# check 9: the expected argument reads no `db.`, the actual argument after it does
 		if ($pendingAreEqual -and $text.Trim()) {
@@ -379,4 +395,5 @@ foreach ($c in $cacheCalls) {
 	narrowedContinuations = @($continued)
 	cacheMissOutsideQueryCacheTest = @($cacheOutside)
 	handDuplicatedAreEqual = @($areEquals)
+	invisibleChars = @($invisible)
 } | ConvertTo-Json -Depth 4

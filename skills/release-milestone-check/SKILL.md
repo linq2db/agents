@@ -70,6 +70,7 @@ For each open milestone item, ask the user — single batched prompt:
 
 User-driven actions only — this skill does not close, edit, or move anything itself. After user replies:
 - `close` / `move` / `merge`: orchestrator may dispatch to `/create-issue` for follow-up tracking or to direct user actions on GitHub.
+- `move` of an open **PR**: grep its diff for the outgoing version (`git grep -n -E "\b<major.minor>\b" origin/pr/<n> -- <the PR's changed paths>`, e.g. `6\.6`). Release notes, "Breaking changes in X" lines, `Since X` error text and help strings written for the outgoing release become wrong once it ships without the PR. Offer to post a retarget comment that lists each hit and names the new milestone. Posting it needs its own go-ahead. (#5991 round 4 MIN010: "Breaking changes in 6.6" sat in five files after 6.6.0 shipped without the PR.)
 - `wait`: skill records the row as known-blocking and tells user "release can't tick task 3 until this is resolved".
 
 ### 4. Resolve stale baselines PRs

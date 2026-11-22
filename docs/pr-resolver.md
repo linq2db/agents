@@ -1,6 +1,8 @@
 ## PR reference resolution
 
-Shared resolver for `/review-pr` and `/verify-review`. Takes a single user-supplied reference and returns PR metadata.
+Shared resolver for `/review-pr`, `/verify-review` and `/goal-check`. It takes a single user-supplied reference and returns PR metadata.
+
+**`issue <n>` form (`/goal-check` only).** This form skips resolution and targets the issue itself. Case 2 below would otherwise turn an issue that has a PR into that PR.
 
 ### Accepted reference forms
 
