@@ -288,6 +288,12 @@ Three rules govern how the plan is used, and all three go into the briefing:
 
 **No plan is a first-class valid state.** External-contributor PRs and branches predating the mechanism have none: say so in one line and proceed exactly as before. Do not report it as a defect and do not ask the author for one.
 
+### 3f. Cross-check repository advisories (security-adjacent PRs)
+
+When the PR touches identifier quoting, literal escaping, the remote / serializer path or raw-SQL rendering, list the repository's advisories (`gh api repos/linq2db/linq2db/security-advisories --paginate --jq '.[] | {ghsa_id, state, severity, summary}'`) and match them against the PR's area by summary. For each match, tell the user whether the PR covers it and whether other in-flight work rewrites the same code.
+
+**Report this to the user only.** An undisclosed advisory never appears in the review body, a comment, a commit or the corpus; a public finding stands on its own merits. Record anything that must carry across sessions in auto-memory.
+
 ### 4. Pre-review confirmation
 
 After the target-branch check passes and the change summary is in hand, ask the user two bundled questions in a single prompt so both answers land in one reply (per `agent-rules.md` → **Batching and user interaction**):
