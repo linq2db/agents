@@ -1275,6 +1275,9 @@ Baseline capture is **not** gated on `AssertQuery` / `GetSql`. Emitted SQL is ca
 - **The test must pass while it records.** Use a fixture-local `const bool RecordVerdicts` that logs `-- cell <id>: green|red|error|skipped` through `BaselinesManager.LogQuery` instead of asserting.
 - **The verdict lines must be message-free.** Direct and remote baselines are compared, and an error text that differs between them fails the case.
 - **A leg with no baselines commit is "no data", not "no regression".** (#6427: `OperatorPrecedenceTests.Matrix`.)
+- **A recording test passes by design, so its pass count proves nothing.** Count the verdict lines it wrote (`^-- cell \S+: (red|error)$` in the provider's baselines folder) and check the files are fresh from this run: zero red also comes from no file at all. Across two baselines refs, [`matrix-verdicts-diff.ps1`](../scripts/matrix-verdicts-diff.ps1) compares every cell. (#6427: DuckDB reported 428/428 while 27 cells were red.)
+
+**Line 1 of every baseline is `-- <context> <BasicSqlBuilder.Name>`, and `Name` defaults to the builder's type name minus `SqlBuilder`.** Moving a provider version onto a new builder type therefore rewrites the header of every baseline for that provider; override `Name` to keep it, as `SqlServer2014SqlBuilder` and later do. (#6427: `PostgreSQL92SqlBuilder` keeps `PostgreSQL`.)
 
 ### When a substring assertion is vacuous — prefer baselines for shape-changing fixes
 

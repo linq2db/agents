@@ -272,6 +272,14 @@ A `Convert*` / `Visit*` override in a provider's `SqlExpressionConvertVisitor` r
 
 Projection finalization (`ExpressionBuilder.QueryBuilder.cs`) loops `Visit` + `TranslateExpression` until the result is reference-equal to the input, so any rewrite installed where that visitor can re-enter is applied **once per pass**, not once. A non-idempotent one grows the tree each pass and dies as a `Stack overflow` inside `ExpressionEqualityComparer.GetHashCode` — which reads as an unrelated hashing bug. Make the rewrite return early on its own output; an existing marker is the cheap carrier (`MarkerExpression.PreferClientSide` around the result, plus an early return when it is already set — stripped before materialization). Verify convergence with a full run, not a single query: the growth only shows once the loop iterates. (#5929)
 
+### A convert-visitor rewrite must not match its own output
+
+`SqlExpressionConvertVisitor` visits a replaced node again (`VisitSqlBinaryExpression` / `VisitSqlUnaryExpression`: `Visit(Optimize(NotifyReplaced(new, old)))`), so a `Convert*` override whose output still satisfies its own condition recurses until the stack overflows, which kills the test host instead of failing a test. Shape the output so the key cannot fire on it: a function or a template, a node with another operation string (`//`, `DIV`), or an inner node typed so the condition reads false — a `ulong`-typed operator under `CAST(… AS SIGNED)`, a decimal-typed `/` under `Trunc(…)`. Key on `SystemType`, not `DataType`: LINQ-built binaries carry `DataType.Undefined`, and the remote serializer keeps only `SystemType` for binary and unary nodes. (#6427: the `IntegerDivide` hook and the MySQL / YDB signed-bitwise lowering.)
+
+### A template that wraps a nullable operand declares its nullability
+
+A `SqlExpression` template built without a nullability type gets `ParametersNullabilityType.Undefined` and is not nullable through its operands, so `x IS NULL` over it folds to false. Give a wrapper template `ParametersNullabilityType.IfAnyParameterNullable`. (#6427: YDB's `BitCast(… AS Int32)` over a nullable column turned `(a | n) IS NULL` into `false`.)
+
 ### Internal AST APIs trust NRT — validation lives in factory extensions
 
 Constructors and `Modify` methods on types under `LinqToDB.Internal.SqlQuery.*` (and peer internal AST namespaces) do **not** carry null / empty argument guards. Validation is the job of the factory extensions (`SqlExpressionFactoryExtensions.Concat`, peers) that provide the validated entry point for broader use; bare AST ctors trust callers to respect `<Nullable>enable</Nullable>` and pass sane parameters. Adding the same guard on the ctor duplicates the check at no benefit and adds noise NRT analysis would have already surfaced.
@@ -325,9 +333,9 @@ For a per-provider capability use a `SqlProviderFlags` bool (`dc.SqlProviderFlag
 
 Engine code shared across providers must not hard-code provider SQL syntax — parameter prefixes (`@`, `:`, `$`), positional `?`, identifier quoting. Ask the builder (`ConvertInline(name, ConvertType.NameToQueryParameter)` and the other `ConvertType`s) and `SqlProviderFlags` (`IsParameterOrderDependent`); a provider that accepts an alternate syntax overrides a virtual on its builder. (#6003: an unreferenced-argument check matched a fixed `@`/`:`/`?` list; reworked to `BasicSqlBuilder.IsParameterReferenced`, with PostgreSQL adding Npgsql's `@name`.)
 
-### Dialect operator precedence goes through the builder's precedence hook
+### Dialect operator precedence lives in the builder's precedence table
 
-When a provider ranks an operator differently from `Precedence.cs` (SQLite and Firebird bind `||` above arithmetic), override the precedence the builder reads for that node, `BasicSqlBuilder.GetPrecedence(ISqlExpression)`, which drives both the wrap decision and the operand precedence. Don't copy a base emit loop into a provider `*SqlBuilder` just to change its precedence argument. Per-database precedence is tracked in #5527; this hook is where it lands. The hook is `private static` until #6146 (or a follow-up) makes it `protected virtual`. (#6146: the SQLite `||` fix overrode `BuildSqlConcatExpression`; review redirected it to the hook, which also covers Firebird.)
+The SQL builder decides every bracket from its dialect's `SqlPrecedenceTable` (`BasicSqlBuilder.PrecedenceTable`): one entry per operator string, prefix operator, predicate kind and template class. Operator AST nodes carry no precedence. When a provider ranks an operator differently, change its table entry (`SqlPrecedenceTable.Default.With(...)`, or `WithOrderedArithmetic()` for the order every dialect shares) — don't add a precedence argument to a node, override a `Build*` emit method, or re-emit an operator under another precedence in a convert visitor. A version that ranks operators differently gets its own builder type (`PostgreSQL92SqlBuilder`). A `[Sql.Expression]` template's `Precedence` is its outer class: the builder brackets an argument below it, and a placeholder under a tighter operator inside the template text (`({1})::date`) is the template's job. (#6427, which replaced the `GetPrecedence` hook #6146 used.)
 
 ### A per-provider capability is a `SqlProviderFlags` bool plus a probing guard test
 

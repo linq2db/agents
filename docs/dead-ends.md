@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## SQL-PROVIDER: deriving DuckDB's operator levels from PostgreSQL's grammar
+
+**Tried:** placing DuckDB's integer division `//` as a PostgreSQL "any other operator", below `+` and `-`, on the reading that DuckDB's parser is libpg_query.
+
+**Failed because:** DuckDB binds `//` like `*`: `1 * 7 + 1 // 2` is 7, so `(a + b) // c` rendered bare divided only `b`. `MathFunctionTests.IntegerDivisionTruncates` and 27 matrix cells went red.
+
+**Don't re-attempt:** a dialect table entry taken from a parent grammar without a matrix run on that dialect. `//` sits in `DuckDBSqlBuilder`'s table at `Multiplicative`. (#6427, `bc7aeacb6`)
+
 ## EXPR-TRANS: keying a lazily built CTE body's ordering isolation on the current state
 
 **Tried:** isolating `CteContext.InitQuery` when an ordering is current; isolating unless read under the scope that created the CTE; an identity check in `GroupByBuilder` that skips pruning a list its source did not produce.
@@ -455,6 +463,30 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** ACE (OLE DB and ODBC) compares a Double with the literal `0.5` imprecisely. A probe showed that `F = 0.49999999999999994` is stored exactly and that `F - Int(F)` comes back exact, yet `IIF(F < 0.5, 1, 0)` returns 0. `Round` was not the culprit: removing it changed nothing.
 
 **Don't re-attempt:** comparing a double with a fractional literal in Access SQL when the outcome must be exact. Use arithmetic: `Int(m) + Int((m - Int(m)) * 2)`, since the doubling is exact (`bdc4a2ff7`). The same caution applies to any other Access emulation that tests a double against `0.5`. (#6151)
+
+## SQL-PROVIDER: probing the alias uniquifier at the limit with duplicate root columns
+
+**Tried:** reproducing a duplicate alias that sits exactly at the identifier limit by selecting two same-named physical columns at the root (`from a in t from b in t select new { A = a.Val, B = b.Val }` with a 127/128-character column name on SQLite).
+
+**Failed because:** the column uniquifier's fallback seeds from the member alias (`A` / `B`), not the physical name, so `MakeUniqueNames` never sees the long duplicate; the query finished at every length.
+
+**Don't re-attempt:** the column path. Use two table sources sharing an alias: `t.Select(LONG => LONG.Id).Concat(t.Select(LONG => LONG.Id))` with a lambda parameter of limit-1 or limit characters reproduces the non-terminating loop under a `Task.Wait` timeout. (#5772 MAJ001)
+
+## REMOTE: reaching a multi-step scenario through remote `ToSqlQuery`
+
+**Tried:** probing remote `GetSqlText` for a scenario with non-main steps (identity `SELECT`, truncate reset, insert-or-update emulation) to exercise `ScenarioCommandRenderer.PrepareStepAliases` on the client.
+
+**Failed because:** every multi-step scenario belongs to an operation with no `ToSqlQuery` overload; the `IQueryable`, `IUpdatable`, `IValueInsertable`, `ISelectInsertable`, multi-insert and `IMergeable` overloads all build single-step statements.
+
+**Don't re-attempt:** a public-API probe. A defect on that path is latent; test it by calling the remote runner's `GetSqlText` on a hand-built scenario, or record it as unreachable. (#5772 NIT005)
+
+## SQL-PROVIDER: deciding what Access accepts from the ODBC driver alone
+
+**Tried:** concluding that Access cannot hold a `"` in a bracketed name because `CREATE TABLE … [Say "Hi"]` fails.
+
+**Failed because:** only the ACE **ODBC** driver rejects it (its error shows `'[Say [Hi]]'`: it rewrites `"` before parsing). ACE OLE DB and LibRed accept `[Say "Hi"]` in `CREATE`, `ALTER`, `SELECT`, `INSERT` and `UPDATE`.
+
+**Don't re-attempt:** a single-flavour Access probe. Run ACE OLE DB, ACE ODBC and LibRed (all local, no container) and put an ODBC-only refusal in `AccessODBCSqlBuilder`. (#5772 MAJ002)
 
 ## SQL-PROVIDER: separating PostgreSQL's numeric and double rounding routes with residue values
 
