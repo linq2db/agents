@@ -223,6 +223,14 @@ Because the CLI multi-targets `net8.0;net9.0;net10.0` and `Testing` collapses to
 
 **A DB2 `--provider-location` folder for local CLI runs.** DB2 is not bundled with the CLI. Assemble a provider folder from the `Net.IBM.Data.Db2` package in the NuGet cache: copy `lib/net10.0/IBM.Data.Db2.dll` and the `buildTransitive/clidriver/` directory (~81 MB) into one folder, then pass that folder's `IBM.Data.Db2.dll` path to `--provider-location`. The package's own targets lay a consuming app's output out the same way. The IBM client mangles its messages unless `DB2CODEPAGE=1208` is set.
 
+## Running the scaffold tests (`Tests/Tests.Scaffold`)
+
+`Tests/Tests.Scaffold` (assembly `linq2db.Tests.Scaffold`, from #6037) runs the scaffolder code-generation harness: schema → generated C#/F# → in-process compile → execution on in-memory SQLite. No database. `/test` does not cover it; run it with `worktree-test.ps1` or the exe, as CI's `scaffold-tests` job does.
+
+- **A fourth bare-NUnit-MTP host:** `--test-progress` exits 5 (`Unknown option '--test-progress'`). Pass `-NoTestProgress` to `worktree-test.ps1`.
+- **Its output has no TFM folder.** It sets a single `<TargetFramework>`, and `ArtifactsPivots` (`Directory.Build.props`) reads `$(TargetFramework)` before the project body sets it, so the exe lands in `.build/bin/Tests.Scaffold/<Config>/`. Passing `-Tfm` / `-f` makes `dotnet test` look in `<Config>/<tfm>/`, which doesn't exist (`Win32Exception (2)`, total 0). Omit it. Multi-TFM projects (the CLI tests) get the TFM folder as usual.
+- F# compiles run twice (`--langversion:9.0` and `latest`): the full suite took ~10 min locally on a busy box.
+
 ## The x86 FPU JIT sweep (`Tests/Tests.FpuJit`)
 
 `Tests/Tests.FpuJit` is a net462 x86 console exe, not an NUnit project, run by the `x86 FPU-unmasked JIT sweep` job in `.github/workflows/build.yml` on every PR. With FP exceptions unmasked (as C++Builder / Delphi hosts leave them) it `PrepareMethod`s every method of every shipped assembly with a .NET Framework target, and fails on any method the x86 .NET Framework JIT cannot compile — in practice a `NaN` / `±Infinity` constant or a `double.IsPositiveInfinity` / `IsNegativeInfinity` compare. Build the special values with `Internal/Common/FloatingPointHelper` instead (#6051). `/test` does not run it; locally, on Windows:
