@@ -31,7 +31,7 @@ The workflow relies on five PowerShell Core helper scripts to keep the permissio
 
 Only when the user explicitly invokes `/review-pr <ref>`. Reference forms and resolver are defined in `.claude/docs/pr-resolver.md`. Draft PRs are reviewed the same way as ready-for-review PRs.
 
-`/review-pr <ref> goals` forces the step-3a goal analysis even where step 3a would not offer it.
+`/review-pr <ref> goals` (also `goal-check`, or "with goal check") forces the step-3a goal analysis even where step 3a would not offer it.
 
 `/review-pr resume <n>` picks up a review a previous session saved with the mode-choice gate's `save-for-later` option — it re-enters at the preview instead of reviewing again. Contract, state-file location and the HEAD-staleness validation: [`review-orchestration.md`](../../docs/review-orchestration.md) → **Resuming a saved review**.
 
