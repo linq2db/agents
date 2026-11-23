@@ -179,6 +179,9 @@ if ($BranchMatrix -and $Pipeline -contains 'test-all') {
 $notStarted = @()
 $invalid     = @()
 $claimedRuns = @{}
+# A `tests (comment)` run carries the PR's title as its display title; another PR's comment run started in the same
+# seconds is otherwise indistinguishable by time (#6427: 45027273744 reported instead of 45027283461).
+$prTitle     = gh pr view $Pr --repo $Repo --json title --jq '.title' 2>$null
 
 # A pipeline whose YAML fails validation never gets a check, but Azure still records a failed build on the PR's
 # merge ref carrying the reason in validationResults; the bot only answers "failed to run 1 pipeline(s)".
@@ -227,10 +230,10 @@ function Get-DispatchRun([datetime]$since) {
         if ($attempt -gt 0) { Start-Sleep -Seconds 5 }
         # The azure-pipelines bot's "started" reply is itself an issue_comment and dispatches a run that ends skipped,
         # but is still queued or in authorize when we look; only a human-triggered run can be ours.
-        $json = gh api "repos/$Repo/actions/workflows/tests-comment.yml/runs?per_page=10" --jq '[.workflow_runs[] | {databaseId: .id, createdAt: .created_at, status, conclusion, actor: .triggering_actor.login}]' 2>$null
+        $json = gh api "repos/$Repo/actions/workflows/tests-comment.yml/runs?per_page=10" --jq '[.workflow_runs[] | {databaseId: .id, createdAt: .created_at, status, conclusion, actor: .triggering_actor.login, title: .display_title}]' 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
         $runs = @(@($json | ConvertFrom-Json) |
-            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' -and $_.actor -notlike '*`[bot`]' } |
+            Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $since -and -not $claimedRuns.ContainsKey([string]$_.databaseId) -and $_.conclusion -ne 'skipped' -and $_.actor -notlike '*`[bot`]' -and (-not $prTitle -or $_.title -ceq $prTitle) } |
             Sort-Object { [datetime]$_.createdAt })
         # A queued run may still end `skipped`; prefer one that has started.
         $live = @($runs | Where-Object { $_.status -eq 'in_progress' -or $_.status -eq 'completed' })
