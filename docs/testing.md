@@ -52,6 +52,8 @@ Reach for the full `Tests/Linq/Tests.csproj` only when the test target spans man
 
 **Benchmarks go in `Tests/Tests.Benchmarks/`, never a hand-rolled `Stopwatch` loop.** The repo has a BenchmarkDotNet harness (`Benchmarks/Queries/CacheActivityBenchmark.cs` is the shape) that gives warmup, statistics and multi-TFM runs; an ad-hoc `[Test]` with a `Stopwatch` in `Tests/Linq` or the playground is noisy and pollutes the test project. Add a `[MemoryDiagnoser]` / `[Benchmark]` class instead — and still gate the timing run on user confirmation.
 
+**A regression test for a super-linear cost asserts a deterministic work count, never elapsed time.** Count what the fix removed — visitor visits, evaluations, managed allocation (`GC.GetAllocatedBytesForCurrentThread`, `#if NET`) — and bound that; then prove the bound by a mutant that restores the old cost and must exceed it. Elapsed time on this shared box is not a measurement: the same warm request took 1.9 s, 8.0 s and 16.4 s on three consecutive runs. If a time figure is reported at all, warm up first — the first preparation in a process pays for the JIT, not for the request — and bound only the step the claim is about (the server's `GetCommand`, not a whole remote call that also executes the SQL and logs it).
+
 ```bash
 dotnet run -c Release --project Tests/Tests.Benchmarks/linq2db.Benchmarks.csproj -f net10.0 -- --filter '*Name*'
 ```
@@ -281,6 +283,15 @@ Test fixtures wrapped in `#if BUGCHECK` (internal-invariant unit tests that driv
 - Run them with `-c Testing` (latest TFM only, fast) or `-c Debug`. A **Release** run compiles the fixture to nothing — `--filter` matches zero tests, not a pass.
 - The core library must also be built in a BUGCHECK config for the gated test hooks to exist; `-c Testing` covers both.
 - **`QueryUtils.GetStatement()` returns the statement after `SqlOptimizer.Finalize`** (`ExpressionBuilder.cs:312`), so `SelectQueryOptimizerVisitor` re-run on its clone sees an already-flattened tree. A counter test for merge-time behaviour (`MoveSubQueryUp`, correction walks) builds the AST by hand: `SelectQueryOptimizationTests.BuildJoinChain`, `NullabilityContextTests`. (#6158)
+
+## Hand-built AST tests: shapes the engine quietly changes
+
+A test that builds a statement by hand and counts or renders it can measure a different shape than the one written. Check the count the shape should produce before trusting a pass or a red.
+
+- **`SelectQuery.Select.Add` merges equal expressions into one column** — N identical `SqlValue`s give one column. Use `Select.AddNew` when the test needs N columns.
+- **A `SqlTable.ID` is registered only when the table renders with an alias** (`BasicSqlBuilder.BuildPhysicalTable`, `alias != null`), so a `Sql.SqlID` naming it otherwise throws `Table ID '<id>' is not defined`. Pass an alias: `query.From.Table(table, "t1")`.
+- **The optimizer folds comparisons against constants inside a lowered `CASE`.** Nested `SqlCompareToExpression(x, new SqlValue(0))` collapses, so the doubling of `x` the lowering would produce never reaches the SQL; give each level an opaque operand (`new SqlFragment("c")`).
+- **Constant chains fold before they render.** To exercise the builder or the convert pass on a long chain, start it from an opaque leaf (`new SqlFragment("x")`), not a `SqlValue`.
 
 ## Repro blocked by a separate, known engine bug — gate on the blocker, defer the fix
 

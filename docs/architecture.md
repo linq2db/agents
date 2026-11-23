@@ -66,6 +66,10 @@ The query cache key is taken from the exposed tree before any builder runs. A no
 
 A `Set(col, x => (… DefaultIfEmpty() …).Single())` value is built as an OUTER APPLY on the update target. `OptimizeJoins` runs before `OptimizeJoinSubQueries`, and its `MoveSingleOuterJoinToSubQuery` folds that apply into the `SET` subquery unless the validator rejects the result. `SqlQueryValidatorVisitor` (`:220`) rejects a parent reference in a join `ON` when `IsSubqueryWithParentReferenceInJoinConditionSupported = false`, which only Oracle and MySQL set. MySQL still never reaches the apply path, because it writes a multi-table `UPDATE x LEFT JOIN … SET x.c = CASE … END`. So Oracle alone leaves the apply intact for `JoinMoveSubQueryUp`. On master, that pass lifted the apply and dropped the `DefaultIfEmpty` fallback, writing `NULL` to unmatched rows. The flag is conservative for Oracle 12+, which accepts the kept `LEFT JOIN … ON canChange.Id = x.Id + 1` inside the `SET` subquery, and correct for Oracle 11, which rejects it with `ORA-00904`. (#6229 fixes Oracle 12+, measured on Oracle 11/12, MySQL 5.7/8, MariaDB 11; #6241 tracks Oracle 11.)
 
+### A remote request's statement is finalized on the client, not the server
+
+`BasicSqlOptimizer.Finalize` — and with it `OptimizeQueries` and the pooled `SelectQueryOptimizerVisitor` — runs during LINQ translation (`ExpressionBuilder.cs:311`, `QueryRunner.cs:283`), so a remote client sends a statement that is already finalized. The server's command path (`DataConnection.QueryRunner.GetCommand` behind `LinqService`) runs the convert pass, the expression optimizer and the SQL builder, but calls `Finalize` only for the synthetic scenario steps of some DML statements (`ScenarioCommandRenderer.FinalizeScenarioSteps`, `:182`). Consequence: server-side behaviour of a remote `SELECT` — what it costs, what a mid-walk exception leaves in a pooled visitor — cannot involve `SelectQueryOptimizerVisitor`; a test of that visitor's behaviour drives a local query.
+
 ## Other Key Directories
 
 - `Source/LinqToDB/Mapping/` — Attribute-based and fluent mapping configuration (`[Table]`, `[Column]`, `FluentMappingBuilder`)
