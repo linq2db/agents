@@ -47,6 +47,13 @@ letting through:
      rows, aggregates over a navigation) still use `AreEqual`, so read each hit. (#5969 round 4 NIT007:
      four new `WhereTests.Binary*` tests followed the fixture's `AreEqual` form.) Measured: `bcefe37bb` 4 hits,
      the four; `origin/master~300...origin/master` 10, whole-table `AreEqual(T, db.T)` compares among them.
+ 11. an added `Issue<N>`-named type or test method in a file whose name lacks `Issue` (the EF `IssueModel` and
+     generated `Tests/Tests.T4/` scaffold output are skipped too) — a shared feature
+     fixture names members for the behaviour they check and puts the issue in `[Test(Description = ...)]` —
+     testing.md -> *Naming in a feature fixture*; test-review-checklist.md -> *`Issue<N>` names in a shared
+     feature fixture*. (#6442 MIN001: `Issue6400Table` and its test, added among legacy `Issue4371*` members.)
+     Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them legacy
+     members re-added by fixture consolidation, so a hit on moved code is not a finding.
 
 Why this script exists
 ----------------------
@@ -85,7 +92,7 @@ lineAbove is not a comment; a single-provider translator test is exempt, so read
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
-invisibleChars: [{file, line, codepoint}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -140,6 +147,7 @@ $continued   = @()
 $cacheCalls  = @()
 $areEquals   = @()
 $invisible   = @()
+$issueNamed  = @()
 # check 9: an added `AreEqual(` opening line and the argument lines added after it
 $pendingAreEqual = $null
 $pendingGate = $null
@@ -237,6 +245,13 @@ foreach ($l in $diff) {
 				$invisible += [pscustomobject]@{ file = $file; line = $line; codepoint = ('U+{0:X4}' -f $n) }
 				break
 			}
+		}
+
+		# check 11: `Issue<N>` names belong only in issue fixtures (per-issue files are legacy), the EF `IssueModel`,
+		# and generated T4/CLI scaffold output, whose names come from the database schema
+		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
+			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>Issue\d+\w*)\b') {
+			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
 		}
 
 		# check 9: the expected argument reads no `db.`, the actual argument after it does
@@ -396,4 +411,5 @@ foreach ($c in $cacheCalls) {
 	cacheMissOutsideQueryCacheTest = @($cacheOutside)
 	handDuplicatedAreEqual = @($areEquals)
 	invisibleChars = @($invisible)
+	issueNamedMembers = @($issueNamed)
 } | ConvertTo-Json -Depth 4
