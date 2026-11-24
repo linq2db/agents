@@ -96,3 +96,36 @@ The only true GAP-10 is MAJ006 (#6321).
 - **New this round.** GAP-07/GAP-08 (5) and the A-6 critic skip (2).
 - **Round-1 durable fixes all present:** `work-plan.md:194`, `work-plan/SKILL.md:178`, `plan-critic.md:117`, `code-reviewer.md:297`.
 
+## Round 3 — reviewed HEAD 4fb0ce75e
+
+Plan: Tier L. A-9..A-13 (2026-11-22) cover commits `9429af1d9` and `05c8637cb`. All four findings sit in plan-authorized files (E-41: `GeneratedModel.fs`, `GeneratedCode.fs`, `FSharpTests.cs`, `FSharpCodeGenerationTests.cs`; E-43: `readme.md`), so none is GAP-09. G-09 is defined as "before the PR opened" (`work-plan.md:248`) and P9's G-09 row cites only `cffdd7126^..4d80af016`. No code-reviewer pass was recorded over the A-9..A-13 diff before the push. The PR was already open, so that is outside the gate as written, not GAP-08. All findings fixed in `6a45e629c` (A-14).
+
+- **MIN303** (generated function wrappers with option-column arguments) — GAP-01 — A-9's failure-mode sentence (plan.md:267) names only the literal call spelling (`Nullable(5)` / `null` instead of `Some 5` / `None`), never an entity's `'T option` column passed to a parameter A-9 itself made `Nullable<T>`; no probe established which spellings translate (`.Value`, `Nullable(x.Value)`) and which are refused (`Option.toNullable` / `Option.toObj`, filed #6452), and E-43 had no readme line for it; secondary GAP-05: TO-15/TO-21 pass constants only — G-09 — preventable: yes
+- **MIN302** (readme says aggregate wrapper parameters are `Nullable<T>`) — GAP-02 — E-43 (plan.md:184) restates A-9 without the qualifier carried by A-9 (:267), E-38 (:176) and P10 (:253) that generic arguments keep options; the readme was written from the unqualified row; TO-17 pins the code, not the prose — G-09 — preventable: yes
+- **MIN301** (`GeneratedModel.fs:52-54` comment and `GeneratedShape_FunctionOptionArguments` name) — GAP-03 — A-9 re-purposed the MIN108 mirror probe as TO-15b by fiat; TO-15b kept the `GeneratedShape_` name and A-9's `re-derives:` (P7, P10, A-2) has no row for in-tree statements of the old "wrappers take `'T option`" shape, though `skills/work-plan/SKILL.md:316` (716a133, 2026-11-15) requires that prose sweep — G-09 — preventable: yes
+- **SUG301** (`FluentObjectFunctionNotBoxed` copies the scaffold pipeline; covers NIT301, the misaligned block in the same lines) — GAP-10 — unknowable at plan time: the helper `GenerateFunctionSource` did not exist yet; it was written while implementing TO-16 in the same uncommitted tree as TO-22, so test-code factoring only a diff read catches — G-09 — preventable: no
+
+### Aggregate
+
+GAP-01, GAP-02, GAP-03, GAP-10 one each; no single dominant plan block. Three of four (MIN301, MIN302, SUG301) are prose or test code a code-reviewer pass over the amendment diff would catch — the single change preventing the most findings. G-09 is scoped to "before the PR opened", so a 7k-line amendment pushed to an open PR got no adversarial diff read before the push. MIN303 is the third round of the F#-option-at-a-generated-API-boundary class.
+
+### Recommended durable fixes
+
+- G-09 scope (MIN301, MIN302, SUG301; plausibly MIN303) → `definition-of-done.md` + the G-09 row in `work-plan.md`: a Tier M/L amendment adding or changing edit-points on an already-open PR gets a `code-reviewer` pass over the amendment diff before the push, recorded in P9 as its own G-09 line.
+- GAP-03 + GAP-02 (MIN301, MIN302) → `skills/work-plan/SKILL.md:316`: extend the prose sweep to test comments, test names and `[Test(Description)]` of any test whose role the amendment changes; an E-n writing user-facing doc text quotes the A-n/D-n carve-outs verbatim.
+- GAP-01 (MIN303) → `agents/plan-critic.md:120`: a design changing a generated signature's types needs a caller-shape grid — literal, `null`, the companion entity's column type, the conversion helpers users reach for — each row with a translate/refuse probe, a runtime TO-n and a readme spelling.
+
+### Continuity
+
+- **Option at a generated boundary, third time:** MAJ003 (round 1, procedure args) → MIN108 (round 2, function args) → MIN303 (round 3, caller-side column args). The round-1 critic vector (`plan-critic.md:120`) keys on runtime boundaries, not on what callers must now write.
+- **Mirror-test description, third time:** MIN005 → MIN208 → MIN301. Round 2's durable fix #3 (retire or re-describe existing mirror tests) did not land.
+- **Dropped qualifier:** MIN211 (round 2, a P10 line) → MIN302 (an E-n). `work-plan.md:288` covers P10 only.
+- **Not recurring:** the round-2 GAP-07/GAP-08 test-convention cluster (G-01: 0 chains, 0 narrowed sets for A-9..A-13).
+
+## Corpus trace (round 3)
+
+- MIN303 · rules `agents/plan-critic.md:120`, `skills/work-plan/SKILL.md:143` · :120 lists runtime boundaries only; :143 keys on "the design reads an expression tree", not on a design changing what users write into one · correction: third durable fix · recurs: MAJ003, MIN108
+- MIN302 · rule `docs/work-plan.md:288` · scoped to P10, the wrong text came from an E-n describing a doc edit · correction: second durable fix, second half · recurs: MIN211
+- MIN301 · rules `skills/work-plan/SKILL.md:316`, `agents/plan-critic.md:113` · :316's examples are docs/ban messages/instruction files, so test comments and names read as out of scope · correction: second durable fix, first half; land round 2's mirror-retire clause in `docs/work-plan.md` · recurs: MIN005, MIN208
+- SUG301 · rule `agents/code-reviewer.md:186` · review-time rubric, no pre-push run on post-open amendments · correction: first durable fix · recurs: —
+
