@@ -177,6 +177,9 @@ Output (stdout, single JSON object):
                                      // captured DataConnection trace dropped; read logPath for the SQL
     "missingTests": [ ... ],         // only with -ExpectTests; names that did not run
     "staleBuild": "C:/.../X.cs",     // only with -NoBuild -Tfm; a source newer than every assembly in the test output (stale run)
+    "touched": [ "Tests/Tests.Playground/TestTemplate.cs" ],
+                                     // Tests.Playground without -NoBuild: modified / untracked sources whose timestamp was
+                                     // set to now before the build, so a probe copied in with an old timestamp compiles
     "buildErrors": [ "...: error CS0246: ..." ],
                                      // only when the inline build failed (not with -NoBuild): `dotnet test` drops the
                                      // compiler output, so the script re-runs `dotnet build` into buildLogPath and lists
@@ -332,6 +335,23 @@ if ($LinqToDBAsset -and $LinqToDBAsset -ne 'netstandard2.0') {
 # On by default (see the header). Skipped for the analyzer-fixture projects, whose bare MTP
 # runner does not register the extension and answers the flag with its help text + exit 5.
 $useTestProgress = (-not $NoTestProgress) -and ($Project -notmatch 'Tests\.Analyzers|Tests\.LinqToDB\.CLI')
+
+# A probe copied into the playground keeps its source file's timestamp (Copy-Item preserves LastWriteTime), and the
+# incremental build then skips the compile, so the run executes the previous probe or zero tests (#6444). Touch the
+# playground's modified and untracked sources before any build. Playground only: that is where probes are copied in.
+$touched = @()
+if (-not $NoBuild -and $Project -match 'Tests\.Playground') {
+    $changed = & git -C $repoFull status --porcelain --untracked-files=all -- (Split-Path -Parent $projectFull) 2>$null
+    foreach ($line in $changed) {
+        $rel = $line.Substring(3).Trim('"')
+        if ($rel -notmatch '\.(cs|fs|vb)$') { continue }
+        $full = Join-Path $repoFull $rel
+        if (Test-Path -LiteralPath $full) {
+            (Get-Item -LiteralPath $full).LastWriteTimeUtc = [DateTime]::UtcNow
+            $touched += $rel
+        }
+    }
+}
 
 if ($SerialBuild) {
     $buildLogPath = $LogPath -replace '\.log$', '-build.log'
@@ -650,6 +670,7 @@ if ($ExpectTests) { $result['missingTests'] = $missingTests }
 if ($buildFailed -and -not $NoBuild) { $result['buildErrors'] = $buildErrors }
 if ($GroupFailures) { $result['failureGroups'] = @($failureGroups.Values) }
 if ($LinqToDBAsset) { $result['linqToDBAsset'] = $LinqToDBAsset }
+if ($touched.Count) { $result['touched'] = $touched }
 if ($staleBuild)  { $result['staleBuild']   = $staleBuild; if (-not $hint) { $hint = "-NoBuild ran an assembly older than $staleBuild; rebuild (or check the last build log) before trusting this result." } }
 if ($hint)        { $result['hint']         = $hint }
 
