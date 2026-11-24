@@ -1,0 +1,229 @@
+# Work plan: feature-rename-issue-tests — Retire Issue<N> test fixtures and names
+
+**Tier:** L  ·  **Status:** approved  ·  **Approved-at:** 2026-11-25 (user, after critic round 1 weak)  ·  **Branch:** feature/rename-issue-tests
+**Schema:** `.claude/docs/work-plan.md`  ·  **Gates:** `.claude/docs/definition-of-done.md`
+
+Base: `origin/master` `4b6cdfc02`. Worktree `C:\Worktrees\linq2db\rename-issue-tests`. Tooling and per-batch manifests: `.build/.agents/issue-tests/` (scratch); approved manifests are copied to `.claude/plans/feature-rename-issue-tests/batches/<nn>-<area>.md` so review can read them.
+
+## P1 Problem
+
+House rule (`.claude/agents/test-writer.md:32,46,48`; `.claude/docs/testing.md` → *Naming in a feature fixture*): no `Issue<N>` fixtures, types or test names; the issue is cited only as `[Test(Description = "<url>")]`. The rule postdates most of the suite, so on base `4b6cdfc02` there are (measured: Grep/Glob on the worktree, 2026-11-24): ~260 `Tests/Linq/UserTests/Issue<N>Tests.cs` fixtures; ~740 methods matching `public (async )?(void|Task) Issue_?\d+` across 118 files (incl. 40 in `Tests/Linq/Linq/IssueTests.cs`, 60 in `Tests/EntityFrameworkCore/Tests/IssueTests.cs`); ~805 type declarations matching `(class|record|struct|interface|enum) \w*Issue_?\d+` across 410 files; ~760 nested types in UserTests of which only ~306 carry `Issue` (critic round 0 count). New code keeps copying the legacy shape because it is the majority shape (`test-diff-sweep.ps1:55` measured 115 check-11 hits over `origin/master~300...origin/master`). Falsifiable: the G5 residual sweep (TO-1) returns >0 hits on base.
+
+## P2 Success criteria
+
+- SC-1 No `Issue_?\d+` / `Test\d{3,}` identifier (type, member, namespace), and no string literal or comment naming a renamed test/type/fixture (`Details = "as Issue…"`, `ErrorMessage` text, `[Table("Issue…")]`, raw-SQL table names, config names), remains in `Tests/Linq`, `Tests/Model`, `Tests/Base`, `Tests/FSharp`, `Tests/VisualBasic`, `Tests/Tests.Analyzers` comments, nor among EF test method names (incl. `ValueTask`); exclusions, closed list: the issue number/URL argument of `Description` / `[ActiveIssue]` / `[ThrowsForProvider]`, literals naming create-script objects (P3 pin list), `#nnnn` issue citations in comments, EF `IssueModel` types and the EF `IssueTests` / `CustomContextIssueTests` / `MergeTests.Issues` file and class names, and the P3 out-of-scope trees. → TO-1
+- SC-2 No test case is lost or invented: discovery after = discovery before mapped through the rename table, minus user-approved removals, per project × TFM. → TO-2
+- SC-3 Every test keeps its effective attribute set (method attributes + class attributes it inherited from a dissolved fixture). → TO-3
+- SC-4 Moved/renamed bodies are verbatim modulo the rename map and the closed allow-list, bind to the same symbols, and compile on every TFM. → TO-4, TO-12
+- SC-5 Generated SQL is unchanged on every CI provider modulo table/type renames recorded in the manifest. → TO-5
+- SC-6 Per-case CI outcome (pass/fail/skip/gate verdict) equals master's, mapped. → TO-6
+- SC-7 Every renamed former issue test carries a resolvable issue URL in `Description` (or the manifest records why not). → TO-7
+- SC-8 `Tests/Linq/UserTests/Issue*` files and `Tests/Linq/Linq/IssueTests.cs` no longer exist; EF `IssueTests.cs` exists with renamed methods. → TO-8
+- SC-9 Corpus rules describe the new state: `test-writer.md:77`'s `Issue<N>Test` naming exception is gone (for Tests/Linq and EF alike — EF methods are renamed too); `test-writer.md:33`'s EF *fixture* rule (regressions with no feature home go into EF `IssueTests.cs`) stays; UserTests no longer described as the legacy home (`test-writer.md:32,46`, `testing.md:640`, `test-review-checklist.md:97`); `test-diff-sweep.ps1` check 11 no longer exempts files whose name contains `Issue` and matches `ValueTask` methods. → TO-9, TO-11
+
+## P3 Constraints & anti-goals (M/L)
+
+- No `Source/` change. No public API change. No `CompatibilitySuppressions.xml` / `PublicAPI.*` change.
+- Test bodies move verbatim — no reformatting to *Test layout* rules (AGENTS.md → *Don't reformat unrelated code*); moved code is not new code (`testing.md:653` "Leave existing, untouched tests as they are").
+- Create-script objects keep their names — pin list: tables `Issue1993` (`Data/Create Scripts/MySql.sql:474`), `Issue695Parent`/`Issue695` (`SqlCe.sql:196,203`), `Issue1144`/`Issue1115` (`SqlServer.sql:1155,1186`), PostgreSQL `Issue2023` (per `Tests/Tests.T4/Cli/*/PostgreSQL/Issue2023.cs`); procedures/functions `AddIssue792Record` (10 provider scripts, e.g. `SqlServer.sql:1143`), `Issue1897`/`Issue1921` (`SqlServer.sql:1295,1307`), `Issue2313Parameters`/`Issue2313Results` (`MySql.sql:479,586`). Entities and C# wrappers mapped to them are renamed (`SqlServerTests.cs:1721`, `AccessProceduresTests.cs:275,459`) but keep the literal (`[Table("<name>")]` per D-7, `Sql.Function`/procedure name strings). The pin list is also the U-5 deny-list.
+- Explicit `Issue…` literals that are not pinned objects are renamed with their type (D-6): `[Table("Issue…")]` (`Issue1307Tests.cs:157`, `Issue1316Tests.cs:14`, `Issue1373Tests.cs:31,41,51`, `Issue1403Tests.cs:15,25,35`, `Issue3674Tests.cs:78`, `Linq/GroupByTests.cs:2450`), raw-SQL table names (`DataProvider/SQLiteTests.cs:1227-1246` `Issue5014TestTable`), config names (`Issue2468Tests.cs:20` `CONFIG`), and test names inside `ErrorMessage` / `Details` text (`ComplexTests.cs:823`, `EagerLoadingTests.cs:3214`, `TypesTests.cs:918`, and the `Details = "as Issue…"` set in P7).
+- Out of scope: non-Issue legacy files in `UserTests/` (`AssociationTests.cs`, `SQLiteDateTime.cs`, `LetTests.cs`, …); EF `IssueModel` types, the EF `IssueTests` class name, and EF F# helpers (`Tests/EntityFrameworkCore.FSharp/FSharpTestMethods.fs:32,36`, `FSharpContext.fs:20`) — the user scoped EF to test-method renames; `Tests/Tests.T4/**` and `Tests/Tests.T4.Nugets/Templates/*.generated.cs` (generated); `Tests/Tests.Benchmarks/**` (`Issue3253Benchmark.cs`, `Issue3268Benchmark.cs` — benchmarks, not tests); KB content (refreshed by `/kb-refresh` after merge); historical `.claude/plans/**`.
+- No test removed without the user's per-item approval in the batch removal table.
+- Local runs ≤1000 cases, filtered by method (memory `feedback_local_filtered_runs_ci_full`); breadth is CI's.
+
+## P4 Unknowns (M/L)
+
+- U-1 Does MTP `--list-tests` print fully-qualified names (class + args) or display names only? G2 depends on it. — resolved-by probe (measured 2026-11-24, worktree `-c Testing` net11.0, `--filter "FullyQualifiedName~.Issue1128Tests." --provider SQLite.MS --list-tests`, with and without `--output Detailed`): display names only — `TestAttribute("SQLite.MS")`, `TestAttribute("SQLite.MS.LinqService")`, `TestEntityDescriptor`, … — no class or namespace. → D-10: the listing is taken **per class** (filter scopes the class), so the class is known from the filter.
+- U-2 Does any runtime code key on fixture class name / namespace? — resolved-by scout: `Tests/Base/BaselinesWriter.cs:36,40` (path = `<context>/<ClassName as dirs>/<FullName>.sql`), `ActiveIssueAttribute.cs:376` and `ThrowsWhenAttribute.cs:171` (FullName only for progress deferral, not matching), `TestProgressReporter.cs:87`; critic round 1 added `Tests/Base/Interceptors/CustomizationSupportInterceptor.cs:41,115-116` (`ExtractMethod` → `(TypeInfo.Name, testMethod.Name)`, called from `DataSourcesBaseAttribute.cs:48`) — a hook for out-of-tree provider suites, no in-tree subclass (`CustomizationSupport.cs:6`). In-tree only baselines paths depend on it → TO-5; the interceptor is a P7/P10 row.
+- U-3 Do class-level attributes change runtime behaviour when a fixture is dissolved? — resolved-by scout: yes — `NUnitUtils.cs:31-32` reads `[UsesRemoteContext]` from method *or* class (lane mutex, `DatabaseLaneStrategy.cs:27`); `[NoBaselines]` is class-level on `Issue278Tests.cs:20` (+1 more file). → D-4, TO-3.
+- U-4 Cross-fixture references into Issue fixtures from outside UserTests? — resolved-by scout: `Grep Issue\d+Tests?\.\w` over `Tests/**/*.cs`: `Tests/Linq/DataProvider/AccessProceduresTests.cs:262,269,280,287` → `Issue792Tests.AllTypes`; comments `Tests/Base/TestBase.cs:93` (`Issue1398Tests.cs`), `Tests/Tests.Analyzers/ServerSideOnlyContractAnalyzerTests.cs:492` (`Issue773Tests.cs:34`); intra-file `nameof(IssueNTests.X)` in `Issue1869/2895/3061/3109Tests.cs`, `Issue2418Tests.cs:38` (extension over nested type).
+- U-5 Table-name limits for renamed entities. — resolved-by user answer (new names follow types) + reasoned, unprobed: Oracle <12.2 and Firebird <4 cap identifiers at 30/31 bytes → cap 30 ASCII chars; reserved words (`User`, `Order`, `Group`, `Key`, `Value`, `Table`, …) rejected by the reconciliation script's list; collision with the P3 pin list and `Tests/Model` table names is a hard fail; a new name must also not contain, case-insensitively, any literal the test asserts on SQL text (`Issue358Tests.cs:41-93` `"NULL"`, `Issue3649Tests.cs:49-135` `"JOIN"`, `Issue2478Tests.cs:129` `"EXISTS"`, `Issue2691Tests.cs:38-49` `"length("`). The pilot batch through `test-all` (D-6) is the probe.
+- U-6 Order/state hazards inside UserTests. — resolved-by scout: `[Order|Category|Parallelizable|NonParallelizable|Explicit]` grep → 1 file (`Issue445Tests.cs`); setup/teardown → `Issue278Tests.cs:187` `[OneTimeTearDown]`; fixture statics in `Issue256/2816/5445/5935/1721/5916Tests.cs` (critic round 0). Full list produced by the Phase-0 inventory (D-3).
+- U-7 Which repo does each bare issue number refer to? — resolved-by design (D-11): mixed repos already present (`Issue0010Tests.cs:14` → `linq2db.LINQPad/issues/10`; EF `IssueTests.cs:86,441,454` → `linq2db.EntityFrameworkCore`); low numbers exist in several repos, so existence alone is not resolution.
+- U-8 Target-fixture state inherited by moved tests. — resolved-by scout (critic round 1): targets with `[SetUp]`/`[OneTimeSetUp]`/non-`TestBase` base exist, e.g. `Tests/Linq/Data/MiniProfilerTests.cs:75`, `Tests/Linq/Data/TraceTests.cs:39,47` → TO-3 covers both sides.
+- U-9 Name shadowing after a move (identical tokens, different binding). — resolved-by design: reconciliation lists every simple name referenced in a moved body and fails if the target class (or its new namespace) declares it while the base resolved it elsewhere (`Tests.Model`, `TestBase`, `Tests.UserTests`); irregular namespaces `Issue1736Tests.cs:9`, `Issue3840Tests.cs:9`, `Issue3847Tests.cs:11`, `Issue4415Tests.cs:9`.
+
+## P5 Decisions (M/L; rejected alternatives mandatory at L)
+
+### D-1 — One PR, one commit per target area, user-reviewed manifests per batch
+
+- **chosen:** single branch/PR; ~12–15 batches by target fixture area; each batch = manifest (rename table + removal table) → user review → apply → commit.
+- **rejected:** one PR per batch — user chose one PR (conflict surface accepted); one mega commit — unreviewable, no per-area bisect.
+- **why this:** user decision; per-area commits keep bisect and review tractable.
+- **failure mode of the choice:** long-lived branch vs ~40 open PRs touching fixtures → modify/delete conflicts on their side; mitigated by merging `origin/master` before each batch and keeping the branch short once batches are approved. Not eliminable.
+
+### D-2 — Placement rule
+
+- **chosen:** target = the existing `<Feature>Tests.cs` owning the behaviour; provider-specific → `Tests/Linq/DataProvider/<Provider>Tests.cs` (`testing.md:639`); a new behaviour-named fixture only when nothing fits.
+- **rejected:** keeping one file per former issue under a new name — still per-issue fragmentation; a single `RegressionTests.cs` — the catch-all being dissolved.
+- **why this:** matches `test-writer.md:32`.
+- **failure mode of the choice:** big feature fixtures grow further; judgement calls on placement → fable cross-check + user review per batch.
+
+### D-3 — Inventory covers every member of every moved file
+
+- **chosen:** `inventory.ps1` lists all types (not only `Issue*`), effective table names, `[Table]`/`[Column]` presence, all non-test members, class attributes, top-level types, extra namespaces, global-state writers.
+- **rejected:** inventory of `Issue*` identifiers only — misses ~450 generic nested types (`Table1` ×9, `User` ×9 …) that clash on merge (critic round 0 B1).
+- **why this:** clashes and table renames come from the generic names.
+- **failure mode of the choice:** a regex inventory misreads unusual syntax (nested generics, `#if` blocks) → G1 build + TO-2/TO-3 catch the miss.
+
+### D-4 — Fixture-level state forces a standalone fixture
+
+- **chosen:** a fixture with statics, `ValueSource`/`TestCaseSource` members, setup/teardown, or class attributes (`[NoBaselines]`, `[UsesRemoteContext]`) becomes its own behaviour-named fixture; if merged anyway, class attributes are re-applied per method.
+- **rejected:** merging everything into feature fixtures — changes lane assignment / baselines writing silently (U-3).
+- **failure mode of the choice:** some behaviour-named single-purpose fixtures remain; acceptable.
+
+### D-5 — Top-level helper types go to a dedicated sub-namespace
+
+- **chosen:** extension/helper classes that cannot nest (`Issue973Tests.cs:54` `SqlExtensions`, `Issue667Tests.cs:14` `PredicateBuilder`, `Issue2418Tests.cs:35`, `Issue2562Tests.cs:12`) move to `Tests.Linq.Helpers.<Behaviour>` (or become `file`-local where C# allows), never into the shared `Tests.Linq` scope.
+- **rejected:** moving them into `Tests.Linq` — their extension methods enter overload resolution for every fixture in that namespace.
+- **failure mode of the choice:** an extra `using` per consuming fixture.
+
+### D-6 — Renamed entities get new table names; pilot batch first
+
+- **chosen:** table name follows the new type name (user decision), constrained per U-5; the first batch is a pilot pushed through `/azp run test-all` + TO-5 remap before the remaining batches.
+- **rejected:** pinning old table names via `[Table("<old>")]` — byte-identical SQL, but `Issue…` survives in literals (user rejected).
+- **why this:** user choice; pilot bounds the cost of a wrong substitution model.
+- **failure mode of the choice:** provider-specific identifier effects (length, quoting, reserved words, derived constraint names) surface only in CI; the remap must substitute identifiers per provider quoting style.
+
+### D-7 — `[Table]` added only with explicit column semantics
+
+- **chosen:** any added `[Table("X")]` carries `IsColumnAttributeRequired = false` unless the entity already uses `[Column]` (`Source/LinqToDB/Mapping/TableAttribute.cs:20-23` sets it `true` in the ctor).
+- **rejected:** bare `[Table("X")]` — silently drops unattributed columns.
+
+### D-8 — Mechanics: scripts for the mechanical, sonnet agents for placement, fable cross-check
+
+- **chosen:** scripts do inventory, `Description` insertion, in-place method renames, gates; `general-purpose` agents on **sonnet** draft manifest rows (parallel) and apply moves for one approved batch at a time (sequential, shared files); **fable** cross-checks each batch manifest; F#/VB helper renames (incl. `Tests/FSharp/Tests.FSharp.fsproj:13-26` compile order) by hand in the main session.
+- **rejected:** a Roslyn rename tool — high build cost on a multi-TFM test project for a one-off; hand-editing everything in the main session — cost.
+- **failure mode of the choice:** LLM edits drift from verbatim → TO-4 is the mechanical proof; parallel drafters choose colliding names → main-session reconciliation script before user review.
+
+### D-9 — Removal criteria
+
+- **chosen:** R1 duplicate (blob-identical baselines on every provider, both sides have baselines, kept test's provider set ⊇, assertions ≥); R2 no-op (empty/commented body, `Assert.Pass`, never touches linq2db); R3 dead (`[Ignore]` without tracked reason, removed API; `[Explicit]` alone insufficient; `[ActiveIssue]` never grounds); R4 subsumed (cited test, provider superset, side-by-side assertion comparison). Not grounds: no assertion when the issue was an exception.
+- **rejected:** "no assertion ⇒ remove" — execution is the assertion for crash regressions.
+- **failure mode of the choice:** R1 rarely fires (per-issue tables have unique names); acceptable — removals are a by-product.
+
+### D-10 — Discovery snapshot per class, on one TFM
+
+- **chosen:** `discovery-diff.ps1` runs `--list-tests --filter "FullyQualifiedName~.<Namespace>.<Class>."` once per affected class (old side: every class holding an in-scope item; new side: every target class), up to 4 listings concurrently, with the explicit provider set of TO-2; latest TFM (`-c Testing`) for `Tests/Linq`, net10.0 for EF. Other TFMs are covered by the Release/Debug multi-TFM build (G1 in the design) plus TO-4, which proves `#if` blocks moved verbatim.
+- **rejected:** one whole-assembly listing — display names collide across classes (U-1); listings on every TFM — ×5 cost for the same `#if`-verbatim evidence TO-4 already gives.
+- **mechanics:** listings run with `--no-build` (or the built test exe directly) so concurrent listings never build; the old-side snapshot is captured from the base build **before the first source edit** (the current worktree binaries at `4b6cdfc02`, built 2026-11-24) and re-captured from a base build after each `origin/master` merge (D-12).
+- **failure mode of the choice:** a `FullyQualifiedName~` substring filter can over-match (a class name that prefixes another, nested namespaces such as `Tests.UserTests.Issue1736`); the script asserts each listing's class from the filter and the irregular fixtures get exact-namespace filters. A TFM-only case-count difference not caused by `#if` (e.g. a TFM-gated data source) would be invisible — none known; reasoned, unprobed.
+
+### D-11 — Issue-repo selection rule
+
+- **chosen:** an existing `Description` URL is kept as-is; for a bare number the default repo is the project's (`linq2db/linq2db` for `Tests/Linq`, `linq2db/linq2db.EntityFrameworkCore` for EF tests whose file history predates the EF merge into the main repo); the lookup accepts the default only if that issue/PR was created before the test's first commit (`git log --diff-filter=A --format=%aI` on the test's origin file); any other outcome (no hit, hit only in another repo, created after the test) is an "ambiguous" row in the user table, never an invented URL.
+- **rejected:** "number resolves in `linq2db/linq2db`" — true for most low numbers regardless of origin (critic round 1, objection 8).
+- **failure mode of the choice:** a test whose file was moved/renamed before (history break) gets a too-late first-commit date → more rows land in the ambiguous table; acceptable, the user decides.
+
+### D-12 — "Base" is the current merge-base
+
+- **chosen:** every gate's "before" (TO-2 listing, TO-3 attributes, TO-4 base text, TO-5 baselines) is the branch's current merge-base with `origin/master`; after each `origin/master` merge the inventory and listing snapshot are regenerated from the new merge-base. A master-side edit to a fixture this branch already moved/deleted (modify/delete conflict) is re-applied to the moved copy by hand, listed in the batch manifest, and TO-4 compares against the master version.
+- **rejected:** fixed base `4b6cdfc02` — master-added tests would read as "invented" and master edits to moved files would be unclassifiable (critic round 1, objection 2).
+- **failure mode of the choice:** one base rebuild (~24 min) per merge; merges are therefore batched (before each batch, not continuously).
+
+## P6 Edit-points
+
+- E-1 `Tests/Linq/UserTests/Issue*` — delete each `Issue<N>Tests.cs` (and `Issue421.cs`) after its members move per the batch manifest.
+- E-2 `Tests/Linq/Linq/*` — rename `Issue*` methods/types in place; receive moved tests/types; dissolve `Tests/Linq/Linq/IssueTests.cs`; new behaviour-named fixtures (D-2/D-4) when nothing fits.
+- E-3 `Tests/Linq/DataProvider/*` — same as E-2 for provider fixtures; `AccessProceduresTests.cs` re-pointed from `Issue792Tests.AllTypes`.
+- E-4 `Tests/Linq/Update/*` — same as E-2 (`MergeTests.Issues.cs`, `UpdateWithOutputTests.cs`, …).
+- E-5 `Tests/Linq/Data/*` — same as E-2.
+- E-6 `Tests/Linq/Extensions/*` — same as E-2.
+- E-7 `Tests/Linq/Mapping/*` — same as E-2.
+- E-8 `Tests/Linq/SchemaProvider/*` — same as E-2.
+- E-9 `Tests/Linq/Exceptions/*` — same as E-2.
+- E-10 `Tests/Linq/Microsoft/*` — same as E-2.
+- E-11 `Tests/Linq/Scaffold/*` — same as E-2.
+- E-12 `Tests/Linq/Helpers/*` — new sub-namespace folder for top-level helper types (D-5).
+- E-13 `Tests/Model/Interfaces.cs` — rename `IIssue4031` / `Issue4031BaseExternal` and their users.
+- E-14 `Tests/Base/TestBase.cs` `Tests/Base/TestBase.Identity.cs` — stale comments naming `Issue1398Tests.cs` / `Issue4671Test`.
+- E-15 `Tests/FSharp/*` — rename `Issue*.fs` modules/files and update `Tests/FSharp/Tests.FSharp.fsproj` compile items; callers in `Tests/Linq/Linq/FSharpTests.cs` (E-2).
+- E-16 `Tests/VisualBasic/Tests.vb` — rename `Issue*` members; callers in `Tests/Linq/Linq/VisualBasicTests.cs` (E-2).
+- E-17 `Tests/EntityFrameworkCore/Tests/IssueTests.cs` `Tests/EntityFrameworkCore/Tests/CustomContextIssueTests.cs` `Tests/EntityFrameworkCore/Tests/FSharpTests.cs` — rename `Issue*` test methods only; add `Description` URLs.
+- E-18 `Tests/Tests.Analyzers/ServerSideOnlyContractAnalyzerTests.cs` — stale comment naming `Issue773Tests.cs:34`.
+
+- E-19 `.claude/agents/test-writer.md` `.claude/docs/test-review-checklist.md` `.claude/docs/testing.md` `.claude/scripts/test-diff-sweep.ps1` — corpus (agents repo, separate commit, on request): rule text per SC-9, check-11 rewrite per TO-11, plus other corpus prose naming moved fixtures as current examples (P7 corpus row).
+
+## P7 Impact map (M/L)
+
+- `Tests/Base/BaselinesWriter.cs:36,40,147-160` — baseline path from `ClassName` + `FullName` (args included) + `NormalizeFileName` — searched `FullName|ClassName` in `Tests/Base` — covered by E-1..E-11 (TO-5 remap reuses the normalisation)
+- `Tests/Base/NUnitUtils.cs:31-32` `[UsesRemoteContext]` read from class — searched `UsesRemoteContext|NoBaselines|GetCustomAttributes` in `Tests/Base/NUnitUtils.cs` — covered by E-1..E-11 via D-4 (TO-3)
+- `Tests/Base/DatabaseLaneStrategy.cs:27` lane per provider context, serial — searched `Exclusive|Attribute|Fixture|ClassName|Remote` in `Tests/Base/*{Lane,Strategy,Parallel}*.cs` — out-of-scope (table-name reuse across fixtures is already serial per context; collision risk is with persistent tables → U-5 hard fail)
+- `Tests/Linq/DataProvider/AccessProceduresTests.cs:262,269,280,287` → `Issue792Tests.AllTypes` — searched `Issue\d+Tests?\.\w` in `Tests/**/*.cs` — covered by E-3
+- `Tests/Linq/UserTests/Issue1869Tests.cs:41`, `Issue2895Tests.cs:29-120`, `Issue3061Tests.cs:53,64`, `Issue3109Tests.cs:53,56`, `Issue2418Tests.cs:38` — `nameof(IssueNTests.X)` / qualified nested types — same search — covered by E-1 + E-2 (rename map)
+- `Tests/Base/TestBase.cs:93`, `Tests/Tests.Analyzers/ServerSideOnlyContractAnalyzerTests.cs:492`, `Tests/Base/TestBase.Identity.cs:117,267` — stale comments — same search + critic round 0 — covered by E-14, E-18
+- `Tests/Model/Interfaces.cs:5-17` `IIssue4031`, `Issue4031BaseExternal` — critic round 0, regex `Issue_?\d+` without `\b` — covered by E-13
+- `Tests/Linq/Linq/FSharpTests.cs` — 35 references to F# `Issue*` modules — searched `Issue\d+\.|Tests\.FSharp\.Issue` — covered by E-2 + E-15
+- `Tests/FSharp/Tests.FSharp.fsproj:13-26` compile order of `Issue*.fs` — critic round 0 — covered by E-15
+- `Data/Create Scripts/*.sql` tables `Issue1993`, `Issue695Parent`, `Issue695`, `Issue1144`, `Issue1115` — searched `CREATE TABLE …Issue\w*` in `Data/` — out-of-scope (names pinned, P3); also the collision deny-list for U-5
+- `Tests/Tests.T4/**` generated `Issue*` — Glob `Tests/**/Issue*.cs` — out-of-scope (P3)
+- CI / build files filtering by `UserTests` or `Issue<N>` — critic round 0 searched yml/props/csproj/json: only `.claude` scripts and the `.fsproj` — covered by E-15 (fsproj); no other hit
+- Corpus prose naming `Issue*` identifiers — searched `Issue_?\d+` in `.claude/{docs,skills,agents,scripts,rules}/**` → 60 hits in 24 files — covered by E-19 for hits that point to a file/test as a current example; historical `(#nnnn)` case citations left as-is — deferred: case citations name what existed at the time, rewriting them falsifies history
+- KB `areas/TESTS-LINQ/INDEX.md:51,151-189,241,339-343` describes UserTests fixtures — searched `issue.?\d*tests|UserTests` in the area — deferred: KB is skill-driven (`/kb-refresh` after merge)
+- `linq2db.baselines` branches of open PRs — reasoned, unprobed — deferred: check with the baselines workflow before merge (P12 m2)
+- `Tests/Base/Interceptors/CustomizationSupportInterceptor.cs:41,115-116` `ExtractMethod` → `(TypeInfo.Name, testMethod.Name)` for out-of-tree suites — critic round 1, `ClassName|FullName|Method.Name|TypeInfo.Name` in `Tests/Base` — out-of-scope (no in-tree consumer; P10 entry)
+- Test/type names inside strings and comments: `Details = "as Issue…"` at `Tests/Linq/Data/RetryPolicyTest.cs:281`, `DataProvider/MySqlTests.cs:2383`, `PostgreSQLTests.cs:3026`, `SQLiteTests.cs:948`, `Linq/CteTests.cs:1630,1893,1896,1990`, `InheritanceTests.cs:739`, `TypesTests.cs:957`, `Mapping/DynamicStoreTests.cs:1013`; comments at `Linq/AnalyticTests.cs:2039`, `EagerLoadingTests.cs:3212`, `Tests/FSharp/Issue1813.fs:491`, `CustomContextIssueTests.cs:127,166`, EF `IssueTests.cs:1130` — critic round 1, string-literal `"…Issue\d+Test…"` / `as Issue…` sweep — covered by E-2..E-17 (rename map applied to literals/comments; TO-1)
+- `ErrorMessage` literals pinning renamed type names: `Tests/Linq/Linq/ComplexTests.cs:823`, `EagerLoadingTests.cs:3214`, `TypesTests.cs:918` — critic round 1 — covered by E-2 (rename map applied inside gate messages; TO-1, TO-6)
+- Create-script procedures/functions `AddIssue792Record`, `Issue1897`, `Issue1921`, `Issue2313Parameters`, `Issue2313Results` and their consumers `SqlServerTests.cs:1721,1731,1766,1770`, `MySqlTests.cs:1906,1984`, `Scaffold/SchemaProviderTests.cs:53`, `AccessProceduresTests.cs:275,459,461` — critic round 1, `Issue\d+` in `Data/Create Scripts` — covered by E-3/E-11 (wrappers renamed, literals pinned per P3)
+- `Tests/Tests.Benchmarks/Benchmarks/Queries/Issue3253Benchmark.cs`, `Issue3268Benchmark.cs`; `Tests/Tests.T4.Nugets/Templates/*.generated.cs`; `Tests/EntityFrameworkCore.FSharp/*` — critic round 1 declaration census over `Tests/` — out-of-scope (P3)
+- `.claude/scripts/test-diff-sweep.ps1:250-253` check 11 skips files whose name contains `Issue` and misses `ValueTask` — critic round 1 — covered by E-19 (TO-11)
+
+## P8 Test obligations (M/L)
+
+Header rule: every TO here is a characterization of a behaviour-preserving refactor, except those marked `control`. **Every new gate script (TO-1..TO-5, TO-7) is proven able to fail before first use: one seeded fault per script on a scratch copy, each must go red, recorded in G-01** (critic round 1, objection 6). "Base" = current merge-base (D-12). "providers" = the CI matrix unless stated.
+
+- TO-1 `residual-sweep.ps1` reports 0 hits for SC-1's identifier, string-literal and comment patterns over SC-1's paths, using SC-1's closed exclusion list; mutation: run on base → ~1,500 hits (red) — providers: none (static) — proof: control
+- TO-2 `discovery-diff.ps1`: after-listing = before-listing mapped through the rename table (namespace/type text inside args included) minus approved removals; per class (D-10) for `Tests/Linq` (latest TFM) and EF (net10.0); listing with **every concrete provider name** from `DataProviders.json` + each `.LinqService` (not one per family; testing.md:462); fails on any many-to-one mapping, any empty per-class listing, and **any in-scope method from the D-3 inventory with zero listed cases on the base side** unless named in a reviewed exception list; seeded fault: delete one moved test → red — providers: listing only — proof: control
+- TO-3 `attribute-diff.ps1`: per mapped test, the effective set after == before: method attributes, inherited class attributes (`[NoBaselines]`, `[UsesRemoteContext]`, …), `[ActiveIssue]`/`[ThrowsForProvider]`/`[Explicit]`/data-source attributes, **and the fixture state it runs under — setup/teardown members and base type, on the source and the target side** (U-8); a moved test whose target adds setup/teardown it did not have is a manifest decision, not a silent pass; seeded fault: drop one `[ThrowsForProvider]` → red — providers: none (static) — proof: control
+- TO-4 `verbatim-diff.ps1` (C#, F#, VB): token-level diff of each moved/renamed member vs its base text, after the rename map, is empty **except edits on a closed allow-list each tied to a manifest row**: `Description` insertion (TO-7), `[Table("X", IsColumnAttributeRequired = false)]` (D-7), class attributes re-applied per method (D-4), `using`/qualification changes (D-5), literal renames listed in P3; plus the U-9 shadowing check (names referenced in the body vs names declared in the target class/namespace); seeded fault: one changed token → red — providers: none (static) — proof: control
+- TO-5 `baseline-remap.ps1` over the PR baselines branch vs baselines master, **restricted on the PR side to files written by the final run's leg commits** (orphans excluded; `pr-and-push.md:171`): every base baseline of an in-scope test maps to exactly one PR baseline with identical content after **per-test** identifier substitution (a `Table1` maps to its own test's new name) and per-provider quoting; unmapped removals == approved removals; unmapped additions == 0; tests with no baselines listed as "no evidence"; run after the pilot batch and at the end; seeded fault: alter one baseline → red — providers: all CI legs — proof: control
+- TO-6 per-case CI verdicts (`ci-test-verdicts.ps1`) of the PR's `test-all` equal master's latest `test-all`, mapped through the rename table; a case present on one side only is a difference (verify the script reports it; extend if not) — providers: all CI legs — proof: characterization
+- TO-7 `manifest-check.ps1`: every renamed former-issue test has `Description` with a URL chosen by D-11, or sits in the user-reviewed ambiguous table; seeded fault: a URL to another repo's same number → red — providers: none — proof: control
+- TO-8 `Glob Tests/Linq/UserTests/Issue*` → 0 files, `Tests/Linq/Linq/IssueTests.cs` absent, `Tests/EntityFrameworkCore/Tests/IssueTests.cs` present with 0 `Issue\d+` method names (`void|Task|ValueTask`); mutation: base → 260 files (red) — providers: none — proof: control
+- TO-9 Grep corpus: `test-writer.md` no longer carries line 77's `Issue<N>Test` naming exception nor the UserTests "legacy" wording (`:32,46`); line 33's EF fixture rule still present; `testing.md:640` and `test-review-checklist.md:97` updated — providers: none — proof: control (red on base: `test-writer.md:77`)
+- TO-10 per batch: renamed tests run by name via `/test` worktree mode on a locally enabled provider of the batch's family, case count > 0, ≤ 1000 — providers: SQLite.MS / batch family — proof: characterization
+- TO-11 `test-diff-sweep.ps1` check 11 rewritten (no filename-contains-`Issue` exemption except the EF `IssueModel`/`Tests.T4` skips; matches `ValueTask`) reports 0 on `origin/master...HEAD`; mutation: re-add one `Issue1234Test` method in `Tests/Linq/Linq/WhereTests.cs` on a scratch copy → reported — providers: none — proof: control
+- TO-12 multi-TFM build: `dotnet build Tests/Linq/Tests.csproj -c Release -f net10.0`, EF3/EF10/EF11 test projects `-c Release`, and a Debug all-TFM build of `Tests/Linq` (net462 included) succeed — providers: none — proof: characterization
+
+## P9 Verification gates
+
+- G-01: — (pending) — TO-1..TO-12 incl. seeded-fault results per script; TO-10/TO-12 per batch, TO-5/TO-6 after pilot and at end
+- G-02: — (pending) — via TO-5 remap report, not a file-by-file read (P10)
+- G-06: — (pending) — via TO-4 verbatim diff
+- G-07: — (pending)
+- G-09: — (pending)
+
+## P10 Adjudicated (M/L)
+
+- Moved test bodies are not reformatted to *Test layout* rules (P3; `testing.md:653`). A reviewer flagging one-line chains or `AreEqual` in moved code raises a finding against this entry, not against the code.
+- Large baselines PR (path renames across every provider) — the TO-5 remap report is its review artifact; file-by-file review of the baselines PR is not expected.
+- EF `IssueTests` fixture name and `IssueModel` types stay (user decision 2026-11-24).
+- `CustomizationSupportInterceptor.ExtractMethod` (`Tests/Base/Interceptors/CustomizationSupportInterceptor.cs:41,115-116`) exposes class+method names to out-of-tree provider suites; renames change what such a suite sees. No in-tree consumer (`CustomizationSupport.cs:6`); accepted as a test-harness-internal contract.
+
+## P11 Amendments (M/L)
+
+_None._
+
+## P12 Critic verdict (M/L)
+
+- Round 0 (2026-11-24, fable, pre-plan design draft): **weak** — B1 inventory misses generic nested types, B2 `--list-tests` empty without `--provider`, B3 bare `[Table]` drops columns, B4 SQL identity checked only at the end; M1–M9, m1–m4. All folded in before authoring (D-3, D-6 pilot, D-7, D-10, TO-2..TO-5). The same model then critiqued this plan; it contributed no design, only objections.
+- Round 1 (2026-11-25, `plan-critic` on **fable**, worktree `4b6cdfc02`): **weak**. Searched: declaration census over `Tests/` (P6 covers every `Tests/Linq` dir with hits), non-code/build files (P7 CI row holds), string literals `"…Issue\d+Test…"` / `as Issue…`, `Issue\d+` in create scripts, `ClassName|FullName|Method.Name|TypeInfo.Name` in `Tests/Base`, setup/teardown outside UserTests, `Test\d{3,}` (12 files, all in P6), `#if` in moved files (3), unnamed `[Sql.Function]` on Issue members (none), corpus rule text. Not checked by it: builds, listings, `gh`, `ci-test-verdicts.ps1` one-sided cases, baselines layout, identifier caps. Objections and responses:
+  1. TO-2 per-family provider set can hide version-gated methods → every concrete provider + per-method base floor (TO-2).
+  2. "Before" undefined after master merges → D-12 merge-base rule.
+  3. TO-4 unsatisfiable vs mandated edits → closed allow-list (TO-4).
+  4. Binding changes invisible to token diff → U-9 shadowing check in TO-4.
+  5. Target-fixture state omitted → U-8, TO-3 both sides.
+  6. No negative control for new scripts → seeded fault per script (P8 header).
+  7. TO-5 satisfiable by orphan baselines; substitution must be per test → final-run leg commits only, per-test substitution (TO-5).
+  8. TO-7 cannot catch wrong-repo URL → D-11 repo rule + ambiguous table.
+  9. check 11 blind on `Issue`-named files and `ValueTask`; SC-9 vs TO-8 ambiguity on `test-writer.md:77` → SC-9 restated, TO-11.
+  10. Multi-TFM build not an obligation → TO-12.
+  11. U-2 missed `CustomizationSupportInterceptor` → U-2, P7, P10.
+  12. Names in strings/comments → SC-1 widened, P7 row.
+  13. `ErrorMessage` literals pin type names → P3, P7 row.
+  14. Explicit `Issue…` literals unruled → P3: renamed with their type.
+  15. Create-script procs/functions unpinned → P3 pin list.
+  16. Benchmarks / T4.Nugets / EF.FSharp unscoped → P3 out-of-scope.
+  17. Concurrent listings would build; base snapshot needs base binaries → D-10 mechanics.
+  18. (lead) new table names vs SQL-text assertions → U-5 constraint.
+  Residual, carried visibly: TO-6's sensitivity to one-sided cases is unverified until the script is checked; identifier caps and alias effects of renamed tables are probed only by the pilot (D-6); open-PR baselines-branch impact (P7) unverified.
