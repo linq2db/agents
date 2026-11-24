@@ -84,6 +84,14 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** `DependsOn*` for database setup. Every filtered local and CI run would break. `a_CreateData` already sorts first by name. (#6330)
 
+## TESTS-LINQ: a SQLite `json_each` stand-in for a table function correlated to an outer column
+
+**Tried:** testing a column argument to a generated table-function wrapper with a hand-written instance `[<Sql.TableFunction("json_each")>]` over SQLite, `for p in t do for r in ctx.JsonEach(p.Col) do …`, as the scalar arms use SQLite `abs` / `length`.
+
+**Failed because:** the `SelectMany` over a table function correlated to `p` throws "The LINQ expression could not be converted to SQL" on SQLite.MS and SQLite.Classic, even for a plain `string` column (control `json_each(p.FirstName)`); a constant argument works. SQLite has no APPLY here, so the outer reference cannot be placed.
+
+**Don't re-attempt:** use a provider with APPLY: SQL Server's `GetParentByID` renders `CROSS APPLY [GetParentByID]([Item1].[ParentID])` (#5707 TO-23 (b)).
+
 ## PROV-DUCKDB: rounding a decimal to even with `round_even`
 
 **Tried:** `round_even(value, s)` over a `DECIMAL(18,1)` column, to replace an emulation that overflowed.
