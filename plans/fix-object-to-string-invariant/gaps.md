@@ -13,9 +13,9 @@ No work plan (external contributor). Attribution is to the block a Tier S/M plan
 
 GAP-07 3/4, GAP-01 1/4. The test rules exist but did not reach the contributor's AI session; the adjacent Issue4371* cluster shows both violations nine times.
 
-### Durable fixes (all applied 2026-11-24)
+### Durable fixes (2-4 applied 2026-11-24; 1 declined)
 
-1. `.github/copilot-instructions.md` (linq2db commit): the Issue<N> naming rule and a pointer to `test-diff-sweep.ps1`.
+1. `.github/copilot-instructions.md` (linq2db commit): the Issue<N> naming rule and a pointer to `test-diff-sweep.ps1`. Declined: the maintainer keeps that file as is rather than editing it from linq2db master for each corpus change.
 2. `scripts/test-diff-sweep.ps1`: check 11, `issueNamedMembers`.
 3. `docs/code-design.md` → *Use `MemberHelper.MethodOf`*: reflected BCL methods go in `Methods.System`; the `TrimEnd` example marked legacy.
 4. `docs/test-review-checklist.md` → *Compare against the neighbours*: narrowed neighbours with no reason line are legacy, not a floor.
