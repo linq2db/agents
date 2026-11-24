@@ -51,6 +51,12 @@ feature branch — the point is to carry none of its history.
 
 **Cherry-pick** when the change is already an isolated commit on the feature branch (`git cherry-pick <sha>`)
 — it keeps authorship and message. Expect it to apply cleanly if the touched files haven't diverged.
+When the feature branch restructured a file in commits you are *not* porting, resolve its conflicts hunk by
+hunk: `git checkout --theirs <file>` takes the picked commit's whole file, unported edits included, and
+`git checkout -m <file>` restores the markers to start over. A clean auto-merge can still leave a member
+twice when the feature branch deleted master's copy, so grep each ported file for duplicate overrides
+before building. (#6450 out of #6427: `--theirs` dragged the precedence-argument removal into YDB / DuckDB,
+and MySQL auto-merged into two `ConvertSqlBinaryExpression` overrides.)
 
 **Take whole files** when the split is defined by a *file list* rather than by commits — a long-lived branch's
 changes are usually smeared across dozens of commits, so cherry-picking is the wrong unit. Per file, diff it
