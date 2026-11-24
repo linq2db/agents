@@ -432,6 +432,14 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 
 **Don't re-attempt:** either. Per compare, take out only the constants the key cannot compare by value (`PrepareComparedAccessor` / `IsComparedByValueInKey`); leave parameter entries as they are.
 
+## LINQ: a compiled query reusing a context-read query-filter value without revalidation
+
+**Tried:** reviewing #6444 against #6314, arguing that skipping dynamic-accessor revalidation for a compiled query when the context has no keyless interceptor (`Query{T}.cs:59` on #6444) reuses the first context's value for `HasQueryFilter<TDc>((q, dc) => q.Where(e => e.Id <= dc.Limit))`. #6314 tests that shape as `CompiledQueryContextFilter`.
+
+**Failed because:** measured on SQLite.MS on master, #6314 and #6444, with no interceptor and two contexts at limits 2 and 3: compiled `Count()`, compiled table and LINQ all return 2 / 3 / 2. The value is read from the executing context's `dc` when the query runs, not baked in at build.
+
+**Don't re-attempt:** treating `CompiledQueryContextFilter` as proof that #6314 fixes something #6444 does not. It guards behaviour master already has; on that path the two PRs differ in cost only.
+
 ## LINQ: DistinctBy ordering plumbing — publishing window placeholders, clearing every lower ORDER BY
 
 **Tried:** for #6197 round 3, (1) re-applying the ROW_NUMBER window's sequence-built placeholders (`DistinctByBuilder.BuildOnSequence`) as the outer ordering, not only as window arguments; (2) clearing every non-limited single-source ORDER BY below the DISTINCT ON query once the captured ordering was re-translated onto it (`ClearConsumedOrderBy`).
