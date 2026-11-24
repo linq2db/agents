@@ -119,6 +119,8 @@ Anything else must name its cost:
 
 (Maintainer framing on the 2026-10-25 write-side extension proposal.)
 
+**A change to an existing interception point's invocation frequency owes the same written contract.** When a change makes an interceptor run more or less often, or on reuse where it ran only at translation, its interface doc states, per stage, when it is called and when it is not. **An opt-out or trust interface's doc states what its default or `null` value means, when the value is read, and what a broken contract does.** Neither belongs only in a PR body: an implementer reads the interface. (#6444: `IQueryExpressionInterceptor` documented only the keyed case after its stages started running on reuse, and `IInterceptorCacheKey` left out that a `null` key is still trusted. #6314 SUG002 / SUG003 were the same gap.)
+
 ### Don't grow core builder API for a helper-only fix
 
 A fix scoped to a helper / peripheral API (e.g. `ToSqlQuery`'s by-name `Query<T>` round-trip) must not expand core builder surface (`ISqlBuilder` / `BasicSqlBuilder`) to serve it — threading a new flag/parameter through the shared builder for one convenience path fails the cost/benefit test. If the fix genuinely needs new core surface, drop or narrow it instead. (User call on #5657: an export-scoping `ForGetSqlText` seam on `ISqlBuilder` was rejected — "if we need to add api changes to sqlbuilder then we will not use this fix for helper API"; the peripheral behavior was left as-is.) This is the API-surface counterpart of the general "propose minimal, let the user expand" preference.
