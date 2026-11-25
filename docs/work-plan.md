@@ -281,6 +281,8 @@ Analyzers are Release-only and `Testing` builds only the latest TFM, so `G-05` i
 
 Accepted trade-offs and deliberate deferrals — **the do-not-flag set for this branch's reviews**. Each entry needs a reason, and where the reason is a measurement, the measurement.
 
+**A redesign does not defer its own design gaps.** On a branch that redesigns a mechanism (or the stack that delivers it), a gap the design or a review finds in that mechanism is fixed in the stack, not parked here as "accepted" or "out of scope". `P10` keeps only trade-offs the redesign chose, and known limits that cannot be fixed — each with a measured failure and a filed issue. (#6450 / #6427, user: "better not delay design decisions as later tasks as we do redesign here - we must make sure it is complete" — the doubled `isempty((…))` brackets, `ulong` division on HANA / Informix and 32-bit `~` on MySQL had all been recorded as accepted.)
+
 **Each entry carries a stable id**, `- L-<n> (A-k) …`, and every citation of an entry elsewhere in the plan names it (`P10 L-4`), including a `P12` disposition that adds entries (`Changed: P10 L-7, L-8`). `-Action validate` fails a cited `L-n` that no `P10` entry defines, and warns on a `P12` "Changed: … P10 line" that names no id once the plan uses ids. A disposition that promised a `P10` line and an edit that never wrote it otherwise look identical: on #5943 critic round A-10's "Changed: two P10 lines" landed one, a splice ate the other, and `D-12` went on citing it until review round 6 found the regression it was meant to record (MIN012). Plans predating the id carry none and are not checked.
 
 Two guards keep this from becoming a silencer, and both are enforced in the reviewer's briefing:
