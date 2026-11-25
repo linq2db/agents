@@ -298,6 +298,11 @@ When the PR touches identifier quoting, literal escaping, the remote / serialize
 
 **Report this to the user only.** An undisclosed advisory never appears in the review body, a comment, a commit or the corpus; a public finding stands on its own merits. Record anything that must carry across sessions in auto-memory.
 
+**Reviewing a PR in a private advisory fork** (`linq2db/linq2db-ghsa-*`) changes three mechanics:
+- Fetch its head into a private ref (`git fetch <fork-url> refs/pull/<n>/head:refs/remotes/<fork-slug>/pr<n>`), never `origin/pr/<n>`. Fork PR numbers collide with main-repo ones, and `pr-context.ps1`, `diff-reader.ps1` and `verify-lines.ps1` all key on `origin/pr/<n>`, so read the diff directly instead.
+- The fork has no CI and no baselines branch. Step 2c and the baselines pass have nothing to read, and the `## Baselines` section says so.
+- Step 7c's ledger is a corpus write, which the rule above forbids for undisclosed work. Skip it and say why in the step-9 summary. Corpus corrections proposed from such a review stay generic: no defect shape that is still unpatched.
+
 ### 3g. Cross-check a sibling PR for the same goal
 
 When the PR body calls itself an alternative to another open PR, or both close the same issue, list that PR's record before spawning the passes: what it fixed (its body's problem list), what its review raised and how each item was answered (threads and author replies), and what it deferred to issues. Brief every pass with the list as a required axis: each item is addressed here, not needed (and why), or left open, with `file:line`. Report the outcome in `## Review notes`. A scenario only the sibling tests, when it bears on a correctness claim, becomes a probe run on master, the sibling and this PR. (#6444 vs #6314: four of ten findings were items #6314's review had already answered, and the probe refuted the one correctness gap the goal check suspected.)
