@@ -140,7 +140,7 @@ The body cannot change without submitting the draft (above), but **threads and r
 - **A reply on an existing thread:** `addPullRequestReviewComment(input:{pullRequestReviewId, inReplyTo:<PRRC node id>, body})`. A REST `…/comments/<id>/replies` call fails with 422 (`one pending review per pull request`) while the draft exists.
 - **A late file-level comment:** `addPullRequestReviewThread(input:{pullRequestReviewId, path, subjectType:FILE, body})`. The path must be in the PR's diff, as above. Use this for a late body-section item, such as a deferred baselines summary, with a first line saying it replaces the body's note.
 
-Both stay hidden until the user submits. Compare the stored `body` in the mutation's response with what you sent. `post-pr-review.ps1` only creates a new draft. This has been hand-rolled twice (#5673, 2026-10-31), so the next time it comes up, extend the script with an append-to-review mode instead.
+Both stay hidden until the user submits. Use `post-pr-review.ps1` with `appendToReview = '<PRR node id>'` in the manifest, plus `replyComments[]` / `fileComments[]` and no `body` / `lineComments[]`. The script refuses a review that is not `PENDING` and checks each stored body against what was sent. (Hand-rolled with `gh api graphql --input` on #5673 twice and on #6438, which led to the mode.)
 
 ### Submitting the draft when the user asks
 
