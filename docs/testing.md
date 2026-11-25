@@ -1085,6 +1085,13 @@ A table handle keeps the mapping schema it was created under; `UseMappingSchema`
 
 Inputs measured not to separate are in [`dead-ends.md`](dead-ends.md) → *MAPPING: inputs that do not separate a handle's schema from the live one*.
 
+### Remote-transport tests: cancel on a signal, and one configuration string per server target
+
+- **Cancel after the server reports the call started, never on a timer.** A `CancellationTokenSource(TimeSpan)` fires whether or not the call has left the client, and a remote client's first call on a connection can make a round trip of its own first (the Signal/R client fetches the hub's size limit). On a slow agent the cancellation then lands before anything is sent: the client-side assertion passes, the server never runs, and the test fails on its server-side wait with a message that reads like a regression. Wait on the scripted service's "started" signal, then call `Cancel()`.
+- **Give each in-process remote context a configuration string unique to its server target.** `RemoteDataContextBase` caches the server's `LinqServiceInfo` (SQL builder and optimizer, provider flags, mapping schema) in a process-wide static dictionary keyed by `ConfigurationString` only. Two test contexts that share a string but reach different databases get whichever info was cached first.
+
+(#6014 round 3: MIN018, a 200 ms timer in `ClientCancellationReachesTheServer`; MIN020, a SQLite-backed and a PostgreSQL-backed in-process context sharing `"…InProcess"`.)
+
 ## Reading test output
 
 Always read the **full** test run log — not just the tail. NUnit and `dotnet test` interleave relevant information across the log: `_CreateData` failures appear near the top, setup exceptions and warnings can come well before the failing assertion, and stack traces may be truncated if you jump to the end. Do not use `tail`, `head`, `head_limit: 1`, or similar tricks to skim the output; read the entire log and scroll back for context when a failure is surprising. The only exception is when you have already read the log once and are fetching a specific slice you've already identified.

@@ -81,3 +81,46 @@ Posted round-1 IDs from MIN001 on are one lower than the Round 1 table's pre-pro
 - Fix commits ×6 → review-pr posting step / code-reviewer finding schema: on a plan-less branch each posted finding's Fix names the class the fix must cover (other bound, dependency per-asset behaviour, sync sibling, every same-URL site, every dispatch path to an overridable member) and the mutation its regression test must go red under.
 - GAP-02 ×2 (+ round-1 MAJ001/MIN010) → re-propose round-1 recommendation 2 in the work-plan scout brief and plan-critic.md: record each value/behaviour handed to a dependency with its accepted range and per-asset behaviour, keyed by the dependency's asset/version, never linq2db's TFM macro.
 - GAP-01 (MAJ005) → code-design.md:27: extend "`[Obsolete]` does not unfreeze behavior" to virtual dispatch — an obsolete `public virtual` kept for compatibility must still be called on every path it governed in the shipped version, or be removed; add a matching plan-critic vector.
+
+## Round 3 — reviewed HEAD 5208d734db6962cfb970ebb123bf1286210cddb7
+
+No plan on the branch; each row names the block a Tier M plan would have carried. 16 findings, all posted (review 6058482678, COMMENT).
+
+### Attribution
+
+- **MAJ006** (obsolete hub methods + refusal machinery) — GAP-07 — P3 constraint citing code-design.md:430/:533 and a P7 row classifying the five hub `*Async` methods as wire shape, not stability contract; the author's first design removed them, round-1 BLK001 (api-surface-classification.md step 3, no remote-transport carve-out) reinstated them and round-2 MAJ005 built the refusal machinery (4f1e15f26) on that premise — — — preventable: yes
+- **MIN014** (client readme cross-version) — GAP-07 — same missing P3 constraint; paragraph from af17cbd72 (the answer to BLK001), re-stamped in e355a1425 — — — preventable: yes
+- **MIN015** (server readme cross-version + protocol internals) — GAP-07 — same P3 constraint; :57-62 near-verbatim round-2 MAJ005 suggestion text, :63-66 from 4f1e15f26; the "readmes stay user-level" half had no rule anywhere (GAP-01) — — — preventable: partly
+- **MIN016** (DB-side cancellation overstated) — GAP-02 — P4 probe behind the readme E-n: "cancels it in the database" assumes every ADO.NET provider implements Cancel() (Microsoft.Data.Sqlite: "Does nothing"); from 347cd66b0 — — — preventable: partly
+- **MIN017** (stale "shared by all contexts" class doc) — GAP-03 — P11 sweep row for b98bff7b6 listing every text describing connection sharing; the class summary at LinqToDBSignalRConnection.cs:17 was missed — — — preventable: yes
+- **MIN018** (200 ms timer race) — GAP-05 — TO-n for client cancellation triggered on the server's "started" signal; the timer can fire inside the first-call GetMaximumReceiveMessageSize round trip the PR's pre-flight added (8ba1194eb) — — — preventable: partly
+- **MIN019** (untraced arm vacuous) — GAP-05 — TO-n with a control that can disagree; test written by the reviewer in round 1 (61ce7a555), :738 accepts both outcomes, and the reviewer's round-2 fix 0b800970f made the reserve unconditional on net8+, falsifying the comment — — — preventable: yes
+- **MIN020** (shared ConfigurationString cache key) — GAP-02 — P4 row "a remote test context's configuration string is only a label", contradicted by KB areas/REMOTE-CLIENT/INDEX.md:61; :1552 from the reviewer's 61ce7a555 — — — preventable: partly
+- **MIN021** (legacy wrapper assumes 1.x client) — GAP-02 — P4 row keyed by the SignalR.Client version, not the TFM, for StartAsync refusal handling (LinqToDBSignalRConnection.cs:197-203, c2c499e1c); same class as round-2 MIN009 — — — preventable: partly
+- **MIN022** (no trace-header reserve on legacy) — GAP-02 — same P4 row; RequestSize.cs:67/:80-82 from the reviewer's round-2 fix 0b800970f, which moved the gate NET9→NET8 instead of off TFMs, the day plan-critic.md:118 was written from it — — — preventable: yes
+- **MIN023** (PR body: WCF, 2 s bounds, cross-version) — GAP-03 — P7 row per remote transport behind LinqService (WCF passes no token, already noted in round 1's out-of-scope list); part 2 is prose (GAP-10), part 3 is the MAJ006 chain (GAP-07) — — — preventable: partly
+- **SUG004** (factory path untested) — GAP-05 — TO-n per registration path for b98bff7b6 (context and IDataContextFactory<TContext>); SUG003's Fix named neither path nor a mutation — — — preventable: yes
+- **SUG005** (cancel callbacks inside Signal/R's Cancel) — GAP-01 — P2 never named the failure contract for provider cancel callbacks run inside a foreign CancellationTokenSource.Cancel(); round 1 kept the mechanism out of scope — — — preventable: partly
+- **SUG006** (cancel-before-dispose only on SQLite) — GAP-03 — P7 rows per provider for the shared-engine LinqService cancel-before-dispose (LinqService.cs:232-238) with a TO-n beyond SQLite; round 1's out-of-scope note named the reach — — — preventable: yes
+- **NIT006** (one-line chains) — GAP-07 — testing.md:657 rule 1 never reached the author; the reviewer's NIT005 fix (3437ec765) ran test-diff-sweep.ps1 before 0ddad0d taught it the `(await x).ShouldBe(` shape, and the reviewer's 61ce7a555 added :1544 — — — preventable: yes
+- **NIT007** (exception-assertion form) — GAP-10 — the constraint-form rule (testing.md:5-12, 62b6f2a, 2026-11-15) postdates the code (3f1b9ad20, 2026-10-09), which met the then-current Shouldly rule — — — preventable: no
+
+### Aggregate
+
+15 of 16 trace to blocks a Tier M plan would have required; NIT007 is the floor. 8 preventable yes, 7 partly, 1 no. Classes are flat (GAP-02 ×4, GAP-07 ×4, GAP-03 ×3, GAP-05 ×3, GAP-01 ×1, GAP-10 ×1); provenance is not: 7 findings sit wholly (MAJ006, MIN014, MIN015, MIN019, MIN020, MIN022, SUG004) and 3 partly (NIT006, NIT007, MIN023) in code or text that earlier review rounds wrote or asked for.
+
+### Recommended durable fixes
+
+1. api-surface-classification.md step 3: a member whose only consumer is the same-version remote peer (Signal/R hub methods, ILinqService / gRPC / WCF service contracts) is not a stability-contract BLK; cite code-design.md:533; CompatibilitySuppressions regeneration happens at release. Same commit: rescope code-design.md:29 to non-transport public virtuals and replace its #6014 example, which now contradicts :533.
+2. code-reviewer rubric: flag `[Obsolete]` transport members kept "for older clients", and readme / PR-body text promising cross-version operation or describing the hub/wire protocol; package readmes state usage, guarantees, limits and options only.
+3. review-orchestration.md closing sequence: a fix or test commit the reviewer pushes to the branch gets test-diff-sweep.ps1, a control proven able to disagree, and (for a dependency-keyed gate) the plan-critic.md:118 question, before the push.
+4. testing.md remote-test section: cancel on a server-side "started" signal, never on a timer; a test remote context's configuration string is unique per server target (RemoteDataContextBase caches LinqServiceInfo by ConfigurationString).
+5. code-reviewer rubric: mirror plan-critic.md:118 (dependency behaviour keyed by the dependency's version, not linq2db's TFM macro).
+
+### Continuity
+
+- Round 1 BLK001 ("public surface frozen", GAP-01, gaps.md:9) and round 2's MAJ005 ledger + durable fix (code-design.md:29) entrenched the premise MAJ006 now reverses: the recommendation was aimed at the wrong thing.
+- Round 1 MIN009 recommended a test-hygiene rule (gaps.md:22) that never landed in testing.md; MIN018 is that class again.
+- Round 2 MIN009 → MIN021/MIN022: the TFM-for-dependency-version class recurs, the second time inside the reviewer's own fix.
+- Round 2 NIT005 → NIT006: the fix left hits a later detector version catches.
+- Round 2 MIN013 (PR-body drift) → MIN023.
