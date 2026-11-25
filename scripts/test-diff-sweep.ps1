@@ -98,6 +98,8 @@ Fixer for `chains` hits: `split-test-chains.ps1 -File <path> -Lines '<n,n,...>'`
 on #5640 those were 35 of 148 hits and none was a layout defect. That holds for `new X(new Y().Z())`
 arguments, not for an NUnit constraint chain inside `Assert.That(...)` (`Is.Not.Contains(...).And.Not...`):
 that is a testing.md *Test layout* rule-1 defect, so read every `nestedChains` hit for one. (#6450 NIT001.)
+The same goes for a query chain inside a projection member's argument (`Sql.Between(table.Where(...).Max(...), ...)`):
+testing.md's "a chain inside the projection follows rule 1" makes it a defect. (#6438 NIT001.)
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
