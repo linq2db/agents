@@ -54,8 +54,8 @@ at a line start, so the caller never rebuilds a full body; flips on one
 review go out as one PUT. A flip whose box already carries the mark is skipped.
 A review may appear in checkboxFlips or reviewBodyEdits, not both.
 
-A transient GitHub error (a 5xx, or gh's "unexpected end of JSON input" for an
-empty response) is retried up to twice. A comment patch or checkbox flip re-reads
+A transient GitHub error (a 5xx, gh's "unexpected end of JSON input" for an
+empty response, or a dropped connection's "unexpected EOF") is retried up to twice. A comment patch or checkbox flip re-reads
 the stored body before each retry, because GitHub sometimes applies a write it
 answered with an error; such an item reports `ok: true, recovered: "<error>"`, and
 `ok: false` means the write is not in what GitHub stored. (#6430: three runs at
