@@ -1156,7 +1156,9 @@ function Invoke-Reconcile {
         $hit = $false
         foreach ($a in $authorized) {
             if ($a -eq '') { continue }
-            if ($f -eq $a -or $f.EndsWith($a) -or $a.EndsWith($f) -or $f.StartsWith($a.TrimEnd('*'))) { $hit = $true; break }
+            # a `**` glob (`Tests/X/**/File.fs`) matches nested paths (#5707: 7 goldens false "unplanned")
+            if ($f -eq $a -or $f.EndsWith($a) -or $a.EndsWith($f) -or $f.StartsWith($a.TrimEnd('*')) -or
+                ($a.Contains('*') -and $f -like ($a -replace '\*\*/', '*'))) { $hit = $true; break }
         }
         if ($hit) { $matched += $f } else { $unplanned += $f }
     }
