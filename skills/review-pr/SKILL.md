@@ -137,6 +137,8 @@ Author-pushed CR commits commonly trigger a second Copilot review; treat its cla
 
 **A fresh pass that confirms your own earlier body findings fixed also ticks their checkboxes.** Add a `checkboxFlips[]` entry per finding and run `apply-verify-writes.ps1`, as in `/verify-review` step 9. If the new body is the only place that records the fix, the old review keeps showing the items as open. (#5991: round 6, a fresh pass, said in prose that five round-5 findings held, and their boxes stayed `[ ]` until round 7's `/verify-review` ticked them.)
 
+**It also resolves `currentUser`'s own still-open threads that are fixed at HEAD.** Reply `Fixed in <sha>` and resolve each one in the same `post-pr-thread-replies.ps1` bundle, before any draft is posted; code the author removed counts as fixed. A thread the author already resolved needs no reply. Step 2b covers only other authors' threads, so without this they stay open. (#5995 round 5: five threads stayed open after a rescope removed their code, until the user asked.)
+
 **`currentUser` is the PR author — fix-here is the default disposition, and a posted review is the exception.** GitHub refuses `APPROVE` and `REQUEST_CHANGES` on your own PR, and a draft review there only holds notes to yourself. So in the walk, recommend fixing on the branch, offering `post` only when the user wants a finding left on the PR for a co-reviewer. An empty `accept-for-post` set is then the expected end state. (#6140: self-review, one `SUG` fixed and pushed, nothing posted.)
 
 **Re-check your own still-open threads' suggestion blocks against HEAD, not only the finding.** A later commit or plan amendment can disprove text inside a suggestion you posted earlier while the finding itself stays open, and the author may still apply the block as written. Each such block gets a `Correction:` reply in this round, citing what disproved it. (#5983 round 6: MIN003's round-1 suggestion still listed `AddXxx` among the members kept in SQL, which `3ab9b641f` and `DocumentedTranslatedMembersStayInSqlUnderOption` had disproved four days later; one pass noticed it by chance.)
@@ -197,7 +199,7 @@ Step 4's scope gate confirms *what* the PR does. It never asks whether linq2db s
 - `pr.state` is `MERGED`. That is a retrospective pass, so the premise question is moot.
 - The goal-check config sets the host's `analystModel` to `never`.
 
-**`goals` on the invocation, or an explicit request, forces the check past every rule above.**
+**`goals` on the invocation, or an explicit request, forces the check past every rule above.** Forcing still prints the line the suppressing rule would have printed (prior verdict, date, head) before dispatching, so the user can withdraw the request. (#5995 round 5: forced, then withdrawn as "we already done it".)
 
 **A prior review does not suppress the offer when the premise has moved since.** Offer it anyway, and say why, when either holds:
 - the diff has grown a mechanism the title does not name, since your last review or the last goal check;
