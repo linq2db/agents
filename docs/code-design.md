@@ -399,6 +399,8 @@ When **matching** a method-call node's identity (rather than constructing a call
 
 **And for a CLR-type predicate.** `Internal/Extensions/NumberTypeExtensions` holds the numeric family as extension properties on `Type`, all nullable-unwrapping: `IsNumberType`, `IsIntegerType`, `IsFloatType` (which includes `decimal`) and `IsSignedNumberType` (which includes the floating types). A local helper over CLR numeric types is one of them or a composition of them, such as `IsIntegerType && IsSignedNumberType`. (#6450: SQLite `IsFloating`, YDB `UnsignedOf` and MySQL `IsSignedInteger` were written locally.)
 
+**And for NULL.** A value that reaches SQL is NULL when it is `null`, `DBNull` or a null `INullable` (`SqlString.Null`), and `Internal/Common/Utils`'s `IsNullValue` extension tests all three; the value writer renders each as `NULL`. A NULL check on a provider or literal value goes through it, never `is DBNull` or `== null` alone, or a converter that returns the third spelling renders `x = NULL`. (A predicates fix used `IsNullValue` at five sites and a hand-written `is DBNull` at the sixth.)
+
 **The mirror: don't add a general-looking helper on a framework type for one local need.** An extension on a linq2db builder reads as API even when it is `internal`, and it invites uses it was never designed for; mirror the private predicate the file already has and branch inline, even if that breaks a fluent chain. (#5640, 2026-09-19: `HasKeyLength(this PropertyMappingBuilder<…>, int?)` was rejected in favour of a sibling `IsStringKey<TKey>()` beside the existing `IsAutoIncrementKey<TKey>()` and a plain `if` in `DefaultMappings.cs`.)
 
 ### A reference-identity set over `Expression` needs the comparer spelled out

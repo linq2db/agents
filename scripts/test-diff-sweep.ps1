@@ -54,6 +54,17 @@ letting through:
      feature fixture*. (#6442 MIN001: `Issue6400Table` and its test, added among legacy `Issue4371*` members.)
      Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them legacy
      members re-added by fixture consolidation, so a hit on moved code is not a finding.
+ 12. `localModels`: a mapped class added to a `Tests/Linq/Linq/` feature fixture with 1-3 columns, every one
+     `int` / `string` / `bool` (nullable or not), and no inheritance — the shapes the shared `Parent` / `Child` /
+     `Person` models already carry — testing.md -> *Core behaviour is tested on the common models*. A local type
+     is right when the test needs a shape the shared models lack (DML on its own rows, a converter-typed or
+     case-varying column, specific data), so read each hit. Measured: a 13-commit predicates fix 2 hits, the one
+     a review raised among them; `origin/master~300...origin/master` 85.
+ 13. `attributePadding`: an added padded attribute (`[PrimaryKey      ]`) on a member line whose `]` misses the
+     column of the attribute member line next to it — code-design.md -> *Column-aligned formatting is
+     intentional*. An attribute-only line stacked above a member is not part of the column. Measured: the same
+     predicates fix 4 hits, the four a review raised; `origin/master~300...origin/master` 2, both real
+     (`MathFunctionTests.cs:1082`, `:1863`).
 
 Why this script exists
 ----------------------
@@ -94,7 +105,8 @@ lineAbove is not a comment; a single-provider translator test is exempt, so read
 typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, text, expectedTabs, actualTabs}],
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
-invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
+attributePadding: [{file, line, text, column, neighbourColumn}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -150,6 +162,13 @@ $cacheCalls  = @()
 $areEquals   = @()
 $invisible   = @()
 $issueNamed  = @()
+$localModels = @()
+$padding     = @()
+# check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
+$pendingModel = $null
+# check 13: an added padded attribute whose `]` column is still to be compared with the next line
+$pendingPad   = $null
+$lastPadHit   = -1
 # check 9: an added `AreEqual(` opening line and the argument lines added after it
 $pendingAreEqual = $null
 $pendingGate = $null
@@ -158,6 +177,15 @@ $openAttr    = $null
 $providerAttrRx = '\[(IncludeDataSources|DataSources|ActiveIssue|Throws\w*)\s*\('
 
 function Get-Tabs([string] $text) { return ([regex]::Match($text, '^\t*')).Length }
+
+# check 13: the column of the first `]` on an attribute-led member line, or -1; an attribute-only line
+# (`[ValueConverter(...)]` stacked above the member) is not part of the aligned column
+function Get-AttributeClose([string] $text) {
+	if ($text -notmatch '^\t*\[[A-Z]') { return -1 }
+	$close = $text.IndexOf(']')
+	if (-not $text.Substring($close + 1).Trim()) { return -1 }
+	return $close
+}
 
 # the nearest preceding non-blank line in $recent, without its diff prefix
 function Get-PreviousLine {
@@ -206,12 +234,23 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
-	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; continue }
+	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
-	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; continue }
+	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# check 13: the line after a padded attribute, added or context, closes on the same column when it is an attribute line too
+	if ($pendingPad) {
+		$next  = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+		$close = Get-AttributeClose $next
+		if ($close -ge 0 -and (Get-Tabs $next) -eq $pendingPad.tabs -and $close -ne $pendingPad.column -and -not $pendingPad.reported) {
+			$padding += [pscustomobject]@{ file = $pendingPad.file; line = $pendingPad.line; text = $pendingPad.text; column = $pendingPad.column; neighbourColumn = $close }
+			$lastPadHit = $pendingPad.line
+		}
+		$pendingPad = $null
+	}
 
 	# check 7: a provider token added inside a provider attribute opened on an earlier line
 	$body7 = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
@@ -254,6 +293,41 @@ foreach ($l in $diff) {
 		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
 			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>Issue\d+\w*)\b') {
 			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
+		}
+
+		# check 12: a small mapped class added to a feature fixture, every column int / string / bool (nullable or not) -
+		# the shapes Tests/Model's Parent / Child / Person already carry, so a local copy needs a reason
+		if ($file -match '^Tests/Linq/Linq/.*\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $text -notmatch '^\s*//') {
+			if ($text -match '^\s*(?:(?:public|private|protected|internal|sealed|static|partial|abstract)\s+)*(?:class|record)\s+(?<name>\w+)') {
+				# an inheritance hierarchy (a base list, or `[InheritanceMapping]` above) is a shape the shared models lack
+				$modelName    = $Matches['name']
+				$isHierarchy  = $text -match '\w\s*:\s*\w' -or (@($recent | Where-Object { $_ -match 'InheritanceMapping' }).Count -gt 0)
+				$pendingModel = if ($isHierarchy) { $null } else { [pscustomobject]@{ file = $file; line = $line; name = $modelName; tabs = (Get-Tabs $text); columns = 0; simple = $true } }
+			}
+			elseif ($pendingModel -and $text -match "^\t{$($pendingModel.tabs)}\}") {
+				if ($pendingModel.columns -gt 0 -and $pendingModel.columns -le 3 -and $pendingModel.simple) {
+					$localModels += [pscustomobject]@{ file = $pendingModel.file; line = $pendingModel.line; name = $pendingModel.name; columns = $pendingModel.columns }
+				}
+				$pendingModel = $null
+			}
+			elseif ($pendingModel -and $text -match '\[\s*(PrimaryKey|Column|Identity)\b') {
+				$pendingModel.columns++
+				if ($text -notmatch '\]\s*public\s+(int|string|bool)\??\s+\w+\s*\{') { $pendingModel.simple = $false }
+			}
+		}
+
+		# check 13: a padded attribute (`[PrimaryKey ]`) whose `]` misses the column of the attribute line beside it
+		if ($file -match '\.cs$' -and $text -match '^\t*\[[A-Z][^\[\]]*?\s+\]\s*\S') {
+			$close    = $text.IndexOf(']')
+			$prev     = Get-PreviousLine
+			$prevOpen = if ($null -ne $prev) { Get-AttributeClose $prev } else { -1 }
+			$reported = $false
+			if ($prevOpen -ge 0 -and (Get-Tabs $prev) -eq (Get-Tabs $text) -and $prevOpen -ne $close -and $lastPadHit -ne $line - 1) {
+				$padding += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim(); column = $close; neighbourColumn = $prevOpen }
+				$reported = $true
+			}
+			if ($reported) { $lastPadHit = $line }
+			$pendingPad = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim(); column = $close; tabs = (Get-Tabs $text); reported = ($reported -or $prevOpen -ge 0) }
 		}
 
 		# check 9: the expected argument reads no `db.`, the actual argument after it does
@@ -342,6 +416,8 @@ foreach ($l in $diff) {
 		}
 	}
 
+	if (-not $l.StartsWith('+')) { $pendingModel = $null }
+
 	$recent.Add($l)
 	if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
 }
@@ -414,4 +490,6 @@ foreach ($c in $cacheCalls) {
 	handDuplicatedAreEqual = @($areEquals)
 	invisibleChars = @($invisible)
 	issueNamedMembers = @($issueNamed)
+	localModels = @($localModels)
+	attributePadding = @($padding)
 } | ConvertTo-Json -Depth 4
