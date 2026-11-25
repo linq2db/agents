@@ -192,6 +192,8 @@ dotnet test Tests/Tests.Analyzers/Tests.Analyzers.csproj -c Release
 
 Use **Release** — the Meziantou / Roslyn analyzer rules that gate the code-fix project (e.g. MA0154 "use `<see langword>`") run Release-only, so a Debug/Testing run compiles green while CI's Release leg fails. The `net8.0` runtime must be installed locally (the SDK 10 still *builds* the net8.0 target; it's the test *host* that needs the runtime); CI provisions it via the `with_analyzer_tests`-gated `UseDotNet` step in `Build/Azure/pipelines/templates/build-job.yml`.
 
+**Release also enforces the IDE style rules on test code, including a scratch probe.** `EnforceCodeStyleInBuild` is on in Release, so a throwaway review probe written in an un-repo style fails the build (IDE0042 "can be deconstructed" on a tuple-returning local), and with it the whole run. Write probes in the repo's style, and after the first build iterate on the built executable (below), not `dotnet test`: a filtered three-test `dotnet test` run took about 9 minutes, most of it an NUnit "Unload timeout". (#6430 verify round.)
+
 **This project is the one exception to "always pass `--test-progress`"** (`agent-rules.md` → *Running tests*). Its host does not register that extension, so the option is forwarded to the test application, which prints its help and exits **5 — reported as `Zero tests ran`**. That is the same symptom as a bad filter and as the MSBuild-switch trap below, so it gets misdiagnosed twice before anyone reads the help output. Omit the flag here; the suite is ~100 s and needs no heartbeat. The same holds for `Tests/Tests.Analyzers.Internal`: read this as covering the class — a DB-free analyzer-fixture project is added roughly once per analyzer family and each inherits the trap. Generalised: **`Zero tests ran` after a flag change means the flag, not the filter** — run the built test executable with the same arguments and read what it prints, since `dotnet test` swallows the help output that names the culprit.
 
 **Inside a fix loop, run the built executable directly rather than `dotnet test`** — it skips the build entirely and takes ~1 s for a filtered run against ~100 s for the whole project:
@@ -1084,6 +1086,13 @@ A table handle keeps the mapping schema it was created under; `UseMappingSchema`
 - **A `CreateTempTable(…, setTable)` cell with `IEnumerable` items excludes remote contexts.** That overload fills the table by BulkCopy even for an empty list, which throws `ArgumentException: Data context must be of DataConnection or DataContext type` on `.LinqService`. Use `[DataSources(false)]`, or pass an `IQueryable` (INSERT … SELECT) to keep remote coverage. (#5951)
 
 Inputs measured not to separate are in [`dead-ends.md`](dead-ends.md) → *MAPPING: inputs that do not separate a handle's schema from the live one*.
+
+### Remote-transport tests: cancel on a signal, and one configuration string per server target
+
+- **Cancel after the server reports the call started, never on a timer.** A `CancellationTokenSource(TimeSpan)` fires whether or not the call has left the client, and a remote client's first call on a connection can make a round trip of its own first (the Signal/R client fetches the hub's size limit). On a slow agent the cancellation then lands before anything is sent: the client-side assertion passes, the server never runs, and the test fails on its server-side wait with a message that reads like a regression. Wait on the scripted service's "started" signal, then call `Cancel()`.
+- **Give each in-process remote context a configuration string unique to its server target.** `RemoteDataContextBase` caches the server's `LinqServiceInfo` (SQL builder and optimizer, provider flags, mapping schema) in a process-wide static dictionary keyed by `ConfigurationString` only. Two test contexts that share a string but reach different databases get whichever info was cached first.
+
+(#6014 round 3: MIN018, a 200 ms timer in `ClientCancellationReachesTheServer`; MIN020, a SQLite-backed and a PostgreSQL-backed in-process context sharing `"…InProcess"`.)
 
 ## Reading test output
 

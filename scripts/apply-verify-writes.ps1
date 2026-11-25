@@ -54,11 +54,18 @@ at a line start, so the caller never rebuilds a full body; flips on one
 review go out as one PUT. A flip whose box already carries the mark is skipped.
 A review may appear in checkboxFlips or reviewBodyEdits, not both.
 
+A transient GitHub error (a 5xx, or gh's "unexpected end of JSON input" for an
+empty response) is retried up to twice. A comment patch or checkbox flip re-reads
+the stored body before each retry, because GitHub sometimes applies a write it
+answered with an error; such an item reports `ok: true, recovered: "<error>"`, and
+`ok: false` means the write is not in what GitHub stored. (#6430: three runs at
+a 502-heavy hour reported writes as failed that had landed.)
+
 Output (stdout, single JSON object):
   {
-    "commentPatches":  [ { commentId, ok, skipped?, error? } ],
+    "commentPatches":  [ { commentId, ok, skipped?, recovered?, error? } ],
     "threadResolves":  [ { threadId, label?, ok, isResolved?, error? } ],
-    "checkboxFlips":   [ { reviewId, ok, flipped[], skipped[], storedLength?, error? } ],
+    "checkboxFlips":   [ { reviewId, ok, flipped[], skipped[], storedLength?, recovered?, error? } ],
     "reviewBodyEdits": [ { reviewId, ok, storedLength?, error? } ]
   }
 
@@ -164,29 +171,40 @@ if ($commentPatchJobs.Count -gt 0) {
         $cid = $job.commentId
         $note = $job.appendNote
 
-        $getRes = Invoke-GhJson @('api',"repos/$rf/pulls/comments/$cid")
-        if (-not $getRes.ok) {
-            return [pscustomobject]@{ commentId = $cid; ok = $false; error = "GET failed: $($getRes.error)" }
-        }
-        $currentBody = [string]$getRes.data.body
+        # A transient error (Test-GhTransientError) is retried up to twice, and every attempt re-reads the
+        # body first: GitHub can apply a PATCH it answered with a 5xx, so "failed" is decided by what it stored.
+        $lastError = $null
+        for ($attempt = 0; ; $attempt++) {
+            if ($attempt -gt 0) { Start-Sleep -Seconds (2 * $attempt) }
 
-        # Idempotence: skip the PATCH when the exact appendNote is already
-        # anywhere in the body. The note embeds the run's HEAD SHA, so a match
-        # proves this exact annotation was appended before; noise from a
-        # different SHA falls through and is a genuine "re-append".
-        if ($currentBody.Contains($note)) {
-            return [pscustomobject]@{ commentId = $cid; ok = $true; skipped = 'already annotated' }
-        }
+            $getRes = Invoke-GhJson @('api',"repos/$rf/pulls/comments/$cid")
+            if (-not $getRes.ok) {
+                if ($attempt -lt 2 -and (Test-GhTransientError $getRes.error)) { $lastError = "GET: $($getRes.error)"; continue }
+                return [pscustomobject]@{ commentId = $cid; ok = $false; error = "GET failed: $($getRes.error)" }
+            }
+            $currentBody = [string]$getRes.data.body
 
-        $newBody = $currentBody + "`n`n" + $note
-        $payload = [pscustomobject]@{ body = $newBody } | ConvertTo-Json -Depth 3 -Compress
-        $patchRes = Invoke-GhJson -ArgumentList @(
-            'api','--method','PATCH',"repos/$rf/pulls/comments/$cid",'--input','-'
-        ) -StdinInput $payload
-        if (-not $patchRes.ok) {
+            # Idempotence: skip the PATCH when the exact appendNote is already
+            # anywhere in the body. The note embeds the run's HEAD SHA, so a match
+            # proves this exact annotation was appended before; noise from a
+            # different SHA falls through and is a genuine "re-append".
+            if ($currentBody.Contains($note)) {
+                if ($lastError) { return [pscustomobject]@{ commentId = $cid; ok = $true; recovered = $lastError } }
+                return [pscustomobject]@{ commentId = $cid; ok = $true; skipped = 'already annotated' }
+            }
+
+            $newBody = $currentBody + "`n`n" + $note
+            $payload = [pscustomobject]@{ body = $newBody } | ConvertTo-Json -Depth 3 -Compress
+            $patchRes = Invoke-GhJson -ArgumentList @(
+                'api','--method','PATCH',"repos/$rf/pulls/comments/$cid",'--input','-'
+            ) -StdinInput $payload
+            if ($patchRes.ok) {
+                if ($lastError) { return [pscustomobject]@{ commentId = $cid; ok = $true; recovered = $lastError } }
+                return [pscustomobject]@{ commentId = $cid; ok = $true }
+            }
+            if ($attempt -lt 2 -and (Test-GhTransientError $patchRes.error)) { $lastError = "PATCH: $($patchRes.error)"; continue }
             return [pscustomobject]@{ commentId = $cid; ok = $false; error = "PATCH failed: $($patchRes.error)" }
         }
-        return [pscustomobject]@{ commentId = $cid; ok = $true }
     }
 }
 if ($null -eq $commentPatchResults) { $commentPatchResults = @() }
@@ -198,11 +216,16 @@ if ($threadResolveJobs.Count -gt 0) {
     $threadResolveResults = $threadResolveJobs | ForEach-Object -ThrottleLimit $concurrency -Parallel {
         . "$using:root/_shared.ps1"
         $job = $_
-        $res = Invoke-GhJson @(
-            'api','graphql',
-            '-f',"query=$using:resolveMutation",
-            '-F',"tid=$($job.threadId)"
-        )
+        # Resolving is idempotent, so a transient error is simply retried (up to twice).
+        for ($attempt = 0; ; $attempt++) {
+            if ($attempt -gt 0) { Start-Sleep -Seconds (2 * $attempt) }
+            $res = Invoke-GhJson @(
+                'api','graphql',
+                '-f',"query=$using:resolveMutation",
+                '-F',"tid=$($job.threadId)"
+            )
+            if ($res.ok -or $attempt -ge 2 -or -not (Test-GhTransientError $res.error)) { break }
+        }
         if (-not $res.ok) {
             return [pscustomobject]@{ threadId = $job.threadId; label = $job.label; ok = $false; error = $res.error }
         }
@@ -244,42 +267,55 @@ if ($checkboxFlipJobs.Count -gt 0) {
         $pr = $using:pr
         $rid = $job.reviewId
 
-        $getRes = Invoke-GhJson @('api',"repos/$rf/pulls/$pr/reviews/$rid")
-        if (-not $getRes.ok) {
-            return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "GET failed: $($getRes.error)" }
-        }
-        $body = [string]$getRes.data.body
-        $flipped = @()
-        $skipped = @()
+        # Same transient-error handling as commentPatches: each attempt re-reads the body, so a PUT GitHub
+        # applied despite an error shows up as already-flipped boxes rather than as a failure.
+        $lastError = $null
+        for ($attempt = 0; ; $attempt++) {
+            if ($attempt -gt 0) { Start-Sleep -Seconds (2 * $attempt) }
 
-        foreach ($flip in $job.flips) {
-            # Initial reviews write `- [ ] **MIN007** — …`; verification bodies list `- [ ] MIN007 — …`.
-            $id      = [regex]::Escape($flip.findingId)
-            $done    = '(?m)^- \[' + [regex]::Escape($flip.mark) + '\] (\*\*)?' + $id + '(\*\*)?(?=\s|$)'
-            if ([regex]::IsMatch($body, $done)) { $skipped += $flip.findingId; continue }
-
-            $anchor  = '(?m)^- \[ \] (?<id>(\*\*)?' + $id + '(\*\*)?)(?=\s|$)'
-            $count = ([regex]::Matches($body, $anchor)).Count
-            if ($count -ne 1) {
-                return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'- [ ] $($flip.findingId)' (bold or plain) occurs $count times; expected exactly once" }
+            $getRes = Invoke-GhJson @('api',"repos/$rf/pulls/$pr/reviews/$rid")
+            if (-not $getRes.ok) {
+                if ($attempt -lt 2 -and (Test-GhTransientError $getRes.error)) { $lastError = "GET: $($getRes.error)"; continue }
+                return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "GET failed: $($getRes.error)" }
             }
-            $mark  = $flip.mark
-            $body  = [regex]::Replace($body, $anchor, { param($m) "- [$mark] " + $m.Groups['id'].Value })
-            $flipped += $flip.findingId
-        }
+            $body = [string]$getRes.data.body
+            $flipped = @()
+            $skipped = @()
 
-        if ($flipped.Count -eq 0) {
-            return [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @(); skipped = @($skipped) }
-        }
+            foreach ($flip in $job.flips) {
+                # Initial reviews write `- [ ] **MIN007** — …`; verification bodies list `- [ ] MIN007 — …`.
+                $id      = [regex]::Escape($flip.findingId)
+                $done    = '(?m)^- \[' + [regex]::Escape($flip.mark) + '\] (\*\*)?' + $id + '(\*\*)?(?=\s|$)'
+                if ([regex]::IsMatch($body, $done)) { $skipped += $flip.findingId; continue }
 
-        $payload = [pscustomobject]@{ body = $body } | ConvertTo-Json -Depth 3 -Compress
-        $putRes = Invoke-GhJson -ArgumentList @(
-            'api','--method','PUT',"repos/$rf/pulls/$pr/reviews/$rid",'--input','-'
-        ) -StdinInput $payload
-        if (-not $putRes.ok) {
+                $anchor  = '(?m)^- \[ \] (?<id>(\*\*)?' + $id + '(\*\*)?)(?=\s|$)'
+                $count = ([regex]::Matches($body, $anchor)).Count
+                if ($count -ne 1) {
+                    return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'- [ ] $($flip.findingId)' (bold or plain) occurs $count times; expected exactly once" }
+                }
+                $mark  = $flip.mark
+                $body  = [regex]::Replace($body, $anchor, { param($m) "- [$mark] " + $m.Groups['id'].Value })
+                $flipped += $flip.findingId
+            }
+
+            if ($flipped.Count -eq 0) {
+                $result = [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @(); skipped = @($skipped) }
+                if ($lastError) { $result | Add-Member -NotePropertyName recovered -NotePropertyValue $lastError }
+                return $result
+            }
+
+            $payload = [pscustomobject]@{ body = $body } | ConvertTo-Json -Depth 3 -Compress
+            $putRes = Invoke-GhJson -ArgumentList @(
+                'api','--method','PUT',"repos/$rf/pulls/$pr/reviews/$rid",'--input','-'
+            ) -StdinInput $payload
+            if ($putRes.ok) {
+                $result = [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @($flipped); skipped = @($skipped); storedLength = ([string]$putRes.data.body).Length }
+                if ($lastError) { $result | Add-Member -NotePropertyName recovered -NotePropertyValue $lastError }
+                return $result
+            }
+            if ($attempt -lt 2 -and (Test-GhTransientError $putRes.error)) { $lastError = "PUT: $($putRes.error)"; continue }
             return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "PUT failed: $($putRes.error)" }
         }
-        return [pscustomobject]@{ reviewId = $rid; ok = $true; flipped = @($flipped); skipped = @($skipped); storedLength = ([string]$putRes.data.body).Length }
     }
 }
 if ($null -eq $checkboxFlipResults) { $checkboxFlipResults = @() }
