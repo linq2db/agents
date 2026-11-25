@@ -84,7 +84,9 @@ Fixer for `chains` hits: `split-test-chains.ps1 -File <path> -Lines '<n,n,...>'`
 
 `chains` holds statement-level chains. A chain nested inside parentheses or braces - a call argument,
 `new X(new DataOptions().UseConfiguration(...))`, an object initializer - goes to `nestedChains`:
-on #5640 those were 35 of 148 hits and none was a layout defect.
+on #5640 those were 35 of 148 hits and none was a layout defect. That holds for `new X(new Y().Z())`
+arguments, not for an NUnit constraint chain inside `Assert.That(...)` (`Is.Not.Contains(...).And.Not...`):
+that is a testing.md *Test layout* rule-1 defect, so read every `nestedChains` hit for one. (#6450 NIT001.)
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
