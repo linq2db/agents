@@ -113,6 +113,14 @@ function Invoke-GhJson {
     }
 }
 
+# GitHub sometimes answers a write with a 5xx or an empty body (gh: "unexpected end of JSON input") and applies
+# it anyway, or not. A writer that sees one of these re-reads whether the write landed before retrying it.
+function Test-GhTransientError {
+    param([string]$Message)
+    if (-not $Message) { return $false }
+    return $Message -match 'HTTP 5\d\d|unexpected end of JSON input|Something went wrong while executing your query|timed out|connection reset'
+}
+
 function Invoke-Git {
     param([string[]]$ArgumentList, [string]$WorkingDirectory)
     return Invoke-Process -FilePath 'git' -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
