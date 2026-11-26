@@ -4,6 +4,22 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## MAPPING: serving a TPH root's in-progress descriptors to re-entrant descriptor-created callbacks
+
+**Tried:** four ways for a descriptor-created callback to read its hierarchy's descriptors while the inheritance root is still being built (reviewed by reading, none built):
+1. publish every hierarchy descriptor to the cache before any callback runs;
+2. pass the callback an internal wrapper `MappingSchema` that serves the root's graph;
+3. per-key `Lazy` / `TaskCompletionSource` in-flight cache entries;
+4. a registry checked with `Monitor.IsEntered`.
+
+**Failed because:**
+1. Other threads see descriptors before the callback renames them (`IEntityChangeDescriptor.TableName`, `IColumnChangeDescriptor.ColumnName`), and the root's sibling merge, which compares `ColumnName`, would ignore renames made by mapped types' callbacks.
+2. `MappingSchema.GetEntityDescriptor` is not virtual, `ConfigurationID` is both the descriptor-cache key and what `IEquatable<MappingSchema>` compares, descriptors built inside the callback must not hold the wrapper, and callbacks would receive a different object than documented.
+3. Two hierarchies whose callbacks read each other on two threads deadlock, and so does a callback that waits on a task reading its own hierarchy.
+4. It is thread identity under another name, and it still misses a callback that blocks on a task.
+
+**Don't re-attempt:** any of the four. The design without ambient state (master's caching, nothing written after publication, a `StackGuard` check in the cache factory, and an explicit resolver for callbacks) is [#6487](https://github.com/linq2db/linq2db/issues/6487). (#6454 review)
+
 ## SQL-PROVIDER: deriving DuckDB's operator levels from PostgreSQL's grammar
 
 **Tried:** placing DuckDB's integer division `//` as a PostgreSQL "any other operator", below `+` and `-`, on the reading that DuckDB's parser is libpg_query.
