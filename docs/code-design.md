@@ -486,6 +486,18 @@ Don't flag these as scope-creep, stray comments, or "uncommitted thinking-aloud 
 
 The narrower case — `// TODO: v7 - move to internal namespace` markers on legacy SQL AST types — is covered above under **SQL AST types live in `LinqToDB.Internal.SqlQuery`**.
 
+### Invariant checks in `Source/` throw in every build — no `Debug.Assert`
+
+`Source/` has no `Debug.Assert`. An invariant worth checking is worth checking in the Release build users run, so it throws (`InvalidOperationException`, or `LinqToDBException` with cause and remediation per the section below). An invariant that cannot fail is not checked at all. `Debug.Assert` is compiled out of Release, so a violation passes silently in production. (#6454 NIT002: `ColumnDescriptor.SetValueSiblings` added the first one; a second call would silently replace the siblings in Release.)
+
+### Re-entrancy state: `[ThreadStatic]` under a scoped exception, not `AsyncLocal` plus a thread id
+
+State that guards synchronous re-entrancy is per call stack by definition. Examples are "this object is being built on this stack" and a recursion depth. `[ThreadStatic]` is banned in `Source/BannedSymbols.txt` with no stated reason; the usual one is that thread-local state breaks across `await`. Code with no `await` between push and pop is a case that reason does not cover.
+
+- **Use `[ThreadStatic]` under a scoped `#pragma warning disable RS0030`** with a one-line justification at the field, and push and pop in `try`/`finally`.
+- **Don't substitute `AsyncLocal`.** It flows into every task and timer the guarded code starts, so another thread sees an entry that is still in progress. The usual patch, a stored `Environment.CurrentManagedThreadId` plus an "ended" flag, re-creates `[ThreadStatic]` by hand and leaves thread identity in non-threading code.
+- **First ask whether the state is needed at all.** A design that never writes to a published object, or one that passes the in-progress object explicitly, needs neither. (#6454 SUG002, follow-up design [#6487](https://github.com/linq2db/linq2db/issues/6487).)
+
 ### Exceptions carry cause + remediation; don't collapse specifics into a generic message
 
 linq2db is a library a developer debugs at 2 a.m. through a stack trace, so a thrown exception's message is the primary diagnostic. When adding or editing a `throw`, the message should convey what failed, enough context to see why (the offending member / type / SQL fragment / provider), and — where there is a real one — the remediation. The anti-pattern to avoid is **swallowing a specific failure into a generic one**: catching a precise reason ("this member can't be translated because the subquery is correlated and provider X doesn't support it") and re-throwing it as a bare "conversion error" discards exactly the signal the user needs and makes a fixable usage error look like an engine bug. (linq2db has live instances of this — correlated-subquery reasons collapsing into a generic conversion message — currently parked as deferred work.) Preserve the inner exception / specific reason rather than flattening it.
