@@ -58,6 +58,11 @@ intersection silently falls back, so the restriction buys no guarantee — it on
 - SC-14 The branch carries no top-level `Pivot` overload, no `PivotCells<TSource,TFor>`, no `SelectDynamic*`, and no `Pivot` arm in a sugar builder. → TO-20
 - SC-15 A `MemberInitExpression` binding a `DynamicColumnInfo` materializes into the type's dynamic-columns store, and one over a type without a store fails with a named error. → TO-23
 
+**A-19 adds SC-16 and SC-17** (review round 3, sdanyliv MAJ002 / MAJ003; reshaped by critic round A-19):
+
+- SC-16 `Unpivot`'s name column reads a member the source's mapping does not carry — a pivot cell, a member of a projected object — by its own member name, unless another column would read the same name, in which case it reads its path; a mapped complex column keeps its physical name. → TO-29, TO-34
+- SC-17 Where SQL is required — `Where`, `OrderBy`, an `Unpivot` column — `PivotCells.Get<T>(name)` and `cells[name]` on a member typed `PivotCells` read the cell's column, and a changed captured name is a different query; a projection keeps the members' in-memory contract (absent → `null`, another type → `default`); cells the client holds stay a value. → TO-30, TO-31, TO-32, TO-33
+
 ## P3 Constraints & anti-goals (M/L)
 
 - **No query result may change.** Every difference is in emitted SQL, never in rows.
@@ -276,6 +281,14 @@ A-17 rows. Probes ran 2026-10-22 in the worktree at 4dddec407 (scratch fixture, 
 - E-49 `Tests/EntityFrameworkCore/Tests/ToolsTests.cs` — A-17: the `Pivot` half of `PivotOperatorsOverADbSet` becomes `ctx.Products.GroupBy(…).Select(g => … g.Pivot(…) …).ToLinqToDB()` (U-21).
 - E-50 `Tests/Linq/Linq/PivotTests.cs` — A-17: no API change (Unpivot only). It is the TO-28 control for E-44/E-51, and gains a mutate-in-place arm in `InlineUnpivotRereadsCapturedColumns`.
 - E-51 `Source/LinqToDB/Internal/Linq/Builder/BuildTimeArgumentReader.cs` (new, internal) — A-17: `ReadArgument`, `RegisterBuildTimeValues`, `MarkGuardedValue`, `Snapshot` moved out of `PivotSugarBuilder` unchanged, except that `MarkGuardedValue`'s sentinel field reference `typeof(PivotSugarBuilder)` (`PivotSugarBuilder.cs:132`) becomes the new type; `UnpivotInfo.Parse` (`UnpivotBuilder.cs:194-201`, under E-10) switches its four calls to it. Byte-identical copy in the SelectDynamic PR (D-8).
+- E-52 `Tests/Linq/Linq/DynamicColumnsTests.cs` — A-19 (records A-17's TO-23 edits, never listed): the six `ProjectionBindingDynamicColumns*` / `ProjectionWithoutDynamicBindingsCreatesAStorePerRow` core tests; E-57 repoints its error constant.
+- E-53 `Source/LinqToDB/Internal/Linq/Builder/UnpivotBuilder.cs` — A-19: `GetColumnName` returns the member path and the leaf member name; `GetPhysicalColumnNames` looks each path up, falls back to the leaf, and keeps the path for an unmapped column whose leaf another column also reads (SC-16). `ReadCellAsColumn` turns a `Get<T>` / converted-indexer selector into the `DynamicColumnInfo` access `Sql.Property` builds, before naming and lowering.
+- E-54 `Source/LinqToDB/Internal/Linq/Builder/ExpressionBuildVisitor.cs` — A-19 (critic round A-19 moved it out of `ExposeExpressionVisitor`, whose arms were reverted): `TryGetPivotCellRead` in `VisitMethodCall` (`Get<T>`, and a bare indexer, which `OrderByBuilder`'s `Unwrap` leaves) and `VisitUnary` (converted indexer), for `BuildPurpose.Sql` only, a receiver not evaluable on the client and an evaluable name; it builds the `DynamicColumnInfo` member access (SC-17).
+- E-55 `Source/LinqToDB/LinqExtensions/PivotCells.cs` — A-19: `[SqlQueryDependent]` on `Get<T>`'s and the indexer's `name`; the class remark names the SQL positions, the projection's in-memory read and the `IReadOnlyDictionary` limit.
+- E-56 `Source/LinqToDB/Internal/Linq/Builder/BuildTimeArgumentReader.cs` — A-19: trimmed to the quote, `NewArrayInit` and evaluated-value branches (`Snapshot` kept); supersedes E-51's "byte-identical" — #6110 adds the rest beside its callers.
+- E-57 `Source/LinqToDB/Internal/Common/ErrorHelper.cs` and its callers (`ExpressionBuildVisitor.cs`, `PivotExpander.cs`, `LinqExtensions.Pivot.cs`, `LinqExtensions.Unpivot.cs`, `PivotBuilder.cs`, `PublicAPI.Unshipped.txt`, `PivotDynamicTests.cs`) — A-19: `Error_QueryMarkerInvoked` → `ErrorHelper`; `Error_DynamicColumnShadowsMember` / `Error_NoDynamicColumnsStore` → new `ErrorHelper.DynamicColumns`; the store message reworded for the initializer it guards. Supersedes E-46's placement of those three.
+- E-58 `Source/LinqToDB/Internal/Linq/Builder/PivotExpander.cs` — A-19: `GetConstructor` → `GetConstructorEx` (master's ban list).
+- E-59 `Tests/Linq/Linq/PivotTests.cs`, `Tests/Linq/Linq/PivotDynamicTests.cs` — A-19: TO-29 / TO-30 tests.
 
 > **Line numbers above are indicative only.** Remove by `git diff -U0 origin/master...HEAD` hunk, never by the ranges written here — the critic found every range off by 1–3, one of which would have orphaned an XML doc comment into `CS1587` under `TreatWarningsAsErrors`. The branch is **add-only against master** (33 files, zero deletions), so E-1…E-9 are exactly "revert these hunks".
 
@@ -321,6 +334,15 @@ A-17 rows, from two scouts on the worktree at 4dddec407 (and `git diff 4dddec407
 - Drift on `origin/master` for E-42/E-43's files — `ExposeExpressionVisitor.cs` gains `ConvertRawSqlString` after `ConvertMethod` (#6003/#6008), after the insertion point; `ExpressionBuildVisitor.cs` +758 lines (#5983), `VisitMemberInit` untouched but shifted ~+34; `EntityConstructorBase.cs` unchanged — deferred: absorbed by the master sync that precedes implementation (stack: master → #5949 → #5708); E-42/E-43 are written against the synced files
 - The 25 `[IncludeDataSources(TestProvName.AllSQLite)]` attributes in the Pivot files with no reason line above (`test-diff-sweep.ps1`, `narrowedSets`) — covered by E-48 (each ported narrowed test states its reason, `testing.md` → *A narrowed provider set is a claim*)
 
+A-19 rows, searched on the worktree at `2cad4e701`:
+
+- `GetColumnName|GetPhysicalColumnName` under `Source/` — callers only in `UnpivotBuilder.cs:117,149,156`; the entity-descriptor lookup keyed by member path is the one `b201268c9` added — covered by E-53
+- `nameof\(PivotCells\.Get\)|"get_Item"` under `Source/LinqToDB/Internal/Linq/Builder` — E-54's `TryGetPivotCellRead` callers in `ExpressionBuildVisitor` (`VisitMethodCall`: `Get<T>` and a bare indexer; `VisitUnary`: a converted indexer) and E-53's `ReadCellAsColumn` in `UnpivotBuilder`; each builds the `DynamicColumnInfo(typeof(PivotCells), T, name)` access that `MemberHelper.cs:150` builds for `Sql.Property` — covered by E-53, E-54. Positions: `OrderByBuilder.cs:114` builds keys with `BuildPurpose.Sql` after `Unwrap()` strips the key's conversion (hence the bare-indexer arm); `Where` predicates and Unpivot's `!= null` filter are `Sql`; projections are `Expression` and stay in memory. A receiver typed `IReadOnlyDictionary<string, object?>` or `dynamic`, or a cast `((PivotCells)r.Cells)` over one, is not translated (probe 7: "could not be converted" under the expose rewrite and with it off; unprobed under the build-visitor E-54) — narrowed in E-55's remark
+- `[SqlQueryDependent]` readers — `SqlQueryDependentAttributeHelper.GetQueryDependentAttributes` in `ExposeExpressionVisitor.VisitMethodCall` (`:184`) applies it to any method; `PrepareForCache` (`SqlQueryDependentAttribute.cs:86-120`) evaluates only an evaluable argument, so a row-dependent name stays as written (and E-54 declines it) — covered by E-55, TO-33
+- `ReadArgument\(` under `Source/` — `UnpivotBuilder.cs:196,197,202,203`, `UnpivotSugarBuilder.cs:27`; every argument is a quote, an array initializer or an evaluated array/enum — covered by E-56
+- `ErrorHelper\.Pivot\.(Error_QueryMarkerInvoked|Error_DynamicColumnShadowsMember|Error_NoDynamicColumnsStore)` repo-wide — 5 source sites (`ExpressionBuildVisitor.cs:1081`, `PivotExpander.cs:155`, `LinqExtensions.Pivot.cs:51`, `LinqExtensions.Unpivot.cs:262`, `PivotBuilder.cs:91`) and 4 test sites (`DynamicColumnsTests.cs:470`, `PivotDynamicTests.cs:875,1817,1836`); the same two messages in `ErrorHelper.SelectDynamic` on `origin/feature/4992-select-dynamic` (`LinqExtensions.SelectDynamic.cs:133,171`) — covered by E-57, and on #6110 by its own stacked merge
+- `GetConstructor\(` in the branch's files — `PivotExpander.cs:27`, banned by master's `BannedSymbols.txt` after the 2026-11-25 master merge (RS0030 in the Release build) — covered by E-58
+
 ## P8 Test obligations (M/L)
 
 - TO-1 `PivotTests` + `PivotDynamicTests` + `SelectDynamicTests` green on SQLite, DuckDB, SQL Server, Oracle, direct and `LinqService`. — proof: characterization; proves no new behaviour, which is the whole claim of D-1 and D-2. Discriminating input: the existing per-group cell values, which differ per provider only if the lowering is wrong.
@@ -355,6 +377,15 @@ A-17 obligations. `conventions:` *Test layout*, *A narrowed provider set is a cl
 - TO-27 Empty-cell contract (`AnEmptyCellOverANonNullableColumnReadsNull`, `AnEmptyCountCellReadsZero`, `AnEmptyValueSetYieldsNoCells`), ported to the `Cell`-fed terminals (`AsDictionary`, `AsDynamic`, `Cells`). `Select`'s empty-cell rule is D-9's and is pinned by TO-14. `AnEmptyValueSetYieldsNoCells` also covers zero bindings (U-14 round 8). — proof: characterization; plus the D-4 mutation (drop the lift in E-41), which must turn the non-nullable arm red on each `Cell`-fed terminal.
 - TO-28 `PivotTests` (26 Unpivot tests, including the 5 `InlineUnpivot*` cache tests) green before and after E-44/E-51 on SQLite.Classic + DuckDB + `LinqService`. — proof: control, with two mutant/witness pairs: dropping the `MarkAsValue` on `ReadArgument`'s evaluated-value branch must turn `InlineUnpivotRereadsColumnNamesFromAMethod` red, and dropping `Snapshot` must turn `InlineUnpivotRereadsCapturedColumns` red. That test (`PivotTests.cs:345-360`) only reassigns `cols`, so E-50 **extends it with a mutate-in-place arm** (`cols[0] = x => x.Q3`); without the arm, `Snapshot` cannot reach it. Critic round 8: `Snapshot` alone does not reach the method-result witness.
 
+A-19 obligations. `conventions:` as A-17's.
+
+- TO-29 `UnpivotsTheCellsUnderTheirOwnNames` (pivot cells via `Sql.Property`) and `UnpivotNameColumnOfAProjectedMemberUsesTheMemberName` (`x => x.Inner.Q1` over a projection), `[DataSources]`, with `UnpivotNameColumnUsesTheNestedColumnsName` as the mapped-complex control. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: red→green; red at `608048304` (the head before E-53) with `Cells.Y2000` / `Inner.Q1`.
+- TO-30 `ComposesThroughTheCellsMembers` (`Where(Get<decimal?>("Y2010") > 16)` keeps `A` only; `OrderBy((decimal?)cells["Y2000"])` reads `B, A`, against the grouping order `A, B`) and `UnpivotsTheCellsThroughTheIndexer`, `[DataSources]`. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: red→green; red before E-54 with "could not be converted" and `Error_UnpivotColumnSelector`. Separates: a wrong cell (`Y2000 > 16` keeps none), a no-op filter (keeps both) and a no-op ordering (`A, B`).
+- TO-31 `CapturedCellsAreAValue`, `[DataSources]`: cells read back and captured by a later `Where` (`Get<T>` and converted indexer) select row 2. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: red→green against critic round A-19's first E-54 (expose rewrite), which threw "Dynamic column getter is not to be called."; green with E-54 off.
+- TO-32 `AProjectedCellReadKeepsItsInMemoryContract`, `[DataSources]`: projected absent name (`Get` and indexer) → `null`, `Get<int>` / `Get<string>` over a decimal cell → `0` / `null`, a present cell → its value. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: red→green against the expose rewrite (threw; `Get<int>` read 20); green with E-54 off.
+- TO-33 `ACapturedCellNameKeysTheQuery`, `[DataSources]`: `Where(Get<decimal?>(name) > 12)` reads no group for `Y2000` and `A, B` after the capture changes to `Y2010`. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: control; mutation: drop `[SqlQueryDependent]` from `Get<T>`'s `name`, which must replay the first column.
+- TO-34 `UnpivotsSameNamedCellsOfTwoPivotsUnderTheirPaths`, `[DataSources]`: two pivots' `Y2000` cells unpivot as `Total.Y2000` / `Top.Y2000`. — providers: `[DataSources]`, run on SQLite.Classic/MS + DuckDB (direct + `LinqService`), the rest via CI — proof: red→green; red at `2cad4e701` (both `Y2000`).
+
 ## P9 Verification gates
 
 All nine derived from P6 by `work-plan.ps1 -Action gates`. Re-recorded 2026-09-21 as E-1…E-21 landed; the
@@ -372,6 +403,40 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   **Local env note:** `Oracle.23.Managed` is an `AzureConnectionStrings` name; `LocalConnectionStrings` carries only
   Oracle 11 and 19, and a worktree under `C:\Worktrees\` resolves no `UserDataProviders.json` by walk-up, so a local
   Oracle run there must use `Oracle.19.Managed`.
+  **Per-obligation record (A-19, 2026-11-26).** Runs: A-18's local matrix at `07af8c439` (584/585 + the #6028 fix,
+  SQLite.Classic/MS + DuckDB, direct + `LinqService`); at the A-19 tree, `Pivot|DynamicColumns` 221/221 on SQLite.Classic
+  direct + `LinqService` (Testing net11.0), Release net10.0 `Tests` build clean at `2cad4e701`, and #6110's stacked merge
+  265 pass / 5 skip (#5953) / 0 fail (Release net10.0, SQLite.Classic). CI: `test-all` 26006 / GH 45721959517 on
+  `2cad4e701`, not yet read.
+  - TO-4 pass — `PivotsMultipleAggregatesOfOneValue`, `PivotsMinMaxCells`, `PivotsAvgCell`, `PivotsOnACompositeKey`, `PivotsOnACompositeValue`, `ComposesAfterAConstantPivot`.
+  - TO-5 pass — builds, not tests: `Tests` net462 and Release net10.0 (A-18); Release net10.0 again at `2cad4e701`. The leg's red was observed on a real defect of the mutation's class: RS0030 on `PivotExpander.cs:27` (banned `GetConstructor`) before E-58.
+  - TO-8 pass — moved with D-5 to #5949 (merged `3d8bcb841`); the `GroupByTests` / `CountTests` rows are master's since the 2026-11-25 merge. The reverted-gate state is master before #5949, red `42601` on 9.2 (TO-7 above).
+  - TO-11 pass — `PivotDynamicTests` whole fixture (51 methods at `2cad4e701`): SQLite.Classic/MS + DuckDB at A-18, SQLite.Classic at A-19; the container providers rest on CI 26006, not yet read.
+  - TO-12 pass — `PivotsInQuerySyntaxOverAJoin`.
+  - TO-13 pass — `TwoPivotsInOneProjection`.
+  - TO-14 pass — `SelectsAnItemPerValue`.
+  - TO-15 pass — `ReadsCellsAsDynamicMembers`.
+  - TO-16 pass — `PivotsARuntimeCellSet`, `PivotsWithAPrebuiltAggregate`.
+  - TO-17 pass — `QueryIdentityFollowsTheInputs`, `SameNamesOverDifferentValuesReadTheirOwnValues`. Mutation (A-19, SQLite.Classic): an `Expand` memoized per terminal under `ExpressionEqualityComparer` turns `QueryIdentityFollowsTheInputs` red, but with `variable 'g' … not defined` — the memo replays a lambda across queries — before the mutated-list and prefix arms are reached; `SameNamesOverDifferentValuesReadTheirOwnValues` stays green. The named arms' discrimination is therefore not shown by this mutant.
+  - TO-18 pass — `InASubQueryEachExecutionRereadsItsInputs`, `NameFactoryGuardIsNotEvaluatedEagerly`, `PivotInlineInASubQuery`, `PivotOverACorrelatedSource`.
+  - TO-19 pass — `CompiledPivotKeysOnItsValueSet`, `CompiledPivotOverAValueSetItHolds`. Mutation drop `RecordMaterializedArgumentSlots` from the expander: red, `array2` / `mixed2` read 10 instead of 20 (A-18).
+  - TO-20 pass — census: Release net10.0 API analyzers 0 RS0016/RS0017 at `2cad4e701`; no `SelectDynamic`, `PivotCells<` or top-level `Pivot` in the diff. The instrument's red is G-03's first run: 58 RS0016 on undeclared surface.
+  - TO-21 pass — `ThrowsWhenInvokedInMemory`.
+  - TO-22 pass — `ComposesAfterAConstantPivot`, `CompositionKeepsTheCellServerSide`.
+  - TO-23 pass — `ProjectionBindingDynamicColumnsMaterializesIntoTheStore`, `ProjectionBindingDynamicColumnsAsAConstructorArgument`, `ProjectionBindingDynamicColumnsWithoutAStoreThrows`, `ProjectionWithoutDynamicBindingsCreatesAStorePerRow`, `ProjectionBindingDynamicColumnsUnderConcat`, `ProjectionBindingDynamicColumnsComposes`.
+  - TO-24 pass — `ToolsTests.PivotOperatorsOverADbSet`, EF10 SQLite.MS (A-18).
+  - TO-25 pass — `ReadsEveryArgumentShape`, `RejectsShapesItCannotRead`.
+  - TO-26 pass — `PivotsUnderConcat`, `PivotsInAnEagerLoadedCollection`.
+  - TO-27 pass — `AnEmptyCellOverANonNullableColumnReadsNull`, `AnEmptyCountCellReadsZero`, `AnEmptyValueSetYieldsNoCells`.
+  - TO-28 pass — `PivotTests` (27 methods at `2cad4e701`). Both mutant pairs red (A-18): dropping `Snapshot` fails the mutate-in-place arm, dropping the evaluated-value `MarkAsValue` fails four inline tests.
+  - TO-29 pass — `UnpivotsTheCellsUnderTheirOwnNames`, `UnpivotNameColumnOfAProjectedMemberUsesTheMemberName`; red first on SQLite.Classic direct + remote (`Cells.Y2000`, `Inner.Q1`).
+  - TO-30 pass — `ComposesThroughTheCellsMembers`, `UnpivotsTheCellsThroughTheIndexer`; red first ("could not be converted", `Error_UnpivotColumnSelector`). The tightened filter / ordering arms were also red on the first build-visitor draft (the ordering key reached it as a bare indexer through `OrderByBuilder`'s `Unwrap`).
+  - TO-31 pass — `CapturedCellsAreAValue`; red under the expose-rewrite E-54 ("Dynamic column getter is not to be called."), green with it off and with the build-visitor E-54.
+  - TO-32 pass — `AProjectedCellReadKeepsItsInMemoryContract`; red under the expose rewrite (absent name threw, `Get<int>` read 20, `Get<string>` threw), green with it off and with the build-visitor E-54.
+  - TO-33 pass — `ACapturedCellNameKeysTheQuery`. Mutation drop `[SqlQueryDependent]` from `Get<T>`'s `name`: red, the second name replays the first column (`[]` instead of `A, B`).
+  - TO-34 pass — `UnpivotsSameNamedCellsOfTwoPivotsUnderTheirPaths`; red at `2cad4e701` (both `Y2000`), and on the first fallback draft (`Total.Y2000`, `Y2000`).
+  - A-19 tree runs (uncommitted): `Pivot|DynamicColumns` SQLite.Classic 229/229, SQLite.MS 224/224, DuckDB 206/206, each direct + `LinqService` (Testing net11.0); Release net10.0 build clean (one [MA0006] in E-53 fixed first) and SQLite.Classic 229/229 on it.
+  - test-diff-sweep (`-Repo` the worktree at `2cad4e701`): chains 84, nestedChains 4, narrowedSets 25, narrowedWithoutReason 5, localModels 1, shouldlySubjectGates 0, typeOnlyShouldlyGates 0, continuationIndents 0, unanchoredAssertionGates 0, narrowedContinuations 0, cacheMissOutsideQueryCacheTest 0, handDuplicatedAreEqual 0, invisibleChars 0, issueNamedMembers 0, attributePadding 0. None falls in E-59's added tests; the rest predate A-19 and are dispositioned in A-19.
 - G-02: **blocked** on CI regenerating the baselines for f550159e9 (the 2026-10-10 delta, linq2db.baselines#2141, predates A-15; its real content was new-test files plus the 68 PostgreSQL 9.2/9.3 files of the base PR). Originally not run — no local baselines diff; the `.sql` churn lands on the baselines PR at CI push. Expected wide
   per P10; read for shape.
 - G-03: **pass** — `dotnet build Source/LinqToDB/LinqToDB.csproj -c Release -f net10.0 -p:RunApiAnalyzersDuringBuild=true`
@@ -412,7 +477,7 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
 - **`ExcludeNulls` dropping a NULL read through an outer join into a non-nullable member is a fix, not a P3 violation.** A-15 lifts the filter to `TValue?`; the rows that disappear were returned as `default(TValue)` against the documented "NULL value cells are excluded" contract, on API that exists only in `PublicAPI.Unshipped.txt` — the same adjudication as the `UnpivotMulti` entry above.
 - **The gate living in this branch is temporary and deliberate.** D-5 is implemented here to prove the change end to end, then ported to its own PR before merge. A reviewer seeing a PostgreSQL translator change inside a pivot PR is seeing the intended interim state, not scope creep — but the port is release-blocking.
 - **A-17: over EF Core, the pivot needs `.ToLinqToDB()`.** Today's top-level operator works directly on a `DbSet` because it calls `ProcessIQueryable`. `g.Pivot` lives inside `Queryable.GroupBy`/`Select`, which EF executes (U-21). This is a narrowing of shipped-in-PR behaviour, on API that exists only in `PublicAPI.Unshipped.txt`, and it matches how every other linq2db-only projection member is used from EF. Pinned by TO-24 in both directions.
-- **A-17: cells always land in a nested `PivotCells` member, never in `TResult`'s own `[DynamicColumnsStore]`** (D-9's failure mode). A flat DTO reads its cells through `Sql.Property(r.Cells, …)` or the dictionary view.
+- **A-17: cells always land in a nested `PivotCells` member, never in `TResult`'s own `[DynamicColumnsStore]`** (D-9's failure mode). A flat DTO reads its cells through `Sql.Property(r.Cells, …)` or the dictionary view (A-19: in a query also `r.Cells.Get<T>(name)` / `(T)r.Cells[name]`, on a member typed `PivotCells`).
 - **A-17: the pivot is no longer an `IQueryable` operator.** Someone looking for `.Pivot` on a table finds `Unpivot` and not `Pivot` (sdanyliv: top-level sugar can be added later if discoverability matters). Not added here.
 - **A-17: no performance claim, either way, for the expose-time expansion** (U-25). Mechanism, not timed: a pivot query runs the full expose pass and the expansion on every execution, because its raw tree can never hit the cache. Each inline or method-group name factory is compiled once per execution. The PR body must state it this way, not as "one extra lookup".
 - **A-17: the `Select` terminal does not lift** (D-9). An empty cell reads what the user's member type materializes from `NULL`, so the same data can read `null` through `AsDictionary` and `0` through a non-nullable `Select` member. Documented on `Select`; pinned by TO-14.
@@ -861,6 +926,36 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
     `ErrorHelper.SelectDynamic`, not a second `ErrorHelper.Pivot` with divergent members; three constants are duplicated
     across the two classes once both merge. `BuildTimeArgumentReader.cs` is byte-identical.
 
+- **A-19 (2026-11-26) — review round 3 (sdanyliv, 2026-10-22) fixed; master merged; #6110 stacked on this branch.**
+  Local commits, pushed 2026-11-26: `608048304` (merge `origin/master`; conflicts only in `PublicAPI.Unshipped.txt`, kept as
+  master's file + the branch's 47 pivot lines, and in `CountTests` / `GroupByTests`, taken from master since #5949 owns
+  them), `4569339e4` (E-53, E-54, E-55, E-59: MAJ002 + MAJ003), `6f7f3ac43` (E-56: MIN208), `ccd0c27a1` (E-57: MIN209),
+  `2cad4e701` (E-58: RS0030 after the merge). E-52 records A-17's `DynamicColumnsTests.cs` edits, which P6 never listed
+  (`-Action reconcile` reported it unplanned). The approval of record is void for E-52…E-59 until the P12 A-19 round.
+  - **SC-16 / SC-17 added.** sdanyliv's MAJ002 and MAJ003 both reproduced as stated (TO-29, TO-30 red first).
+  - **Critic round A-19 (`weak`) refuted the first E-54 by probe.** Pushed in `4569339e4`, it rewrote `Get<T>` /
+    `(T)cells[name]` in `ExposeExpressionVisitor` for any receiver of static type `PivotCells`. Measured against a control
+    with the arms off (SQLite.Classic, direct + remote): cells the client holds, captured by a later `Where`, threw
+    "Dynamic column getter is not to be called." (control: row 2); a projected absent name threw (control: `null`);
+    `Get<int>` over a decimal cell read 20 (control: `0`) and `Get<string>` threw (control: `null`). The captured-name
+    cache lead did not reproduce at that head (both executions correct). User decision: keep the translation, but only
+    where SQL is required and only for a receiver from the query; projections keep the in-memory contract. E-54 moved to
+    `ExpressionBuildVisitor` (`BuildPurpose.Sql` only), the expose arms were reverted, `[SqlQueryDependent]` keys the
+    name (E-55, TO-33's mutant red without it), and Unpivot reads a `Get` / indexer selector itself (E-53).
+  - **Leaf collision (critic round A-19, measured).** Two pivots' `Y2000` cells unpivoted as `Y2000` twice. User
+    decision: the leaf unless another column reads the same name, then the path (TO-34).
+  - **E-56 supersedes E-51's byte-identical copy.** #6110 (`feature/4992-select-dynamic`, merged with this branch at
+    `025f1e20f`, base switched to `feature/1475-pivot-unpivot`) restores the lambda and sequence branches and makes its
+    `parameterName` optional, so the "argument is a query" refusal applies to `SelectDynamic` callers only.
+  - **E-57 supersedes E-46's placement** of three constants; `Error_NoDynamicColumnsStore`'s thrower is the generic
+    `VisitMemberInit` check (E-43), which a pivot never reaches.
+  - **Body.** The PR body was rewritten for the current scope (MIN207); round-3 threads replied and resolved.
+  - re-derives: P2 (SC-16, SC-17), P7 (A-19 rows), P8 (TO-29, TO-30), P9 (G-01 per-obligation record), P10 (the flat-DTO read line).
+  - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*, embedded before E-59's tests were written; `test-diff-sweep.ps1 -Repo <worktree> -IncludeWorkingTree` on the A-19 tree: chains 84, nestedChains 4, narrowedSets 25, narrowedWithoutReason 5, localModels 1, shouldlySubjectGates 0, typeOnlyShouldlyGates 0, continuationIndents 0, unanchoredAssertionGates 0, narrowedContinuations 0, cacheMissOutsideQueryCacheTest 0, handDuplicatedAreEqual 0, invisibleChars 0, issueNamedMembers 0, attributePadding 0, issueFixtureFiles 0.
+    The redesign's tests first added 5 one-line chains (89); split, back to 84, so E-59's lines carry none. The 84 chains,
+    4 nested chains, 5 narrowed sets without a reason line and the `QuarterlyKeys` local model predate A-19; each is
+    named as a review item for this round rather than fixed unasked.
+
 ## P12 Critic verdict (M/L)
 
 **Round 1 — `refuted`** (Fable, dispatched with the measurements forwarded verbatim and the unprobed claims labelled).
@@ -899,6 +994,19 @@ Confirmed by round 2 and retained: D-4 is correct to leave `Count` unlifted (`CO
 3. *The `ExcludeNulls` row change has no P10 line* — → added.
 
 Checked clean by the critic: the placement fix (`Find`+`Replace` before the generic-constructor wrap, mirrored by `IsConstructedWith`), alias sanitization covering every generated name, the lifted `IS NOT NULL` folding away for non-nullable columns, `PivotCells` as a collection type reaching no eager-load/association path, explicit interface members not colliding with cell names.
+
+**Round A-19 — `weak`** (Fable, delta only: E-52…E-59, SC-16/17, TO-29/30, the A-19 rows; read-only). Searched: the four commits `608048304..2cad4e701` in full, the merge's three conflict files, the moved constants repo-wide, the `Unpivot` signatures, `GetConstructorEx`, `PivotCells`' members, `IsCompilable` sites in expose, `ReplaceDynamicColumnGetters`, every Pivot test's data-source attribute. Objections and what changed:
+
+1. *E-54 rewrites a captured, materialized `PivotCells`* → probed red (TO-31); E-54 redesigned (A-19).
+2. *The name is not query-dependent* → did not reproduce against the expose rewrite; the redesign reads the name after the key, so `[SqlQueryDependent]` was added and TO-33's mutant proves it necessary.
+3. *E-53's leaf fallback collides* → probed (two `Y2000`); fallback to the path on collision (TO-34).
+4. *TO-30's data does not separate* → accepted; filter `> 16` and an ascending order that differs from the grouping order.
+5. *Projection semantics changed* → probed red (TO-32); the redesign keeps projections in memory.
+6. *`ConvertChecked` and a cast receiver unprobed* → `checked` probed green; the cast receiver fails "could not be converted" in both earlier arms, unprobed under the redesign (P7).
+7. *Provider evidence is one provider* → SQLite.Classic/MS + DuckDB run on the A-19 tree; container providers rest on CI.
+8. *Fact sheet vs P9* → P9 records the per-provider runs.
+
+Confirmed clean: E-56 (no `Unpivot` overload reaches the removed branches), E-57 (no stale reference), E-58 (equivalent), the merge resolution (+47 Unshipped lines over master; `CountTests` / `GroupByTests` identical to master), E-53's mapped-column path.
 
 **Round 3 re-check — `holds`** (Fable, same session). Re-traced every `CreateSubQuery = true` entry point against f550159e9: the branch choice is made before the lowering, so `ContextRefBuilder` is only reached with the flag clear and returns the probe directly; no intermediate builder sets it. Pending, not a defect: the container-provider matrix has not run on f550159e9.
 
