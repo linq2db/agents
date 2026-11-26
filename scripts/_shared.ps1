@@ -115,10 +115,11 @@ function Invoke-GhJson {
 
 # GitHub sometimes answers a write with a 5xx or an empty body (gh: "unexpected end of JSON input") and applies
 # it anyway, or not. A writer that sees one of these re-reads whether the write landed before retrying it.
+# A dropped connection surfaces as Go's transport error `Put "<url>": unexpected EOF` (#6014).
 function Test-GhTransientError {
     param([string]$Message)
     if (-not $Message) { return $false }
-    return $Message -match 'HTTP 5\d\d|unexpected end of JSON input|Something went wrong while executing your query|timed out|connection reset'
+    return $Message -match 'HTTP 5\d\d|unexpected end of JSON input|unexpected EOF|Something went wrong while executing your query|timed out|connection reset'
 }
 
 function Invoke-Git {

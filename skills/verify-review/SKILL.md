@@ -83,7 +83,7 @@ Per `.claude/docs/review-conventions.md` → **ID-continuation floor**: regex-ma
     line: <int>                # for kind=line only
   },
   original_text: "<paragraph/line containing the ID>",
-  current_checkbox: " " | "x" | "~"   # for kind=body only
+  checkbox: " " | "x" | "~"           # for kind=body only
 }
 ```
 
@@ -123,8 +123,8 @@ For each prior finding, pick the update action based on `status` × `location.ki
 | status       | location.kind | Action |
 |--------------|---------------|--------|
 | fixed        | body          | Edit the prior review body via `PUT` (see github-review-api): flip `[ ]` → `[x]` on that finding's line. |
-| fixed        | line          | `PATCH` the comment body: append `\n\n— ✓ Fixed in <head_sha_short>`. Offer to resolve the thread (per-thread confirmation, batched in step 8). |
-| fixed        | file          | `PATCH` the comment body with the same fixed annotation. (File-subject threads don't have a GraphQL resolve equivalent — leave as-is.) |
+| fixed        | line          | `PATCH` the comment body: append `\n\n— ✓ Fixed in <head_sha_short>`. Offer to resolve the thread (per-thread confirmation, batched in step 8). Only for a finding first found fixed in **this** round: one fixed and resolved in an earlier round keeps its body, since the annotation would name the wrong commit (#6014 round 4). |
+| fixed        | file          | `PATCH` the comment body with the same fixed annotation, under the same this-round-only rule. (File-subject threads don't have a GraphQL resolve equivalent — leave as-is.) |
 | still_actual | any           | No-op. Listed in the new draft review's verification header for reviewer visibility. |
 | partial      | body          | Edit the prior review body: flip `[ ]` → `[~]`. Also post a fresh follow-up finding in the new draft review, referencing the original ID. |
 | partial      | line          | Add an entry to the new draft review's `replyComments[]` with `inReplyTo` set to the existing comment's GraphQL node ID and a body that quotes the original and explains the residual concern. The wrapper attaches it via `addPullRequestReviewComment` scoped to the new pending review, so the reply stays hidden until the user submits the draft (do **not** use the `/replies` REST endpoint — it posts immediately, outside the draft, which breaks the "preview before submit" flow). |
