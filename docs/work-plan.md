@@ -161,6 +161,8 @@ One `TO-n` per `P2` criterion. Each names what it asserts and a proof mode:
 - `control` — for an added guard: the same input accepted under the lenient path, rejected under the enforced one. Each arm is a committed test that passes: the rejecting arm asserts the rejection (the throw, the file written). An arm whose expected outcome is "the test fails" can only be a scratch mutation, so it discharges nothing; see `G-01` under *P9* (#6061 MIN001).
 - `characterization` — behaviour-preserving; say plainly that it proves no new behaviour.
 
+**On a plan whose product is test coverage, `characterization` does not exempt a `TO-n` from a mutation.** That is a plan with no product-code change in `P3` whose `SC-n` reads "a regression turns a test red". Each `TO-n` names the generator, harness or product mutation it must catch, and `G-01` records the red. A blanket "not mutation-proven individually: TO-x…TO-y" line in `G-01` is `fail`, not a recorded waiver. The test's whole value is that it can go red, and the label otherwise exempts exactly that. (#6037: `G-01` waived TO-4…TO-11 in one line, and 8 of 17 review findings were tests that could not fail for their stated purpose, such as a Find check on the first inserted row, which an unfiltered `FirstOrDefault` also returns.)
+
 Where an `E-n` touches a helper reachable from more than one path, one obligation must be a **symmetry guard on the unchanged path**.
 
 Where a `P7` recogniser row lists the declaring types or overloads a predicate admits, each admitted entry gets its own `TO-n`, and `G-01` records a mutation removing that entry which turns it red. (#6316 SUG001: `IsTupleJoin` admitted `Queryable` or `Enumerable`; only `Queryable` was tested.)

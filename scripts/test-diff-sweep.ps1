@@ -295,9 +295,10 @@ foreach ($l in $diff) {
 		}
 
 		# check 11: `Issue<N>` names belong only in issue fixtures (per-issue files are legacy), the EF `IssueModel`,
-		# and generated T4/CLI scaffold output, whose names come from the database schema
+		# and generated T4/CLI scaffold output, whose names come from the database schema; a `_Issue<N>` suffix
+		# counts too (#6037: `ViewNamedTable_Issue4831`)
 		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
-			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>Issue\d+\w*)\b') {
+			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>(?:\w+_)?Issue\d+\w*)\b') {
 			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
 		}
 
