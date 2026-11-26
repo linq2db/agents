@@ -2,8 +2,9 @@
 // test-diff-sweep.ps1 report names. Usage, from the repository root:
 //   .claude/scripts/test-diff-sweep.ps1 -Repo <worktree> -IncludeWorkingTree > <worktree>/.build/.agents/sweep.json
 //   dotnet run --project .claude/tools/chain-split -c Release -- <worktree> <worktree>/.build/.agents/sweep.json
-// Edits the files in place; review the diff. Chains nested in an argument stay on the call's line (pull them into
-// a local by hand), and text inside string literals (generator-test input) is never touched.
+// Edits the files in place; review the diff. Chains nested in an argument stay on the call's line, and chains that
+// are an operand of a binary operator are listed on stdout and left alone (pull both into a local by hand); text
+// inside string literals (generator-test input) is never touched.
 // A chain: a member-access sequence whose head is a call-like expression (invocation, object creation,
 // parenthesized, element access) followed by >= 1 member, or a dotted name followed by >= 2 members of which
 // the first is invoked. Only chains that sit on one line are split; chains inside interpolated strings are not.
@@ -55,6 +56,13 @@ foreach (var (relative, lines) in targets)
 		// an outer chain on the same line is split instead; a chain inside its argument stays on the call's line
 		if (node.Ancestors().OfType<ExpressionSyntax>().Any(a => IsChainTop(a) && a.GetLocation().GetLineSpan().StartLinePosition.Line == span.StartLinePosition.Line))
 			continue;
+		// an operand of `&&`, `==`, `+` …: breaking it strands the operator mid-chain (#6037:
+		// `value != null && value` / `.GetType()` / `.IsGenericType && value`) - pull it into a local by hand
+		if (node.Ancestors().TakeWhile(static a => a is ExpressionSyntax).Any(static a => a is BinaryExpressionSyntax))
+		{
+			Console.WriteLine($"{relative}:{startLine}: chain is an operand of a binary expression - split by hand");
+			continue;
+		}
 
 		var dots = SplitDots(node);
 		if (dots.Count == 0)
