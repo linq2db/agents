@@ -270,7 +270,7 @@ Reconcile by verdict:
 
 - **`waived`** (`criticModel: never`, or a per-run skip under `ask`) — nothing was dispatched, so there is nothing to reconcile: write the `waived-by-user` line and carry the un-attacked status into step 8's presentation.
 - **`holds`** — carry forward; record in `P12` **what the critic searched**, not just the word.
-- **`weak`** — carry forward with the objections **visible in the plan you show the user**. Do not absorb them silently; the user approves knowing the strongest case against the design.
+- **`weak`** — carry forward with the objections **visible in the plan you show the user**. Do not absorb them silently; the user approves knowing the strongest case against the design. **A revision that rewrites a `TO-n`'s input, assertion or recorded mutation to answer a `weak` objection goes back to the critic as a delta round scoped to those rows**; if it is not sent, `P12` lists those rows as `not re-attacked`. Otherwise the revised rows are the only text no critic reads. (#6456 SUG001: TO-17's one-row shim pattern, written answering round-1 objection 1, could not separate two of its three same-typed positions.)
 - **`refuted`** — revise once, then **send the revision back to the critic**, not straight to the user. Cap at one round: if the revision still cannot answer the objections, present both and stop for user direction.
 
 **A refutation resting on documentation is probed before it is accepted *or* rejected.** When the critic contradicts something you believe and a build, test or container is to hand, measure it. Record the measurement in `P4` with its result, and note which way the evidence fell in `P12`.
