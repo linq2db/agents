@@ -25,7 +25,9 @@ Usage
               in <file> (relative to the worktree). <old> must occur exactly once.
   -ProbeLog   optional; a file the tests write. Removed before each arm and copied to OutDir.
   -OutDir     optional; default <Worktree>/.build/.agents/probe-arms.
-  -Project / -Tfm / -Configuration   defaults Tests/Linq/Tests.csproj, net10.0, Testing.
+  -Project / -Tfm / -Configuration   defaults Tests/Linq/Tests.csproj, none, Testing. `Testing` builds only
+              $(LatestTargetFramework), so any other -Tfm matches nothing ("No test projects were found");
+              pass -Tfm only with -Configuration Debug. (#6438: the old net10.0 default ran no test on any arm.)
 
 Prints one JSON object: { ok, arms: [ { name, ok, failed, succeeded, skipped, total,
 failedTests, runLog, probeLog } ] }. `ok` means every arm ran; a failed test is a result, not an
@@ -42,7 +44,7 @@ param(
 	[string]$ProbeLog,
 	[string]$OutDir,
 	[string]$Project       = 'Tests/Linq/Tests.csproj',
-	[string]$Tfm           = 'net10.0',
+	[string]$Tfm           = '',
 	[string]$Configuration = 'Testing'
 )
 
@@ -74,6 +76,11 @@ function Invoke-Arm([string] $name)
 	$output   = & pwsh -NoProfile -File "$PSScriptRoot/worktree-test.ps1" -RepoRoot $Worktree -Project $Project -Tfm $Tfm -Filter $Filter -Provider $Provider -Configuration $Configuration -LogPath $runLog
 	$result   = ($output -join "`n") | ConvertFrom-Json
 
+	if ((Test-Path $runLog) -and (Select-String -Path $runLog -SimpleMatch 'No test projects were found' -Quiet))
+	{
+		Exit-WithError "arm '$name' ran no test project: -Tfm '$Tfm' is not built by -Configuration $Configuration" -NextAction 'omit -Tfm with -Configuration Testing (it builds only $(LatestTargetFramework)), or pass -Configuration Debug'
+	}
+
 	$kept = $null
 	if ($ProbeLog -and (Test-Path $ProbeLog))
 	{
@@ -92,6 +99,16 @@ function Invoke-Arm([string] $name)
 		failedTests = @($result.failedTests)
 		runLog      = $runLog
 		probeLog    = $kept
+	}
+}
+
+foreach ($arm in $armList | Where-Object { $_ -ne 'head' })
+{
+	git -C $Worktree rev-parse --verify --quiet "$arm^{commit}" | Out-Null
+	if ($LASTEXITCODE -ne 0)
+	{
+		# origin/pr/<n> refs can vanish mid-session when another session's fetch prunes them (#6438).
+		Exit-WithError "arm ref '$arm' does not resolve in $Worktree" -NextAction 'pass the commit SHA, or re-fetch it: git fetch origin refs/pull/<n>/head:refs/remotes/origin/pr/<n> --force'
 	}
 }
 

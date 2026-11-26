@@ -60,6 +60,9 @@ Manifest schema
     // stay hidden until the user submits the draft.
     { "inReplyTo": "PRRC_kwDO...", "body": "…" }
   ],
+  "appendToReview": "PRR_kwDO...",            // optional — add fileComments[] / replyComments[] to this
+                                              // existing PENDING review instead of creating one; no body,
+                                              // no lineComments[] (a body edit submits the review)
   "concurrency": 5,
   "verify":     true,                         // optional, default false
   "allowStaleCommit": false                   // optional — post although commitId is not the PR's current head
@@ -74,9 +77,9 @@ body and line comments back from GitHub and byte-compares each against
 what was sent. Mismatches surface in the output's `verify` block and
 trigger exit code 2. Useful for catching encoding round-trips that
 silently corrupt non-ASCII content (e.g. the stdin-UTF-8 bug that posted
-`ΓÇö` instead of `—`). File-level comments and thread replies are not
-verified — they travel via GraphQL `-f`/`-F` flags whose encoding is
-handled by `gh` itself and was never part of the stdin path.
+`ΓÇö` instead of `—`). File-level comments and thread replies are checked
+on every run from the body each GraphQL mutation echoes back: a mismatch
+sets that entry's `ok` / `bodyOk` to false and exits 2.
 
 Output (stdout, single JSON object): { reviewId, nodeId, url, lineComments[],
 fileThreads[], replyComments[], verify? }.
@@ -149,13 +152,30 @@ if (-not $headSha.StartsWith($commitId, [System.StringComparison]::OrdinalIgnore
     Exit-WithError "commitId $commitId is not the PR head $headSha - nothing was posted. Re-check the findings against the new head and re-anchor them, or set allowStaleCommit = `$true to post on the older commit."
 }
 
-$body = Resolve-Body -Item $m -Label 'review body'
+$appendTo = if ($m.appendToReview -is [string]) { [string]$m.appendToReview } else { '' }
+
 $lineComments = @()
 if ($m.lineComments) { $lineComments = @($m.lineComments) }
 $fileComments = @()
 if ($m.fileComments) { $fileComments = @($m.fileComments) }
 $replyComments = @()
 if ($m.replyComments) { $replyComments = @($m.replyComments) }
+
+if ($appendTo) {
+    # A pending review's body cannot change without submitting it (PUT submits), and REST cannot add a line
+    # comment to an existing review, so append mode carries file threads and thread replies only.
+    if ($m.body -or $m.bodyFile) { Exit-WithError 'appendToReview: the pending body cannot change without submitting the review - drop body/bodyFile, and put the addition in a fileComments[] entry whose first line says what it replaces' }
+    if ($lineComments.Count -gt 0) { Exit-WithError 'appendToReview: lineComments[] cannot be added to an existing review - use replyComments[] on a thread or fileComments[]' }
+    if ($fileComments.Count + $replyComments.Count -eq 0) { Exit-WithError 'appendToReview: nothing to append - supply fileComments[] or replyComments[]' }
+    $reviewQuery = 'query($id:ID!){ node(id:$id){ ... on PullRequestReview { state databaseId url } } }'
+    $rq = Invoke-GhJson @('api','graphql','-f',"query=$reviewQuery",'-F',"id=$appendTo")
+    if (-not $rq.ok) { Exit-WithError "appendToReview: cannot read review $appendTo - $($rq.error)" }
+    $existing = $rq.data.data.node
+    if (-not $existing -or $existing.state -ne 'PENDING') { Exit-WithError "appendToReview: review $appendTo is not PENDING (state: $($existing.state)) - nothing was posted" }
+    $body = $null
+} else {
+    $body = Resolve-Body -Item $m -Label 'review body'
+}
 
 # Build the REST payload. Line comments go inside; file comments attach via GraphQL after.
 $comments = @()
@@ -248,25 +268,31 @@ if ($comments.Count -gt 0) {
     }
 }
 
-$payload = [pscustomobject]@{
-    commit_id = $commitId
-    body = $body
-    comments = $comments
-}
+if ($appendTo) {
+    $reviewId = $existing.databaseId
+    $nodeId   = $appendTo
+    $url      = $existing.url
+} else {
+    $payload = [pscustomobject]@{
+        commit_id = $commitId
+        body = $body
+        comments = $comments
+    }
 
-$payloadJson = $payload | ConvertTo-Json -Depth 100 -Compress
+    $payloadJson = $payload | ConvertTo-Json -Depth 100 -Compress
 
-$createRes = Invoke-GhJson -ArgumentList @(
-    'api','--method','POST',"repos/$owner/$repo/pulls/$pr/reviews",'--input','-'
-) -StdinInput $payloadJson
-if (-not $createRes.ok) { Exit-WithError "failed to create review: $($createRes.error)" }
+    $createRes = Invoke-GhJson -ArgumentList @(
+        'api','--method','POST',"repos/$owner/$repo/pulls/$pr/reviews",'--input','-'
+    ) -StdinInput $payloadJson
+    if (-not $createRes.ok) { Exit-WithError "failed to create review: $($createRes.error)" }
 
-$review = $createRes.data
-$reviewId = $review.id
-$nodeId = $review.node_id
-$url = $review.html_url
-if (-not $reviewId -or -not $nodeId) {
-    Exit-WithError "review response missing id/node_id:`n$(($review | ConvertTo-Json -Depth 100))"
+    $review = $createRes.data
+    $reviewId = $review.id
+    $nodeId = $review.node_id
+    $url = $review.html_url
+    if (-not $reviewId -or -not $nodeId) {
+        Exit-WithError "review response missing id/node_id:`n$(($review | ConvertTo-Json -Depth 100))"
+    }
 }
 
 $lineCommentResults = foreach ($lc in $lineComments) {
@@ -287,7 +313,7 @@ mutation($rid:ID!, $path:String!, $body:String!) {
   }) {
     thread {
       id
-      comments(first:1) { nodes { databaseId } }
+      comments(first:1) { nodes { databaseId body } }
     }
   }
 }
@@ -322,11 +348,15 @@ if ($fileComments.Count -gt 0) {
         }
         $thread = $res.data.data.addPullRequestReviewThread.thread
         $tid = $thread.id
-        $dbId = if ($thread.comments.nodes -and $thread.comments.nodes.Count -gt 0) { $thread.comments.nodes[0].databaseId } else { $null }
+        $first = if ($thread.comments.nodes -and $thread.comments.nodes.Count -gt 0) { $thread.comments.nodes[0] } else { $null }
+        $dbId = if ($first) { $first.databaseId } else { $null }
         if (-not $tid) {
             return [pscustomobject]@{ path = $fc.path; ok = $false; error = "unexpected response: $($res.data | ConvertTo-Json -Depth 10 -Compress)" }
         }
-        return [pscustomobject]@{ path = $fc.path; ok = $true; threadId = $tid; databaseId = $dbId }
+        # GitHub echoes the stored body; a mismatch is the encoding regression `verify` exists for.
+        $stored = if ($first) { [string]$first.body } else { '' }
+        $bodyOk = ($stored -replace "`r`n", "`n") -ceq ($fc.body -replace "`r`n", "`n")
+        return [pscustomobject]@{ path = $fc.path; ok = $bodyOk; threadId = $tid; databaseId = $dbId; bodyOk = $bodyOk }
     }
     $fileThreadResults += $results
 }
@@ -347,6 +377,7 @@ mutation($rid:ID!, $cid:ID!, $body:String!) {
     comment {
       id
       databaseId
+      body
     }
   }
 }
@@ -384,7 +415,8 @@ if ($replyComments.Count -gt 0) {
         if (-not $cid) {
             return [pscustomobject]@{ inReplyTo = $rc.inReplyTo; ok = $false; error = "unexpected response: $($res.data | ConvertTo-Json -Depth 10 -Compress)" }
         }
-        return [pscustomobject]@{ inReplyTo = $rc.inReplyTo; ok = $true; commentId = $cid; databaseId = $dbId }
+        $bodyOk = (([string]$comment.body) -replace "`r`n", "`n") -ceq ($rc.body -replace "`r`n", "`n")
+        return [pscustomobject]@{ inReplyTo = $rc.inReplyTo; ok = $bodyOk; commentId = $cid; databaseId = $dbId; bodyOk = $bodyOk }
     }
     $replyCommentResults += $results
 }
@@ -405,10 +437,13 @@ if ($m.verify -eq $true) {
     $verifyLineComments = @()
     $verifyOk = $true
 
-    $bodyFetch = Invoke-GhJson -ArgumentList @(
+    $bodyFetch = if ($appendTo) { $null } else { Invoke-GhJson -ArgumentList @(
         'api', "repos/$owner/$repo/pulls/$pr/reviews/$reviewId"
-    )
-    if (-not $bodyFetch.ok) {
+    ) }
+    if ($appendTo) {
+        # Append mode sends no body; the appended comments are checked through the mutations' echoed bodies.
+        $verifyBody = [pscustomobject]@{ ok = $true; skipped = 'appendToReview' }
+    } elseif (-not $bodyFetch.ok) {
         $verifyBody = [pscustomobject]@{ ok = $false; error = "fetch failed: $($bodyFetch.error)" }
         $verifyOk = $false
     } else {

@@ -65,6 +65,10 @@ letting through:
      intentional*. An attribute-only line stacked above a member is not part of the column. Measured: the same
      predicates fix 4 hits, the four a review raised; `origin/master~300...origin/master` 2, both real
      (`MathFunctionTests.cs:1082`, `:1863`).
+ 14. `issueFixtureFiles`: a per-issue `Issue<N>Tests.cs` fixture file the branch adds (or moves into that name) -
+     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 skips every
+     `Issue*`-named file, so nothing else flags the file itself. Tests added to an existing one are not detected.
+     (#6057 MIN001.)
 
 Why this script exists
 ----------------------
@@ -98,6 +102,8 @@ Fixer for `chains` hits: `split-test-chains.ps1 -File <path> -Lines '<n,n,...>'`
 on #5640 those were 35 of 148 hits and none was a layout defect. That holds for `new X(new Y().Z())`
 arguments, not for an NUnit constraint chain inside `Assert.That(...)` (`Is.Not.Contains(...).And.Not...`):
 that is a testing.md *Test layout* rule-1 defect, so read every `nestedChains` hit for one. (#6450 NIT001.)
+The same goes for a query chain inside a projection member's argument (`Sql.Between(table.Where(...).Max(...), ...)`):
+testing.md's "a chain inside the projection follows rule 1" makes it a defect. (#6438 NIT001.)
 
 Output: one JSON document — { base, path, chains: [{file, line, text}], nestedChains: [...],
 narrowedSets: [{file, line, attribute, lineAbove, hasReason}], narrowedWithoutReason: [the narrowedSets entries whose
@@ -106,7 +112,7 @@ typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, 
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
-attributePadding: [{file, line, text, column, neighbourColumn}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -474,6 +480,11 @@ foreach ($c in $cacheCalls) {
 	}
 }
 
+# check 14: a per-issue fixture file the branch adds - `--no-renames` so a fixture moved into such a name counts too
+$issueFixtures = @(git -C $Repo diff --name-only --no-renames --diff-filter=A $range -- $Path)
+if ($IncludeWorkingTree) { $issueFixtures += @(git -C $Repo ls-files --others --exclude-standard -- $Path) }
+$issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Tests\.(cs|vb|fs)$' } | ForEach-Object { [pscustomobject]@{ file = $_ } })
+
 [ordered]@{
 	base                 = $range
 	path                 = $Path
@@ -492,4 +503,5 @@ foreach ($c in $cacheCalls) {
 	issueNamedMembers = @($issueNamed)
 	localModels = @($localModels)
 	attributePadding = @($padding)
+	issueFixtureFiles = @($issueFixtures)
 } | ConvertTo-Json -Depth 4
