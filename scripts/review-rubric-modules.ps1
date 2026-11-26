@@ -109,6 +109,9 @@ $rows = [ordered]@{
 	'skills' = @(
 		'^Source/Skills/'
 	)
+	'docs-site' = @(
+		'^docs/source/'
+	)
 }
 $none = "^(?!Source/|Tests/).*\.(md|txt)$|$noneSet"
 
