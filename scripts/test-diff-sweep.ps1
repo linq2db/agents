@@ -65,6 +65,10 @@ letting through:
      intentional*. An attribute-only line stacked above a member is not part of the column. Measured: the same
      predicates fix 4 hits, the four a review raised; `origin/master~300...origin/master` 2, both real
      (`MathFunctionTests.cs:1082`, `:1863`).
+ 14. `issueFixtureFiles`: a per-issue `Issue<N>Tests.cs` fixture file the branch adds (or moves into that name) -
+     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 skips every
+     `Issue*`-named file, so nothing else flags the file itself. Tests added to an existing one are not detected.
+     (#6057 MIN001.)
 
 Why this script exists
 ----------------------
@@ -108,7 +112,7 @@ typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, 
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
-attributePadding: [{file, line, text, column, neighbourColumn}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -476,6 +480,11 @@ foreach ($c in $cacheCalls) {
 	}
 }
 
+# check 14: a per-issue fixture file the branch adds - `--no-renames` so a fixture moved into such a name counts too
+$issueFixtures = @(git -C $Repo diff --name-only --no-renames --diff-filter=A $range -- $Path)
+if ($IncludeWorkingTree) { $issueFixtures += @(git -C $Repo ls-files --others --exclude-standard -- $Path) }
+$issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Tests\.(cs|vb|fs)$' } | ForEach-Object { [pscustomobject]@{ file = $_ } })
+
 [ordered]@{
 	base                 = $range
 	path                 = $Path
@@ -494,4 +503,5 @@ foreach ($c in $cacheCalls) {
 	issueNamedMembers = @($issueNamed)
 	localModels = @($localModels)
 	attributePadding = @($padding)
+	issueFixtureFiles = @($issueFixtures)
 } | ConvertTo-Json -Depth 4
