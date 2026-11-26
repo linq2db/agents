@@ -82,7 +82,7 @@ Fold the resulting table into the step-7 report. If the rule is `investigate`, t
 
 ### 7. Report + teardown
 
-One structured report: report-mode reconciliation (sites / false positives / missed / crash), code-fix outcome (converted / total, compiles?, trivia intact?), skipped-site classification, any option candidate with counts, and the step-6 perf table. Frame "found nothing / blocked" as a valid outcome. Then remove the worktree (confirm per `worktree.md`); verify the primary clone `git status` shows nothing from the dogfood.
+One structured report: report-mode reconciliation (sites / false positives / missed / crash), code-fix outcome (converted / total, compiles?, trivia intact?), skipped-site classification, any option candidate with counts, and the step-6 perf table. Frame "found nothing / blocked" as a valid outcome. Then remove the worktree — it is throwaway, its edits are meant to be discarded, so no confirmation (`git worktree remove --force`, per `worktree.md`); verify the primary clone `git status` shows nothing from the dogfood.
 
 ## Don'ts
 
