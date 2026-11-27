@@ -24,6 +24,8 @@ Usage
   -Mutate     optional; one more arm, `mutant`, on the current tree with the literal text replaced
               in <file> (relative to the worktree). <old> must occur exactly once.
   -ProbeLog   optional; a file the tests write. Removed before each arm and copied to OutDir.
+              Test cases run in parallel, so serialise the writes (a static lock around the append):
+              an unguarded File.AppendAllText throws IOException and ends that case early (#5913).
   -OutDir     optional; default <Worktree>/.build/.agents/probe-arms.
   -Project / -Tfm / -Configuration   defaults Tests/Linq/Tests.csproj, none, Testing. `Testing` builds only
               $(LatestTargetFramework), so any other -Tfm matches nothing ("No test projects were found");
