@@ -53,6 +53,10 @@ path: .claude   glob: **/{skills,agents}/**/*.md        -> 2 files
 
 Write the glob relative to the cwd, prefix it with `**/`, or drop the directory part and narrow with `path` alone. A glob with no `/` (`*.md`, `{a,b}.ps1`) matches file names at any depth and is unaffected. (Surfaced 2026-09-30: three false negatives in one session, one of which hid two skills that still restated a rule being changed.)
 
+## `Write` over an existing file writes LF line endings
+
+The `Write` tool writes `\n` endings whatever the file had. Rewriting a CRLF source with it turns every line into a change. Git reports it only as a `LF will be replaced by CRLF` warning, and the diff reads as a whole-file rewrite. Prefer `Edit` for an existing file. After a `Write` over one, convert the endings back to CRLF (`$t -replace "(?<!`r)`n", "`r`n"`, written with the file's original BOM state). (#6037: `CSharpCompiler.cs`.)
+
 ## An `Edit` that fails "string not found" on a line you just read: re-anchor
 
 `Read` prefixes every line with a number and a tab, so the leading whitespace you see is not the file's, and counting tabs off that display is a coin flip in a tab-indented codebase. The tell is that the failure is *only* about whitespace — the code text is verbatim correct. Trim `old_string` to start at the first non-whitespace character and let the match float; uniqueness almost always survives it. (#5877)
