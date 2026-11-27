@@ -261,6 +261,8 @@ Surface any mismatch as a finding (a wrong/missing doc page for a user-facing ru
 
 Derive the key from the PR's `headRefName` (`/` → `-`) and `Read` `.claude/plans/<key>/plan.md`. The plan lives in the corpus, not on the PR branch, so it is readable without checking the PR out — but the corpus must be current: `git -C .claude pull` when the plan is missing and the branch is one of ours.
 
+**A present plan can be stale too — check `git -C .claude status -sb` before quoting it.** When it shows `behind`, read the plan from upstream (`git -C .claude show origin/master:plans/<key>/plan.md`, or the scratch checkout in [`claude-setup.md`](../../docs/claude-setup.md) → *A dirty, behind primary corpus*), never from the working tree. A behind checkout reports amendments, critic rounds and gates as missing that exist upstream. (#6037 round 2: the primary corpus was 39 commits behind, and the step-4 gate recommended amending a plan that already carried A-8 to A-10, critic round 2 and G-09.)
+
 **A Tier-L plan can exceed the `Read` cap — `Grep` its `^## ` headings first, then `Read` the blocks you need by `offset` / `limit`.** A whole-file `Read` fails on the 25k-token cap, and so does a slice that spans the verification-gate block, whose rows run to thousands of tokens each. (Surfaced on #5983, whose plan was ~90k tokens: two `Read`s failed before the heading `Grep`.)
 
 **Read it before the intent summary, not after.** Re-deriving intent from the issue and the diff produces a *different yardstick every round*, which is why successive reviews of one branch used to surface different findings instead of converging. See [`work-plan.md`](../../docs/work-plan.md).
