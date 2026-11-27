@@ -918,6 +918,14 @@ So a new `[DataSources]` test using `Except` / `ExceptAll` / `Intersect` / `Inte
 
 **Sybase is the control that shows the emulation itself isn't the problem** — same false flag, so it emulates identically, but it *does* support correlated subqueries and passes. A set-operation test failing on YDB alone is this gate missing, not a defect in the operation. (Surfaced on #5833: `ExceptBranchProjectingDerivedType` reached CI ungated and failed the YDB leg on both the direct and `LinqService` contexts, while Sybase passed in the same leg.)
 
+### A new test in an existing fixture copies its sibling's capability idioms, not only its body
+
+The two sections around this one are instances of a general rule. Before adding a `[DataSources]` test to a fixture, find its closest same-shape sibling and carry over everything provider-conditional it does, not just the query and data setup:
+- **gates, with their variant**: `[ThrowsRequiresCorrelatedSubquery]` for a correlated scalar aggregate in a projection, `simple: true` or not as the sibling has it;
+- **expected values read through a fixture helper**: a reader or command count under a strategy the engine remaps per provider, such as `IsCteSupported(context) ? 1 : 2` in `EagerLoadingStrategyUnionTests` (CteUnion runs as KeyedQuery on Access, SqlCe, Sybase and MySQL 5.7).
+
+Then run it on a provider on each side of that capability: a CTE-capable-only run cannot show the non-CTE expectation is wrong. (#6285: `ParentReadsOnlyTheKey` asserted one reader everywhere, and `ParentReadsCheckedAggregate` dropped its sibling's correlated-subquery gate; the author's run covered SQLite, SQL Server and PostgreSQL only.)
+
 ### An apply-join test gates ClickHouse and YDB as correlated subqueries, not outer joins
 
 A correlated `SelectMany` source becomes an apply join, and `[ThrowsRequiredOuterJoins]` lists the providers without one. ClickHouse and YDB never reach that check: the correlation itself is rejected first, with `ErrorHelper.Error_Correlated_Subqueries`. Leave them out of the outer-join list and add `[ThrowsRequiresCorrelatedSubquery]` instead. Use `simple: true` (YDB only) only for a shape ClickHouse has been seen to run — an `Any(…)` correlated sub-query passed there, the `SelectMany` apply did not. (#5708: `UnpivotOverACorrelatedSource` listed both under the outer-join gate and cost a CI round.)
@@ -1344,6 +1352,7 @@ When a fix changes provider-specific SQL *shape* (especially provider-specific f
 
 - **`(await store.FindAsync(…))?.Id.ShouldBe(y)` skips the assertion when the lookup returns `null`** — the null-conditional short-circuits the whole chain, `ShouldBe` included. Write `.ShouldNotBeNull().Id.ShouldBe(y)`; `ShouldNotBeNull()` returns the non-null value.
 - **A literal NUnit → Shouldly conversion creates that trap.** `Assert.That(x?.Id, Is.EqualTo(y))` is sound — `null` fails `EqualTo` — but its mechanical Shouldly form `x?.Id.ShouldBe(y)` is not. Every `?.` inside an `Assert.That` argument needs the `ShouldNotBeNull()` rewrite, not a transliteration.
+- **A per-row loop over a query result asserts nothing on an empty or short result.** `foreach (var row in result) row.X.ShouldBe(f(row.Id))` passes on zero rows and on dropped rows, because each expectation is derived from the row itself. Pin `result.Count` (or `ShouldNotBeEmpty()`) before the loop, as the fixture's siblings do. (#6285 MIN001.)
 - **A round-trip whose DDL and DML share one mapping schema cannot prove a mapping change.** Create the table and query it from the same overridden schema, and a lost rename round-trips just as well under the default names. Pin the physical names through an **independent** mapping — a local `[Table("MyUsers")]` class with `[Column("EmailAddress")]` — that goes red if the override never reached the SQL.
 
 (Surfaced on #5640: three findings of one review — a rename round-trip, a `?.` login lookup, and five `?.` sites that a Shouldly conversion would have silently weakened.)
