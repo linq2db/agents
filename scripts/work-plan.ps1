@@ -487,7 +487,21 @@ function Invoke-Validate {
         }
         $ids -join ' '
     })
+    # A plan whose product is test coverage (work-plan.md -> "On a plan whose product is test coverage"): P6 edits
+    # Tests/ and nothing under Source/, and a P2 criterion says a regression turns a test red. Its tests are worth
+    # only the reds they can produce, so the mutation checks below are errors at every validate there, not only at
+    # -Done, and reconcile forwards the P9 ones (#6037 round 2: two P8-named mutations stood unrun for six weeks
+    # behind a warning). Corpus-only and CI-only plans edit no Tests/ and stay out.
+    $p2Block      = Get-Block -Blocks $blocks -Id 'P2'
+    $p6EditRows   = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' } })
+    $coveragePlan = $p6EditRows.Count -gt 0 -and
+        @($p6EditRows | Where-Object { $_ -match '\bSource/' }).Count -eq 0 -and
+        @($p6EditRows | Where-Object { $_ -match '\bTests/' }).Count -gt 0 -and
+        $null -ne $p2Block -and (@($p2Block.lines) -join "`n") -match '(?i)\bturns?\b[^.\n]{0,60}\bred\b'
     if ($g01 -match '\b(pass|fail)\b' -and $g01 -notmatch '\(pending\)') {
+        if ($coveragePlan -and $g01 -match '(?i)\bnot mutation-proven\b') {
+            $errors += "P9 : G-01 waives mutation proof in one line ('not mutation-proven') on a coverage plan -- record each TO-n's red (work-plan.md -> P8 proof modes)"
+        }
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to = $Matches[1]
@@ -515,7 +529,7 @@ function Invoke-Validate {
                 $waived = @($waiverRows | Where-Object { $_ -match $toRx -and $_.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
                 if ($seen.Add($name) -and -not $waived -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
                     $msg = "P9 : G-01 records no run of $to's mutation '$name' -- name the red it produced, or drop the claim"
-                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                    if ($Done -or $coveragePlan) { $errors += $msg } else { $warnings += $msg }
                 }
             }
         }
@@ -536,13 +550,20 @@ function Invoke-Validate {
             if ($row -match '(?i)proof:\s*characterization' -and $row -match '(?i)\bseparates:') {
                 $warnings += "P8 : $to is proof: characterization but keeps a separates: clause -- a characterization separates nothing; find an input that does, or drop the clause"
             }
+            if ($coveragePlan -and $row -match '(?i)proof:\s*characterization' -and $row -notmatch '(?i)\bmutat') {
+                $errors += "P8 : $to is proof: characterization on a coverage plan but names no mutation -- name the generator / harness change it must catch, and record its red in G-01"
+            }
             if ($row -notmatch '(?i)proof:\s*control') { continue }
             $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
             $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
             # "not run" counts only inside the clause naming this TO (up to the next ';' or sentence end): a
             # summary line naming several TOs often says another provider was not run (#6277 A-8, TO-78).
             $clauses = (@([regex]::Matches($joined, "$toRx[^;]*?(?=;|\.\s|$)") | ForEach-Object { $_.Value }) -join ' ')
-            if ($joined.Length -gt 0 -and ($clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+            # ...except in the TO's own bullet, where every clause is about it: `proof: control; mutation (…) not
+            # run` hid twenty unrun controls behind the ';' (#6037 G-01 round 3)
+            $ownRx  = "^\s*-\s*[*_]{0,2}$([regex]::Escape($to))(?!\w)"
+            $ownGap = @($g01Lines | Where-Object { $_ -match $ownRx -and $_ -match '(?i)\bnot (recorded|run)\b' }).Count -gt 0
+            if ($joined.Length -gt 0 -and ($ownGap -or $clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
                 $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
