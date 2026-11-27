@@ -88,6 +88,11 @@ Input (named parameters):
                            hand-run test exe it replaces loses this script's parsed
                            summary. Exclusive with -SerialBuild. A run against a stale
                            or missing build fails or tests old code; it does not rebuild.
+  -NoCreateDatabase        optional; by default a Tests/Linq or Tests.Playground run with -Filter and
+                           -Provider gets `FullyQualifiedName~CreateData.CreateDatabase|` prepended to
+                           the filter (reported as `createDatabaseAdded`), since without it every
+                           provider test first waits out a 2-minute readiness timeout. This switch
+                           keeps the filter as given.
   -ExpectTests   <list>    optional; test METHOD names (no class, no arguments) that
                            must have run. Implies -OutputDetailed, since MTP lists a
                            passed test only in that mode. Any name with no passed /
@@ -167,7 +172,7 @@ Output (stdout, single JSON object):
     "linqToDBAsset": "netstandard2.0", // only with -LinqToDBAsset; the asset the tests ran against
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
-    "failedFullNames": [ "Tests.UserTests.Issue1347Tests.Test2(\"SQLite.MS\")", ... ],
+    "failedFullNames": [ "Tests.Linq.AssociationTests.Test2(\"SQLite.MS\")", ... ],
                                      // from the run's TRX report, with the class; failedTests carries the method
                                      // only, which is ambiguous for common names (Test2). Empty when no TRX was
                                      // written (bare-NUnit hosts, where --test-progress is skipped too)
@@ -217,6 +222,7 @@ param(
     [switch]$NoRestore,
     [switch]$NoTestProgress,
     [switch]$NoBuild,
+    [switch]$NoCreateDatabase,
     [string[]]$ExpectTests,
     [string]$LinqToDBAsset,
     [switch]$GroupFailures,
@@ -246,6 +252,16 @@ $Provider = @($Provider | ForEach-Object { $_ -split ',' } | ForEach-Object { $_
 # <provider>.LinqService.LinqService, which has no connection string: it runs only CreateDatabase (#6116) and adds nothing.
 $remote = @($Provider | Where-Object { $_ -like '*.LinqService' })
 if ($remote.Count -gt 0) { Exit-WithError -Message "a .LinqService provider is never passed: $($remote -join ', ')" -NextAction 'pass the base provider; its run includes the .LinqService cases' }
+
+# A provider test waits up to 2 minutes for its provider's CreateDatabase (testing.md -> "can also look like a hang"),
+# so a filtered provider run without it stalls before running anything (#6472: 14 minutes for one test).
+$createDatabaseAdded = $false
+if (-not $NoCreateDatabase -and $Filter -and $Provider.Count -gt 0 -and
+    $Project -match 'Tests[\\/](Linq[\\/]|Tests\.Playground)' -and $Filter -notmatch 'CreateData\.CreateDatabase') {
+    $Filter              = "FullyQualifiedName~CreateData.CreateDatabase|$Filter"
+    $createDatabaseAdded = $true
+}
+
 if ($PerProvider) {
     if ($Provider.Count -lt 1) { Exit-WithError -Message '-PerProvider needs -Provider' -NextAction 'pass -Provider a,b,c' }
     if ($LogPath)             { Exit-WithError -Message '-PerProvider writes one log per provider; drop -LogPath' -NextAction 'omit -LogPath' }
@@ -661,6 +677,7 @@ $result = [ordered]@{
     logPath      = $LogPath
     buildLogPath = $buildLogPath
     testProgress = $useTestProgress
+    createDatabaseAdded = $createDatabaseAdded
     summary      = $summary
     failedTests  = @($failedTests | Select-Object -Unique)
     failedFullNames = @($failedFullNames | Select-Object -Unique)

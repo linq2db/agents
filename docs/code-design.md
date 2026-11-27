@@ -286,6 +286,20 @@ The output must not fire the rewrite again in a **parent** whose operand it is, 
 
 **A normalization every provider must see runs before the provider dispatch, not in a base arm.** Provider `ConvertSql*Expression` overrides rewrite operators before calling base (Access `BAND`, ClickHouse `bitAnd`, DB2 / Firebird / SAP HANA `BITNOT`, …), so a fix in the base `& | ^` or `~` arm never reaches them. Put it in `VisitSqlBinaryExpression` / `VisitSqlUnaryExpression` ahead of the `ConvertSql*Expression` call, with a virtual for the providers that opt out. And never return a re-visited node carrying a cast that a provider strips (Access drops integer casts in `ConvertConversion`): the cast comes back on every pass, which is the same recursion as above — hand the cast operands to the hook instead. (#6450: critic rounds 1 and 3 refuted per-arm placement; the stripped-cast loop was caught before the first run.)
 
+### An emulation of a native function owns its NULL and edge semantics
+
+Wrapping a native function in an emulation (`CharIndex` with a start over `Substring`, `IndexOf` over `CharIndex`) inherits what the native call does with NULL and with out-of-range input, and that differs per provider. Measured on #6498 for the string searches:
+
+| Native call | NULL argument / out-of-range input |
+|---|---|
+| Sybase ASE `charindex(sub, str)` | answers **0**, not NULL, when either argument is NULL (so does a `Substring` tail that went NULL) |
+| SqlCe / Informix `CHARINDEX(sub, str, start)` | ignores a NULL start and searches from 1 |
+| Access `InStr(start, str, sub)` (ACE and LibRed) | NULL start raises *Invalid use of Null*; a start below 1 raises *Invalid procedure call* |
+| DB2 `LOCATE`, Firebird `POSITION` | refuse a start below 1; DB2 `LOCATE` / `SUBSTR` count bytes on a non-ASCII value (#6495) |
+| YDB `Unicode::Find(str, sub[, pos])` | the needle must be non-optional — an `IF(… IS NULL, NULL, …)` guard does not narrow its type, so wrap it as `Coalesce(sub, ''u)`; the result is `Uint64?`, so `… - 1` on a miss wraps and fails mapping to `int` — `CAST(… AS Int32)` first |
+
+So state the emulation's contract (0 for no match, NULL for any NULL argument) and test each clause on every provider that emulates it — a native answer is a hypothesis until a NULL-argument row has run there. The guard the engine uses is `NullWhenArgumentIsNull`, applied only to arguments that can be NULL.
+
 ### A template that wraps a nullable operand declares its nullability
 
 A `SqlExpression` template built without a nullability type gets `ParametersNullabilityType.Undefined` and is not nullable through its operands, so `x IS NULL` over it folds to false. Give any template over operands `ParametersNullabilityType.IfAnyParameterNullable` — a wrapper, and an operator template such as MySQL's `{0} DIV {1}` too. (#6427: YDB's `BitCast(… AS Int32)` over a nullable column turned `(a | n) IS NULL` into `false`.) A rule written from one instance is swept across the same change's sibling sites. (#6450: the rule was written for YDB's wrapper while the MySQL `DIV` template, reused for every integer `/`, still had `Undefined`.)
@@ -485,6 +499,18 @@ Comments of the form `// TODO: ... v<N>` or `// FIXME: ... in next major` are an
 Don't flag these as scope-creep, stray comments, or "uncommitted thinking-aloud edits" — even when the wording is informal (`// ??? TODO: remove Flags in v7` is a real example). When a PR introduces a new TODO marker that follows this shape, treat it as part of the deferred-cleanup ledger.
 
 The narrower case — `// TODO: v7 - move to internal namespace` markers on legacy SQL AST types — is covered above under **SQL AST types live in `LinqToDB.Internal.SqlQuery`**.
+
+### Invariant checks in `Source/` throw in every build — no `Debug.Assert`
+
+`Source/` has no `Debug.Assert`. An invariant worth checking is worth checking in the Release build users run, so it throws (`InvalidOperationException`, or `LinqToDBException` with cause and remediation per the section below). An invariant that cannot fail is not checked at all. `Debug.Assert` is compiled out of Release, so a violation passes silently in production. (#6454 NIT002: `ColumnDescriptor.SetValueSiblings` added the first one; a second call would silently replace the siblings in Release.)
+
+### Re-entrancy state: `[ThreadStatic]` under a scoped exception, not `AsyncLocal` plus a thread id
+
+State that guards synchronous re-entrancy is per call stack by definition. Examples are "this object is being built on this stack" and a recursion depth. `[ThreadStatic]` is banned in `Source/BannedSymbols.txt` with no stated reason; the usual one is that thread-local state breaks across `await`. Code with no `await` between push and pop is a case that reason does not cover.
+
+- **Use `[ThreadStatic]` under a scoped `#pragma warning disable RS0030`** with a one-line justification at the field, and push and pop in `try`/`finally`.
+- **Don't substitute `AsyncLocal`.** It flows into every task and timer the guarded code starts, so another thread sees an entry that is still in progress. The usual patch, a stored `Environment.CurrentManagedThreadId` plus an "ended" flag, re-creates `[ThreadStatic]` by hand and leaves thread identity in non-threading code.
+- **First ask whether the state is needed at all.** A design that never writes to a published object, or one that passes the in-progress object explicitly, needs neither. (#6454 SUG002, follow-up design [#6487](https://github.com/linq2db/linq2db/issues/6487).)
 
 ### Exceptions carry cause + remediation; don't collapse specifics into a generic message
 

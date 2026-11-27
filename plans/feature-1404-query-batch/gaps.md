@@ -116,3 +116,39 @@ Review: https://github.com/linq2db/linq2db/pull/6111#pullrequestreview-601359115
 
 Recurring: round-1 MAJ004 and OOS-11 → MIN013; round-1 OOS-14 → MIN015, SUG009; round-1 MAJ001 → MAJ004; round-1 OOS-13 and round-2 MIN005 → MAJ005; round-1 MAJ005 → SUG009; round-1 MIN002 and round-2 MIN006 → SUG008; round-2 MIN006/SUG002 → SUG006; round-2 NIT001 → NIT002, NIT003.
 Earlier recommendations: round-1 #1 (forced opt-in scout brief) not landed, superseded by fix 1; round-1 #2 (grid) landed, missed MIN013 because D-3 predates it; round-1 #3 (G-09 must be pass or waived) not landed, P9 still reads G-09 skipped; round-2 #1 landed in all three parts, but the sweep check only tests string presence (fix 3); round-2 #2 landed; round-2 #3 (validator check for missed doc E-n) not landed as a check.
+
+## Round 4 — reviewed HEAD 8bf07d878
+
+Review of 2026-11-27: own findings MIN018, SUG012, SUG013, NIT004; igor-tkachev's MIN017 carried as a supporting note. The design decision (does a batch honour `UseEagerLoadingTransaction(false)`) is folded into MIN018: honour it and document it (user's call).
+
+## Attribution
+
+- **MIN018** (remark / PR body describe the batch's transaction as unconditional after #6456) — GAP-03 — SC-10 and the P7 `Query.cs` row ("supplies SC-10 unchanged (U-8) — out-of-scope") were not re-derived when merge `8bf07d878` brought #6456 into that code; A-13 cited #4053 as separate work — G-03 — preventable: yes
+- **SUG012** (`ReadsInOneTransaction` covers default options only; level unasserted) — GAP-05 — no obligation for the option-off arm once the transaction became option-dependent; `CommandTrace` keeps Operation only — G-01 — preventable: partly
+- **SUG013** (`NoFromlessSubquery = AllAccess` also excludes LibRed) — GAP-02 — P10 line 319 / U-23 record LibRed "unmeasured (not configured locally)" without a probe; LibRed is local (no container) and has a CI leg (`Build/Azure/pipelines/templates/test-matrix.yml:518`) — G-01 — preventable: yes
+- **NIT004** (two SQLite-only tests, no reason for the narrowing) — GAP-06 — A-13's conventions line explained "40 narrowed sets without a reason" wholesale as multi-line signatures; these two have none — G-01 — preventable: yes
+- **MIN017** (igor's; CteUnion detail built with `ForSetProjection` skips the strict wrapper) — GAP-02 — U-21's TO-72 measured only the non-combining KeyedQuery/CteUnion cell with a type-only assertion that passes on #6252's message; P10 line 312 uses `IsForSetProjection` as an exemption without asking which builders set it — G-08 — preventable: partly
+
+## Aggregate
+
+GAP-02 ×2, GAP-03 ×1, GAP-05 ×1, GAP-06 ×1. No GAP-09 / GAP-10: #6456 was merged master code, knowable. MIN018 and SUG012 share one cause: a master merge changed code the plan had marked out-of-scope/unchanged, and nothing re-reads such a P7 row when master moves.
+
+## Recommended durable fixes
+
+- GAP-03 + GAP-05 (MIN018, SUG012) → `work-plan/SKILL.md` branch-sync step + `work-plan.ps1 -Action validate`: after a merge of `origin/master` (or the parent), list merged-changed files named in any P7 row, out-of-scope rows included, and require an A-n whose `re-derives:` names the row, the SC-n it supplies and the doc E-n restating it; warn when no A-n post-dates such a merge.
+- GAP-06 (NIT004, third recurrence) → `work-plan.ps1 validate`: a conventions line reporting N > 0 narrowed sets without a reason is an error unless each hit is listed by test name with its reason.
+- GAP-02 (SUG013, MIN017) → `plan-critic.md`: a P10/P11 "unmeasured, not configured locally" claim is checked against `docs/dead-ends.md` / local provider availability and the CI matrix; a check keyed on a build flag gets one cell per builder that sets the flag, and a control green on its first run needs a red on the finding's route.
+
+## Corpus trace
+
+- MIN018 · rule: P7 out-of-scope rows need a reason; none re-reads them after a merge · why it did not fire: the reason was true when written, the merge falsified it · correction: merge-time P7 re-walk (above) · recurs: round 2 MIN006/SUG002, round 3 SUG006
+- SUG012 · rule: P8 one obligation per behaviour axis · why it did not fire: the axis appeared with the merge · correction: same as MIN018 · recurs: round 2 SUG003
+- SUG013 · rule: none checks "not configured locally" against dead-ends.md / the CI matrix · correction: plan-critic vector · recurs: round 3 SUG007, round 1 OOS-13
+- NIT004 · rule: testing.md narrowed-provider reason · why it did not fire: sweep count accepted with a blanket explanation · correction: validate error · recurs: round 1 MIN004, round 2 MIN007
+- MIN017 · rule: plan-critic vector on strategies a gate bypasses (round-1 recommendation, not landed) · correction: per-builder cells for flag-keyed checks · recurs: round 2 igor-MIN004, round 3 MIN013
+
+## Continuity with rounds 1–3
+
+- GAP-03 after a change recurs (round 2 MIN006/SUG002, round 3 SUG006/SUG007 → MIN018, SUG012). Round-3's `re-derives:` recommendation covers amendments, not merges.
+- GAP-06 narrowed-set reason: round 1 MIN004 → round 2 MIN007 → round 4 NIT004; earlier fixes have not stopped it.
+- GAP-02 unmeasured premise: round 1 OOS-13 / round 2 MIN005 / round 3 MAJ005 → SUG013, MIN017.

@@ -12,6 +12,36 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** a member that has both an in-memory meaning and a SQL one is translated in `ExpressionBuildVisitor`, under `BuildPurpose.Sql`, for a receiver that is not client-evaluable; a projection keeps the in-memory read. (#5708, `48de1d7cf`, round-4 `f6c79e56e`)
 
+## EXPR-TRANS: reading a pivot cell as another type in an Unpivot column through a typed `DynamicColumnInfo`
+
+**Tried:** (measured on SQLite.Classic, `Get<int>` over a `decimal?` cell in an Unpivot column, which threw `ArgumentException` from `ExpressionBuildVisitor.VisitNew` rebuilding the result's constructor):
+1. converting a matched `DynamicColumnInfo` binding to the read's type in `ExpressionBuilder.Project`, in both the `MemberInit` and the `SqlGenericConstructorExpression` branch;
+2. an `object`-typed read with a `Convert` to `T`, left to the projection's normal `VisitUnary`;
+3. outside the `Sql` / `Expression` purposes, rebuilding that conversion over the visited operand.
+
+**Failed because:**
+1. No effect: the test stayed red with the same exception, because the read does not resolve through either branch's return.
+2. The BCL's `ExpressionVisitor.VisitUnary` rejects the operand changing from `object` to the cell's own type ("Rewriting child expression from type 'System.Object' …" / "… calls operator method 'op_Explicit' …").
+3. Identical to returning the node unchanged on all 133 `PivotDynamicTests` cases. Only `Extract` reaches it, and `SelectBuilder.cs:39` discards that result.
+
+**Don't re-attempt:** any of the three. The working shape is an `object`-typed read whose conversion `VisitUnary` hands to `ReadPivotCellAs` in the `Sql` / `Expression` purposes, which resolves the cell in `Sql` purpose and casts the resolved column; other purposes return the node as written. (#5708 A-21)
+
+## MAPPING: serving a TPH root's in-progress descriptors to re-entrant descriptor-created callbacks
+
+**Tried:** four ways for a descriptor-created callback to read its hierarchy's descriptors while the inheritance root is still being built (reviewed by reading, none built):
+1. publish every hierarchy descriptor to the cache before any callback runs;
+2. pass the callback an internal wrapper `MappingSchema` that serves the root's graph;
+3. per-key `Lazy` / `TaskCompletionSource` in-flight cache entries;
+4. a registry checked with `Monitor.IsEntered`.
+
+**Failed because:**
+1. Other threads see descriptors before the callback renames them (`IEntityChangeDescriptor.TableName`, `IColumnChangeDescriptor.ColumnName`), and the root's sibling merge, which compares `ColumnName`, would ignore renames made by mapped types' callbacks.
+2. `MappingSchema.GetEntityDescriptor` is not virtual, `ConfigurationID` is both the descriptor-cache key and what `IEquatable<MappingSchema>` compares, descriptors built inside the callback must not hold the wrapper, and callbacks would receive a different object than documented.
+3. Two hierarchies whose callbacks read each other on two threads deadlock, and so does a callback that waits on a task reading its own hierarchy.
+4. It is thread identity under another name, and it still misses a callback that blocks on a task.
+
+**Don't re-attempt:** any of the four. The design without ambient state (master's caching, nothing written after publication, a `StackGuard` check in the cache factory, and an explicit resolver for callbacks) is [#6487](https://github.com/linq2db/linq2db/issues/6487). (#6454 review)
+
 ## SQL-PROVIDER: deriving DuckDB's operator levels from PostgreSQL's grammar
 
 **Tried:** placing DuckDB's integer division `//` as a PostgreSQL "any other operator", below `+` and `-`, on the reading that DuckDB's parser is libpg_query.
@@ -108,7 +138,7 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** `round_even` for exact decimal rounding, or a `value * 0.5` / `value * 2` emulation on values near the column's range. A parity test on `FLOOR(value)` picks the even neighbour with no multiplication. The precision form is still open: #6275. (#6151 A-9)
 
-## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
+## EXPR-TRANS: reproducing a Linux-only `StackUseTests.LargeOrFilterInSmallStackThread` stack overflow on Windows by shrinking the thread
 
 **Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
 
@@ -577,3 +607,16 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** a member read has spellings a text pattern cannot see: implicit `this` inside the owning type (`Cte?.Body` in `SqlCteTable.GetKeys`), property and extended property patterns (`is SqlCteTable { Cte: { Body: … } }`, `{ CteField.Column: { } x }`), and receivers held in locals (`var p = column.Parent; … p.SetOperators`). Each critic round found another site the last sweep missed.
 
 **Don't re-attempt:** a regex census for member reads. Write a temporary `DiagnosticAnalyzer` in `Source/CodeGenerators` over `IPropertyReferenceOperation` / `IFieldReferenceOperation` filtered by the member symbols, reporting the containing member, and run one Release build of `Source/LinqToDB`: the diagnostics are the census (137 reads in 68 members for those four links). Keep the analyzer as the standing guard, with a per-member disposition attribute. (2026-11)
+
+## SQL-AST: reusing column answers inside one `NullabilityContext.CanBeNull` call, kept exact against the cut-based walk
+
+**Tried:** memoizing column answers within one outermost `CanBeNull` call so a recursive CTE whose columns read each other (`ParentID = ct.ParentID + ct.Level`) stops costing ~N^M walks per call, while answering exactly as the walk without reuse does (#6489, on top of #6490).
+
+**Failed because:** a reused answer depends on three things; the first was designed in, the other two were each found by a critic round:
+1. the cycle cuts it made at columns above it, and their cut answers by type;
+2. the columns it walked in full - a fresh walk cuts at any of them that are on the path now (`Len <- Name` int over string, `Name <- Len` string over int, `Total <- Len + Name`);
+3. the context's `Queries` - a branch column called from a context without its branch answers a column below it with an outer-joined table unresolved, and that answer is then reused under the head's loop, where the branch is in the context.
+
+Checks 1-2 made self-reading shapes linear, but cross-referencing columns stayed ~N^1.5 per call during translation, because the optimizer's pass-through wrapper columns create many distinct path states. Checking 3 exactly costs about a re-walk per reuse, or forbids the cross-branch reuse the issue needs.
+
+**Don't re-attempt:** answer reuse that must equal the cut-based walk. Start from an order-independent fixed-point evaluation per cycle, which is linear but changes some answers (an `int` anchor with an `int?` recursive branch becomes not nullable) and so needs a baselines review. The parked implementation, with failing tests for the last two: agents `plans/issue-6489-fix-cross-column-cte-walk/implementation.patch`, which applies on linq2db `b519aecab`. (#6489, 2026-11-27)

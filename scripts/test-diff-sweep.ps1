@@ -47,13 +47,13 @@ letting through:
      rows, aggregates over a navigation) still use `AreEqual`, so read each hit. (#5969 round 4 NIT007:
      four new `WhereTests.Binary*` tests followed the fixture's `AreEqual` form.) Measured: `bcefe37bb` 4 hits,
      the four; `origin/master~300...origin/master` 10, whole-table `AreEqual(T, db.T)` compares among them.
- 11. an added `Issue<N>`-named type or test method in a file whose name lacks `Issue` (the EF `IssueModel` and
-     generated `Tests/Tests.T4/` scaffold output are skipped too) — a shared feature
+ 11. an added `Issue<N>`-named type or test method (`void` / `Task` / `ValueTask`) in any test file — only the EF
+     `IssueModel` and generated `Tests/Tests.T4/` scaffold output are skipped (#6463) — a test
      fixture names members for the behaviour they check and puts the issue in `[Test(Description = ...)]` —
      testing.md -> *Naming in a feature fixture*; test-review-checklist.md -> *`Issue<N>` names in a shared
      feature fixture*. (#6442 MIN001: `Issue6400Table` and its test, added among legacy `Issue4371*` members.)
-     Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them legacy
-     members re-added by fixture consolidation, so a hit on moved code is not a finding.
+     Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them old
+     members re-added by fixture consolidation before #6463.
  12. `localModels`: a mapped class added to a `Tests/Linq/Linq/` feature fixture with 1-3 columns, every one
      `int` / `string` / `bool` (nullable or not), and no inheritance — the shapes the shared `Parent` / `Child` /
      `Person` models already carry — testing.md -> *Core behaviour is tested on the common models*. A local type
@@ -66,9 +66,14 @@ letting through:
      predicates fix 4 hits, the four a review raised; `origin/master~300...origin/master` 2, both real
      (`MathFunctionTests.cs:1082`, `:1863`).
  14. `issueFixtureFiles`: a per-issue `Issue<N>Tests.cs` fixture file the branch adds (or moves into that name) -
-     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 skips every
-     `Issue*`-named file, so nothing else flags the file itself. Tests added to an existing one are not detected.
-     (#6057 MIN001.)
+     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 flags the
+     `Issue<N>` members inside it, not the file itself. (#6057 MIN001.)
+ 15. `shouldlyThrowAssertions`: an added Shouldly exception assertion (`.ShouldThrow<T>(`, `.ShouldThrowAsync<T>(`,
+     `Should.Throw<T>(`) - testing.md asks for `Assert.That(() => ..., Throws...)`, keeping the fully qualified
+     `Shouldly.Should.Throw<T>` for a test that needs the exception object, so read each hit. Measured: #5708 at
+     `bf00c3547` 28 hits, the 28 round 4 converted; `origin/master~300...origin/master` 101.
+ 16. `regionBlocks`: an added `#region` / `#endregion` - testing.md -> *Test Patterns*. Measured: #5708 at `bf00c3547`
+     2, the pair round 4 removed; `origin/master~300...origin/master` 390, mostly moved or regenerated code.
 
 Why this script exists
 ----------------------
@@ -112,7 +117,8 @@ typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, 
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
-attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}],
+shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -168,6 +174,8 @@ $cacheCalls  = @()
 $areEquals   = @()
 $invisible   = @()
 $issueNamed  = @()
+$shouldlyThrows = @()
+$regions     = @()
 $localModels = @()
 $padding     = @()
 # check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
@@ -294,11 +302,23 @@ foreach ($l in $diff) {
 			}
 		}
 
-		# check 11: `Issue<N>` names belong only in issue fixtures (per-issue files are legacy), the EF `IssueModel`,
-		# and generated T4/CLI scaffold output, whose names come from the database schema
-		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
-			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>Issue\d+\w*)\b') {
+		# check 11: `Issue<N>` names belong only in the EF `IssueModel` and generated T4/CLI scaffold output, whose names
+		# come from the database schema - no test file is exempt since #6463 retired the per-issue fixtures; a
+		# `_Issue<N>` suffix counts too (#6037: `ViewNamedTable_Issue4831`)
+		if ($file -match '\.cs$' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
+			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|(?:Value)?Task(?:<[^()]*>)?)\s+)(?<name>(?:\w+_)?Issue\d+\w*)\b') {
 			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
+		}
+
+		# check 15: an added Shouldly exception assertion, where testing.md asks for `Assert.That(..., Throws...)` unless the
+		# test needs the exception object (#5708 round 4: 28 `ShouldThrow` sites, converted after review)
+		if ($file -match '\.cs$' -and $text -notmatch '^\s*//' -and $text -match '\.\s*ShouldThrow(?:Async)?\s*<|\bShould\s*\.\s*Throw(?:Async)?\s*<') {
+			$shouldlyThrows += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
+		# check 16: an added `#region` / `#endregion` in test code (testing.md -> Test Patterns; #5708 round 4)
+		if ($file -match '\.cs$' -and $text -match '^\s*#(?:end)?region\b') {
+			$regions += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 		}
 
 		# check 12: a small mapped class added to a feature fixture, every column int / string / bool (nullable or not) -
@@ -504,4 +524,6 @@ $issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Te
 	localModels = @($localModels)
 	attributePadding = @($padding)
 	issueFixtureFiles = @($issueFixtures)
+	shouldlyThrowAssertions = @($shouldlyThrows)
+	regionBlocks = @($regions)
 } | ConvertTo-Json -Depth 4

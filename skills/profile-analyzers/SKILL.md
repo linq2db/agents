@@ -241,7 +241,7 @@ Rules in the baseline but absent from the run are reported as such; check whethe
 
 ### 6. Tear down
 
-Remove the worktree (confirm first, per [`worktree.md`](../../docs/worktree.md)). Since no build server was shut down, `-p:UseSharedCompilation=false` may have left `csc` holding `CodeGenerators.dll` / `LinqToDB.Analyzers.dll` — containing that is why the measurement runs in a worktree. If the next build in the primary clone hits `CS2012`, retry once; do **not** reach for `build-server shutdown`.
+Remove the worktree — a throwaway measurement tree, so no confirmation (`git worktree remove --force`, per [`worktree.md`](../../docs/worktree.md)). Since no build server was shut down, `-p:UseSharedCompilation=false` may have left `csc` holding `CodeGenerators.dll` / `LinqToDB.Analyzers.dll` — containing that is why the measurement runs in a worktree. If the next build in the primary clone hits `CS2012`, retry once; do **not** reach for `build-server shutdown`.
 
 ---
 
