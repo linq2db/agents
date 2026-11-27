@@ -1191,9 +1191,20 @@ function Invoke-Reconcile {
     $p6       = Get-Block -Blocks $blocks -Id 'P6'
 
     $authorized = @()
+    # The edit-point's own file per live row: a row whose file has left the diff names code the branch no longer
+    # carries (#6133: a stack merge removed six edit-points' files and nothing reported it for 23 days). Rows that
+    # are withdrawn, or that restore master's text, are expected to have no diff.
+    $expected = @()
     foreach ($row in (Get-BlockRows -Block $p6)) {
         # Strip a :Symbol suffix — the authorization is per file.
-        foreach ($p in (Get-RowPaths -Row $row)) { $authorized += ($p -split ':')[0].Trim() }
+        $rowPaths = @(Get-RowPaths -Row $row | ForEach-Object { ($_ -split ':')[0].Trim() })
+        $authorized += $rowPaths
+        if ($row -match '(?i)\bwithdrawn\b|revert(ed)? to master|equals (the stack and )?master|not edited') { continue }
+        $own = @($rowPaths | Where-Object { $_ -match '/' }) | Select-Object -First 1
+        if ($own) {
+            $eid = if ($row -match '^\s*-\s*(E-\d+)') { $Matches[1] } else { '' }
+            $expected += [pscustomobject]@{ id = $eid; path = $own }
+        }
     }
 
     $r = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'diff', '--name-only', "$Base...$Head")
@@ -1244,6 +1255,17 @@ function Invoke-Reconcile {
         if ($hit) { $matched += $f } else { $unplanned += $f }
     }
 
+    $vanished = @()
+    foreach ($e in $expected) {
+        $a   = $e.path
+        $hit = $false
+        foreach ($f in $changed) {
+            if ($f -eq $a -or $f.EndsWith($a) -or $a.EndsWith($f) -or $f.StartsWith($a.TrimEnd('*')) -or
+                ($a.Contains('*') -and $f -like ($a -replace '\*\*/', '*'))) { $hit = $true; break }
+        }
+        if (-not $hit) { $vanished += ('{0} {1}' -f $e.id, $a).Trim() }
+    }
+
     # The file check cannot see an amendment that skipped its own obligations (no conventions: line, no critic
     # round, no sweep counts); validate reports them, but nothing ran validate before a push (#6037: A-7's three
     # validate errors stood while its merge commit was pushed). Carry validate's P9/P11 errors here.
@@ -1254,7 +1276,7 @@ function Invoke-Reconcile {
         if ($parsed) { $planErrors = @($parsed.errors | Where-Object { $_ -match '^P(9|11) :' }) }
     }
 
-    $ok = ($unplanned.Count -eq 0 -and $planErrors.Count -eq 0)
+    $ok = ($unplanned.Count -eq 0 -and $vanished.Count -eq 0 -and $planErrors.Count -eq 0)
     Write-JsonOutput ([ordered]@{
         ok         = $ok
         action     = 'reconcile'
@@ -1264,8 +1286,10 @@ function Invoke-Reconcile {
         authorized = @($authorized)
         covered    = @($matched)
         unplanned  = @($unplanned)
+        vanished   = @($vanished)
         planErrors = @($planErrors)
         nextAction = if ($unplanned.Count -gt 0) { 'add an E-n row to P6 for each unplanned file and record the rationale in P11 — an amendment voids that part of the approval' }
+                     elseif ($vanished.Count -gt 0) { 'each vanished edit-point names a file this diff no longer changes: find the commit that moved it (often a master or stacked-base merge), then re-derive the decisions that rest on it and withdraw the row in a P11 amendment. On a stacked branch pass -Base <parent branch>, or the parent''s files read as present' }
                      elseif ($planErrors.Count -gt 0) { 'resolve the P9/P11 validate errors before pushing: they mark an amendment whose obligations were skipped' }
                      else { $null }
     })
