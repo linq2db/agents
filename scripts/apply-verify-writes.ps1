@@ -50,7 +50,7 @@ Input (stdin, JSON)
 
 checkboxFlips fetch the review body and replace `- [ ] **<findingId>**` (initial
 review) or `- [ ] <findingId>` (verification body), which must occur exactly once
-at a line start, so the caller never rebuilds a full body; flips on one
+at a line start (leading whitespace allowed, so a nested item flips too), so the caller never rebuilds a full body; flips on one
 review go out as one PUT. A flip whose box already carries the mark is skipped.
 A review may appear in checkboxFlips or reviewBodyEdits, not both.
 
@@ -283,18 +283,19 @@ if ($checkboxFlipJobs.Count -gt 0) {
             $skipped = @()
 
             foreach ($flip in $job.flips) {
-                # Initial reviews write `- [ ] **MIN007** — …`; verification bodies list `- [ ] MIN007 — …`.
+                # Initial reviews write `- [ ] **MIN007** — …`; verification bodies list `- [ ] MIN007 — …`. Either can be
+                # nested under a review note (`  - [ ] **MAJ001** — …`, #5913), so leading whitespace is kept.
                 $id      = [regex]::Escape($flip.findingId)
-                $done    = '(?m)^- \[' + [regex]::Escape($flip.mark) + '\] (\*\*)?' + $id + '(\*\*)?(?=\s|$)'
+                $done    = '(?m)^[ \t]*- \[' + [regex]::Escape($flip.mark) + '\] (\*\*)?' + $id + '(\*\*)?(?=\s|$)'
                 if ([regex]::IsMatch($body, $done)) { $skipped += $flip.findingId; continue }
 
-                $anchor  = '(?m)^- \[ \] (?<id>(\*\*)?' + $id + '(\*\*)?)(?=\s|$)'
+                $anchor  = '(?m)^(?<indent>[ \t]*)- \[ \] (?<id>(\*\*)?' + $id + '(\*\*)?)(?=\s|$)'
                 $count = ([regex]::Matches($body, $anchor)).Count
                 if ($count -ne 1) {
                     return [pscustomobject]@{ reviewId = $rid; ok = $false; error = "'- [ ] $($flip.findingId)' (bold or plain) occurs $count times; expected exactly once" }
                 }
                 $mark  = $flip.mark
-                $body  = [regex]::Replace($body, $anchor, { param($m) "- [$mark] " + $m.Groups['id'].Value })
+                $body  = [regex]::Replace($body, $anchor, { param($m) $m.Groups['indent'].Value + "- [$mark] " + $m.Groups['id'].Value })
                 $flipped += $flip.findingId
             }
 
