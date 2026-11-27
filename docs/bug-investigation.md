@@ -212,7 +212,7 @@ Two things to carry into the write-up. Log the **facts** rather than inferring t
 
 ## Measuring a query build's stack use
 
-A stack regression (`Stack overflow.` on CI, `Issue3674Tests.InThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows*.
+A stack regression (`Stack overflow.` on CI, `StackUseTests.LargeOrFilterInSmallStackThread`'s 80 KB budget) is a number, so measure it rather than reasoning about frame counts. A local thread-size red is usually not available: see [`dead-ends.md`](dead-ends.md) → *EXPR-TRANS: reproducing a Linux-only `StackUseTests.LargeOrFilterInSmallStackThread` stack overflow on Windows*.
 
 - **Whole-build peak, uninstrumented (Windows).** Run the query on a 16 MB thread after `Query.ClearCaches()`. Afterwards, from that thread, `VirtualQuery` the address of a local to get the stack's `AllocationBase` and top, then walk up from `AllocationBase` to the first region with `State == MEM_COMMIT` (`0x1000`) and no `PAGE_GUARD` (`0x100`). Its distance to the top is the deepest the stack reached: commit only grows, at 4 KB resolution. This catches every recursion, not just the one you suspect.
 - **Attributing the peak to a site.** Wrap the suspect recursive method (e.g. `ExpressionEqualityComparer.UpdateHashCode`) in a counting wrapper that records the minimum address of a local and a three-frame stack at each new minimum. The wrapper adds a frame per level, so it overstates the depth: use it for *where*, and the committed peak for *how much*.
