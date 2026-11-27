@@ -728,7 +728,8 @@ foreach ($e in $entries) {
 # path on the command line blows past ENAMETOOLONG on large baseline PRs.
 $diffBodies = @{}
 if ($entries.Count -gt 0) {
-    $diffRes = Invoke-Git @('-C',$clonePath,'diff',"$baseTipSha...$branchTipSha")
+    # --text: a baseline holding control characters is otherwise diffed as binary, an empty body (#5913).
+    $diffRes = Invoke-Git @('-C',$clonePath,'diff','--text',"$baseTipSha...$branchTipSha")
     if (-not $diffRes.ok) { Exit-WithError "git diff (bodies): $($diffRes.error)" }
     $diffBodies = Split-DiffByFile -DiffText $diffRes.stdout
 }
