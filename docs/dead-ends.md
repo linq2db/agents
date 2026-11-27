@@ -4,6 +4,20 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: reading a pivot cell as another type in an Unpivot column through a typed `DynamicColumnInfo`
+
+**Tried:** (measured on SQLite.Classic, `Get<int>` over a `decimal?` cell in an Unpivot column, which threw `ArgumentException` from `ExpressionBuildVisitor.VisitNew` rebuilding the result's constructor):
+1. converting a matched `DynamicColumnInfo` binding to the read's type in `ExpressionBuilder.Project`, in both the `MemberInit` and the `SqlGenericConstructorExpression` branch;
+2. an `object`-typed read with a `Convert` to `T`, left to the projection's normal `VisitUnary`;
+3. outside the `Sql` / `Expression` purposes, rebuilding that conversion over the visited operand.
+
+**Failed because:**
+1. No effect: the test stayed red with the same exception, because the read does not resolve through either branch's return.
+2. The BCL's `ExpressionVisitor.VisitUnary` rejects the operand changing from `object` to the cell's own type ("Rewriting child expression from type 'System.Object' …" / "… calls operator method 'op_Explicit' …").
+3. Identical to returning the node unchanged on all 133 `PivotDynamicTests` cases. Only `Extract` reaches it, and `SelectBuilder.cs:39` discards that result.
+
+**Don't re-attempt:** any of the three. The working shape is an `object`-typed read whose conversion `VisitUnary` hands to `ReadPivotCellAs` in the `Sql` / `Expression` purposes, which resolves the cell in `Sql` purpose and casts the resolved column; other purposes return the node as written. (#5708 A-21)
+
 ## MAPPING: serving a TPH root's in-progress descriptors to re-entrant descriptor-created callbacks
 
 **Tried:** four ways for a descriptor-created callback to read its hierarchy's descriptors while the inheritance root is still being built (reviewed by reading, none built):
