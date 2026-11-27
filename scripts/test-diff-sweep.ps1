@@ -69,6 +69,12 @@ letting through:
      test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 skips every
      `Issue*`-named file, so nothing else flags the file itself. Tests added to an existing one are not detected.
      (#6057 MIN001.)
+ 15. `shouldlyThrowAssertions`: an added Shouldly exception assertion (`.ShouldThrow<T>(`, `.ShouldThrowAsync<T>(`,
+     `Should.Throw<T>(`) - testing.md asks for `Assert.That(() => ..., Throws...)`, keeping the fully qualified
+     `Shouldly.Should.Throw<T>` for a test that needs the exception object, so read each hit. Measured: #5708 at
+     `bf00c3547` 28 hits, the 28 round 4 converted; `origin/master~300...origin/master` 101.
+ 16. `regionBlocks`: an added `#region` / `#endregion` - testing.md -> *Test Patterns*. Measured: #5708 at `bf00c3547`
+     2, the pair round 4 removed; `origin/master~300...origin/master` 390, mostly moved or regenerated code.
 
 Why this script exists
 ----------------------
@@ -112,7 +118,8 @@ typeOnlyShouldlyGates: [{file, line, text}], continuationIndents: [{file, line, 
 unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [{file, line, attribute, text}],
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
-attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}],
+shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -168,6 +175,8 @@ $cacheCalls  = @()
 $areEquals   = @()
 $invisible   = @()
 $issueNamed  = @()
+$shouldlyThrows = @()
+$regions     = @()
 $localModels = @()
 $padding     = @()
 # check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
@@ -300,6 +309,17 @@ foreach ($l in $diff) {
 		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
 			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>(?:\w+_)?Issue\d+\w*)\b') {
 			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
+		}
+
+		# check 15: an added Shouldly exception assertion, where testing.md asks for `Assert.That(..., Throws...)` unless the
+		# test needs the exception object (#5708 round 4: 28 `ShouldThrow` sites, converted after review)
+		if ($file -match '\.cs$' -and $text -notmatch '^\s*//' -and $text -match '\.\s*ShouldThrow(?:Async)?\s*<|\bShould\s*\.\s*Throw(?:Async)?\s*<') {
+			$shouldlyThrows += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
+		# check 16: an added `#region` / `#endregion` in test code (testing.md -> Test Patterns; #5708 round 4)
+		if ($file -match '\.cs$' -and $text -match '^\s*#(?:end)?region\b') {
+			$regions += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
 		}
 
 		# check 12: a small mapped class added to a feature fixture, every column int / string / bool (nullable or not) -
@@ -505,4 +525,6 @@ $issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Te
 	localModels = @($localModels)
 	attributePadding = @($padding)
 	issueFixtureFiles = @($issueFixtures)
+	shouldlyThrowAssertions = @($shouldlyThrows)
+	regionBlocks = @($regions)
 } | ConvertTo-Json -Depth 4

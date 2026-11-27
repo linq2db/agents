@@ -90,6 +90,37 @@ function Get-CurrentBranch {
     return $r.stdout.Trim()
 }
 
+# The fold-in check reads the plan's branch, which the clone it runs from need not have checked out: run from the
+# primary clone, HEAD is master (#5708 round-4 ledger: the check named a master commit). An explicit -Head wins;
+# otherwise the worktree that has the plan's Branch checked out, then the branch ref itself.
+function Resolve-PlanBranchHead {
+    param([string] $RepoRoot, [string[]] $Lines)
+    if ([string]::IsNullOrWhiteSpace($RepoRoot)) { return $null }
+    $planBranch = $null
+    foreach ($l in $Lines) { if ($l -match '\*\*Branch:\*\*\s*([^\s`]+)') { $planBranch = $Matches[1]; break } }
+    if ($Head -ne 'HEAD' -or [string]::IsNullOrWhiteSpace($planBranch) -or (Get-CurrentBranch -RepoRoot $RepoRoot) -eq $planBranch) {
+        return [pscustomobject]@{ root = $RepoRoot; head = $Head; branch = $planBranch; missing = $false }
+    }
+    $wt = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'worktree', 'list', '--porcelain')
+    if ($wt.ok) {
+        $path = $null
+        foreach ($w in ($wt.stdout -split "`n")) {
+            $w = $w.Trim()
+            if ($w.StartsWith('worktree ')) { $path = $w.Substring(9) }
+            elseif ($w -eq "branch refs/heads/$planBranch" -and $path) {
+                return [pscustomobject]@{ root = $path; head = 'HEAD'; branch = $planBranch; missing = $false }
+            }
+        }
+    }
+    foreach ($ref in @("refs/heads/$planBranch", "refs/remotes/origin/$planBranch")) {
+        $v = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'rev-parse', '--verify', '--quiet', $ref)
+        if ($v.ok -and -not [string]::IsNullOrWhiteSpace($v.stdout)) {
+            return [pscustomobject]@{ root = $RepoRoot; head = $ref; branch = $planBranch; missing = $false }
+        }
+    }
+    return [pscustomobject]@{ root = $RepoRoot; head = $Head; branch = $planBranch; missing = $true }
+}
+
 function ConvertTo-Key {
     param([string] $BranchName)
     if ([string]::IsNullOrWhiteSpace($BranchName)) { return $null }
@@ -520,8 +551,9 @@ function Invoke-Validate {
         # A sweep hit on branch test code is a branch finding (definition-of-done.md), not a deferral. #6151: G-01
         # recorded a one-line chain as "review item" and passed; review then raised it. #5969: the same deferral
         # reworded ("open, dispositioned in the round-1 review walk") passed the literal match, and five of the
-        # round's nine findings were defects the plan had recorded and handed to the review this way.
-        $deferralRx = '(?i)\breview items?\b|\breview walk\b|\bopen for the review\b|\bcarried to (the )?(round-\d+ )?review\b|\bleft (open )?for (the )?review\b|\bdispositioned in the (round-\d+ )?review\b'
+        # round's nine findings were defects the plan had recorded and handed to the review this way. #5708: "the
+        # rest predate A-19 and are dispositioned in A-19" passed, and A-19 had named its own 84 chains review items.
+        $deferralRx = '(?i)\breview items?\b|\breview walk\b|\bopen for the review\b|\bcarried to (the )?(round-\d+ )?review\b|\bleft (open )?for (the )?review\b|\bdispositioned in (the (round-\d+ )?review|A-\d+)\b'
         # "cleared" passes only with the disposition it cites (a review finding id or the user's call), and never on
         # a "re-indent" reason: a re-indented line is PR-modified (review-conventions.md). #5969 round 4: "cleared in
         # round 1 (re-indents / no chain)" carried two real chains through three amendments.
@@ -939,16 +971,23 @@ function Invoke-Validate {
 
     # Edit-point commits after the last critic-reviewed commit. A critic objection folded in after the verdict is
     # design no critic attacked, and it gets no A-n of its own (#5959 round 7: all four code findings sat in two
-    # such fold-ins). Implementation commits look the same to git, so this lists them for the reader rather than
-    # failing; work-plan.md -> P12 says how to record each one.
-    if ($null -ne $p12 -and -not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+    # such fold-ins; #5708 round 4: six of thirteen). Implementation commits look the same to git, so each one must
+    # be named in P12 -- under the round whose delta it answers, or as "not re-attacked: `<sha>`" -- and an unnamed
+    # one fails -Done; work-plan.md -> P12 says how to record each one.
+    $foldIn = if ($null -ne $p12) { Resolve-PlanBranchHead -RepoRoot $RepoRoot -Lines $lines } else { $null }
+    if ($null -ne $p12 -and $null -ne $foldIn -and $foldIn.missing) {
+        $warnings += "P12 : the fold-in check found no worktree or ref for the plan's branch $($foldIn.branch) -- pass -RepoRoot <worktree> or -Head <ref>"
+    }
+    if ($null -ne $p12 -and $null -ne $foldIn -and -not $foldIn.missing) {
+        $foldRoot = $foldIn.root
+        $foldHead = $foldIn.head
         # Rounds are not always appended, so the reviewed commit is the newest backticked sha by commit date, not the
         # last one in file order (#6197: rounds were prepended and the oldest round's sha was picked).
         $reviewedSha  = $null
         $reviewedTime = [long]-1
         $shas = @($p12.lines | ForEach-Object { [regex]::Matches($_, '`([0-9a-f]{7,40})`') | ForEach-Object { $_.Groups[1].Value } } | Sort-Object -Unique)
         foreach ($sha in $shas) {
-            $t = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'log', '-1', '--format=%ct', $sha, '--')
+            $t = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $foldRoot, 'log', '-1', '--format=%ct', $sha, '--')
             if ($t.ok -and $t.stdout.Trim() -match '^\d+$' -and [long]$t.stdout.Trim() -gt $reviewedTime) {
                 $reviewedTime = [long]$t.stdout.Trim()
                 $reviewedSha  = $sha
@@ -965,10 +1004,16 @@ function Invoke-Validate {
             $paths = @($p6ForPaths.lines | ForEach-Object { [regex]::Matches($_, '`((?:Source|Tests)/[^`:\s]+)') | ForEach-Object { $_.Groups[1].Value } } | Sort-Object -Unique)
         }
         if ($null -ne $reviewedSha -and $paths.Count -gt 0) {
-            $r = Invoke-Process -FilePath 'git' -ArgumentList (@('-C', $RepoRoot, 'log', '--format=%h', "$reviewedSha..$Head", '--') + $paths)
+            # The branch's own commits only: a master merge and the commits it brings in are not fold-ins.
+            $r = Invoke-Process -FilePath 'git' -ArgumentList (@('-C', $foldRoot, 'log', '--first-parent', '--no-merges', '--format=%H', "$reviewedSha..$foldHead", '--') + $paths)
             if ($r.ok -and -not [string]::IsNullOrWhiteSpace($r.stdout)) {
-                $after = @($r.stdout -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() })
-                $warnings += "P12 : $($after.Count) edit-point commit(s) after the last critic-reviewed commit $reviewedSha ($($after -join ', ')) -- a fold-in of a critic objection needs a delta round; implementation of an approved A-n needs none"
+                $after   = @($r.stdout -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() })
+                $unnamed = @($after | Where-Object { $full = $_; -not ($shas | Where-Object { $full.StartsWith($_) }) } | ForEach-Object { $_.Substring(0, 9) })
+                if ($unnamed.Count -gt 0) {
+                    $msg = "P12 : $($unnamed.Count) edit-point commit(s) after the last critic-reviewed commit $reviewedSha are named nowhere in P12 ($($unnamed -join ', ')) -- " +
+                           'name each under the round whose delta answers it, or as "not re-attacked: `<sha>`"; a fold-in of a critic objection needs a delta round'
+                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                }
             }
         }
     }

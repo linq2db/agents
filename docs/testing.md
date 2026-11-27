@@ -1177,12 +1177,13 @@ linq2db invokes a column's `ToProvider` conversion more than once for a single-r
 
 ### `Should.Throw` / `Should.ThrowAsync` don't resolve inside `Tests.*` — `Tests.Should` shadows Shouldly's
 
-`Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so **both** `Should.Throw<T>(…)` and `Should.ThrowAsync<T>(…)` fail to compile with `error CS0117: 'Should' does not contain a definition for 'Throw'` / `'ThrowAsync'`, even though Shouldly 4.3 provides them. The sync form is the one you reach for most often and fails identically — assert it as `Action act = () => …;` then `act.ShouldThrow<T>()`. Use the extension form, which also mirrors the sync `Action` + `ShouldThrow<T>()` shape the fixtures already use:
+`Tests/Base/Should.cs` declares a `public static class Should` in the `Tests` namespace (NUnit `StringConstraint` helpers — `Should.Contain(...)`, `Should.Not.Contain(...)`). Inside `Tests.*` that name wins over `Shouldly.Should`, so **both** `Should.Throw<T>(…)` and `Should.ThrowAsync<T>(…)` fail to compile with `error CS0117: 'Should' does not contain a definition for 'Throw'` / `'ThrowAsync'`, even though Shouldly 4.3 provides them. Neither is the form for a new exception assertion anyway: write `Assert.That(() => …, Throws.TypeOf<T>())`, or `await Assert.ThatAsync(…)` in async code (top of this file). Use Shouldly only when the test needs the exception object, and then fully qualified:
 
 ```csharp
-Func<Task> act = () => db.SomeApiAsync(record);
-await act.ShouldThrowAsync<LinqToDBException>();
+var ex = await Shouldly.Should.ThrowAsync<LinqToDBException>(() => db.SomeApiAsync(record));
 ```
+
+The `Action act = () => …;` + `act.ShouldThrow<T>()` delegate form is in older fixtures only; don't copy it into new tests. (#5708 round 4: 28 sites written in it were converted to `Assert.That` after review.)
 
 Both *are* usable from test projects outside the `Tests` namespace (e.g. `Tests/LinqToDB.CLI/QueryCommandTests.cs`), so grepping the repo for a precedent can mislead you into the form that won't compile where you need it. (Cost a build cycle on #5643 for the async form, and another on #5750 for the sync one — writing `Should.Throw<LinqToDBException>(() => …)` in a `Tests.Playground` probe. And a third on #5833, in `Tests/Linq/UserTests` — the fully-qualified `Shouldly.Should.Throw<T>(…)` compiles fine and is what `SqlRowTests.cs:675` uses, which is the escape when you want the static form's return value for a `.Message` assertion. A fourth on #5704, where the doc was not consulted at all; a fifth on #5879, `Should.NotThrow`.)
 
@@ -1222,7 +1223,7 @@ When a change alters *which exception* a member throws — or removes a throw en
 |---|---|---|
 | NUnit classic (banned since #6330; older refs only) | `Assert.Throws<T>(…)` / `Assert.ThrowsAsync<T>(…)` / `Assert.Catch<T>(…)` / `Assert.CatchAsync(…)` | at the call |
 | NUnit constraint | `Assert.That(() => …, Throws.TypeOf<T>())`, `Throws.InstanceOf<T>()`, `Throws.Exception`, `await Assert.ThatAsync(…)` | at the call |
-| Shouldly delegate | `Action act = () => …;` then `act.ShouldThrow<T>()` / `await act.ShouldThrowAsync<T>()` | **two lines apart** |
+| Shouldly delegate (older fixtures; not for new tests) | `Action act = () => …;` then `act.ShouldThrow<T>()` / `await act.ShouldThrowAsync<T>()` | **two lines apart** |
 | Shouldly static | `Should.Throw<T>(…)` — only outside the `Tests` namespace (see above) | at the call |
 | Attribute-borne | `[ThrowsForProvider(typeof(T))]`, `Tests/Linq/ExpectedExceptionAttribute.cs` | on the **test method**, arbitrarily far from anything |
 
