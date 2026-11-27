@@ -286,6 +286,20 @@ The output must not fire the rewrite again in a **parent** whose operand it is, 
 
 **A normalization every provider must see runs before the provider dispatch, not in a base arm.** Provider `ConvertSql*Expression` overrides rewrite operators before calling base (Access `BAND`, ClickHouse `bitAnd`, DB2 / Firebird / SAP HANA `BITNOT`, …), so a fix in the base `& | ^` or `~` arm never reaches them. Put it in `VisitSqlBinaryExpression` / `VisitSqlUnaryExpression` ahead of the `ConvertSql*Expression` call, with a virtual for the providers that opt out. And never return a re-visited node carrying a cast that a provider strips (Access drops integer casts in `ConvertConversion`): the cast comes back on every pass, which is the same recursion as above — hand the cast operands to the hook instead. (#6450: critic rounds 1 and 3 refuted per-arm placement; the stripped-cast loop was caught before the first run.)
 
+### An emulation of a native function owns its NULL and edge semantics
+
+Wrapping a native function in an emulation (`CharIndex` with a start over `Substring`, `IndexOf` over `CharIndex`) inherits what the native call does with NULL and with out-of-range input, and that differs per provider. Measured on #6498 for the string searches:
+
+| Native call | NULL argument / out-of-range input |
+|---|---|
+| Sybase ASE `charindex(sub, str)` | answers **0**, not NULL, when either argument is NULL (so does a `Substring` tail that went NULL) |
+| SqlCe / Informix `CHARINDEX(sub, str, start)` | ignores a NULL start and searches from 1 |
+| Access `InStr(start, str, sub)` (ACE and LibRed) | NULL start raises *Invalid use of Null*; a start below 1 raises *Invalid procedure call* |
+| DB2 `LOCATE`, Firebird `POSITION` | refuse a start below 1; DB2 `LOCATE` / `SUBSTR` count bytes on a non-ASCII value (#6495) |
+| YDB `Unicode::Find(str, sub[, pos])` | the needle must be non-optional — an `IF(… IS NULL, NULL, …)` guard does not narrow its type, so wrap it as `Coalesce(sub, ''u)`; the result is `Uint64?`, so `… - 1` on a miss wraps and fails mapping to `int` — `CAST(… AS Int32)` first |
+
+So state the emulation's contract (0 for no match, NULL for any NULL argument) and test each clause on every provider that emulates it — a native answer is a hypothesis until a NULL-argument row has run there. The guard the engine uses is `NullWhenArgumentIsNull`, applied only to arguments that can be NULL.
+
 ### A template that wraps a nullable operand declares its nullability
 
 A `SqlExpression` template built without a nullability type gets `ParametersNullabilityType.Undefined` and is not nullable through its operands, so `x IS NULL` over it folds to false. Give any template over operands `ParametersNullabilityType.IfAnyParameterNullable` — a wrapper, and an operator template such as MySQL's `{0} DIV {1}` too. (#6427: YDB's `BitCast(… AS Int32)` over a nullable column turned `(a | n) IS NULL` into `false`.) A rule written from one instance is swept across the same change's sibling sites. (#6450: the rule was written for YDB's wrapper while the MySQL `DIV` template, reused for every integer `/`, still had `Undefined`.)

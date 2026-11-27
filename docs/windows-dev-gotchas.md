@@ -207,7 +207,7 @@ Test-Path -LiteralPath '[Internal]-Foo.md'     # accurate
 
 `[System.IO.File]::WriteAllText($path, $text)` **without** an encoding argument writes UTF-8 *without* BOM. Most sources in this repo carry a BOM, so a scripted one-attribute edit across N files silently rewrites line 1 of every one of them — the diff shows `2 +--` per file where you expected `1 +-`, and the phantom hunk reaches review. `Set-Content` has the mirror problem for line endings (CRLF on Windows, so an LF-only file — every wiki page — is rewritten wholesale).
 
-Round-trip the bytes instead, and preserve whatever the file already had:
+Round-trip the bytes instead, and preserve whatever the file already had — hard-coding `UTF8Encoding($true)` is the mirror mistake, because some sources are BOM-less (`Tests/Linq/Linq/StringFunctionTests.cs`, #6498):
 
 ```powershell
 $bytes  = [System.IO.File]::ReadAllBytes($f)

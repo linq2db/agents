@@ -84,6 +84,7 @@ This is the step that stops a design that violates an already-enforced rule.
 
 - Who calls `<symbol>`, and which callers are in other providers?
 - Which sibling `*SqlBuilder` / `*SqlOptimizer` / `*MemberTranslator` carries the same override or literal?
+- Which **derived** dialect class inherits the arm the plan edits — a `*SqlExpressionConvertVisitor` / `*SqlBuilder` subclass such as `AccessLibRed*` : `Access*`? Each one joins `P7` and the G-01 provider set; build that set from `DataProviders.json`'s provider list, not from memory. (#6498: LibRed inherited the Access `InStr` arm, was left out of a "16 local providers" sweep, and surfaced only at the diff review.)
 - Is this flag defaulted in more than one `SqlProviderFlags` initializer?
 - Does a `LinqService` remote contract or a serialized enum carry this shape?
 - Is there an `Insert`/`Update` or read/write pair where only one side is in scope? When the change alters one mode of a shared lookup (a `forTyping`-style flag, a strict/lenient overload pair), list the callers of **every** mode by what they do with the result: a caller that uses the unchanged mode for the changed purpose gets a `P7` row and a `P4` probe. Enumerate by routing, not call text — a sequence `Contains` and an IN-list `Contains` are different builders. (#6186: `ContainsBuilder.cs:191` typed a searched value through the read path and broke sequence `Contains`.)
