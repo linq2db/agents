@@ -468,7 +468,8 @@ function Invoke-Validate {
 
         # A mutation P8 names must have a recorded red in G-01: a named mutation nobody ran is a claim, not a
         # control (work-plan.md -> "A control obligation records the mutation").
-        $mutationRx = '[Mm]utations?\s+(?:"([^"]+)"|`([^`]+)`(?:\s*(?:\u2192|->)\s*`([^`]+)`)?)'
+        # both "mutation `x`" and "mutation: `x`" occur in plans (#6037 used only the colon form)
+        $mutationRx = '[Mm]utations?:?\s+(?:"([^"]+)"|`([^`]+)`(?:\s*(?:\u2192|->)\s*`([^`]+)`)?)'
         $waiverBlock = Get-Block -Blocks $blocks -Id 'P10'
         $waiverRows  = if ($null -ne $waiverBlock) { @($waiverBlock.lines) } else { @() }
         foreach ($row in (Get-BlockRows -Block $p8)) {
@@ -1163,7 +1164,17 @@ function Invoke-Reconcile {
         if ($hit) { $matched += $f } else { $unplanned += $f }
     }
 
-    $ok = ($unplanned.Count -eq 0)
+    # The file check cannot see an amendment that skipped its own obligations (no conventions: line, no critic
+    # round, no sweep counts); validate reports them, but nothing ran validate before a push (#6037: A-7's three
+    # validate errors stood while its merge commit was pushed). Carry validate's P9/P11 errors here.
+    $planErrors = @()
+    $v = Invoke-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-File', $PSCommandPath, '-Action', 'validate', '-Key', $PlanKey)
+    if ($v.stdout) {
+        $parsed = $v.stdout | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($parsed) { $planErrors = @($parsed.errors | Where-Object { $_ -match '^P(9|11) :' }) }
+    }
+
+    $ok = ($unplanned.Count -eq 0 -and $planErrors.Count -eq 0)
     Write-JsonOutput ([ordered]@{
         ok         = $ok
         action     = 'reconcile'
@@ -1173,7 +1184,10 @@ function Invoke-Reconcile {
         authorized = @($authorized)
         covered    = @($matched)
         unplanned  = @($unplanned)
-        nextAction = if ($ok) { $null } else { 'add an E-n row to P6 for each unplanned file and record the rationale in P11 — an amendment voids that part of the approval' }
+        planErrors = @($planErrors)
+        nextAction = if ($unplanned.Count -gt 0) { 'add an E-n row to P6 for each unplanned file and record the rationale in P11 — an amendment voids that part of the approval' }
+                     elseif ($planErrors.Count -gt 0) { 'resolve the P9/P11 validate errors before pushing: they mark an amendment whose obligations were skipped' }
+                     else { $null }
     })
     if (-not $ok) { exit 1 }
 }

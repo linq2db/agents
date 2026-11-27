@@ -143,6 +143,8 @@ The review itself remains a **PENDING draft** (`event` omitted on the REST revie
 
 **An item qualifies only when the answer changes what gets posted.** Walk decisions the user must adjudicate — a finding's severity, whether it ships at all, how an out-of-scope observation is dispositioned, whether an anomaly is real. Do **not** spend a walk turn on how the review *renders*: the `## Baselines` cluster table's wording, which rows carry an editorial note, section ordering, and phrasing are the reviewer's call, and offering them as options with "keep as drafted" recommended just asks the user to ratify a default. Decide those yourself and let the pre-post body preview be where they're seen. (Surfaced on #5750: two consecutive baselines-presentation questions were answered `skip` — every option was a rendering variant.)
 
+**When the user supplies review points of their own mid-review, they become walk items like any other.** Check each against the code at HEAD and report what you found, then tell the subagent passes not to file the point again, and hand them the facts instead. Draft the comment in the user's wording, as a question where they framed it as one ("ask the author if it is intended"), and number it in the same ID series as the passes' findings. Answer a "why" from the user with the failure the code prevents and a concrete scenario, not with where it lives. (#6454: two user points, `Debug.Assert` and a thread-id check, became NIT002 and SUG002. The first answer about the thread id said where it sat and had to be redone.)
+
 Walk every reviewable item in this order:
 
 1. Body-section findings (severity order: BLK → MAJ → MIN → SUG → NIT).

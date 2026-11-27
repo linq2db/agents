@@ -177,6 +177,7 @@ Wait for an explicit `y`. No other guards (no draft-PR guard, no size guard).
 
 - **Own-delta base:** `git merge-base origin/pr/<parent> origin/pr/<n>`, the last parent commit the child merged. Build the cache with `pr-context.ps1 -From <context> -DiffPrep -OwnDeltaBase <base>`, which scopes the changed paths and the rubric list to the delta and makes the cached diffs and `_base/` bodies relative to `<base>`, so they hold no parent hunks. Without it, `diff-reader.ps1` diffs against `origin/master`. Write `git diff <base> origin/pr/<n>` to `<writeDir>/_own-delta.diff` and brief every pass that this diff is the scope.
 - **Sweep:** `test-diff-sweep.ps1 -Base <base>`.
+- **Reconcile:** `work-plan.ps1 -Action reconcile -Key <key> -Head origin/pr/<n> -Base <base>`. Without `-Base` it diffs against `origin/master` and lists the parent's files as unplanned. (#6037: 53 of #5707's files.)
 - **Baselines:** `baselines-pr-scan.ps1 -Pr <n> -ParentPr <parent>`. Read `parentInherited.own`, not `counts`.
 - **What the child lacks:** `git log --oneline origin/pr/<n>..origin/pr/<parent>`. A parent commit that changes code the child edits or relies on is a merge-forward lead. Check it with `git merge-tree --write-tree origin/pr/<parent> origin/pr/<n>`.
 
