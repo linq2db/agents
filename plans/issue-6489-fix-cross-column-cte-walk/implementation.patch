@@ -1,0 +1,628 @@
+diff --git a/Source/LinqToDB/Internal/SqlQuery/NullabilityContext.cs b/Source/LinqToDB/Internal/SqlQuery/NullabilityContext.cs
+index bd2f78d47..84e12aaa1 100644
+--- a/Source/LinqToDB/Internal/SqlQuery/NullabilityContext.cs
++++ b/Source/LinqToDB/Internal/SqlQuery/NullabilityContext.cs
+@@ -26,8 +26,220 @@ public sealed class NullabilityContext
+ 		public static NullabilityContext GetContext(SelectQuery? selectQuery) =>
+ 			selectQuery == null ? NonQuery : new NullabilityContext([selectQuery], null, null, null);
+ 
+-		// columns on the current walk path; a set-operator column maps to the branch column being walked, otherwise null
+-		Dictionary<SqlColumn, SqlColumn?>? _visitedColumns;
++		ColumnWalk? _walk;
++
++		/// <summary>
++		/// State of one outermost column walk, shared by the contexts it creates for set-operator branches.
++		/// </summary>
++		sealed class ColumnWalk
++		{
++			// columns on the current walk path; a set-operator column maps to the branch column being walked, otherwise null
++			public readonly Dictionary<SqlColumn, SqlColumn?> Path = new(Utils.ObjectReferenceEqualityComparer<SqlColumn>.Default);
++
++			// a column keeps one answer per path state it was walked in: with a single answer, a column reached alternately with
++			// and without some column on the path would be walked again on every switch
++			readonly Dictionary<SqlColumn, List<Answer>> _answers = new(Utils.ObjectReferenceEqualityComparer<SqlColumn>.Default);
++			readonly Dictionary<SqlColumn, int>          _ids     = new(Utils.ObjectReferenceEqualityComparer<SqlColumn>.Default);
++			readonly Stack<Frame>                        _frames  = new();
++
++			// what a walk below a column relied on: the cuts it made at columns above it, and every column it walked
++			sealed class Frame
++			{
++				public List<(SqlColumn column, bool answer)>? Cuts;
++				public readonly ColumnSet                     Walked = new();
++			}
++
++			readonly record struct Answer(bool Result, List<(SqlColumn column, bool answer)>? Cuts, ColumnSet Walked);
++
++#if BUGCHECK
++			public bool ReuseDisabled;
++			public int  ColumnsWalked;
++#endif
++
++			public static bool CutAnswer(SqlColumn column, SqlColumn? walkedBranch)
++			{
++				return (walkedBranch ?? column).SystemType?.IsNullableOrReferenceType != false;
++			}
++
++			public bool TryCut(SqlColumn column, out bool answer)
++			{
++				if (!Path.TryGetValue(column, out var walkedBranch))
++				{
++					answer = false;
++					return false;
++				}
++
++				answer = CutAnswer(column, walkedBranch);
++				AddCut(_frames.Peek(), column, answer);
++				return true;
++			}
++
++			// An earlier answer equals a fresh walk when the walk would take the same steps: every column it cut at is on the path
++			// with the same cut answer, and no column it walked is on the path now - a fresh walk would cut at that one instead.
++			public bool TryReuse(SqlColumn column, out bool result)
++			{
++				result = false;
++
++#if BUGCHECK
++				if (ReuseDisabled)
++					return false;
++#endif
++
++				if (!_answers.TryGetValue(column, out var answers))
++					return false;
++
++				for (var i = answers.Count - 1; i >= 0; i--)
++				{
++					var answer = answers[i];
++
++					if (!Holds(answer))
++						continue;
++
++					Merge(_frames.Peek(), answer.Cuts, answer.Walked);
++
++					result = answer.Result;
++					return true;
++				}
++
++				return false;
++			}
++
++			bool Holds(Answer answer)
++			{
++				if (answer.Cuts != null)
++				{
++					foreach (var (cutColumn, cutAnswer) in answer.Cuts)
++					{
++						if (!Path.TryGetValue(cutColumn, out var walkedBranch) || CutAnswer(cutColumn, walkedBranch) != cutAnswer)
++							return false;
++					}
++				}
++
++				foreach (var pathColumn in Path.Keys)
++				{
++					if (answer.Walked.Contains(_ids[pathColumn]))
++						return false;
++				}
++
++				return true;
++			}
++
++			public void Enter(SqlColumn column)
++			{
++#if BUGCHECK
++				ColumnsWalked++;
++#endif
++
++				if (!_ids.TryGetValue(column, out var id))
++					_ids.Add(column, id = _ids.Count);
++
++				Path.Add(column, null);
++
++				var frame = new Frame();
++				frame.Walked.Add(id);
++				_frames.Push(frame);
++			}
++
++			public void Leave(SqlColumn column, bool completed, bool result)
++			{
++				Path.Remove(column);
++
++				var frame = _frames.Pop();
++
++				// a cut at this column is internal to its own walk; what is left are cuts at columns still on the path
++				frame.Cuts?.RemoveAll(c => ReferenceEquals(c.column, column));
++
++				var cuts = frame.Cuts?.Count > 0 ? frame.Cuts : null;
++
++				if (completed)
++				{
++					if (!_answers.TryGetValue(column, out var answers))
++						_answers.Add(column, answers = new());
++
++					answers.Add(new Answer(result, cuts, frame.Walked));
++
++					if (_frames.Count > 0)
++						Merge(_frames.Peek(), cuts, frame.Walked);
++				}
++
++				// answers are valid within one outermost walk only: the statement is rewritten between walks
++				if (Path.Count == 0)
++				{
++					_answers.Clear();
++					_ids.Clear();
++					_frames.Clear();
++				}
++			}
++
++			static void Merge(Frame frame, List<(SqlColumn column, bool answer)>? cuts, ColumnSet walked)
++			{
++				if (cuts != null)
++					foreach (var (cutColumn, cutAnswer) in cuts)
++						AddCut(frame, cutColumn, cutAnswer);
++
++				frame.Walked.UnionWith(walked);
++			}
++
++			static void AddCut(Frame frame, SqlColumn column, bool answer)
++			{
++				frame.Cuts ??= new();
++
++				// a column on the path keeps one cut answer for the lifetime of every frame below it
++				foreach (var (cutColumn, _) in frame.Cuts)
++					if (ReferenceEquals(cutColumn, column))
++						return;
++
++				frame.Cuts.Add((column, answer));
++			}
++		}
++
++		/// <summary>
++		/// Growable bit set over the column ids of one walk.
++		/// </summary>
++		sealed class ColumnSet
++		{
++			ulong[] _bits = new ulong[1];
++
++			public void Add(int id)
++			{
++				Ensure(id >> 6);
++				_bits[id >> 6] |= 1UL << (id & 63);
++			}
++
++			public bool Contains(int id)
++			{
++				var word = id >> 6;
++				return word < _bits.Length && (_bits[word] & (1UL << (id & 63))) != 0;
++			}
++
++			public void UnionWith(ColumnSet other)
++			{
++				Ensure(other._bits.Length - 1);
++
++				for (var i = 0; i < other._bits.Length; i++)
++					_bits[i] |= other._bits[i];
++			}
++
++			void Ensure(int word)
++			{
++				if (word >= _bits.Length)
++					Array.Resize(ref _bits, Math.Max(word + 1, _bits.Length * 2));
++			}
++		}
++
++#if BUGCHECK
++		// ---- Test diagnostics — Release builds don't see these. ----
++
++		/// <summary>Columns this context walked - neither cut at a cycle nor answered from an earlier walk.</summary>
++		public int ColumnsWalked => _walk?.ColumnsWalked ?? 0;
++
++		/// <summary>Walks every column again instead of reusing an earlier answer, to compare against the reusing walk.</summary>
++		public bool DisableAnswerReuse
++		{
++			get => _walk?.ReuseDisabled == true;
++			set => (_walk ??= new()).ReuseDisabled = value;
++		}
++#endif
+ 
+ 		/// <summary>
+ 		/// Creates nullability context for provided query.
+@@ -135,6 +347,48 @@ bool IsNeverNullAggregate(SqlColumn column)
+ 				&& CanBeNullSource(column.Parent!, alwaysMatchingIsInner: true) == false;
+ 		}
+ 
++		bool CanBeNullWalked(SqlColumn column, ColumnWalk walk)
++		{
++			if (column.Parent?.HasSetOperators == true)
++			{
++				var index = column.Parent.Select.Columns.IndexOf(column);
++				if (index < 0) return true;
++
++				foreach (var set in column.Parent.SetOperators)
++				{
++					// EXCEPT / INTERSECT narrow the accumulated left side and contribute no values of their
++					// own, so a branch that is nullable only in itself cannot put a NULL into this column.
++					if (set.Operation is not (SetOperation.Union or SetOperation.UnionAll))
++						continue;
++
++					if (index >= set.SelectQuery.Select.Columns.Count)
++						return true;
++
++					// the branch query is reachable only through SetOperators, which the source walk does not enter.
++					// Without registering it the branch's own tables resolve as unreachable, so a value that is nullable
++					// only through a join inside the branch is reported as not nullable to the enclosing query.
++					var setNullability = WithQuery(set.SelectQuery);
++
++					// carry the walk over - WithQuery allocates a fresh context, which would otherwise start with an empty
++					// path and lose the protection against self-referencing column chains
++					if (!ReferenceEquals(setNullability, this))
++						setNullability._walk = walk;
++
++					var branchColumn = set.SelectQuery.Select.Columns[index];
++
++					walk.Path[column] = branchColumn;
++
++					if (branchColumn.CanBeNullable(setNullability))
++						return true;
++				}
++
++				walk.Path[column] = null;
++			}
++
++			// otherwise check column expression nullability
++			return CanBeNull(column.Expression);
++		}
++
+ 		/// <summary>
+ 		/// Returns wether expression could contain null values or not.
+ 		/// </summary>
+@@ -156,69 +410,35 @@ public bool CanBeNull(ISqlExpression expression)
+ 				if (column.Parent != null && CanBeNullSource(column.Parent) == true)
+ 					return !IsNeverNullAggregate(column);
+ 
+-				_visitedColumns ??= new(Utils.ObjectReferenceEqualityComparer<SqlColumn>.Default);
++				var walk = _walk ??= new();
+ 
+-				if (_visitedColumns.TryGetValue(column, out var walkedBranch))
+-				{
+-					// to avoid circular reference in case of column referencing itself directly or through other columns.
+-					// A set-operator column re-entered from one of its branches - a recursive CTE - answers by that branch
+-					// column's type, the answer the walk gave when it cut the cycle at the branch column.
+-					var cut = walkedBranch ?? column;
+-
+-					if (cut.SystemType?.IsNullableOrReferenceType == false)
+-						return false;
++				// to avoid circular reference in case of column referencing itself directly or through other columns.
++				// A set-operator column re-entered from one of its branches - a recursive CTE - answers by that branch
++				// column's type, the answer the walk gave when it cut the cycle at the branch column.
++				if (walk.TryCut(column, out var cutAnswer))
++					return cutAnswer;
+ 
+-					return true;
+-				}
++				// a column reached again by another path - every recursive branch of a CTE whose columns read each other -
++				// reuses its answer instead of walking everything below it once per path
++				if (walk.TryReuse(column, out var reused))
++					return reused;
+ 
+ 				// registered before the set-operator branches are walked: a recursive CTE re-enters this column from every
+ 				// recursive branch, and re-walking all branches on each re-entry visits every ordering of them
+-				_visitedColumns.Add(column, null);
++				walk.Enter(column);
++
++				var result    = true;
++				var completed = false;
+ 
+ 				try
+ 				{
+-					if (column.Parent?.HasSetOperators == true)
+-					{
+-						var index = column.Parent.Select.Columns.IndexOf(column);
+-						if (index < 0) return true;
+-
+-						foreach (var set in column.Parent.SetOperators)
+-						{
+-							// EXCEPT / INTERSECT narrow the accumulated left side and contribute no values of their
+-							// own, so a branch that is nullable only in itself cannot put a NULL into this column.
+-							if (set.Operation is not (SetOperation.Union or SetOperation.UnionAll))
+-								continue;
+-
+-							if (index >= set.SelectQuery.Select.Columns.Count)
+-								return true;
+-
+-							// the branch query is reachable only through SetOperators, which the source walk does not enter.
+-							// Without registering it the branch's own tables resolve as unreachable, so a value that is nullable
+-							// only through a join inside the branch is reported as not nullable to the enclosing query.
+-							var setNullability = WithQuery(set.SelectQuery);
+-
+-							// carry the cycle guard over - WithQuery allocates a fresh context, which would otherwise start
+-							// with an empty visited set and lose the protection against self-referencing column chains
+-							if (!ReferenceEquals(setNullability, this))
+-								setNullability._visitedColumns = _visitedColumns;
+-
+-							var branchColumn = set.SelectQuery.Select.Columns[index];
+-
+-							_visitedColumns[column] = branchColumn;
+-
+-							if (branchColumn.CanBeNullable(setNullability))
+-								return true;
+-						}
+-
+-						_visitedColumns[column] = null;
+-					}
+-
+-					// otherwise check column expression nullability
+-					return CanBeNull(column.Expression);
++					result    = CanBeNullWalked(column, walk);
++					completed = true;
++					return result;
+ 				}
+ 				finally
+ 				{
+-					_visitedColumns.Remove(column);
++					walk.Leave(column, completed, result);
+ 				}
+ 			}
+ 
+diff --git a/Tests/Linq/Infrastructure/NullabilityContextTests.cs b/Tests/Linq/Infrastructure/NullabilityContextTests.cs
+index 9fdd28dc5..e7a07022a 100644
+--- a/Tests/Linq/Infrastructure/NullabilityContextTests.cs
++++ b/Tests/Linq/Infrastructure/NullabilityContextTests.cs
+@@ -12,6 +12,8 @@
+ 
+ using NUnit.Framework;
+ 
++using Shouldly;
++
+ namespace Tests.Infrastructure
+ {
+ 	[TestFixture]
+@@ -134,6 +136,147 @@ static void AssertJoinNotNullable(NullabilityContext nullabilityContext, SqlJoin
+ 			}
+ 		}
+ 
++		// A recursive CTE whose columns read each other: Len <- Name, Name <- Len (as string), Total <- Len and Name.
++		// Total's walk answers Len first, with Name walked in full below it; a later walk of Name, with Name on the path,
++		// must not take Len's answer, because a fresh walk of Len cuts at Name - a string, so nullable - instead.
++		[Test(Description = "https://github.com/linq2db/linq2db/issues/6489")]
++		public void RecursiveCteColumnsReadingEachOther()
++		{
++			var (anchor, total) = ColumnsReadingEachOtherCte();
++
++			NullabilityContext
++				.GetContext(anchor)
++				.CanBeNull(total)
++				.ShouldBeTrue();
++		}
++
++		// answers reused within one call must not survive it: the statement is rewritten between calls on one context
++		[Test(Description = "https://github.com/linq2db/linq2db/issues/6489")]
++		public void RecursiveCteColumnsAnswerAgainAfterChange()
++		{
++			var (anchor, _) = ColumnsReadingEachOtherCte();
++
++			var nullability = NullabilityContext.GetContext(anchor);
++			var len         = anchor.Select.Columns[0];
++
++			nullability
++				.CanBeNull(len)
++				.ShouldBeFalse();
++
++			anchor.Select.Columns[1].Expression = new SqlValue(typeof(string), null);
++
++			nullability
++				.CanBeNull(len)
++				.ShouldBeTrue();
++		}
++
++		static (SelectQuery anchor, SqlColumn total) ColumnsReadingEachOtherCte()
++		{
++			var cte = new CteClause(null, typeof(object), true, "cte");
++
++			var lenField   = new SqlCteField(new DbDataType(typeof(int)),    "Len");
++			var nameField  = new SqlCteField(new DbDataType(typeof(string)), "Name");
++			var totalField = new SqlCteField(new DbDataType(typeof(int)),    "Total");
++
++			cte.Fields.Add(lenField);
++			cte.Fields.Add(nameField);
++			cte.Fields.Add(totalField);
++
++			var cteTable = new SqlCteTable(cte, typeof(object));
++			var len      = new SqlCteTableField(lenField);
++			var name     = new SqlCteTableField(nameField);
++
++			cteTable.Add(len);
++			cteTable.Add(name);
++
++			var anchor = new SelectQuery();
++
++			anchor.Select.AddNew(new SqlValue(typeof(int),    1));
++			anchor.Select.AddNew(new SqlValue(typeof(string), "a"));
++			anchor.Select.AddNew(new SqlValue(typeof(int),    0));
++
++			var recursive = new SelectQuery();
++
++			recursive.From.Table(cteTable);
++			recursive.Select.AddNew(new SqlCastExpression(name, new DbDataType(typeof(int)),    null));
++			recursive.Select.AddNew(new SqlCastExpression(len,  new DbDataType(typeof(string)), null));
++			recursive.Select.AddNew(new SqlBinaryExpression(typeof(int), len, "+", new SqlCastExpression(name, new DbDataType(typeof(int)), null)));
++
++			anchor.SetOperators.Add(new SqlSetOperator(recursive, SetOperation.UnionAll));
++
++			cte.Body          = anchor;
++			lenField.Column   = anchor.Select.Columns[0];
++			nameField.Column  = anchor.Select.Columns[1];
++			totalField.Column = anchor.Select.Columns[2];
++
++			return (anchor, totalField.Column);
++		}
++
++#if BUGCHECK
++		// A branch column called from a context that lacks its branch: V below it reads a LEFT-joined table that only the
++		// branch reaches, so V answers differently when the head's loop later reaches it with the branch in the context.
++		[Test(Description = "https://github.com/linq2db/linq2db/issues/6489")]
++		public void RecursiveCteBranchColumnFromContextWithoutBranch()
++		{
++			var ms = new MappingSchema();
++
++			var cte = new CteClause(null, typeof(object), true, "cte");
++
++			var aField = new SqlCteField(new DbDataType(typeof(int)), "A");
++			var zField = new SqlCteField(new DbDataType(typeof(int)), "Z");
++
++			cte.Fields.Add(aField);
++			cte.Fields.Add(zField);
++
++			var cteTable = new SqlCteTable(cte, typeof(object));
++			var a        = new SqlCteTableField(aField);
++
++			cteTable.Add(a);
++
++			var t0 = CreateTable<FirstTable>(ms);
++			var t3 = CreateTable<SecondTable>(ms);
++
++			var inner   = new SelectQuery();
++			var innerT0 = new SqlTableSource(t0, "t0");
++
++			inner.From.Tables.Add(innerT0);
++			innerT0.Joins.Add(new SqlJoinedTable(JoinType.Left, new SqlTableSource(t3, "t3"), false, new SqlSearchCondition()));
++
++			var v = inner.Select.AddNewColumn(GetField<SecondTable>(t3, t => t.SecondId));
++
++			var anchor = new SelectQuery();
++
++			anchor.Select.AddNew(new SqlValue(typeof(int), 1));
++			anchor.Select.AddNew(new SqlValue(typeof(int), 0));
++
++			var recursive = new SelectQuery();
++			var ctSource  = new SqlTableSource(cteTable, "ct");
++
++			recursive.From.Tables.Add(ctSource);
++			ctSource.Joins.Add(new SqlJoinedTable(JoinType.Inner, new SqlTableSource(inner, "sq"), false, new SqlSearchCondition()));
++
++			recursive.Select.AddNew(v);
++			recursive.Select.AddNew(new SqlBinaryExpression(typeof(int), v, "+", a));
++
++			anchor.SetOperators.Add(new SqlSetOperator(recursive, SetOperation.UnionAll));
++
++			cte.Body      = anchor;
++			aField.Column = anchor.Select.Columns[0];
++			zField.Column = anchor.Select.Columns[1];
++
++			var z = recursive.Select.Columns[1];
++
++			var fresh = NullabilityContext.GetContext(anchor);
++
++			fresh.DisableAnswerReuse = true;
++
++			NullabilityContext
++				.GetContext(anchor)
++				.CanBeNull(z)
++				.ShouldBe(fresh.CanBeNull(z));
++		}
++#endif
++
+ 		[Test]
+ 		public void FullFourth()
+ 		{
+diff --git a/Tests/Linq/Linq/CteTests.cs b/Tests/Linq/Linq/CteTests.cs
+index 5112a881f..ac558649a 100644
+--- a/Tests/Linq/Linq/CteTests.cs
++++ b/Tests/Linq/Linq/CteTests.cs
+@@ -3285,6 +3285,98 @@ public void RecursivePartFirstColumnNullabilityFollowsOwnType([IncludeDataSource
+ 				.ShouldBeTrue();
+ 		}
+ 
++#if BUGCHECK
++		// Recursive branches whose columns read each other through the CTE, by how many columns a branch column reads:
++		// "self" - each column reads itself; "two" - ParentID also reads Level; "three" - ChildID also reads ParentID.
++		static CteClause RecursiveColumnsCte(ITestDataContext db, string reads, int branches)
++		{
++			var cte = db.GetCte<HierarchyLevelCte>(cte =>
++			{
++				var query = db.Parent
++					.Select(p => new HierarchyLevelCte
++					{
++						ParentID = p.ParentID,
++						ChildID  = p.ParentID,
++						Level    = 0,
++					});
++
++				for (var i = 0; i < branches; i++)
++				{
++					var k      = i;
++					var source = cte.Where(ct => ct.Level < 3 && ct.ParentID % branches == k);
++
++					query = query.Concat(reads switch
++					{
++						"self" => source.Select(ct => new HierarchyLevelCte { ParentID = ct.ParentID,            ChildID = ct.ChildID,               Level = ct.Level + 1 }),
++						"two"  => source.Select(ct => new HierarchyLevelCte { ParentID = ct.ParentID + ct.Level, ChildID = ct.ChildID,               Level = ct.Level + 1 }),
++						_      => source.Select(ct => new HierarchyLevelCte { ParentID = ct.ParentID + ct.Level, ChildID = ct.ChildID + ct.ParentID, Level = ct.Level + 1 }),
++					});
++				}
++
++				return query;
++			});
++
++			return cte
++				.GetSelectQuery()
++				.From
++				.Tables[0]
++				.Source
++				.ShouldBeOfType<SqlCteTable>()
++				.Cte!;
++		}
++
++		// one provider: the test walks NullabilityContext over the translated AST and executes nothing
++		[Test(Description = "https://github.com/linq2db/linq2db/issues/6489")]
++		public void RecursiveColumnsNullabilityWalkIsBounded([IncludeDataSources(ProviderName.SQLiteMS)] string context, [Values("self", "two", "three")] string reads, [Values(10, 20)] int branches)
++		{
++			using var db = GetDataContext(context);
++
++			var cteClause = RecursiveColumnsCte(db, reads, branches);
++
++			foreach (var field in cteClause.Fields)
++			{
++				var nullability = NullabilityContext.GetContext(cteClause.Body);
++
++				nullability.CanBeNull(field.Column!);
++
++				// without reuse, a column reading another one walks every branch of the other once per own branch - (N+1)^2
++				nullability
++					.ColumnsWalked
++					.ShouldBeLessThanOrEqualTo(3 * branches);
++			}
++		}
++
++		// one provider: the test walks NullabilityContext over the translated AST and executes nothing
++		[Test(Description = "https://github.com/linq2db/linq2db/issues/6489")]
++		public void RecursiveColumnsNullabilityReuseKeepsAnswers([IncludeDataSources(ProviderName.SQLiteMS)] string context, [Values("self", "two", "three")] string reads, [Values(1, 2, 4)] int branches)
++		{
++			using var db = GetDataContext(context);
++
++			var cteClause = RecursiveColumnsCte(db, reads, branches);
++
++			var queries = cteClause.Body!
++				.SetOperators
++				.Select(s => s.SelectQuery)
++				.Prepend(cteClause.Body)
++				.ToList();
++
++			foreach (var column in queries.SelectMany(q => q.Select.Columns))
++			{
++				var walked = NullabilityContext
++					.GetContext(cteClause.Body)
++					.CanBeNull(column);
++
++				var fresh = NullabilityContext.GetContext(cteClause.Body);
++
++				fresh.DisableAnswerReuse = true;
++
++				fresh
++					.CanBeNull(column)
++					.ShouldBe(walked);
++			}
++		}
++#endif
++
+ 		[Table]
+ 		sealed class Projection1
+ 		{
