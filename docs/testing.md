@@ -210,20 +210,24 @@ Use **Release** — the Meziantou / Roslyn analyzer rules that gate the code-fix
 
 It is a **third member of the bare-NUnit-MTP class** described for `Tests.Analyzers` above, and inherits the same trap: the host does not register the test-progress extension, so **`--test-progress` exits 5 as `Zero tests ran`**. Omit it. `--filter` *is* accepted, with the usual VSTest `FullyQualifiedName~` syntax — NUnit where-syntax (`method == X`, `test =~ X`) is **not**, and fails with exit 82 and a `VSTestBridgedTestFrameworkBase` stack rather than anything naming the filter. The CI template's `--filter "TestCategory != SkipCI"` looks like where-syntax but is the VSTest spelling of a category filter.
 
-Build then run the executable, the way `Build/Azure/pipelines/templates/test-cli.yml` does — CI builds once and runs the exe for `net8.0`, `net9.0` and `net10.0` in turn:
+Build then run the executable, the way `Build/Azure/pipelines/templates/test-cli.yml` does — CI builds once and runs the exe for `net10.0` and `net11.0` in turn:
 
 ```bash
 dotnet build Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj -c Testing
-.build/bin/Tests.LinqToDB.CLI/Testing/net10.0/linq2db.CLI.Tests.exe --settings .runsettings
+.build/bin/Tests.LinqToDB.CLI/Testing/net11.0/linq2db.CLI.Tests.exe --settings .runsettings
 ```
 
 ```bash
-.build/bin/Tests.LinqToDB.CLI/Testing/net10.0/linq2db.CLI.Tests.exe --settings .runsettings --filter "FullyQualifiedName~SecretConsoleReader"
+.build/bin/Tests.LinqToDB.CLI/Testing/net11.0/linq2db.CLI.Tests.exe --settings .runsettings --filter "FullyQualifiedName~SecretConsoleReader"
 ```
+
+**From a worktree**, `.claude/scripts/worktree-test.ps1 -RepoRoot <worktree> -Project Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj -Tfm net10.0 -Filter "FullyQualifiedName~<X>"` works and skips `--test-progress` for this project automatically.
+
+**Scaffold tests on `CreateCliSqliteDatabase` need `--include-tables <name>`**: the fixture adds a 513-character table name the scaffold step cannot generate, so an unfiltered `scaffold` fails after the code under test has run.
 
 The suite is ~250 tests and needs no database — it creates its own SQLite files under the NUnit work directory. Budget **~2 minutes** on an idle machine, but the MCP fixtures spawn the built `dotnet-linq2db` exe over STDIO and read its responses with a timeout, so they are **load-sensitive**: the same suite took 6m40s next to a concurrent Release build and `McpInfoMarksDefaultProfileUnusableWhenDefaultHasNoProvider` failed with a bare `TimeoutException`. A lone MCP timeout is the tell — re-run that one test on its own (it takes ~3 s) before treating it as a regression.
 
-Because the CLI multi-targets `net8.0;net9.0;net10.0` and `Testing` collapses to `net10.0`, a pre-push Release check should cover a lower TFM too: `dotnet build Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj -c Release -f net8.0`.
+Because the CLI multi-targets `$(ToolTargetFrameworks)` (`net10.0;net11.0`) and `Testing` collapses to `net11.0`, a pre-push Release check should cover the lower TFM: `dotnet build Tests/LinqToDB.CLI/Tests.LinqToDB.CLI.csproj -c Release -f net10.0`.
 
 **A DB2 `--provider-location` folder for local CLI runs.** DB2 is not bundled with the CLI. Assemble a provider folder from the `Net.IBM.Data.Db2` package in the NuGet cache: copy `lib/net10.0/IBM.Data.Db2.dll` and the `buildTransitive/clidriver/` directory (~81 MB) into one folder, then pass that folder's `IBM.Data.Db2.dll` path to `--provider-location`. The package's own targets lay a consuming app's output out the same way. The IBM client mangles its messages unless `DB2CODEPAGE=1208` is set.
 
