@@ -548,7 +548,7 @@ DML tests go in `Tests/Linq/Update/InsertWithOutputQueryTests.cs`, using the fix
   - option off, server failure in the other part: 0 rows, combined and not. The SQL and the statement count were not traced, so this shows only that the failure was raised in a statement that also carries the insert: the client-failure cell below proves that the insert's statement had already run when the other part was materialized;
   - option off, client failure while the other part is materialized: 3 rows, combined and not. The insert is kept.
   Not produced: a server failure in a separate statement that runs after the insert's, with the option off. The remarks' "outside a transaction the insert is committed when the statement runs" covers the kept case. No test pins it.
-- L-16 (A-11, MIN005) The detached field is used only for a dynamic field (`field.IsDynamic`): any other unmatched field still throws. The `OutputInsertUseSpecialTable` arm (`SqlAnchor` over the detached field) is untested while only PostgreSQL supports the feature.
+- L-16 (A-11, MIN005) The detached field is used only for a dynamic field (`field.IsDynamic`): any other unmatched field still throws. The `OutputInsertUseSpecialTable` arm (`SqlAnchor` over the detached field) is exercised on PostgreSQL 18, where `OutputInsertUseSpecialTable = version >= v18` (`PostgreSQLDataProvider.cs:68`): the PR's `DynamicColumnOverOutput(PostgreSQL.18)` baseline renders `RETURNING NEW."Id", NEW."Value"` over the dynamic column (corrected 2026-11-27 after review round 2; it previously said the arm was untested).
 
 ## P11 Amendments (M/L)
 
