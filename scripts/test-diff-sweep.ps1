@@ -74,6 +74,10 @@ letting through:
      `bf00c3547` 28 hits, the 28 round 4 converted; `origin/master~300...origin/master` 101.
  16. `regionBlocks`: an added `#region` / `#endregion` - testing.md -> *Test Patterns*. Measured: #5708 at `bf00c3547`
      2, the pair round 4 removed; `origin/master~300...origin/master` 390, mostly moved or regenerated code.
+ 17. `memberSpacing`: an added attribute or member line directly after a `}` at the same indent, with no blank line
+     between the members; `*.generated.cs` and `Tests/Tests.T4/` scaffold output are exempt. (#6133 NIT006, fix-6303
+     NIT005.) Measured: `origin/pr/6133` 1 hit, NIT006; `origin/master~300...origin/master` 1, real
+     (`TableOptionsTests.cs:23`).
 
 Why this script exists
 ----------------------
@@ -118,7 +122,7 @@ unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
 attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}],
-shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}], memberSpacing: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -176,6 +180,7 @@ $invisible   = @()
 $issueNamed  = @()
 $shouldlyThrows = @()
 $regions     = @()
+$spacing     = @()
 $localModels = @()
 $padding     = @()
 # check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
@@ -319,6 +324,17 @@ foreach ($l in $diff) {
 		# check 16: an added `#region` / `#endregion` in test code (testing.md -> Test Patterns; #5708 round 4)
 		if ($file -match '\.cs$' -and $text -match '^\s*#(?:end)?region\b') {
 			$regions += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
+		# check 17: an added attribute or member line straight after a `}` at the same indent - members are
+		# separated by a blank line (#6133 NIT006, fix-6303 NIT005)
+		# generated output is exempt, and `[Console]::Out` inside an embedded script is not an attribute
+		if ($file -match '\.cs$' -and $file -notmatch '\.generated\.cs$|^Tests/Tests\.T4/' -and $recent.Count -gt 0 -and $text -notmatch '\]::' -and
+			$text -match '^\t+(\[[A-Z][\w.]*\s*[(\],]|(?:public|private|protected|internal|static|sealed|async|override|readonly|const)\b)') {
+			$prevRaw = $recent[$recent.Count - 1] -replace '^[+ ]', ''
+			if ($prevRaw.Trim() -eq '}' -and (Get-Tabs $prevRaw) -eq (Get-Tabs $text)) {
+				$spacing += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			}
 		}
 
 		# check 12: a small mapped class added to a feature fixture, every column int / string / bool (nullable or not) -
@@ -526,4 +542,5 @@ $issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Te
 	issueFixtureFiles = @($issueFixtures)
 	shouldlyThrowAssertions = @($shouldlyThrows)
 	regionBlocks = @($regions)
+	memberSpacing = @($spacing)
 } | ConvertTo-Json -Depth 4
