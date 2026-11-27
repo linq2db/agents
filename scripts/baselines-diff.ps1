@@ -572,7 +572,7 @@ function Get-RegressionArchetypes {
     # 8. A column the - side used bare now wrapped as Coalesce(col, literal).
     #    For a column from a missing outer-joined row this moves NULL from
     #    "comparison is unknown" to "compare the default", which agrees with
-    #    the old SQL for some operators and not others. Issue3001Tests case
+    #    the old SQL for some operators and not others. CalculatedColumnTests.ExpressionColumnUsingExpressionAssociation case
     #    (#5983): `CASE WHEN h.Levels > 1` -> `Coalesce(h.Levels, 0) > 1`, equal
     #    for `> 1` and different for `< 1`. Providers spell the wrap differently
     #    (Informix Nvl, Access IIF(x IS NULL, 0, x)); all spellings count.
@@ -728,7 +728,8 @@ foreach ($e in $entries) {
 # path on the command line blows past ENAMETOOLONG on large baseline PRs.
 $diffBodies = @{}
 if ($entries.Count -gt 0) {
-    $diffRes = Invoke-Git @('-C',$clonePath,'diff',"$baseTipSha...$branchTipSha")
+    # --text: a baseline holding control characters is otherwise diffed as binary, an empty body (#5913).
+    $diffRes = Invoke-Git @('-C',$clonePath,'diff','--text',"$baseTipSha...$branchTipSha")
     if (-not $diffRes.ok) { Exit-WithError "git diff (bodies): $($diffRes.error)" }
     $diffBodies = Split-DiffByFile -DiffText $diffRes.stdout
 }

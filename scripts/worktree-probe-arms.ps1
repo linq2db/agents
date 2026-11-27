@@ -122,6 +122,13 @@ try
 		{
 			git -C $Worktree checkout $arm -- Source
 			if ($LASTEXITCODE -ne 0) { Exit-WithError "cannot check out Source/ from $arm" -NextAction 'pass a ref the worktree can resolve' }
+
+			# `checkout <ref> -- Source` leaves files the head added, and they do not build against the ref's Source/
+			# (#5913: a PR-added AST node failed the master arm with CS0117). The restore below brings them back.
+			foreach ($added in @(git -C $Worktree diff --name-only --diff-filter=A $arm HEAD -- Source))
+			{
+				Remove-Item -LiteralPath (Join-Path $Worktree $added) -Force
+			}
 		}
 
 		try { $results.Add((Invoke-Arm $arm)) }

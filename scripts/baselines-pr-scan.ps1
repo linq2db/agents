@@ -421,7 +421,8 @@ if ($addedByTest.Count -gt 0) {
 }
 
 # ---- per-file line / signal / rename analysis over the -U0 diff ------------
-$diff = (Git -GitArgs @('diff', '-U0', $range)).stdout
+# --text: a baseline holding control characters is otherwise diffed as binary and scans as empty (#5913: MergeTests.TestMergeTypes on ClickHouse).
+$diff = (Git -GitArgs @('diff', '--text', '-U0', $range)).stdout
 
 $signalRe = [regex]::new($Signal)
 $normRe   = [regex]::new("(?<=[$([regex]::Escape($IdentifierPrefixes))])[A-Za-z_][A-Za-z0-9_]*")
