@@ -101,3 +101,9 @@ This applies equally to **inline `pwsh -NoProfile -Command "…"` containing `$v
 ## A generator must be idempotent; a verification must not mutate
 
 **A verification step must not mutate — and a generator you might re-run must be idempotent.** Re-running a bulk-edit script to *check* its result is not a check: it applies the edit again. A script that added `gh_linux: 'true'` under matching matrix entries was re-run as a "verify the partition" step and duplicated every key it had added — and because PyYAML tolerates duplicate mapping keys (last one wins), the file still parsed, the script's own assertions still passed, and only a direct `grep -c` caught 22 where 11 belonged. Two rules follow: make the transformation skip work already applied (check for the marker before inserting), and verify with a *read-only* command — a `Grep` count or a parse — never by re-invoking the writer. (Surfaced 2026-09-06 on #5880; the duplicate would have reached Azure, whose parser may be stricter than PyYAML's.)
+
+**A fix-up that rewrites a field must select its rows by identity, never by that field.** An override generator that picked rows with `targetFile -eq 'Old.cs'` and set `targetFile = 'New.cs'` matched nothing on its next regeneration — the manifest it read already said `New.cs` — so the fix silently dropped out and the old target came back. Select by the row's stable key (source + member chain); the tell is a generated-line count that shrinks between runs with no input change. (#6463, 2026-11-26.)
+
+## `$Matches` after a filtered `foreach` holds the last row's match
+
+`foreach ($r in $rows | Where-Object { $_.x -match $rx }) { $Matches[1] }` runs the whole pipeline before the loop body, so every iteration reads the `$Matches` of the **last** matching row. The code looks per-row and produces one value for all of them — on #6463 it stamped one issue URL onto 30 rows. Re-match inside the loop: `[regex]::Match($r.x, $rx).Groups[1].Value`.

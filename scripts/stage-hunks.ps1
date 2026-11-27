@@ -27,6 +27,10 @@ Usage
 and renumber as hunks leave the diff. That renumbering is a feature: a hunk carrying two
 findings' changes usually splits by itself once the first commit lands.
 
+**Stage `-Hunks` before any `git add` of a new file in the same commit.** A staged new file joins
+`git diff HEAD` and shifts every index listed after it, so the indices from the `-ListOnly` you ran
+first now name other hunks (#5708 round 4: two wrong files staged, caught by the `--cached --stat`).
+
 `-Split <n>:<k>` handles the case where it does not, keeping only the first k content lines of
 hunk n (for an addition-only hunk whose two halves are contiguous in the file). The trailing
 context line is preserved and the ranges are recomputed. **k counts the hunk's body from the top,
