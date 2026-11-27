@@ -61,11 +61,12 @@ Full table: [`windows-gotchas.md`](windows-gotchas.md) → *Permission-friendly 
 
 ### Windows Git Bash gotchas
 
-MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` calls. The full trigger list is [`windows-gotchas.md`](windows-gotchas.md) → *Git Bash trigger list* (tool-neutral detail: [`windows-dev-gotchas.md`](windows-dev-gotchas.md)); the three most-hit:
+MSYS path-mangling and stdout-decoding bite well-formed `gh` / `git` / `docker` calls. The full trigger list is [`windows-gotchas.md`](windows-gotchas.md) → *Git Bash trigger list* (tool-neutral detail: [`windows-dev-gotchas.md`](windows-dev-gotchas.md)); the most-hit:
 
 - `gh api` rejects a leading-slash endpoint (use `gh api user`, never `gh api /user`).
 - `gh search issues --repo linq2db/linq2db` returns `[]` even when matches exist — search with `gh issue list --repo linq2db/linq2db --search "<terms>" --state all`: [`issue-search.md`](issue-search.md).
 - `Glob` returns "No files found" for documented paths and anything under a gitignored directory (`.build/.agents/`) — `Read` the known path directly before concluding it's missing: [`windows-gotchas.md`](windows-gotchas.md) → *`Glob` may return empty for documented paths*.
+- **From the PowerShell tool, single-quote a `--jq` program and leave its inner `"` unescaped** (`--jq '.[] | select(.x == "y")'`); `\"` reaches jq as a literal backslash ("unexpected token"): [`windows-dev-gotchas.md`](windows-dev-gotchas.md).
 
 ### Batching and user interaction
 
