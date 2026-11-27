@@ -30,7 +30,7 @@ Test frameworks, file layout, and patterns are documented in [`.claude/docs/test
 ## File placement rules
 
 - **linq2db core tests** — `Tests/Linq/`. A test goes into the fixture that owns the behaviour it checks — the matching `<Feature>Tests.cs` — even when an issue prompted it. A repro with no natural home gets a new fixture named for the behaviour, never a `Tests/Linq/UserTests/Issue<N>Tests.cs`; see *Fixture lookup* below.
-- **EFCore integration tests** — `Tests/EntityFrameworkCore/Tests/`. Feature-specific tests go into the matching `<Feature>Tests.cs`, issue regressions with no feature home into `IssueTests.cs`; never create a per-issue `Issue<N>Tests.cs` or add to an existing one (legacy). The *Fixture lookup* below is for core tests. Model types live under `Tests/EntityFrameworkCore/Models/IssueModel/` (shared) and `…/IssueModel/<Provider>/` (provider-specific configuration).
+- **EFCore integration tests** — `Tests/EntityFrameworkCore/Tests/`. Feature-specific tests go into the matching `<Feature>Tests.cs`, issue regressions with no feature home into `IssueTests.cs`; never create a per-issue `Issue<N>Tests.cs`. The *Fixture lookup* below is for core tests. Model types live under `Tests/EntityFrameworkCore/Models/IssueModel/` (shared) and `…/IssueModel/<Provider>/` (provider-specific configuration).
 - **Playground** — `Tests/Tests.Playground/Tests.Playground.csproj` is used for fast-iteration execution. **Never add the test source file under `Tests/Tests.Playground/`.** The test itself always lives in `Tests/Linq/` (or `Tests/EntityFrameworkCore/Tests/`); the playground project references it via a `<Compile Include="..\Linq\<relative>.cs" Link="<Name>.cs" />` item in `Tests.Playground.csproj`. See the existing `TestsInitialization.cs` / `CreateData.cs` entries in that csproj for the pattern. `test-runner` then runs `Tests.Playground.csproj` which builds fast (~seconds vs. minutes for the full `Tests/Linq/Tests.csproj`).
 
 ### Fixture lookup (issue tests)
@@ -43,9 +43,9 @@ When the task cites an issue number `<N>` for a core test, pick the target file 
    - Option B: insert into the catch-all `Tests/Linq/Linq/IssueTests.cs` (only for 1–2 methods that need no model).
    Let the caller pick. Include a one-line rationale for each option so the caller has context to decide.
 
-**Never create a `Tests/Linq/UserTests/Issue<N>Tests.cs`, and don't add tests to an existing one** — those fixtures are legacy, and review flags new or extended ones. (#6058)
+**Never create a `Tests/Linq/UserTests/Issue<N>Tests.cs`** — the per-issue fixtures were dissolved into feature fixtures (#6463), and review flags a new one. (#6058)
 
-**No `Issue<N>`-prefixed types, data or test names in a shared feature fixture.** There the model is named for what it is, the test for what it checks, and the issue appears only as the URL in `[Test(Description = "...")]`. Existing `Issue<N>*` types in feature fixtures are legacy, not a pattern to extend.
+**No `Issue<N>`-prefixed types, data or test names in any test fixture.** The model is named for what it is, the test for what it checks, and the issue appears only as the URL in `[Test(Description = "...")]`.
 
 Don't fall back to "put it anywhere"; if step 1 doesn't yield an obvious target, step 2 is the right move even for small tests.
 
@@ -74,7 +74,7 @@ Same pattern applies to every `Use<Provider>(Func<ProviderOptions, ProviderOptio
 ## Naming conventions
 
 - **Match the surrounding file.** Most tests use PascalCase method names (`Issue5177Test`, `ConstantAndValueConversion`). A few files use underscores for sub-grouping (`BulkCopy_Sequence_AsIdentity`). Mirror whatever the neighbours do — inconsistency across a file is a legitimate review nit, so don't introduce it.
-- **Issue tests** — in a feature fixture, name the test for the behaviour it pins and cite the issue in `[Test(Description = "https://github.com/linq2db/linq2db/issues/<N>")]` (see *Fixture lookup*). Only the catch-all `IssueTests.cs` uses the `Issue<N>Test` / `Issue<N>_<Aspect>` pattern, and there it always includes the issue number.
+- **Issue tests** — in a feature fixture, name the test for the behaviour it pins and cite the issue in `[Test(Description = "https://github.com/linq2db/linq2db/issues/<N>")]` (see *Fixture lookup*). The EF catch-all `IssueTests.cs` follows the same rule — no `Issue<N>Test` names (#6463).
 - **Test description attribute** — `[Test(Description = "...")]` is optional. Include it only when citing a GitHub issue URL (`https://github.com/linq2db/linq2db/issues/<N>`); plain tests use `[Test]` and rely on the method name to carry intent. Don't invent `Description = "user-reported"` / `Description = "bugfix"` — the test name already says this.
 
 ## DataSources selection

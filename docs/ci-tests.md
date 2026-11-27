@@ -334,7 +334,7 @@ diff was clause deletions and a Roslyn analyzer.)
 usually `Stack overflow.`, and the summary reads `Test host crashed; recovered N test result(s) from the TRX
 streaming sidecar`. `ci-test-verdicts.ps1` reports it only as `host-failure` / `crash; exit code 134`, with no test
 name, so `Grep` the leg log for `Stack overflow.` and read the frames below it — the bottom frames name the test
-(often `Issue3674Tests.ThreadBody`, which runs a deep predicate on an 80 KB thread to catch stack regressions) and
+(often `StackUseTests.RunLargeOrFilterQuery`, which runs a deep predicate on an 80 KB thread to catch stack regressions) and
 the top frames name the recursion that ran out. Don't apply the 139 advice here: on #6185 the overflow was the PR's
 own new code (a key-path hash under `BuildQueryCacheCompareInfo`), red on one Linux leg only because the margin
 was thin. Measuring it locally: [`bug-investigation.md`](bug-investigation.md) → *Measuring a query build's stack use*.

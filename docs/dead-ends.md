@@ -130,7 +130,7 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** `round_even` for exact decimal rounding, or a `value * 0.5` / `value * 2` emulation on values near the column's range. A parity test on `FLOOR(value)` picks the even neighbour with no multiplication. The precision form is still open: #6275. (#6151 A-9)
 
-## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
+## EXPR-TRANS: reproducing a Linux-only `StackUseTests.LargeOrFilterInSmallStackThread` stack overflow on Windows by shrinking the thread
 
 **Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
 

@@ -172,7 +172,7 @@ Output (stdout, single JSON object):
     "linqToDBAsset": "netstandard2.0", // only with -LinqToDBAsset; the asset the tests ran against
     "summary":   { "total": 186, "failed": 0, "succeeded": 168, "skipped": 18, "duration": "36s 628ms" },
     "failedTests": [ "SomeTest", ... ],
-    "failedFullNames": [ "Tests.UserTests.Issue1347Tests.Test2(\"SQLite.MS\")", ... ],
+    "failedFullNames": [ "Tests.Linq.AssociationTests.Test2(\"SQLite.MS\")", ... ],
                                      // from the run's TRX report, with the class; failedTests carries the method
                                      // only, which is ambiguous for common names (Test2). Empty when no TRX was
                                      // written (bare-NUnit hosts, where --test-progress is skipped too)
