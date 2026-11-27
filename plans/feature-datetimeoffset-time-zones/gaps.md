@@ -59,3 +59,24 @@ Review passes were briefed without the plan (reviewer's local corpus 53 commits 
 - Recurs, next ring out: MAJ-4 → MAJ006 (same `DataType.DateTime2` storage shape; round 2 mirrored the pair and missed the bypassing readers; round-1 recommendation #1 never landed in SKILL.md); MIN-6 → MIN009 (Oracle sub-second precision, now via TO_CHAR); MIN-8 → SUG005 (no-zone class member missed again); MAJ-5 second class → MIN010, SUG004.
 - Did not recur: BLK-1, MAJ-2 (round-1 recommendation #2 landed at plan-critic.md:87 and was followed), MAJ-3, MIN-7, MIN-9, MIN-10, SUG-11, SUG-12, NIT-13.
 - New class: the CLR exception domain (SUG003). Waived sweep hits (NIT002) recur across plans (feature-query-batches NIT006, feature-1553-fsharp-codegen NIT205–NIT209).
+
+## Round 3 — reviewed HEAD 9687f8493
+
+A verify round, plus one pass over A-9's offset-less walk. Every round-2 finding is fixed except NIT002 (partly, NIT003). SUG007 was withdrawn after the author's drift argument. One candidate, the walk treating `MAX` / window value functions / scalar subqueries as leaves, was dropped: a probe on four providers found no wrong answer. Attributed by the reviewing session, not by a separate attributor run.
+
+- **MIN011** (a mixed-offset CASE / set operation whose offset-less value comes first is read with no frame) — GAP-05 — critic round 8 objection 3 ("computed producers typed from one operand") was accepted, but TO-51's cells and U-33/U-34 measured only the `Dto`-first order; `CarriesOffset` returns at DFTB:1875 on the inferred type before the walk runs, so the swapped order (`QueryHelper.cs:963-982` types a CASE from its first result) was never reached. Secondary GAP-03: the entry gate is keyed on the inferred `DbDataType` instead of the CLR type, the round-2 "wrong property" shape. Red test 8135dd9ad (Oracle wrong in any zone; DuckDB / PostgreSQL off UTC); pre-existing on master for this spelling — G-01 — preventable: yes
+- **NIT003** (one nested one-line chain left at TimeZoneFunctionsTests.cs:631) — GAP-08 — the round-2 fix's sweep ran over the delta only, and :631 predated it; the author's reply quoted the delta sweep as covering the whole fixture — G-01 — preventable: yes
+
+### Aggregate
+
+2 findings: GAP-05 ×1, GAP-08 ×1. MIN011 is the round-1/round-2 class again. An objection is accepted, and then its measurement covers one shape of the input class: one operand order, as before one storage type and one direction.
+
+### Recommended durable fixes
+
+1. `agents/plan-critic.md` / `docs/work-plan.md`: when an objection says a value is "typed from one operand" (or from one branch, one query), the reconciling `TO-n` must carry every operand order as a cell, not only the order that showed the defect.
+2. `skills/work-plan/SKILL.md` G-01 sweep record: a fix for a sweep finding reruns the sweep over the whole file (`-Base` = merge base), not over the fix's own delta.
+
+### Continuity with rounds 1–2
+
+- Recurs: round-2's "sweep keyed on the wrong property" → MIN011 (entry gate on the inferred type); NIT002 → NIT003 (delta-only sweep, round-2 recommendation #3 not landed).
+- Did not recur: MAJ006, MIN009, MIN010, SUG003–SUG006 (all fixed in 9687f8493, red tests ungated).
