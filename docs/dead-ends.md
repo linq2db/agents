@@ -585,3 +585,16 @@ Measured on ACE OleDb / ODBC (#6203): under DISTINCT every NULL-aware key is rej
 **Failed because:** a member read has spellings a text pattern cannot see: implicit `this` inside the owning type (`Cte?.Body` in `SqlCteTable.GetKeys`), property and extended property patterns (`is SqlCteTable { Cte: { Body: … } }`, `{ CteField.Column: { } x }`), and receivers held in locals (`var p = column.Parent; … p.SetOperators`). Each critic round found another site the last sweep missed.
 
 **Don't re-attempt:** a regex census for member reads. Write a temporary `DiagnosticAnalyzer` in `Source/CodeGenerators` over `IPropertyReferenceOperation` / `IFieldReferenceOperation` filtered by the member symbols, reporting the containing member, and run one Release build of `Source/LinqToDB`: the diagnostics are the census (137 reads in 68 members for those four links). Keep the analyzer as the standing guard, with a per-member disposition attribute. (2026-11)
+
+## SQL-AST: reusing column answers inside one `NullabilityContext.CanBeNull` call, kept exact against the cut-based walk
+
+**Tried:** memoizing column answers within one outermost `CanBeNull` call so a recursive CTE whose columns read each other (`ParentID = ct.ParentID + ct.Level`) stops costing ~N^M walks per call, while answering exactly as the walk without reuse does (#6489, on top of #6490).
+
+**Failed because:** a reused answer depends on three things; the first was designed in, the other two were each found by a critic round:
+1. the cycle cuts it made at columns above it, and their cut answers by type;
+2. the columns it walked in full - a fresh walk cuts at any of them that are on the path now (`Len <- Name` int over string, `Name <- Len` string over int, `Total <- Len + Name`);
+3. the context's `Queries` - a branch column called from a context without its branch answers a column below it with an outer-joined table unresolved, and that answer is then reused under the head's loop, where the branch is in the context.
+
+Checks 1-2 made self-reading shapes linear, but cross-referencing columns stayed ~N^1.5 per call during translation, because the optimizer's pass-through wrapper columns create many distinct path states. Checking 3 exactly costs about a re-walk per reuse, or forbids the cross-branch reuse the issue needs.
+
+**Don't re-attempt:** answer reuse that must equal the cut-based walk. Start from an order-independent fixed-point evaluation per cycle, which is linear but changes some answers (an `int` anchor with an `int?` recursive branch becomes not nullable) and so needs a baselines review. The parked implementation, with failing tests for the last two: agents `plans/issue-6489-fix-cross-column-cte-walk/implementation.patch`, which applies on linq2db `b519aecab`. (#6489, 2026-11-27)
