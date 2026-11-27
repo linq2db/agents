@@ -634,7 +634,9 @@ function Invoke-Validate {
         if ($narrowBase.Count -gt 0) {
             $warnings += "P9 : a test-diff-sweep record uses a -Base other than the merge base -- on a planned branch sweep origin/master...HEAD so earlier amendments' tests are covered"
         }
-        $deferred = @($sweepTexts | Where-Object { $_ -match '(?i)(named|carried|deferred|left) as (?:a )?review items?' })
+        # A hit waived as older than the amendment is the same deferral (definition-of-done.md: never waived as
+        # "outside this plan"). #5913 A-8: "they predate A-8 and are not touched by it" set 57 chains aside; review NIT002.
+        $deferred = @($sweepTexts | Where-Object { $_ -match '(?i)(named|carried|deferred|left) as (?:a )?review items?|\bpredate[sd]?\s+(A-\d+|this amendment|the amendment)\b|\bnot touched by (it|this amendment|A-\d+)\b|\boutside (this|the) (plan|amendment)\b' })
         if ($deferred.Count -gt 0) {
             $msg = "P9 : a test-diff-sweep hit is recorded as a review item instead of fixed -- fix it on the branch or record why it is not a violation"
             if ($Done) { $errors += $msg } else { $warnings += $msg }

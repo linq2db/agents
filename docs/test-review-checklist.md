@@ -78,6 +78,8 @@ When a `[DataSources]` test builds a typed `DbDataType` (a custom `Sql.Extension
 
 are flaky in those setups. Flag and propose either a server-side-only comparison (`server local vs server UTC in one query`) or restriction to providers / contexts where the timezone is guaranteed to match.
 
+The opposite trap is an assertion that cannot fail: `ShouldBe` on a `DateTimeOffset` compares the instant only, so a test of `ToOffset` / `ToUniversalTime` / `ToLocalTime` / a zone conversion that checks only equality passes whatever offset comes back. Flag it and ask for a separate `.Offset` assertion (`testing.md` → *Tests that pass but catch nothing*).
+
 ### Identifier-length limits for `CreateLocalTable("name-with-guid")`
 
 Firebird v3 caps identifiers at 31 characters; Oracle at 30 / 128 depending on version; SQL Server at 128. A test-name + GUID combination longer than the smallest provider's limit will fail at table creation on that provider. Either use `TestUtils.GetNext()` for short unique suffixes or let `CreateLocalTable` generate the name (no explicit name argument).
