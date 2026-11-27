@@ -864,6 +864,10 @@ Over ODBC (Jet and ACE), reading back a computed string of about 5000 characters
 
 SQL CE and SQL Server's `datetime` store time in steps of 1/300 s, so a value such as `.345` is stored as `.34667`. The client reads it back rounded (`347`), while a server-side millisecond count truncates (`346`). A test whose expected value comes from the stored read-back then disagrees with the server by one rounding step, which is not the defect under test. When a test needs milliseconds but not sub-10 ms precision, use whole multiples of 10 ms (`new DateTime(…, 780)`), which both types store exactly. (#5969: `MillisecondComponentHoldsPastTheRangeOfItsCounter` failed on SqlCe, 347 vs 346, until its `.345` became `.340`.)
 
+### A `DECIMAL` read back on Sybase.Managed under .NET 11 is not exact
+
+AdoNetCore.AseClient reads `DECIMAL` / `NUMERIC` through a `double` on .NET 11 ([AseClient#240](https://github.com/DataAction/AdoNetCore.AseClient/issues/240)), so `3.75` comes back as `3.7500000000000000780625564125`. A `[DataSources]` test that asserts an exact decimal read from the database fails on the `Lin u_YdbSybase` leg only, and a local net10.0 run does not show it. Round the read value (`Math.Round(x, 10)`, as `AggregationTests.SumClampedValues` does) or compare within `FloatingPointDelta`. Gate with a net11-scoped `[ActiveIssue]` only where the corrupted value changes behaviour, such as a client-side predicate or a value written back (`ConvertTests`, `UpdateTests`). (#6057: four `RemoteExpressionTypeTests` cases red in CI.)
+
 ### ClickHouse and YDB don't report rows affected — assert the stored value
 
 An entity `Update` returns 0 on ClickHouse and -1 on YDB, so `.ShouldBe(1)` on the count fails there for a correct query. When the test is about *which* row changed, drop the count and assert the stored value afterwards — that is the outcome a wrong key or column set breaks anyway. Keep a count assertion only where the count is the subject, behind `context.IsAnyOf(TestProvName.AllClickHouse) ? 0 : 1` (`StringFunctionTests.BracketWildcardsInContainsAndLike`). (#6145: `EntityUpdateFollowsHandleSchema`, 8 ClickHouse/YDB cases.)
