@@ -61,6 +61,10 @@ The `Write` tool writes `\n` endings whatever the file had. Rewriting a CRLF sou
 
 `Read` prefixes every line with a number and a tab, so the leading whitespace you see is not the file's, and counting tabs off that display is a coin flip in a tab-indented codebase. The tell is that the failure is *only* about whitespace — the code text is verbatim correct. Trim `old_string` to start at the first non-whitespace character and let the match float; uniqueness almost always survives it. (#5877)
 
+## `git grep -E` has no `\s` — and the miss looks like absence
+
+`git grep -E` uses POSIX ERE, where `\s` is not whitespace, so a pattern such as `[\[,]\s*Name\s*\(` matches nothing and an existence sweep reports "none left" while a hit is sitting in the tree. Use the `Grep` tool (ripgrep, Perl-style classes) for working-tree sweeps, or write `[[:space:]]`; keep `git grep` for searches against a ref. (#6463, 2026-11-26: a leftover `[Issue5351YonConverter(...)]` survived such a sweep and broke the build.)
+
 ## Permission-friendly Bash patterns
 
 Patterns that triggered prompts in real sessions and the equivalents that don't. The summary in [`agent-rules.md`](agent-rules.md) → *Bash command rules* names the most-hit ones; this is the full table.

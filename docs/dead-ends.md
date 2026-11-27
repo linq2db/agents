@@ -4,6 +4,14 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: translating a typed member read (`PivotCells.Get<T>`, an indexer) in `ExposeExpressionVisitor`
+
+**Tried:** rewriting `PivotCells.Get<T>(name)` and `(T)cells[name]` into the `Sql.Property` member access at expose, for any receiver whose static type is `PivotCells`.
+
+**Failed because:** expose sees neither the position nor the receiver's origin. Cells read back from a pivot and captured by a later query threw "Dynamic column getter is not to be called.", and a projection lost the members' in-memory contract (an absent name threw, `Get<int>` over a decimal cell read the value instead of `default`).
+
+**Don't re-attempt:** a member that has both an in-memory meaning and a SQL one is translated in `ExpressionBuildVisitor`, under `BuildPurpose.Sql`, for a receiver that is not client-evaluable; a projection keeps the in-memory read. (#5708, `48de1d7cf`, round-4 `f6c79e56e`)
+
 ## EXPR-TRANS: reading a pivot cell as another type in an Unpivot column through a typed `DynamicColumnInfo`
 
 **Tried:** (measured on SQLite.Classic, `Get<int>` over a `decimal?` cell in an Unpivot column, which threw `ArgumentException` from `ExpressionBuildVisitor.VisitNew` rebuilding the result's constructor):
