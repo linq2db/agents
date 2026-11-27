@@ -78,6 +78,10 @@ letting through:
      between the members; `*.generated.cs` and `Tests/Tests.T4/` scaffold output are exempt. (#6133 NIT006, fix-6303
      NIT005.) Measured: `origin/pr/6133` 1 hit, NIT006; `origin/master~300...origin/master` 1, real
      (`TableOptionsTests.cs:23`).
+ 18. `tracingWithoutDefault`: an added `UseTracing(` whose callback does not call
+     `DataConnection.DefaultOnTraceConnection(` within the next 8 lines. The callback replaces the default trace
+     handler, which is what writes baselines, so the test records no SQL - testing.md -> *Baselines*. A method-group
+     handler that forwards elsewhere is a false positive; read each hit. (#6133.) Measured: see the check's commit.
 
 Why this script exists
 ----------------------
@@ -122,7 +126,7 @@ unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
 attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}],
-shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}], memberSpacing: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}], memberSpacing: [{file, line, text}], tracingWithoutDefault: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -181,6 +185,9 @@ $issueNamed  = @()
 $shouldlyThrows = @()
 $regions     = @()
 $spacing     = @()
+$tracing     = @()
+# check 18: an added `UseTracing(` callback still looking for its `DefaultOnTraceConnection(` forward
+$pendingTrace = $null
 $localModels = @()
 $padding     = @()
 # check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
@@ -253,12 +260,20 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
+	if ($pendingTrace -and ($l -match '^\+\+\+ ' -or $l -match '^@@ ')) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
 	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
 	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# check 18: the forward has to come within the callback's first lines, added or context
+	if ($pendingTrace) {
+		$body18 = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+		if ($body18 -match 'DefaultOnTraceConnection') { $pendingTrace = $null }
+		elseif (--$pendingTrace.remaining -le 0) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
+	}
 
 	# check 13: the line after a padded attribute, added or context, closes on the same column when it is an attribute line too
 	if ($pendingPad) {
@@ -324,6 +339,14 @@ foreach ($l in $diff) {
 		# check 16: an added `#region` / `#endregion` in test code (testing.md -> Test Patterns; #5708 round 4)
 		if ($file -match '\.cs$' -and $text -match '^\s*#(?:end)?region\b') {
 			$regions += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
+		# check 18: an added `UseTracing(` callback replaces the default trace handler, which is what writes the
+		# baselines (DataConnection.WriteTraceLine); it must call DataConnection.DefaultOnTraceConnection (#6133)
+		if ($file -match '\.cs$' -and $text -notmatch '^\s*//' -and $text -match '\bUseTracing\s*\(' -and $text -notmatch 'DefaultOnTraceConnection') {
+			$hit18 = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			if ($pendingTrace) { $tracing += $pendingTrace.hit }
+			$pendingTrace = [pscustomobject]@{ hit = $hit18; remaining = 8 }
 		}
 
 		# check 17: an added attribute or member line straight after a `}` at the same indent - members are
@@ -463,6 +486,7 @@ foreach ($l in $diff) {
 	$recent.Add($l)
 	if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
 }
+if ($pendingTrace) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
 
 # check 8: read each file once, at the swept state, and look for `[QueryCacheTest]` on the test and its fixture
 $signatureRx = '^\s*(?:(?:public|private|protected|internal|static|async|override|virtual|sealed|unsafe)\s+)*(?!(?:return|await|yield|throw|new|else|var)\b)[\w<>\[\],\?\.]+\s+(\w+)\s*(?:<[^()]*>)?\s*\('
@@ -543,4 +567,5 @@ $issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Te
 	shouldlyThrowAssertions = @($shouldlyThrows)
 	regionBlocks = @($regions)
 	memberSpacing = @($spacing)
+	tracingWithoutDefault = @($tracing)
 } | ConvertTo-Json -Depth 4
