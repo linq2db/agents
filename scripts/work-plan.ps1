@@ -861,6 +861,18 @@ function Invoke-Validate {
                     $msg = "P11 : $($e.id) has a conventions: line that cites no test-diff-sweep.ps1 run -- run the sweep and cite its counts per category"
                     if (& $isError $e $trigger '2026-11-22') { $errors += $msg } else { $warnings += $msg }
                 }
+                # A count of narrowed sets "without a reason" waved through with one blanket explanation hides the
+                # real misses among them. #6111 A-13: "40 narrowed sets without a reason … multi-line signatures"
+                # covered two SQLite-only tests with no reason at all (round 4 NIT004; rounds 1-2 MIN004 / MIN007).
+                # Each hit must be named, so fewer test names than the count fails. Errors from 2026-11-27.
+                $narrowed = [regex]::Match($convLine, '(?i)\b(\d+)\s+narrowed sets?\b[^;]*?\bwithout (?:a )?reason')
+                if ($narrowed.Success -and [int]$narrowed.Groups[1].Value -gt 0) {
+                    $named = @([regex]::Matches($convLine, '`([A-Z][A-Za-z0-9_]+)`') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+                    if ($named.Count -lt [int]$narrowed.Groups[1].Value) {
+                        $msg = "P11 : $($e.id) records $($narrowed.Groups[1].Value) narrowed set(s) without a reason but names $($named.Count) test(s) -- give each hit's reason on the line above its attribute, or list each test by name with the reason it already has"
+                        if (& $isError $e $trigger '2026-11-27') { $errors += $msg } else { $warnings += $msg }
+                    }
+                }
                 continue
             }
 
