@@ -47,13 +47,13 @@ letting through:
      rows, aggregates over a navigation) still use `AreEqual`, so read each hit. (#5969 round 4 NIT007:
      four new `WhereTests.Binary*` tests followed the fixture's `AreEqual` form.) Measured: `bcefe37bb` 4 hits,
      the four; `origin/master~300...origin/master` 10, whole-table `AreEqual(T, db.T)` compares among them.
- 11. an added `Issue<N>`-named type or test method in a file whose name lacks `Issue` (the EF `IssueModel` and
-     generated `Tests/Tests.T4/` scaffold output are skipped too) — a shared feature
+ 11. an added `Issue<N>`-named type or test method (`void` / `Task` / `ValueTask`) in any test file — only the EF
+     `IssueModel` and generated `Tests/Tests.T4/` scaffold output are skipped (#6463) — a test
      fixture names members for the behaviour they check and puts the issue in `[Test(Description = ...)]` —
      testing.md -> *Naming in a feature fixture*; test-review-checklist.md -> *`Issue<N>` names in a shared
      feature fixture*. (#6442 MIN001: `Issue6400Table` and its test, added among legacy `Issue4371*` members.)
-     Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them legacy
-     members re-added by fixture consolidation, so a hit on moved code is not a finding.
+     Measured: `origin/pr/6442` 2 hits, the two; `origin/master~300...origin/master` 115, most of them old
+     members re-added by fixture consolidation before #6463.
  12. `localModels`: a mapped class added to a `Tests/Linq/Linq/` feature fixture with 1-3 columns, every one
      `int` / `string` / `bool` (nullable or not), and no inheritance — the shapes the shared `Parent` / `Child` /
      `Person` models already carry — testing.md -> *Core behaviour is tested on the common models*. A local type
@@ -66,15 +66,22 @@ letting through:
      predicates fix 4 hits, the four a review raised; `origin/master~300...origin/master` 2, both real
      (`MathFunctionTests.cs:1082`, `:1863`).
  14. `issueFixtureFiles`: a per-issue `Issue<N>Tests.cs` fixture file the branch adds (or moves into that name) -
-     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 skips every
-     `Issue*`-named file, so nothing else flags the file itself. Tests added to an existing one are not detected.
-     (#6057 MIN001.)
+     test-review-checklist.md -> *A new or extended per-issue `Issue<N>Tests.cs` fixture*. Check 11 flags the
+     `Issue<N>` members inside it, not the file itself. (#6057 MIN001.)
  15. `shouldlyThrowAssertions`: an added Shouldly exception assertion (`.ShouldThrow<T>(`, `.ShouldThrowAsync<T>(`,
      `Should.Throw<T>(`) - testing.md asks for `Assert.That(() => ..., Throws...)`, keeping the fully qualified
      `Shouldly.Should.Throw<T>` for a test that needs the exception object, so read each hit. Measured: #5708 at
      `bf00c3547` 28 hits, the 28 round 4 converted; `origin/master~300...origin/master` 101.
  16. `regionBlocks`: an added `#region` / `#endregion` - testing.md -> *Test Patterns*. Measured: #5708 at `bf00c3547`
      2, the pair round 4 removed; `origin/master~300...origin/master` 390, mostly moved or regenerated code.
+ 17. `memberSpacing`: an added attribute or member line directly after a `}` at the same indent, with no blank line
+     between the members; `*.generated.cs` and `Tests/Tests.T4/` scaffold output are exempt. (#6133 NIT006, fix-6303
+     NIT005.) Measured: `origin/pr/6133` 1 hit, NIT006; `origin/master~300...origin/master` 1, real
+     (`TableOptionsTests.cs:23`).
+ 18. `tracingWithoutDefault`: an added `UseTracing(` whose callback does not call
+     `DataConnection.DefaultOnTraceConnection(` within the next 8 lines. The callback replaces the default trace
+     handler, which is what writes baselines, so the test records no SQL - testing.md -> *Baselines*. A method-group
+     handler that forwards elsewhere is a false positive; read each hit. (#6133.) Measured: see the check's commit.
 
 Why this script exists
 ----------------------
@@ -119,7 +126,7 @@ unanchoredAssertionGates: [{file, line, errorMessage}], narrowedContinuations: [
 cacheMissOutsideQueryCacheTest: [{file, line, test, text}], handDuplicatedAreEqual: [{file, line, text}],
 invisibleChars: [{file, line, codepoint}], issueNamedMembers: [{file, line, name}], localModels: [{file, line, name, columns}],
 attributePadding: [{file, line, text, column, neighbourColumn}], issueFixtureFiles: [{file}],
-shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
+shouldlyThrowAssertions: [{file, line, text}], regionBlocks: [{file, line, text}], memberSpacing: [{file, line, text}], tracingWithoutDefault: [{file, line, text}] }. `invisibleChars` is not test-specific: run with `-Path Source/` to
 sweep product code for a raw U+FEFF / U+FFFD / control character a diff renders as nothing (#5991 NIT008).
 #>
 
@@ -177,6 +184,10 @@ $invisible   = @()
 $issueNamed  = @()
 $shouldlyThrows = @()
 $regions     = @()
+$spacing     = @()
+$tracing     = @()
+# check 18: an added `UseTracing(` callback still looking for its `DefaultOnTraceConnection(` forward
+$pendingTrace = $null
 $localModels = @()
 $padding     = @()
 # check 12: an added class declaration in a feature fixture, reported once a mapping attribute follows it
@@ -249,12 +260,20 @@ function Get-LineAbove {
 }
 
 foreach ($l in $diff) {
+	if ($pendingTrace -and ($l -match '^\+\+\+ ' -or $l -match '^@@ ')) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
 	if ($l -match '^\+\+\+ b/(.*?)\t?$') { $file = $Matches[1]; $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l -match '^\+\+\+ ')          { continue }
 	if ($l -match '^@@ .*\+(\d+)')    { $line = [int]$Matches[1] - 1; $recent.Clear(); $pendingGate = $null; $openAttr = $null; $pendingModel = $null; $pendingPad = $null; continue }
 	if ($l.StartsWith('-'))            { continue }
 
 	$line++
+
+	# check 18: the forward has to come within the callback's first lines, added or context
+	if ($pendingTrace) {
+		$body18 = if ($l.Length -gt 0) { $l.Substring(1) } else { '' }
+		if ($body18 -match 'DefaultOnTraceConnection') { $pendingTrace = $null }
+		elseif (--$pendingTrace.remaining -le 0) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
+	}
 
 	# check 13: the line after a padded attribute, added or context, closes on the same column when it is an attribute line too
 	if ($pendingPad) {
@@ -303,11 +322,11 @@ foreach ($l in $diff) {
 			}
 		}
 
-		# check 11: `Issue<N>` names belong only in issue fixtures (per-issue files are legacy), the EF `IssueModel`,
-		# and generated T4/CLI scaffold output, whose names come from the database schema; a `_Issue<N>` suffix
-		# counts too (#6037: `ViewNamedTable_Issue4831`)
-		if ($file -match '\.cs$' -and [IO.Path]::GetFileName($file) -notmatch 'Issue' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
-			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|Task(?:<[^()]*>)?)\s+)(?<name>(?:\w+_)?Issue\d+\w*)\b') {
+		# check 11: `Issue<N>` names belong only in the EF `IssueModel` and generated T4/CLI scaffold output, whose names
+		# come from the database schema - no test file is exempt since #6463 retired the per-issue fixtures; a
+		# `_Issue<N>` suffix counts too (#6037: `ViewNamedTable_Issue4831`)
+		if ($file -match '\.cs$' -and $file -notmatch '/IssueModel/|^Tests/Tests\.T4/' -and $text -notmatch '^\s*//' -and
+			$text -match '\b(?:(?:class|struct|record|enum|interface)\s+|(?:void|(?:Value)?Task(?:<[^()]*>)?)\s+)(?<name>(?:\w+_)?Issue\d+\w*)\b') {
 			$issueNamed += [pscustomobject]@{ file = $file; line = $line; name = $Matches['name'] }
 		}
 
@@ -320,6 +339,25 @@ foreach ($l in $diff) {
 		# check 16: an added `#region` / `#endregion` in test code (testing.md -> Test Patterns; #5708 round 4)
 		if ($file -match '\.cs$' -and $text -match '^\s*#(?:end)?region\b') {
 			$regions += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+		}
+
+		# check 18: an added `UseTracing(` callback replaces the default trace handler, which is what writes the
+		# baselines (DataConnection.WriteTraceLine); it must call DataConnection.DefaultOnTraceConnection (#6133)
+		if ($file -match '\.cs$' -and $text -notmatch '^\s*//' -and $text -match '\bUseTracing\s*\(' -and $text -notmatch 'DefaultOnTraceConnection') {
+			$hit18 = [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			if ($pendingTrace) { $tracing += $pendingTrace.hit }
+			$pendingTrace = [pscustomobject]@{ hit = $hit18; remaining = 8 }
+		}
+
+		# check 17: an added attribute or member line straight after a `}` at the same indent - members are
+		# separated by a blank line (#6133 NIT006, fix-6303 NIT005)
+		# generated output is exempt, and `[Console]::Out` inside an embedded script is not an attribute
+		if ($file -match '\.cs$' -and $file -notmatch '\.generated\.cs$|^Tests/Tests\.T4/' -and $recent.Count -gt 0 -and $text -notmatch '\]::' -and
+			$text -match '^\t+(\[[A-Z][\w.]*\s*[(\],]|(?:public|private|protected|internal|static|sealed|async|override|readonly|const)\b)') {
+			$prevRaw = $recent[$recent.Count - 1] -replace '^[+ ]', ''
+			if ($prevRaw.Trim() -eq '}' -and (Get-Tabs $prevRaw) -eq (Get-Tabs $text)) {
+				$spacing += [pscustomobject]@{ file = $file; line = $line; text = $text.Trim() }
+			}
 		}
 
 		# check 12: a small mapped class added to a feature fixture, every column int / string / bool (nullable or not) -
@@ -448,6 +486,7 @@ foreach ($l in $diff) {
 	$recent.Add($l)
 	if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
 }
+if ($pendingTrace) { $tracing += $pendingTrace.hit; $pendingTrace = $null }
 
 # check 8: read each file once, at the swept state, and look for `[QueryCacheTest]` on the test and its fixture
 $signatureRx = '^\s*(?:(?:public|private|protected|internal|static|async|override|virtual|sealed|unsafe)\s+)*(?!(?:return|await|yield|throw|new|else|var)\b)[\w<>\[\],\?\.]+\s+(\w+)\s*(?:<[^()]*>)?\s*\('
@@ -527,4 +566,6 @@ $issueFixtures = @($issueFixtures | Where-Object { $_ -match '(^|/)Issue\d+\w*Te
 	issueFixtureFiles = @($issueFixtures)
 	shouldlyThrowAssertions = @($shouldlyThrows)
 	regionBlocks = @($regions)
+	memberSpacing = @($spacing)
+	tracingWithoutDefault = @($tracing)
 } | ConvertTo-Json -Depth 4

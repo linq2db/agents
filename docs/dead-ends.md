@@ -4,6 +4,28 @@ Approaches tried on this codebase and abandoned — a disproven hypothesis, a re
 
 Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-areas.md) — `Grep` it, don't `Read` it), then **Tried:** / **Failed because:** / **Don't re-attempt:**, and the issue / PR it came from. An entry is a codebase fact, so it belongs here rather than in per-user auto-memory, which no other contributor or agent can read. Delete an entry when the constraint it records goes away (a driver fix, an engine change), naming the change in the commit.
 
+## EXPR-TRANS: translating a typed member read (`PivotCells.Get<T>`, an indexer) in `ExposeExpressionVisitor`
+
+**Tried:** rewriting `PivotCells.Get<T>(name)` and `(T)cells[name]` into the `Sql.Property` member access at expose, for any receiver whose static type is `PivotCells`.
+
+**Failed because:** expose sees neither the position nor the receiver's origin. Cells read back from a pivot and captured by a later query threw "Dynamic column getter is not to be called.", and a projection lost the members' in-memory contract (an absent name threw, `Get<int>` over a decimal cell read the value instead of `default`).
+
+**Don't re-attempt:** a member that has both an in-memory meaning and a SQL one is translated in `ExpressionBuildVisitor`, under `BuildPurpose.Sql`, for a receiver that is not client-evaluable; a projection keeps the in-memory read. (#5708, `48de1d7cf`, round-4 `f6c79e56e`)
+
+## EXPR-TRANS: reading a pivot cell as another type in an Unpivot column through a typed `DynamicColumnInfo`
+
+**Tried:** (measured on SQLite.Classic, `Get<int>` over a `decimal?` cell in an Unpivot column, which threw `ArgumentException` from `ExpressionBuildVisitor.VisitNew` rebuilding the result's constructor):
+1. converting a matched `DynamicColumnInfo` binding to the read's type in `ExpressionBuilder.Project`, in both the `MemberInit` and the `SqlGenericConstructorExpression` branch;
+2. an `object`-typed read with a `Convert` to `T`, left to the projection's normal `VisitUnary`;
+3. outside the `Sql` / `Expression` purposes, rebuilding that conversion over the visited operand.
+
+**Failed because:**
+1. No effect: the test stayed red with the same exception, because the read does not resolve through either branch's return.
+2. The BCL's `ExpressionVisitor.VisitUnary` rejects the operand changing from `object` to the cell's own type ("Rewriting child expression from type 'System.Object' …" / "… calls operator method 'op_Explicit' …").
+3. Identical to returning the node unchanged on all 133 `PivotDynamicTests` cases. Only `Extract` reaches it, and `SelectBuilder.cs:39` discards that result.
+
+**Don't re-attempt:** any of the three. The working shape is an `object`-typed read whose conversion `VisitUnary` hands to `ReadPivotCellAs` in the `Sql` / `Expression` purposes, which resolves the cell in `Sql` purpose and casts the resolved column; other purposes return the node as written. (#5708 A-21)
+
 ## MAPPING: serving a TPH root's in-progress descriptors to re-entrant descriptor-created callbacks
 
 **Tried:** four ways for a descriptor-created callback to read its hierarchy's descriptors while the inheritance root is still being built (reviewed by reading, none built):
@@ -116,7 +138,7 @@ Entry shape: `## <AREA>: <one-line subject>` (area codes per [`kb-areas.md`](kb-
 
 **Don't re-attempt:** `round_even` for exact decimal rounding, or a `value * 0.5` / `value * 2` emulation on values near the column's range. A parity test on `FLOOR(value)` picks the even neighbour with no multiplication. The precision form is still open: #6275. (#6151 A-9)
 
-## EXPR-TRANS: reproducing a Linux-only `Issue3674Tests.InThread` stack overflow on Windows by shrinking the thread
+## EXPR-TRANS: reproducing a Linux-only `StackUseTests.LargeOrFilterInSmallStackThread` stack overflow on Windows by shrinking the thread
 
 **Tried:** turning #6185's CI-only overflow (80 KB thread, Linux) into a local red→green by running `Issue3674Tests`' query on a 64 KB thread on Windows, head vs master vs fix — the plain query, and a variant with a hand-built `Constant(int[])[0] > 0` AndAlso-ed onto the deepest leaf.
 

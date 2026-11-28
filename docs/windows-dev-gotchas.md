@@ -207,7 +207,7 @@ Test-Path -LiteralPath '[Internal]-Foo.md'     # accurate
 
 `[System.IO.File]::WriteAllText($path, $text)` **without** an encoding argument writes UTF-8 *without* BOM. Most sources in this repo carry a BOM, so a scripted one-attribute edit across N files silently rewrites line 1 of every one of them — the diff shows `2 +--` per file where you expected `1 +-`, and the phantom hunk reaches review. `Set-Content` has the mirror problem for line endings (CRLF on Windows, so an LF-only file — every wiki page — is rewritten wholesale).
 
-Round-trip the bytes instead, and preserve whatever the file already had:
+Round-trip the bytes instead, and preserve whatever the file already had — hard-coding `UTF8Encoding($true)` is the mirror mistake, because some sources are BOM-less (`Tests/Linq/Linq/StringFunctionTests.cs`, #6498):
 
 ```powershell
 $bytes  = [System.IO.File]::ReadAllBytes($f)
@@ -430,8 +430,9 @@ Failure modes that surface when running `dotnet build` (or `/test`, or `/release
 
 **Never infer build success from an exit code that passed through a pipe.** `dotnet build … | grep …` / `| tail` reports the **pipe's** exit status (0 from `grep`/`tail`), not dotnet's, so a real failure — including `MSB1009: project file does not exist` from a wrong path — is swallowed and reads as success. The same holds for a `run_in_background` build's completion notification: a failed Release build (6 `IDE0306` errors) piped to `tail` reported `exit code 0`. Persist the full output (`dotnet build … > <path>`, then `Read` / `Grep` the file), or grep for **both** `Build succeeded` *and* the absence of `: error` / `MSB[0-9]`. Verify the project path resolves before trusting anything: a `dotnet build ".../Tests.Linq.csproj" | tail` returned exit 0 and was reported as "compiles clean" when the real path is `Tests/Linq/Tests.csproj` and the build had failed `MSB1009`.
 
-**A `Build succeeded` can still leave a stale assembly — four routes, four different tells.** The run then measures the *previous* code, which reads as "the fix doesn't work" or "my new test resolves nothing" (`Zero tests ran`, exit 8).
+**A `Build succeeded` can still leave a stale assembly — five routes, five different tells.** The run then measures the *previous* code, which reads as "the fix doesn't work" or "my new test resolves nothing" (`Zero tests ran`, exit 8).
 - *Source edited while a build is in flight:* the build writes the DLL after the edit lands, so the source is now older than its output and every later build skips the project. Tell: source `LastWriteTime` earlier than the DLL's. Fix: touch the source (`(Get-Item $f).LastWriteTime = Get-Date`) and rebuild.
+- *Files restored from a saved copy:* `Copy-Item` keeps the copy's old `LastWriteTime`, so files put back after building another version are older than that build's output and the next build skips them. Tell: a 2–3 second "success" and the old member names still in a test listing. Fix: touch the restored files, as above. (#6463: an EF base/after listing swap.)
 - *Build killed (host memory):* the project is skipped even though its source is newer — the timestamp tell reads clean. Tell: the next build log never mentions the project. Fix: `dotnet build <project> --no-incremental`, then rebuild its dependents.
 - *Build failed, run chained with `;`:* `;` doesn't gate, so the run executes the last good binary. Tell: a wide filter reports `total: 1` (just `CreateData.CreateDatabase`). Fix: echo the build verdict into the same output before the run.
 - *Success in implausibly little time:* a one-file change to `Tests/Linq` costs tens of seconds; a 5-second "success" compiled nothing. Re-run on a build you watched take a plausible time, with the original filter.

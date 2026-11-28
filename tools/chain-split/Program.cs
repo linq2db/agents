@@ -73,8 +73,12 @@ foreach (var (relative, lines) in targets)
 
 		foreach (var dot in dots)
 		{
-			// replace the whitespace before the dot (none on one line) with a break
-			changes.Add(new TextChange(new TextSpan(dot.SpanStart, 0), eol + indent));
+			// replace the whitespace before the dot with a break: column-aligned code pads the receiver
+			// (`model  .FindType`), and inserting at the dot left that padding trailing (#6037 NIT001)
+			var start = dot.SpanStart;
+			while (start > 0 && src[start - 1] is ' ' or '\t')
+				start--;
+			changes.Add(new TextChange(TextSpan.FromBounds(start, dot.SpanStart), eol + indent));
 		}
 		total++;
 	}

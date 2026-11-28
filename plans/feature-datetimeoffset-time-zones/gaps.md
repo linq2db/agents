@@ -29,3 +29,54 @@ No plan in the corpus for this branch (commits 5defc29 / 6f90e1e cite an out-of-
 - GAP-03 ×3 + GAP-02 ×1 (MAJ-3, MAJ-4, SUG-12, MIN-6) → `work-plan/SKILL.md` step 5 scout brief: for a translator/lowering edit, enumerate each operand's mapped storage `DataType` variants per provider and route each through every entry into the lowering and both directions of any frame/unframe pair.
 - GAP-02 ×2 (MAJ-2, MAJ-5) → `plan-critic.md` attack vector: any "is exact / identity / round-trips" claim needs a `P4` probe with an arm-separating input (DST crossing; offset asserted apart from instant); a capability flag read by internal plumbing and user-facing materialisation needs a probe per consumer.
 - GAP-07 ×1 + GAP-09 ×1 (BLK-1, MIN-9) → `work-plan.md` `P3` semantics: on a non-major milestone list every non-`Internal.*` type in the edit set as "signature preserved; keep the shipped overload"; every PR-body "unchanged" claim becomes a `P3` row G-02 checks against moved baselines, with a `P11` entry when a commit crosses it.
+
+## Round 2 — reviewed HEAD b56fdc828
+
+Review passes were briefed without the plan (reviewer's local corpus 53 commits stale); no surviving finding contests a P10 entry. One probe was spent on a shape P10-12 already adjudicated (dropped).
+
+- **MAJ006** (`OffsetInMinutes` / `InstantFromOperand` lack the storage guard) — GAP-03 — P7 rows cover only the frame/unframe pair; no row for the DateTimeOffset member handlers that translate the operand without framing it (DFTB:2052, :1823 → `.Offset`, `TotalOffsetMinutes`, `ToUniversalTime`, `ToOffset`, `.UtcDateTime`); D-10/E-9 edited the `.Offset` path without the guard; TO-6 shifts only — G-01 — preventable: yes
+- **MIN009** (Oracle `DateTimeOffset.TimeOfDay` drops the fraction) — GAP-03 — A-8's P7 row keyed the class on "the TIME cast does not yield a time" and dispositioned Oracle as "own truncation override" unprobed; A-8's "master has the same delegation" is false (master DFTB:1978-1984 is a bare CAST, ORA-50031); TO-11/TO-38 use whole-second values — G-01 — preventable: yes
+- **MIN010** (`InstantMembersAgreeWithTheRoundTrip` compares instants only) — GAP-05 — no TO-n asserts the offset ToOffset/ToUniversalTime produce on the SupportsDateTimeOffsetContext set; the only test reaching it there asserts DateTimeOffset equality — G-01 — preventable: partly
+- **SUG003** (`TryGetZoneOffset` formats hours:minutes only) — GAP-01 — P3 states CLR agreement for values only; no block names the CLR's exception domain (non-whole-minute, beyond ±14 h); TO-20/P-h used whole-minute offsets — G-01 — preventable: partly
+- **SUG004** (`MachineZoneMembersStayClientSide` ToLocalTime compares instants) — GAP-05 — same assertion idiom as MIN010; no TO-n asserts the local offset — G-01 — preventable: partly
+- **SUG005** (no test reaches the AtTimeZone refusal on SQL Server 2005–2014) — GAP-05 — TO-17 lists the no-zone class by provider family; U-5 already showed only SQL Server 2016+ overrides CanLowerTimeZoneConversion — G-01 — preventable: yes
+- **SUG006** (`Sql.AtTimeZone(DateTime?)` remarks omit the identity component read) — GAP-01 — U-25/A-7 measured the identity read without zone support, but A-7's `re-derives:` omits the XML-doc edit-point E-17 — — — preventable: partly
+- **SUG007** (ClickHouse UTC formats derived by Insert) — GAP-10 — the human reviewer's preference for constant literals; no corpus rule states it and the code comment records the opposite choice — — — preventable: no
+- **NIT002** (~58 one-line chains in TimeZoneFunctionsTests.cs) — GAP-08 — A-8's `conventions:` sweep reported 57 chains + 1 nested and set them aside as predating A-8, against definition-of-done.md:11; earlier G-01 sweeps used `-Base HEAD` — G-01 — preventable: yes
+
+### Aggregate
+
+9 findings: GAP-05 ×3, GAP-03 ×2, GAP-01 ×2, GAP-08 ×1, GAP-10 ×1. The common shape: a sibling sweep keyed on the wrong property — MAJ006 on the frame/unframe pair instead of "reads a DateTimeOffset whose storage may lack an offset", MIN009 on "the cast drops the time" instead of "loses what the CLR keeps", SUG005 on provider family instead of the flag's per-version answer. Second cluster: DateTimeOffset equality asserts the instant only (MIN010, SUG004), second round running.
+
+### Recommended durable fixes
+
+1. `skills/work-plan/SKILL.md` step 5 scout brief (widen :321 from amendments to any D-n/A-n): a storage-type guard added to one reader lists every handler for the operand's CLR type that bypasses the guarded helper; a base body switched to a virtual call lists each override it now reaches, probed at the CLR type's full resolution; a refusal TO-n takes its providers from the flag's per-version answer.
+2. `docs/testing.md` assertion rules (+ `test-review-checklist.md` beside :76): `ShouldBe` on a DateTimeOffset compares the instant only — a claim about the offset asserts `.Offset` on its own line or uses `EqualsExact`.
+3. `scripts/work-plan.ps1 -Action validate` (:624-634): fail when the latest G-01/`conventions:` sweep record has a nonzero count without a fixed / named-review-item disposition; SKILL.md:322 quotes definition-of-done.md:11's no-waiver clause.
+
+### Continuity with round 1
+
+- Recurs, next ring out: MAJ-4 → MAJ006 (same `DataType.DateTime2` storage shape; round 2 mirrored the pair and missed the bypassing readers; round-1 recommendation #1 never landed in SKILL.md); MIN-6 → MIN009 (Oracle sub-second precision, now via TO_CHAR); MIN-8 → SUG005 (no-zone class member missed again); MAJ-5 second class → MIN010, SUG004.
+- Did not recur: BLK-1, MAJ-2 (round-1 recommendation #2 landed at plan-critic.md:87 and was followed), MAJ-3, MIN-7, MIN-9, MIN-10, SUG-11, SUG-12, NIT-13.
+- New class: the CLR exception domain (SUG003). Waived sweep hits (NIT002) recur across plans (feature-query-batches NIT006, feature-1553-fsharp-codegen NIT205–NIT209).
+
+## Round 3 — reviewed HEAD 9687f8493
+
+A verify round, plus one pass over A-9's offset-less walk. Every round-2 finding is fixed except NIT002 (partly, NIT003). SUG007 was withdrawn after the author's drift argument. One candidate, the walk treating `MAX` / window value functions / scalar subqueries as leaves, was dropped: a probe on four providers found no wrong answer. Attributed by the reviewing session, not by a separate attributor run.
+
+- **MIN011** (a mixed-offset CASE / set operation whose offset-less value comes first is read with no frame) — GAP-05 — critic round 8 objection 3 ("computed producers typed from one operand") was accepted, but TO-51's cells and U-33/U-34 measured only the `Dto`-first order; `CarriesOffset` returns at DFTB:1875 on the inferred type before the walk runs, so the swapped order (`QueryHelper.cs:963-982` types a CASE from its first result) was never reached. Secondary GAP-03: the entry gate is keyed on the inferred `DbDataType` instead of the CLR type, the round-2 "wrong property" shape. Red test 8135dd9ad (Oracle wrong in any zone; DuckDB / PostgreSQL off UTC); pre-existing on master for this spelling — G-01 — preventable: yes
+- **NIT003** (one nested one-line chain left at TimeZoneFunctionsTests.cs:631) — GAP-08 — the round-2 fix's sweep ran over the delta only, and :631 predated it; the author's reply quoted the delta sweep as covering the whole fixture — G-01 — preventable: yes
+
+### Aggregate
+
+2 findings: GAP-05 ×1, GAP-08 ×1. MIN011 is the round-1/round-2 class again. An objection is accepted, and then its measurement covers one shape of the input class: one operand order, as before one storage type and one direction.
+
+### Recommended durable fixes
+
+1. `agents/plan-critic.md` / `docs/work-plan.md`: when an objection says a value is "typed from one operand" (or from one branch, one query), the reconciling `TO-n` must carry every operand order as a cell, not only the order that showed the defect.
+2. `skills/work-plan/SKILL.md` G-01 sweep record: a fix for a sweep finding reruns the sweep over the whole file (`-Base` = merge base), not over the fix's own delta.
+
+### Continuity with rounds 1–2
+
+- Recurs: round-2's "sweep keyed on the wrong property" → MIN011 (entry gate on the inferred type); NIT002 → NIT003 (delta-only sweep, round-2 recommendation #3 not landed).
+- Did not recur: MAJ006, MIN009, MIN010, SUG003–SUG006 (all fixed in 9687f8493, red tests ungated).

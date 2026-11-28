@@ -19,6 +19,9 @@ each further segment goes on its own line one tab deeper than the statement. Dep
 
 Not handled, so edit by hand: expression-bodied members (`=> a.B().C()`), a split whose last segment is followed by
 a binary operator (`?.Any(...) == true`), and argument lines continuing below a split line, which need one more tab.
+Also mangled, so drop these lines from -Lines: a switch-expression arm (`TypeCode.DateTime => new DateTime(…).AddDays(r)`
+splits at the pattern's dot) and a namespace-qualified receiver (`System.Runtime.ExceptionServices.ExceptionDispatchInfo
+.Capture(e).Throw()` splits at every namespace dot; add a `using` and split the remaining calls). -WhatIf shows both.
 
 Line endings and the BOM are preserved. Lines are rewritten bottom-up, so the numbers refer to the original file.
 

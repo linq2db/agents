@@ -44,11 +44,16 @@ The query cache key is taken from the exposed tree before any builder runs. A no
 
 - **`ParametersContext.MarkAsValue`**, as `ExpressionBuilder.RegisterExtensionAccessors` uses it. It registers an expression for by-value comparison, re-evaluated on every lookup. Mark the **whole evaluable argument**, not its closure leaves: a call result (`GetYears()`) has no closure leaf, and a captured `this` passes on `ReferenceEquals`. Skip what becomes a SQL parameter (`IsTranslatedToSql`), or every new parameter value is a rebuild. `CompareValues` short-circuits on `ReferenceEquals`, so a list mutated in place compares equal to itself.
 - **`[SqlQueryDependent]`** on a parameter. Expose folds the argument to a constant and the comparer evaluates both sides. `PrepareForCache` also folds a `NewArrayInit` of quoted lambdas into constants of `LambdaExpression`, which compare by reference, so every execution misses. #6003 uses it for `FromSql`'s `FormattableString`.
+  - **An argument that may read the row breaks the second execution.** `PrepareForCache` leaves a non-evaluable argument as written, but the query-cache compare (`EqualsToVisitor` → `ExpressionsEqual`, whose base evaluates both sides) still compiles it, with the lambda's parameter unbound: the first execution builds, every later one throws "variable '…' referenced from scope '', but it is not defined". Mark such a parameter with `SqlQueryDependentValueAttribute`, which compares a parameter-reading argument structurally, and pin it with a test that runs the query twice. (#5708 round 4, `PivotCells.Get<T>(r.Key == … ? … : …)`.)
 - **Accept literals only**, as `ExposeExpressionVisitor.ExpandOverSource` does: a quote or a `ConstantExpression`, anything else declined.
 
 **A compiled query has its own key, and it sees less.** `CompiledTable<T>` exposes once per `DependentArgumentValues` key, and `CompiledQuery.CollectDependentArgumentIndexes` puts only compiled-query **argument slots** (`ps[i]`) into it. Whatever expose evaluates from the compiled lambda's **closure** is frozen for the compiled query's lifetime: a captured raw-SQL format, a captured `FormattableString`, a captured `object[]` (#6045). A value read on every call through the build-time type also needs the key to carry its runtime type, or a changed type throws `InvalidCastException` on the reused build. And a rule added at one leaf of a key comparer (`DependentArgumentValues.ValuesEqual`) has to hold on every branch that returns before that leaf — a `FormattableString` or collection branch skipped the type check (#6003 round 5).
 
 (#5708, A-16; #6003 round 5.)
+
+### `OrderBy` keys arrive unwrapped
+
+`OrderByBuilder` builds the key from `SequenceHelper.PrepareBody(lambda, sequence).Unwrap()`, which strips the key's conversions. A rewrite keyed on `Convert(x, T)` in `ExpressionBuildVisitor.VisitUnary` therefore never sees an ordering key: `OrderBy(r => (decimal?)r.Cells["Y2000"])` reaches the visitor as the bare `object`-typed indexer call, and needs its own arm in `VisitMethodCall`. (#5708, `48de1d7cf`.)
 
 ### A computed expression's `DataType` comes from the schema, not from its operands
 

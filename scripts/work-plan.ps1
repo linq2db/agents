@@ -487,7 +487,21 @@ function Invoke-Validate {
         }
         $ids -join ' '
     })
+    # A plan whose product is test coverage (work-plan.md -> "On a plan whose product is test coverage"): P6 edits
+    # Tests/ and nothing under Source/, and a P2 criterion says a regression turns a test red. Its tests are worth
+    # only the reds they can produce, so the mutation checks below are errors at every validate there, not only at
+    # -Done, and reconcile forwards the P9 ones (#6037 round 2: two P8-named mutations stood unrun for six weeks
+    # behind a warning). Corpus-only and CI-only plans edit no Tests/ and stay out.
+    $p2Block      = Get-Block -Blocks $blocks -Id 'P2'
+    $p6EditRows   = @(if ($null -ne $p6) { $p6.lines | Where-Object { $_ -match '^-\s+(?:\*\*)?E-\d+' } })
+    $coveragePlan = $p6EditRows.Count -gt 0 -and
+        @($p6EditRows | Where-Object { $_ -match '\bSource/' }).Count -eq 0 -and
+        @($p6EditRows | Where-Object { $_ -match '\bTests/' }).Count -gt 0 -and
+        $null -ne $p2Block -and (@($p2Block.lines) -join "`n") -match '(?i)\bturns?\b[^.\n]{0,60}\bred\b'
     if ($g01 -match '\b(pass|fail)\b' -and $g01 -notmatch '\(pending\)') {
+        if ($coveragePlan -and $g01 -match '(?i)\bnot mutation-proven\b') {
+            $errors += "P9 : G-01 waives mutation proof in one line ('not mutation-proven') on a coverage plan -- record each TO-n's red (work-plan.md -> P8 proof modes)"
+        }
         foreach ($row in (Get-BlockRows -Block $p8)) {
             if ($row -notmatch '^-\s*[*_]{0,2}(TO-\d+[a-z]?)') { continue }
             $to = $Matches[1]
@@ -515,7 +529,7 @@ function Invoke-Validate {
                 $waived = @($waiverRows | Where-Object { $_ -match $toRx -and $_.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
                 if ($seen.Add($name) -and -not $waived -and $g01.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
                     $msg = "P9 : G-01 records no run of $to's mutation '$name' -- name the red it produced, or drop the claim"
-                    if ($Done) { $errors += $msg } else { $warnings += $msg }
+                    if ($Done -or $coveragePlan) { $errors += $msg } else { $warnings += $msg }
                 }
             }
         }
@@ -536,13 +550,20 @@ function Invoke-Validate {
             if ($row -match '(?i)proof:\s*characterization' -and $row -match '(?i)\bseparates:') {
                 $warnings += "P8 : $to is proof: characterization but keeps a separates: clause -- a characterization separates nothing; find an input that does, or drop the clause"
             }
+            if ($coveragePlan -and $row -match '(?i)proof:\s*characterization' -and $row -notmatch '(?i)\bmutat') {
+                $errors += "P8 : $to is proof: characterization on a coverage plan but names no mutation -- name the generator / harness change it must catch, and record its red in G-01"
+            }
             if ($row -notmatch '(?i)proof:\s*control') { continue }
             $toRx   = "(?<![\w-])$([regex]::Escape($to))(?!\w)"
             $joined = (@($g01Lines | Where-Object { $_ -match $toRx }) -join ' ')
             # "not run" counts only inside the clause naming this TO (up to the next ';' or sentence end): a
             # summary line naming several TOs often says another provider was not run (#6277 A-8, TO-78).
             $clauses = (@([regex]::Matches($joined, "$toRx[^;]*?(?=;|\.\s|$)") | ForEach-Object { $_.Value }) -join ' ')
-            if ($joined.Length -gt 0 -and ($clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
+            # ...except in the TO's own bullet, where every clause is about it: `proof: control; mutation (…) not
+            # run` hid twenty unrun controls behind the ';' (#6037 G-01 round 3)
+            $ownRx  = "^\s*-\s*[*_]{0,2}$([regex]::Escape($to))(?!\w)"
+            $ownGap = @($g01Lines | Where-Object { $_ -match $ownRx -and $_ -match '(?i)\bnot (recorded|run)\b' }).Count -gt 0
+            if ($joined.Length -gt 0 -and ($ownGap -or $clauses -match '(?i)\bnot (recorded|run)\b' -or $joined -notmatch '(?i)\b(red|mutant|mutation)')) {
                 $msg = "P9 : $to is proof: control but its G-01 row records no red mutant run -- run the mutation and record the red"
                 if ($Done) { $errors += $msg } else { $warnings += $msg }
             }
@@ -613,7 +634,9 @@ function Invoke-Validate {
         if ($narrowBase.Count -gt 0) {
             $warnings += "P9 : a test-diff-sweep record uses a -Base other than the merge base -- on a planned branch sweep origin/master...HEAD so earlier amendments' tests are covered"
         }
-        $deferred = @($sweepTexts | Where-Object { $_ -match '(?i)(named|carried|deferred|left) as (?:a )?review items?' })
+        # A hit waived as older than the amendment is the same deferral (definition-of-done.md: never waived as
+        # "outside this plan"). #5913 A-8: "they predate A-8 and are not touched by it" set 57 chains aside; review NIT002.
+        $deferred = @($sweepTexts | Where-Object { $_ -match '(?i)(named|carried|deferred|left) as (?:a )?review items?|\bpredate[sd]?\s+(A-\d+|this amendment|the amendment)\b|\bnot touched by (it|this amendment|A-\d+)\b|\boutside (this|the) (plan|amendment)\b' })
         if ($deferred.Count -gt 0) {
             $msg = "P9 : a test-diff-sweep hit is recorded as a review item instead of fixed -- fix it on the branch or record why it is not a violation"
             if ($Done) { $errors += $msg } else { $warnings += $msg }
@@ -860,6 +883,18 @@ function Invoke-Validate {
                 if ($convLine -notmatch 'test-diff-sweep') {
                     $msg = "P11 : $($e.id) has a conventions: line that cites no test-diff-sweep.ps1 run -- run the sweep and cite its counts per category"
                     if (& $isError $e $trigger '2026-11-22') { $errors += $msg } else { $warnings += $msg }
+                }
+                # A count of narrowed sets "without a reason" waved through with one blanket explanation hides the
+                # real misses among them. #6111 A-13: "40 narrowed sets without a reason … multi-line signatures"
+                # covered two SQLite-only tests with no reason at all (round 4 NIT004; rounds 1-2 MIN004 / MIN007).
+                # Each hit must be named, so fewer test names than the count fails. Errors from 2026-11-27.
+                $narrowed = [regex]::Match($convLine, '(?i)\b(\d+)\s+narrowed sets?\b[^;]*?\bwithout (?:a )?reason')
+                if ($narrowed.Success -and [int]$narrowed.Groups[1].Value -gt 0) {
+                    $named = @([regex]::Matches($convLine, '`([A-Z][A-Za-z0-9_]+)`') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+                    if ($named.Count -lt [int]$narrowed.Groups[1].Value) {
+                        $msg = "P11 : $($e.id) records $($narrowed.Groups[1].Value) narrowed set(s) without a reason but names $($named.Count) test(s) -- give each hit's reason on the line above its attribute, or list each test by name with the reason it already has"
+                        if (& $isError $e $trigger '2026-11-27') { $errors += $msg } else { $warnings += $msg }
+                    }
                 }
                 continue
             }
@@ -1156,9 +1191,20 @@ function Invoke-Reconcile {
     $p6       = Get-Block -Blocks $blocks -Id 'P6'
 
     $authorized = @()
+    # The edit-point's own file per live row: a row whose file has left the diff names code the branch no longer
+    # carries (#6133: a stack merge removed six edit-points' files and nothing reported it for 23 days). Rows that
+    # are withdrawn, or that restore master's text, are expected to have no diff.
+    $expected = @()
     foreach ($row in (Get-BlockRows -Block $p6)) {
         # Strip a :Symbol suffix — the authorization is per file.
-        foreach ($p in (Get-RowPaths -Row $row)) { $authorized += ($p -split ':')[0].Trim() }
+        $rowPaths = @(Get-RowPaths -Row $row | ForEach-Object { ($_ -split ':')[0].Trim() })
+        $authorized += $rowPaths
+        if ($row -match '(?i)\bwithdrawn\b|revert(ed)? to master|equals (the stack and )?master|not edited') { continue }
+        $own = @($rowPaths | Where-Object { $_ -match '/' }) | Select-Object -First 1
+        if ($own) {
+            $eid = if ($row -match '^\s*-\s*(E-\d+)') { $Matches[1] } else { '' }
+            $expected += [pscustomobject]@{ id = $eid; path = $own }
+        }
     }
 
     $r = Invoke-Process -FilePath 'git' -ArgumentList @('-C', $RepoRoot, 'diff', '--name-only', "$Base...$Head")
@@ -1209,6 +1255,17 @@ function Invoke-Reconcile {
         if ($hit) { $matched += $f } else { $unplanned += $f }
     }
 
+    $vanished = @()
+    foreach ($e in $expected) {
+        $a   = $e.path
+        $hit = $false
+        foreach ($f in $changed) {
+            if ($f -eq $a -or $f.EndsWith($a) -or $a.EndsWith($f) -or $f.StartsWith($a.TrimEnd('*')) -or
+                ($a.Contains('*') -and $f -like ($a -replace '\*\*/', '*'))) { $hit = $true; break }
+        }
+        if (-not $hit) { $vanished += ('{0} {1}' -f $e.id, $a).Trim() }
+    }
+
     # The file check cannot see an amendment that skipped its own obligations (no conventions: line, no critic
     # round, no sweep counts); validate reports them, but nothing ran validate before a push (#6037: A-7's three
     # validate errors stood while its merge commit was pushed). Carry validate's P9/P11 errors here.
@@ -1219,7 +1276,7 @@ function Invoke-Reconcile {
         if ($parsed) { $planErrors = @($parsed.errors | Where-Object { $_ -match '^P(9|11) :' }) }
     }
 
-    $ok = ($unplanned.Count -eq 0 -and $planErrors.Count -eq 0)
+    $ok = ($unplanned.Count -eq 0 -and $vanished.Count -eq 0 -and $planErrors.Count -eq 0)
     Write-JsonOutput ([ordered]@{
         ok         = $ok
         action     = 'reconcile'
@@ -1229,8 +1286,10 @@ function Invoke-Reconcile {
         authorized = @($authorized)
         covered    = @($matched)
         unplanned  = @($unplanned)
+        vanished   = @($vanished)
         planErrors = @($planErrors)
         nextAction = if ($unplanned.Count -gt 0) { 'add an E-n row to P6 for each unplanned file and record the rationale in P11 — an amendment voids that part of the approval' }
+                     elseif ($vanished.Count -gt 0) { 'each vanished edit-point names a file this diff no longer changes: find the commit that moved it (often a master or stacked-base merge), then re-derive the decisions that rest on it and withdraw the row in a P11 amendment. On a stacked branch pass -Base <parent branch>, or the parent''s files read as present' }
                      elseif ($planErrors.Count -gt 0) { 'resolve the P9/P11 validate errors before pushing: they mark an amendment whose obligations were skipped' }
                      else { $null }
     })
