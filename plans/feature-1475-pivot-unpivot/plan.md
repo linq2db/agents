@@ -505,7 +505,7 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   - TO-33 pass — `ACapturedCellNameKeysTheQuery`. Mutation drop `[SqlQueryDependent]` from `Get<T>`'s `name`: red, the second name replays the first column (`[]` instead of `A, B`).
   - TO-34 pass — `UnpivotsSameNamedCellsOfTwoPivotsUnderTheirPaths`; red at `2cad4e701` (both `Y2000`), and on the first fallback draft (`Total.Y2000`, `Y2000`).
   - A-19 tree runs (uncommitted): `Pivot|DynamicColumns` SQLite.Classic 229/229, SQLite.MS 224/224, DuckDB 206/206, each direct + `LinqService` (Testing net11.0); Release net10.0 build clean (one [MA0006] in E-53 fixed first) and SQLite.Classic 229/229 on it.
-  - test-diff-sweep (`-Repo` the worktree at `2cad4e701`): chains 84, nestedChains 4, narrowedSets 25, narrowedWithoutReason 5, localModels 1, shouldlySubjectGates 0, typeOnlyShouldlyGates 0, continuationIndents 0, unanchoredAssertionGates 0, narrowedContinuations 0, cacheMissOutsideQueryCacheTest 0, handDuplicatedAreEqual 0, invisibleChars 0, issueNamedMembers 0, attributePadding 0. None falls in E-59's added tests. The rest predate A-19 and were fixed in A-20 (`8f2029f35`: chains 0, nestedChains 0, narrowedWithoutReason 0).
+  - test-diff-sweep (`-Repo` the worktree at `2cad4e701`): chains 84, nestedChains 4, narrowedSets 25, narrowedWithoutReason 5, localModels 1, shouldlySubjectGates 0, typeOnlyShouldlyGates 0, continuationIndents 0, unanchoredAssertionGates 0, narrowedContinuations 0, cacheMissOutsideQueryCacheTest 0, handDuplicatedAreEqual 0, invisibleChars 0, issueNamedMembers 0, attributePadding 0. None falls in E-59's added tests. The rest came from earlier amendments and were fixed in A-20 (`8f2029f35`: chains 0, nestedChains 0, narrowedWithoutReason 0).
   **Per-obligation record (A-20, 2026-11-26).** Runs at `8f2029f35` (Testing net11.0, direct + `LinqService`):
   `Pivot|DynamicColumns` SQLite.Classic 243/243, SQLite.MS 237 pass + 1 skip (#6028), DuckDB 218/218; EF10 SQLite.MS
   `PivotOperatorsOverADbSet` 1/1. Release net10.0 `Tests` build at `8f2029f35`: clean, 0 warnings. CI on a head containing E-60…E-65: pending.
@@ -1079,8 +1079,8 @@ work is **uncommitted** in `C:\Worktrees\linq2db\5708-pivot-unpivot`.
   - re-derives: P2 (SC-16, SC-17), P7 (A-19 rows), P8 (TO-29, TO-30), P9 (G-01 per-obligation record), P10 (the flat-DTO read line).
   - conventions: `testing.md` → *Test layout*, *A narrowed provider set is a claim*, *Gating an assertion failure*, embedded before E-59's tests were written; `test-diff-sweep.ps1 -Repo <worktree> -IncludeWorkingTree` on the A-19 tree: chains 84, nestedChains 4, narrowedSets 25, narrowedWithoutReason 5, localModels 1, shouldlySubjectGates 0, typeOnlyShouldlyGates 0, continuationIndents 0, unanchoredAssertionGates 0, narrowedContinuations 0, cacheMissOutsideQueryCacheTest 0, handDuplicatedAreEqual 0, invisibleChars 0, issueNamedMembers 0, attributePadding 0, issueFixtureFiles 0.
     The redesign's tests first added 5 one-line chains (89); split, back to 84, so E-59's lines carry none. The 84 chains,
-    4 nested chains, 5 narrowed sets without a reason line and the `QuarterlyKeys` local model predate A-19; each is
-    named as a review item for this round rather than fixed unasked.
+    4 nested chains and 5 narrowed sets without a reason line were added before A-19 and fixed in A-20 (`8f2029f35`:
+    0 / 0 / 0). The `QuarterlyKeys` local model is a provider-neutral key pair the Unpivot tests share, kept by design.
 
 - **A-20 (2026-11-26) — review round 4 (`/review-pr 5708`, three `code-reviewer` passes at `bf00c3547`) fixed.**
   Local commits, unpushed at writing: `28c9baef2` (E-60: MAJ, a row-dependent cell name threw on the second execution),
@@ -1316,6 +1316,8 @@ Not re-attacked: the revision above, recorded as measured in G-01.
 Strongest confirmation (critic): a placeholder stands only where a `ConstantExpression` was, and same-shape trees expose to the same node kinds, so E-78 can only reject a pair whose accessor replay would have cast a non-constant to `ConstantExpression`.
 
 Not re-attacked: the `EqualsTo` form of E-78 and TO-56's second pass, recorded as measured in G-01.
+
+Commits of record for round A-23 and its close (pushed in `995a3374f`): `e540939e9` (E-74, E-76, E-77: DB2 quoting, TO-55; round A-23 objection 6), `bb7f25ca7` (E-78, E-79's TO-56: round A-23 close), `e87525cfe` (E-73: round A-23 objection 8), `31283915d` (E-75 and E-79's TO-35 gate: round A-23 objections 1–5, 7, 9). Merges `c340310b3` and `995a3374f` take master only.
 
 **Round 3 re-check — `holds`** (Fable, same session). Re-traced every `CreateSubQuery = true` entry point against f550159e9: the branch choice is made before the lowering, so `ContextRefBuilder` is only reached with the flag clear and returns the probe directly; no intermediate builder sets it. Pending, not a defect: the container-provider matrix has not run on f550159e9.
 
